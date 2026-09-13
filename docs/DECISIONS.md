@@ -326,3 +326,13 @@ impact (positive and negative), alternatives considered.
 - **Impact (+):** Simplified bootstrap; `main` starts with the full documented state; no throwaway branch.
 - **Impact (−):** The one commit that skips the feature-branch flow is the largest (the whole scaffold) — mitigated because it is the root, reviewed by the owner before creation.
 - **Alternatives considered:** Keep the `chore/bootstrap` branch (recorded plan, but adds no review value over a reviewed root commit — superseded); split the scaffold across multiple bootstrap commits (rejected — history would pretend the scaffold grew incrementally when it did not).
+
+## D-032 Reconciliation fixes gated before M1
+
+- **Date:** 2026-09-13
+- **Decision:** The documentation-hygiene drifts found during the AGENTS §14 reconciliation were fixed on a dedicated `docs/` branch before any Milestone 1 code: duplicate decision IDs renumbered, appsettings-gitignore doc claims realigned with the actual rule, PROGRESS.md history gap filled.
+- **Rationale:** Decision-ID collisions corrupt traceability — a REQUIREMENTS.md row or viva citation can point at two different decisions under one ID, or at none. Stale claims about a `!appsettings.json` negation would mislead anyone debugging the config flow.
+- **Implementation details:** The three tail entries of DECISIONS.md collided with earlier IDs; renumbered to D-029 (template-negation draft), D-030 (single canonical location), D-031 (root-commit draft). The canonical root-commit entry stays D-028. Cross-references corrected in PROGRESS.md, DEV_LAUNCH.md, TODO.md (AGENTS.md already pointed at the canonical D-028 and needed no change; verified by re-grep). DEV_LAUNCH §3 and D-021/D-027 corrected to the actual rule (`appsettings*.json` ignored, only `!appsettings.template.json`). PROGRESS.md gained the missing `9537d46` entry.
+- **Impact (+):** M1 starts from a clean, unambiguous, traceable doc state.
+- **Impact (−):** None — doc-only changes, no application code.
+- **Alternatives considered:** Fixing the drifts silently inside M1 commits (rejected — conflates doc hygiene with feature work); deferring until the viva (rejected — traceability is a live artifact that must stay current).

@@ -2,6 +2,20 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-13 08:22 — reconciled: 3 findings
+
+Findings (all pre-existing, none blocking M1):
+1. **Git history vs PROGRESS lag:** `git log` shows 2 commits on main — `73787bb` (root scaffold) and `9537d46` ("docs: point DEV_LAUNCH/USER_MANUAL references at docs/; add B-006 blocker", 2026-09-13 08:16). PROGRESS.md CURRENT STATE + last handoff reference only `73787bb`. No orphaned `[~]` tasks; `9537d46` is consistent with D-028/D-031/B-006 already logged.
+2. **Gitignore/doc drift:** `.gitignore` line 44–45 ignores `appsettings*.json` then negates `!appsettings.template.json` only — the `!appsettings.json` base-config negation described in DEV_LAUNCH §3 and D-021 is NOT present (reality matches D-027, which is the later decision). DEV_LAUNCH §3's "appsettings.json is committed" parenthetical is inaccurate.
+3. **DECISIONS.md duplicate IDs:** D-027 appears twice (template negation), D-028 twice (second entry is actually "Single Canonical Location for Docs Instructions"), and "D-029 Root commit goes directly on main" duplicates the first D-028's content. Needs renumber/cleanup.
+
+State summary follows below; awaiting owner "go".
+
+## 2026-09-13 — Docs Path Fix + Reconciliation
+- Commit 9537d46: DEV_LAUNCH/USER_MANUAL references repointed at docs/; B-006 blocker added.
+- Reconciliation (§14) run: 3 pre-existing drifts found.
+- Fixed under this branch: duplicate decision IDs, appsettings doc drift, PROGRESS.md gap.
+
 ### Session Handoff — 2026-09-13 07:06
 Branch: main (no commits yet — everything untracked)
 Status: In-Progress (scaffold done; awaiting owner approval to commit bootstrap)
