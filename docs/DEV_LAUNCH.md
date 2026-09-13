@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). [Windows: TBD]
+**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -102,13 +102,17 @@ If warnings appear, treat them as errors — this project enforces zero-warning 
 
 **Linux / macOS:**
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
+dotnet run --project src/OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
 
 **Windows (PowerShell):**
 ```powershell
-dotnet run --project src\OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
+dotnet run --project src\OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
+
+Since Milestone 2 the CLI is a subcommand dispatcher: `simulate-params`,
+`verify`, `fit`, `simulate-data`, `export` (§7). `simulate-params` is the
+Milestone-1 command (bare flags after it).
 
 Expected output (Milestone 1, verified 2026-09-13): a metrics table ending with
 `ρ = λ/(c·μ)              :     0.75` and exit code 0 (average wait ≈ 0.72 min
@@ -123,7 +127,7 @@ Exit codes: `0` run completed · `1` refused to run (unstable ρ ≥ 1) · `2` b
 Unstable example (refuses, exit 1). The refusal is one clean line on stderr —
 no stack trace (D-037); the full exception is written to `logs/errors-YYYYMMDD.log`:
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- --lambda 5 --mu 4 --servers 1 --horizon 1000
+dotnet run --project src/OpdSimulator.Cli -- simulate-params --lambda 5 --mu 4 --servers 1 --horizon 1000
 # exit code 1; stderr shows exactly:
 #   Refusing to run: stage 'Stage 0 (single-stage)' is unstable — ρ = 1.25 (≥ 1) with λ = 5.000, c = 1, μ = 4.000. The queue would grow without bound; lower the arrival rate or add servers.
 ```
@@ -160,32 +164,68 @@ does not, see **Troubleshooting** below.
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-13 **37 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-13 **97 tests pass**:
 - `OpdSimulator.Core.Tests` (36) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace.
-- `OpdSimulator.Cli.Tests` (1) — CLI refusal: exit 1, clean stderr without a stack trace,
-  full exception in the file-detail logger (D-037).
+- `OpdSimulator.Data.Tests` (55) — Excel/CSV loaders, TimeParser, validator (per-row issues),
+  preprocessing (inter-arrival/service/p_exit), all 5 fitters, chi-square (accept/reject/k
+  bounds), parameter-mode warnings, export, committed fixtures (samples + dirty file).
+- `OpdSimulator.Cli.Tests` (6) — `simulate-params` refusal (clean stderr, no stack, exit 1,
+  D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
+  `simulate-data` multi-server sweep; non-exponential refusal, exit 2.
 
-`OpdSimulator.Data.Tests` is still an intentionally empty placeholder (noted as
-`No test is available` — harmless, exits 0).
+Default seed 42 is used for reproducibility in every test and demo command.
 
 ---
 
-## 7. Headless Mode (for CI and demos without a display)
+## 7. Headless Mode (data-driven commands, since Milestone 2)
 
-Since Milestone 1, the CLI is the headless path, driven by rates rather than data:
+The CLI is a subcommand dispatcher. Run `dotnet run --project src/OpdSimulator.Cli -- <command>`.
+Each command prints to **stdout** and also logs to `logs/app-YYYYMMDD.log` / `logs/errors-YYYYMMDD.log`.
 
+### 7.1 `simulate-params` — rate-driven simulation (Milestone-1 path)
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
+dotnet run --project src/OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
+The M1 metrics table; see §5. Refuses unstable runs (ρ ≥ 1) with a clean line on stderr, exit 1.
 
-Prints the metrics table and `ρ = λ/(c·μ)` to stdout (see §5). Unstable
-configurations are refused with a clear message and exit code 1.
+### 7.2 `verify —file <path>` — validate an uploaded file
+```bash
+dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_patients.csv
+# File is valid: 60 row(s), 1 service stage pair(s).   → exit 0
 
-> **Planned (Milestone 2):** the data-driven form
-> `dotnet run --project src/OpdSimulator.Cli -- --input samples/sample_patients.xlsx --days 1`
-> — loads data, fits distributions, runs chi-square, prints metrics + goodness-of-fit.
-> Simulated-M/M-c validation output (`validation_report.txt`) also lands via this path.
+dotnet run --project src/OpdSimulator.Cli -- verify --file tests/OpdSimulator.Data.Tests/Fixtures/dirty_missing.xlsx
+# one line per issue, then "Validation failed: 5 issue(s)…"   → exit 1
+```
+Validates against FR-DATA-1..9: required columns, valid times, monotonic arrivals,
+per-stage `start ≤ end`, `departure_stage ∈ {Screening, Doctor}` (case-insensitive),
+blank rows. Every issue names its row; exit 0 = clean, 1 = dirty.
+
+### 7.3 `fit --file <path> [--family exponential|normal|lognormal|gamma|uniform] [--stage all|screening|doctor]` — fit + goodness-of-fit (default family exponential, all stages)
+```bash
+dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_patients.csv --stage all
+```
+Fits the chosen distribution (MLE/MoM — D-041/D-043) to inter-arrival times and
+to service times of each detected stage; prints fitted params, log-likelihood,
+AIC, Pearson chi-square (equal-probability bins, D-040) with df and p, and a
+Reject/Accept verdict at α = 0.05; then `p_exit` (FR-DATA-6). Writes a JSON
+report (for SPSS-style recheck) to `logs/fit-YYYYMMDD-HHMMSS.json`.
+
+### 7.4 `simulate-data --file <path> [--servers 1,2,3] [--seed 42] [--horizon 10000]` — fit then simulate, sweeping servers
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-data --file samples/sample_patients.csv --servers 1,2,3 --seed 42 --horizon 10000
+```
+`λ = 1/mean(inter-arrival)`, `μ = 1/mean(service)` on the first detected stage
+(details printed). Runs one full M1 engine simulation per server count and prints
+a metrics block each (patients served, average wait, ρ). Unstable counts are
+refused per-count with no stack trace; exit 0 if at least one run completed.
+Only `exponential` is accepted in M2 (other families: clean refusal, exit 2).
+
+**Verified 2026-09-13 on `samples/sample_patients.csv` (seed 42):** λ = 0.562/min
+(mean inter-arrival 1.78 min), μ = 0.69/min (mean service 1.45 min, stage
+`screening`); ρ/avg-wait = 0.81/5.1 min (c=1), 0.41/0.23 min (c=2), 0.27/0.04 min
+(c=3). The mean inter-arrival is ~1.78 min vs the generator's 2.0 — sampling
+variation of the deterministic seed 42 (SE ≈ 0.26).
 
 ---
 
@@ -202,10 +242,13 @@ opd-simulator/
 ├── appsettings.json            # local config (created by the §3 copy step)
 ├── docs/                       # PRD, CONTEXT, DECISIONS, TODO, PROGRESS, BLOCKERS,
 │                               # DEV_LAUNCH (this file), USER_MANUAL, REQUIREMENTS
-├── scripts/                    # run.sh, run.ps1 (invoke the App at M5)
+├── scripts/
+│   ├── run.sh, run.ps1             # invoke the App at M5
+│   ├── make-sample-data.sh          # regenerate the sample + fixture files
+│   └── sample-data-generator/       # standalone console app (NOT in the sln)
 ├── samples/
-│   ├── .gitkeep
-│   └── sample_patients.xlsx    # NOT YET ADDED (owner; see BLOCKERS B-004)
+│   ├── sample_patients.xlsx         # committed demo data (generator, seed 42)
+│   └── sample_patients.csv          # committed twin for terminal workflows
 ├── src/
 │   ├── OpdSimulator.Core/      # simulation engine (no UI)
 │   ├── OpdSimulator.Data/      # Excel/CSV loader, fitting
@@ -217,8 +260,9 @@ opd-simulator/
     └── OpdSimulator.Data.Tests/
 ```
 
-> `samples/sample_patients.xlsx` will be added by the owner later (BLOCKERS B-004).
-> The `samples/` folder is kept in git via `.gitkeep`.
+> `samples/sample_patients.xlsx` and `.csv` are committed and regenerable via
+> `scripts/make-sample-data.sh` (deterministic, seed 42). Dummy data only —
+> never commit real patient data (§ .gitignore).
 
 ---
 
@@ -262,9 +306,10 @@ no surprises.**
 - [ ] `dotnet restore OpdSimulator.sln` (while internet is available).
 - [ ] `dotnet build -c Release` (verify zero warnings).
 - [ ] `dotnet test` (verify all pass).
-- [ ] Confirm `samples/sample_patients.xlsx` exists and loads.
+- [ ] Confirm `samples/sample_patients.csv` and `.xlsx` exist and load:
+      `dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_patients.csv` (exit 0).
 - [ ] Delete `bin/`/`obj/` once more and re-run `DEV_LAUNCH.md` §3–§5 to prove the dead-state path.
-- [ ] Take a **screen recording** of a full successful run as fallback.
+- [ ] Record a full session covering `verify → fit → simulate-data --servers 1,2,3` as fallback.
 - [ ] Copy the repo (as a `.zip`, including `obj/` with restored packages) to a USB stick as a second fallback.
 
 ### 10.2 On Demo Day (Offline Mode)
@@ -327,7 +372,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
-| 2026-09-13 | FIX (fix/cli-clean-refusal): CLI refusal prints one clean line to stderr, no stack trace (D-037); exception+stack logged to file only; new `OpdSimulator.Cli.Tests` project added to solution (§6/§8); F3 example shows clean output (§5) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — F3 verified: stderr single line, exit 1; 37 tests green; F2 unchanged |
+| 2026-09-13 | M2: CLI is a subcommand dispatcher — `simulate-params` (renamed M1 form), `verify`, `fit`, `simulate-data` (server sweep), `export` (§5/§7); Data layer lands (loaders, validator, preprocessing, fitters, chi-square); sample files committed + regenerable via `scripts/make-sample-data.sh` (§8); 97 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test pass, 0 warnings; verify/fit/simulate-data/export live-run verified, exit codes observed |
 | 2026-09-13 | M1: CLI takes `--lambda/--mu/--servers/--horizon/--seed`, prints metrics + ρ, exits 0/1/2 (§5); tests exist (34 green, §6); headless mode updated to the rate-driven form, M2 data form noted (§7); Serilog.Sinks.File 7.0.0 + Core Serilog 4.4.0 + ProjectReferences noted (§3) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test + M1 CLI F2/F3 all pass, 0 warnings |
 | 2026-09-13 | File created (starter template); OS corrected to Ubuntu 24.04 | Not yet verified |
 | 2026-09-13 | Added §11 Resuming Work After a Session Ends (renumbered Changelog → §12) | Not yet verified |

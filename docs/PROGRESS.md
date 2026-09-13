@@ -2,6 +2,62 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 10:12
+Branch: feat/milestone-2-data-and-fitting
+Status: Clean (3 commits, not yet pushed; awaiting owner review — do not merge)
+
+Done
+- [x] M2 sub-blocks A–F: Data layer project (loaders, DataValidator, preprocessing, 5 fitters, chi-square, parameter modes, exporter; 52 Data tests green)
+- [x] M2 sub-block G: CLI subcommand dispatcher (`simulate-params`, `verify`, `fit`, `simulate-data`, `export`; 5 new CLI tests green)
+- [x] M2 sub-block H: `scripts/sample-data-generator` + `make-sample-data.sh`; committed `samples/sample_patients.xlsx`/`.csv` + dirty fixture; `.gitignore` negation
+- [x] M2 sub-block I (Ubuntu half): dead-state Release build (0 warnings) + full suite (97) + live command verification (verify exit 0/1, fit + fit JSON, simulate-data sweep 0.81/0.41/0.27, export) + M1 regression (ρ 0.75, wait 0.724)
+- [x] M2 sub-block J (docs): DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7 (Loading Real Data) + renumber; REQUIREMENTS 50.0% (23/46); DECISIONS D-045..D-047; VIVA_ANSWERS 6 entries; BLOCKERS B-004 → Resolved; TODO rows
+
+In Progress
+- (none — final `dotnet build`/`dotnet test` re-check before the docs commit is the last step of J)
+
+What is complete:
+Milestone-2 data path end-to-end on `feat/milestone-2-data-and-fitting`. Data: `DataLoaderFactory`/`ExcelLoader` (ClosedXML)/`CsvLoader` (CsvHelper)/`DataSet`; `TimeParser`; `StagePairDetector` (N-stage generic); `InterArrivalCalculator`; `ServiceTimeCalculator`; `PExitCalculator` (Reception excluded); `DataValidator` (per-row issues, strict Screening/Doctor — D-038); 5 fitters + factory (MLE; gamma MoM D-041; σ denom n D-043); `BinSelector` k=⌈√n⌉∈[5,20]; `ChiSquareTest` (equal-probability bins D-040, fail-loud guards D-044, CDF delegates D-042); `ModeValidator` soft warnings; `DataExporter`. CLI: dispatcher on args[0] (D-046); `fit` writes `logs/fit-*.json`; `simulate-data` sweeps servers, per-count refusal, exit 0 if any ran. Samples: deterministic seed-42 generator (D-047) → 60-row sample (Exp λ=0.5 / Exp μ=0.666…; all exit Screening ⇒ p_exit 1.0) + 1-defect-per-row dirty fixture; B-004 Resolved. Tests: 97 green (36 Core + 6 CLI + 55 Data), 0 warnings. Commits: 99cf03b (data layer), 3490cff (decisions D-038..D-044), 148d624 (CLI rework), 52b5ddf (generator + samples + fixtures). Push pending owner review.
+
+What remains:
+Owner review + merge of this branch into `main`. Milestone-3 (multi-stage network with p_exit routing, clinic calendar). Linux half of sub-block I is verified; Windows dead-state (B-006) remains gated. `scripts/verify-traceability.sh` still to be created.
+
+Next Session Should Start With
+- Await owner merge; then M3 (engine multi-stage wiring + routing from PExit, per-stage ρ refusal FR-VAL-1/FR-STAT-6, clinic hours)
+- `scripts/verify-traceability.sh` orphan-check script
+Blocked
+- None active (B-005 Avalonia template, B-006 Windows dead-state are pending, not blocking)
+
+Git State
+Commits made this session: 99cf03b (feat: data project), 3490cff (docs: M2 decisions D-038..D-044), 148d624 (feat: CLI subcommands), 52b5ddf (feat: deterministic sample data + dirty fixture). Docs-pass commit follows this handoff.
+Pushed to origin: No (branch created from main e722f04; push blocked until owner review — per §13 rules, awaiting approval)
+Uncommitted changes: this PROGRESS handoff + the rest of the docs pass (DEV_LAUNCH/USER_MANUAL/REQUIREMENTS/DECISIONS/VIVA_ANSWERS/BLOCKERS/TODO edits) — to be committed as one `docs:` commit
+
+Build & Test
+dotnet build: PASS (0 warnings, Release)
+dotnet test: PASS — 97 passed, 0 failed (36 Core + 6 Cli + 55 Data)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Data/...: added (Loaders, Preprocess, Validation, Fitting, Parameters, Export, csproj + MathNet 5.0.0)
+src/OpdSimulator.Cli/...: added Commands/*; modified Program.cs, csproj (Data ref), Loggers
+tests/OpdSimulator.Data.Tests/...: 7 test files + FixtureTests + Fixtures/dirty_missing.xlsx (55 tests)
+tests/OpdSimulator.Cli.Tests/...: CliDataCommandTests (5); CliRefusalTests updated
+samples/: sample_patients.xlsx + .csv (committed)
+scripts/: sample-data-generator/ + make-sample-data.sh
+docs/...: modified DEV_LAUNCH, USER_MANUAL, REQUIREMENTS, DECISIONS, VIVA_ANSWERS, BLOCKERS, TODO, PROGRESS
+.gitignore: negates the sample CSV
+
+Decisions Made
+- D-045 Sample CSV committed via .gitignore negation (samples/sample_patients.xlsx|.csv)
+- D-046 CLI subcommand dispatcher (simulate-params/verify/fit/simulate-data/export; server sweep)
+- D-047 Sample data + dirty fixture generated deterministically (seed 42), not hand-written
+Assumptions Added/Changed
+- B-004 (waiting for real sample) → Resolved: project proceeds with the generated stand-in; real clinic data remains a drop-in at the same path (CONTEXT §5.5 format unchanged).
+Notes for Next Session
+- The unfitched docs commit must include everything in the handoff. Do not force-push; do not merge; report for owner review.
+- `samples/sample_patients.csv` verified λ-hat 0.562 (mean 1.78 min) — sampling variation of seed 42, explained in VIVA_ANSWERS.
+
 ## Resume — 2026-09-13 09:37 — reconciled: 3 findings
 
 1. **fix/cli-clean-refusal merged into `main`** (`e722f04 merge: clean CLI refusal output`): the PROGRESS top entry still says "awaiting owner review; do not merge". Reality wins — the clean-refusal fix (D-037) is on main. Next M2 branch must start from this main.
@@ -318,5 +374,5 @@ Fit `Distribution` holds CDF/InverseCDF delegates (MathNet's IContinuousDistribu
 exposes no CDF — captured from the concrete type at construction).
 Surfaced conflict: validator strictly rejects departure_stage ∉ {Screening, Doctor}
 (incl. Reception) per kickoff B1 — stricter than CONTEXT §5.4 warn-and-exclude.
-Logged as the M2-D-validator-stage decision in DECISIONS.md (plugin author to confirm
-which behaviour the CLI must have).
+Logged as D-038 in DECISIONS.md (which behaviour the CLI must have is settled:
+strict).

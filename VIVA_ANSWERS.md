@@ -64,3 +64,20 @@ A: `Server.Utilisation(operatingTime)` returns busy-time / operating-time and
 `Debug.Assert`s the result into [0, 1]; `Engine.Run` calls it per server for the
 result object. Operating time is defined as first arrival (t=0) to last service
 end — the FEL draining past the horizon makes `clock` exactly that (D-017).
+**Q: Why did inter-arrival fitting recover λ = 0.562 when the sample generator used λ = 0.5?**
+A: The generator (D-047) draws exponential gaps with rate 0.5 from seed 42, but 59 gaps over 60 patients happen to average 1.78 min rather than 2.0 — sampling variation; the standard error of the mean gap is about 0.26, so the observed mean is within 1 SE. The MLE is just λ̂ = 1/x̄, so it inherits the sample mean by construction. This is exactly why the chi-square verdict (even a "reject") must be reported with its p-value rather than trusted as a reproduction of the ground truth — and why the generator is seeded and scripted: the numbers are reproducible in the viva.
+
+**Q: Why is departure_stage = "Reception" rejected as an error, when CONTEXT §5.4 said warn-and-exclude?**
+A: The kickoff (2026-09-13, B1) insisted departure_stage be strictly Screening/Doctor; CONTEXT §5.4's Reception handling predates that and never reachable in the M2 file (the model has one screening stage). Rather than average two contradicting specs, the validator is strict (D-038) and p_exit correctly excludes Reception via `PExitCalculator` wherever such data might appear. The contradiction is logged so the GUI never re-introduces it silently.
+
+**Q: Why does the chi-square use equal-probability bins and df = k − 1 − p?**
+A: Equal-probability bins (edges at fitted quantiles i/k) give each bin roughly the same expected count, which maximises power for the χ² statistic; k = ⌈√n⌉ clamped to [5, 20] follows the rule-of-thumb and is auto-chosen (FR-STAT-3, D-040). df subtracts k−1 degrees naturally plus p fitted parameters (1 for exponential, 2 for normal/lognormal/gamma), so the p-value is honest about the fact that the parameters came from the sample. Guards reject the test when an expected count < 1 or df < 1 rather than print a meaningless p (D-044).
+
+**Q: How does simulate-data decide λ and μ, and what does its exit code mean?**
+A: λ = 1/mean(inter-arrival) and μ = 1/mean(service) over the first detected stage (prints the stage name and both means). It then runs one full engine per `--servers` value from `1,2,3`. Each count is refused independently if its ρ ≥ 1 (one clean line, exit code recorded), and the command exits 0 if at least one count ran — so a sweep with a couple of unstable counts still gives useful results without a wall of stack traces (D-046).
+
+**Q: Why is manual hand calculation of the ground truth needed when SPSS exists?**
+A: SPSS validates our numbers (parameter estimates, chi-square p-values) but the simulator must be self-contained — the viva asks "does your code reproduce textbook values?" not "does a tool you bought agree?" Hence the engine is validated against analytical M/M/1 (D-035 test) and the data layer is cross-checkable against SPSS via the exported fit JSON (D-046).
+
+**Q: Why does verify print every issue instead of stopping at the first?**
+A: Stopping at the first error forces the user into a fix-reupload refix loop. Reporting all issues (one per row, with column name and reason) lets the file be cleaned in a single pass — and the dirty fixture proves it names rows 2–6 in order, with the clean row 1 never flagged (FixtureTests).
