@@ -12,6 +12,7 @@ Last updated: 2026-09-13
 > updated with Source + Test.
 
 ## Active
+- [x] M3 sub-block A: engine N-stage generalisation (StageSpec/Stage/NetworkTopology, `Run(topology, seed, horizon)`, StageMetrics, p_exit routing via existing EventType mapping) + latent server-assignment fix (random-among-idle, D-050) + byte-for-byte M1 regression (served 29892 / wait 0.724 / ρ 0.75) — 2026-09-13 (D-049/D-050; 114 tests green, 0 warnings; on feat/milestone-3-multi-stage-network)
 - [x] Pre-M2 fix: CLI refusal prints one clean stderr line; stack trace to file logs only — 2026-09-13 (Program.cs refactored to testable `Program.Run`; `UnstableSystemException` prefix removed; tests/OpdSimulator.Cli.Tests added; DEV_LAUNCH §5/§6/§8 + DECISIONS D-037 updated; 37 tests green; committed 5b0d4c4 and pushed to origin/fix/cli-clean-refusal, awaiting owner merge)
 - [x] M2 sub-block A–F: Data layer project (loaders, DataValidator, preprocessing, 5 fitters, chi-square, parameter modes, exporter) — 2026-09-13 (52 Data tests green on feat/milestone-2-data-and-fitting; commits 99cf03b, 3490cff; FR-DATA-1..9 all tested via LoaderTests/ValidatorTests/FitterTests/ChiSquareTests/ModeValidatorTests)
 - [x] M2 sub-block G: CLI subcommand dispatcher (`simulate-params`, `verify`, `fit`, `simulate-data`, `export`) — 2026-09-13 (5 CliDataCommandTests green; CliRefusalTests retargeted; commit 148d624; FR-STAT-1/3 CLI path; D-046)
@@ -41,7 +42,7 @@ Last updated: 2026-09-13
 - [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite)
 - [ ] Implement clinic calendar (hours 8:15–11:00, closed Fri/Sun, daily cap, run-mode × horizon per D-009)
 - [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036 — FR-VAL-4 is `[x]` in REQUIREMENTS.md; the human-readable trace file + 5-patient hand trace remain from this row)
-- [ ] Engine: assign patient to random idle server (log the policy)
+- [x] Engine: assign patient to random idle server (log the policy) — 2026-09-13 (IRandomServerSelectionPolicy D-050; RandomIdleSelection default, LowestIdSelection test-only; balance + negative regression tests green)
 - [ ] Statistics: track per-server busy time, compute per-server + stage-level utilisation
 - [ ] Statistics: flag imbalance when max−min utilisation > 0.15 (both simulated + historical)
 - [ ] Loader: parse optional server-ID columns for historical validation only

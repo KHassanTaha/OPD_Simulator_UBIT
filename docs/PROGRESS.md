@@ -2,6 +2,26 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block A: engine N-stage generalisation + server-assignment latent-bug fix — 2026-09-13 (feat/milestone-3-multi-stage-network)
+First commit on the branch cleared the stale M2 `[~]` TODO row (`8d26fa6`,
+message per kickoff). Then the engine became network-capable without a rewrite:
+new `Core/Stages/{StageSpec,Stage,NetworkTopology}` and `Engine.Run(NetworkTopology,
+seed, horizon)`; `SimulationResult.StageMetrics[]`; `Patient.SystemArrivalTime` +
+`AdvanceToStage`; `UnstableSystemException` now lists ALL unstable stages
+(`UnstableStage` payload). Routing uses the existing EventType mapping (stage i →
+completion event i+1, D-006), and draws a uniform against p_exit only at the exit
+stage (FR-SIM-3). Latent M1 bug fixed (D-017 vs actual FirstOrDefault code):
+idle assignment is now `IServerSelectionPolicy` — `RandomIdleSelection` (default;
+no draw when a single server is idle → single-server stream untouched) and test-only
+`LowestIdSelection`. Byte-for-byte M1 guarded two ways: Core test
+(`Run_SingleStage_ByteForByteRegression`) and a CLI test asserting the exact
+simulate-params output lines (served 29892, wait 0.724, ρ 0.75). Balance regression
+uses a low-load 2-server stage (λ=2, μ=4, c=2): random-diff < 0.10, lowest-ID-diff
+≥ 0.10. Test infra fix: CLI tests share the static Serilog global, so the assembly
+is now `CollectionBehavior(DisableTestParallelization)` (was a latent race — new
+second CLI class tripped it). 114 tests green (51 Core + 7 Cli + 56 Data),
+0 warnings. Decisions D-049 (NetworkTopology generalisation), D-050 (server fix).
+
 ### M2.5 Sample data precision fix — 2026-09-13 (fix/sample-data-precision)
 Owner's smoke test found chi-square rejecting the sample's exponential fit at p ≈ 0
 for inter-arrival AND service. Root cause: the sample stored whole minutes
