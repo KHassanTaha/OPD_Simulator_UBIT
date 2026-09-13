@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpdSimulator.Core\OpdSimulator.Core.csproj" />
+    <ProjectReference Include="..\OpdSimulator.Data\OpdSimulator.Data.csproj" />
   </ItemGroup>
 
 </Project>
