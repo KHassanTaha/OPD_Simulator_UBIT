@@ -14,9 +14,9 @@ Done
 - [x] FIX: wait/system accumulation `long`→`double` (E7 exposed 0.41 vs analytical 0.75; now 0.724)
 
 In Progress
-- Implement event log and step-by-step trace (viva trace file) — the engine's Debug event trace is live
-  (D-036, FR-VAL-4 left `[~]` in REQUIREMENTS.md); the human-readable trace file + 5-patient hand
-  trace are the next trace tasks.
+- Implement event log and step-by-step trace (viva trace file) — the engine's Debug event trace is
+  live and FR-VAL-4 is `[x]` (review fix, EventTraceTests); the human-readable trace file +
+  5-patient hand trace remain from this row.
 
 What is complete:
 Milestone 1 end-to-end on `feat/milestone-1-single-stage-engine` (commits 0a87fa0, fef6d01, 30b7771,
@@ -28,9 +28,10 @@ draining past it, Debug event trace). CLI: full arg parsing + Serilog three-sink
 table + ρ, exit codes 0/1/2. Tests: 34/34 green including same-seed determinism, M/M/1
 average-wait 15% bound, and stability refusal; dead-state restore/build/test re-verified in
 Release with 0 warnings. F2 (λ=3, μ=4): ρ=0.75, wait 0.724. F3 (λ=5, μ=4): refused, ρ=1.25,
-exit 1. Docs updated: TODO, DECISIONS (D-033..D-036), REQUIREMENTS (9 rows `[x]`, FR-VAL-4 `[~]`,
-coverage 0%→19.6%), DEV_LAUNCH (§3/§5/§6/§7 + changelog), USER_MANUAL (§3 CLI path),
-VIVA_ANSWERS (M1 entries). Decisions D-033..D-036 logged.
+exit 1. Docs updated: TODO, DECISIONS (D-033..D-036), REQUIREMENTS (10 rows `[x]` incl. FR-VAL-4,
+coverage 21.7%), DEV_LAUNCH (§3/§5/§6/§7 + changelog), USER_MANUAL (§3 CLI path),
+VIVA_ANSWERS (M1 entries). Decisions D-033..D-036 logged. Review fix: EventTraceTests added and
+FR-VAL-4 promoted to `[x]` (36/36 tests green).
 
 What remains:
 Owner review + merge of this branch into `main`; then M2 (data loading & distribution fitting) —
@@ -75,9 +76,9 @@ Assumptions Added/Changed
 None new — existing CONTEXT assumptions unchanged; no `[UNVERIFIED]` created this session.
 
 Notes for Next Session
-- Branch not pushed; owner must review/merge before M2 starts (AGENTS §11.4).
-- FR-VAL-4 intentionally `[~]`, not `[x]`: the Debug event trace exists but lacks its
-  human-readable trace file + hand-trace test (both tracked in TODO).
+- Branch pushed to origin on owner approval; owner review in progress — do NOT start M2 until merged.
+- FR-VAL-4 promoted to `[x]` on review (EventTraceTests added); the human-readable trace file + 5-patient
+  hand trace remain tracked in TODO (not FR-VAL-4's PRD scope).
 - FR-SIM-1 marked `[x]` with the interpretation noted in its REQUIREMENTS row (generic engine
   in place; 3-stage config is M3) — flagged pre-go in the resume line, owner approved.
 - FR-SIM-5 `[x]` covers the M1 arrival-generation gate; the true clinic calendar

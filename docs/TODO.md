@@ -34,7 +34,7 @@ Last updated: 2026-09-13
 - [ ] Implement rate-wise / mean-wise toggle + manual λ override
 - [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite)
 - [ ] Implement clinic calendar (hours 8:15–11:00, closed Fri/Sun, daily cap, run-mode × horizon per D-009)
-- [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036/FR-VAL-4; human-readable trace file + 5-patient hand trace pending; see FR-VAL-4 in REQUIREMENTS.md)
+- [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036 — FR-VAL-4 is `[x]` in REQUIREMENTS.md; the human-readable trace file + 5-patient hand trace remain from this row)
 - [ ] Engine: assign patient to random idle server (log the policy)
 - [ ] Statistics: track per-server busy time, compute per-server + stage-level utilisation
 - [ ] Statistics: flag imbalance when max−min utilisation > 0.15 (both simulated + historical)

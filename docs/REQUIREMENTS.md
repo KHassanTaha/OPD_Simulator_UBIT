@@ -67,7 +67,7 @@ PRD.md wins.
 | FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Engine/{EngineConfig,UnstableSystemException}.cs, src/OpdSimulator.Cli/Program.cs | StabilityTests | D-034 |
 | FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [x] | src/OpdSimulator.Core/Servers/Server.cs, Engine/Engine.cs | ServerTests (Utilisation_StaysWithinUnitInterval), EngineTests | — |
 | FR-VAL-3 | Random seed (default 42, logged) | [x] | src/OpdSimulator.Core/Distributions/SeededRandomSource.cs, Engine/Engine.cs | SeededRandomSourceTests, EngineTests.Run_SameSeed | D-035 |
-| FR-VAL-4 | Event log with all state + RNG draws | [~] | src/OpdSimulator.Core/Engine/Engine.cs (Debug trace live) | pending — human-readable trace file + 5-patient hand trace (TODO) | D-036 |
+| FR-VAL-4 | Event log with all state + RNG draws | [x] | src/OpdSimulator.Core/Engine/Engine.cs (Debug trace) | EventTraceTests (in-memory Serilog sink) | D-036 |
 | FR-VAL-5 | (Stretch) N replications + CI | [ ] | — | — | — |
 
 ## Functional Requirements — Token Generator
@@ -94,19 +94,22 @@ PRD.md wins.
 ## Coverage Summary
 
 - Total requirements: 46
-- `[x]` DONE: 9
-- `[~]` IN PROGRESS: 1
+- `[x]` DONE: 10
+- `[~]` IN PROGRESS: 0
 - `[ ]` TODO: 36
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 19.6% (9/46)
+**Coverage:** 21.7% (10/46)
 
-> M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3 and
-> NFR-4 DONE. FR-VAL-4 left `[~]`: the Debug event trace exists in
-> Engine.cs but its human-readable trace file + hand-trace verification are
-> still pending (TODO rows). FR-SIM-5's clinic-calendar hours (8:15→11:00,
-> closed Fri/Sun) are M3/M4; M1 implements the arrival-generation gate.
+> M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
+> NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
+> now `[x]` backed by EventTraceTests (in-memory Serilog sink asserting event-line
+> state + RNG draws). The human-readable viva trace file and 5-patient hand trace
+> are separate TODO rows, not FR-VAL-4's scope (PRD: "event log records every
+> event with time, type, patient ID, queue lengths, server status, and RNG draws").
+> FR-SIM-5's clinic-calendar hours (8:15→11:00, closed Fri/Sun) are M3/M4; M1
+> implements the arrival-generation gate.
 
 ---
 
@@ -131,4 +134,5 @@ but no source or test.
 |------|--------|
 | 2026-09-13 | Initial matrix created from PRD v1.3.0 |
 | 2026-09-13 | Bidirectional rule (AGENTS §9.7) applied — matrix audited against PRD v1.3.0; zero orphan rows; D-025 logged |
-| 2026-09-13 | M1: FR-SIM-1/2/3/5/6, FR-VAL-1/2/3, NFR-4 marked `[x]` with Source + Test + Decision; FR-VAL-4 marker `[~]` (trace file pending). Coverage 0% → 19.6% |
+| 2026-09-13 | M1: FR-SIM-1/2/3/5/6, FR-VAL-1/2/3, NFR-4 marked `[x]` with Source + Test + Decision |
+| 2026-09-13 | Review fix: FR-VAL-4 promoted `[~]`→`[x]` with EventTraceTests (review note "mark it [x] with source + test filled"); coverage now 21.7% |
