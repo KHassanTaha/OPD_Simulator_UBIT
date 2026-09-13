@@ -294,7 +294,7 @@ impact (positive and negative), alternatives considered.
 - **Impact (−):** None material — the root commit is the only exception; all later branches follow §11.2.
 - **Alternatives considered:** Create `chore/bootstrap` and PR-merge the root (no base exists — rejected); keep the file at root (rejected by owner — archive it in `docs/agent-prompts/`).
 
-## D-027 appsettings.template.json Committed via Negation
+## D-029 appsettings.template.json Committed via Negation
 
 - **Date:** 2026-09-13
 - **Decision:** Keep `appsettings.template.json` committed by adding `!appsettings.template.json` after the `appsettings.*.json` ignore pattern in .gitignore.
@@ -307,7 +307,7 @@ impact (positive and negative), alternatives considered.
   (b) Leave template ignored — rejected: forces manual config creation on every fresh clone, breaks the dead-state promise.
 - **Impact:** .gitignore config section grows by one line. DEV_LAUNCH.md §3 gains a single copy step. No code impact.
 
-## D-028 Single Canonical Location for Docs Instructions
+## D-030 Single Canonical Location for Docs Instructions
 
 - **Date:** 2026-09-13
 - **Decision:** Each instruction in DEV_LAUNCH.md and USER_MANUAL.md has one canonical location. Duplicates are consolidated and replaced with cross-references.
@@ -315,7 +315,7 @@ impact (positive and negative), alternatives considered.
 - **Alternatives:** (a) Keep both — rejected: guaranteed drift. (b) Delete both, put in a separate file — rejected: over-splitting.
 - **Impact:** DEV_LAUNCH §3 consolidated. New rule added to AGENTS.md §10.7. Agents must grep before marking docs tasks done.
 
-## D-029 Root commit goes directly on `main`
+## D-031 Root commit goes directly on `main`
 
 - **Date:** 2026-09-13
 - **Decision:** The repository's very first commit (bootstrap: AGENTS.md, docs/, global.json, scripts/, README, solution scaffold, appsettings.template.json) goes directly on `main` as the root commit. All subsequent changes use short-lived feature branches per AGENTS §11.2. Supersedes the `chore/bootstrap` branch plan recorded in D-020's implementation details.
