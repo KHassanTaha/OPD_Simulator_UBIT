@@ -2,6 +2,82 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 08:30
+Branch: docs/reconcile-decisions-and-paths
+Status: Clean (pushed to origin, awaiting review — do NOT merge without approval)
+
+Done
+- [x] FIX: renumber duplicate decision IDs (D-027b→D-029, D-028b→D-030, D-029→D-031) + update references
+- [x] FIX: align DEV_LAUNCH §3 + D-021/D-027 with template-only rule
+- [x] FIX: fill PROGRESS.md gap for commit 9537d46
+- [x] Initial bootstrap root commit task marked DONE (was stale `[ ]` in TODO despite 73787bb pushed)
+
+In Progress
+None
+
+What is complete:
+All three reconciliation drifts fixed and committed: duplicate decision IDs renumbered with every cross-reference updated and re-grepped to zero stale IDs; DEV_LAUNCH §3 + D-021/D-027 corrected to the actual template-only gitignore rule (verified via git check-ignore); PROGRESS.md gap for commit 9537d46 filled plus the §14 resume line and D-032 process-fix decision logged.
+
+What remains:
+Owner review and merge of the branch into main; then Milestone 1 (Event/Queue/Server/Patient + FEL + M/M/1 engine) on feat/milestone-1-single-stage-engine.
+
+Next Session Should Start With
+Milestone 1 kickoff (reconcile → branch feat/milestone-1-single-stage-engine → implement A1..A8 per kickoff prompt) — drifts now cleared.
+Second item: none until M1 done.
+
+Blocked
+None new — BLOCKERS.md unchanged (B-001..B-006 all active, none touch this branch).
+
+Git State
+Commits made this session:
+- 27a1a34 docs: renumber duplicate decision IDs and update references
+- dee90c2 docs: align DEV_LAUNCH §3 and D-021/D-027 with template-only rule
+- 2fecab9 docs: fill PROGRESS.md gap for commit 9537d46
+
+Pushed to origin: Yes (docs/reconcile-decisions-and-paths → origin; PR creation intentionally skipped — owner opens it)
+
+Uncommitted changes: none at wrap time (TODO.md Done-row additions committed below as 2fecab9)
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors, Debug)
+dotnet test: PASS (exit 0 — no tests yet; expected at scaffold, M1 adds them)
+
+Warnings: 0
+
+Files Touched
+docs/DECISIONS.md: modified (renumber + D-021 note + D-032 entry)
+docs/DEV_LAUNCH.md: modified (§3 wording, changelog D-030)
+docs/PROGRESS.md: modified (resume line, gap entry, reference fixes, this handoff)
+docs/TODO.md: modified (root-commit item → Done with D-028, three FIX items → Done)
+AGENTS.md: read-only (its D-028 reference needed no change — verified by grep)
+
+Decisions Made
+D-032 — Reconciliation fixes gated before M1 (decision IDs renumbered, appsettings doc drift corrected, PROGRESS gap filled; rationale: ID collisions corrupt traceability)
+
+ID renumber mapping (D-027b→D-029, D-028b→D-030, D-029→D-031); canonical D-028 = root commit unchanged.
+
+Assumptions Added/Changed
+None — no new assumptions; CONTEXT.md untouched.
+
+Notes for Next Session
+- Reference sweep verified: every D-ID cited resolves to exactly one DECISIONS.md entry (D-001..D-032 sequential, zero stale refs).
+- git check-ignore verified: appsettings.json → `.gitignore:44 appsettings*.json`; appsettings.template.json → nothing (exit 1).
+- DEV_LAUNCH §3 "Last verified" still reads 2026-09-13 (Ubuntu 24.04) — unchanged by this docs-only branch; restore+build re-run green.
+
+## Resume — 2026-09-13 08:22 — reconciled: 3 findings
+
+Findings (all pre-existing, none blocking M1):
+1. **Git history vs PROGRESS lag:** `git log` shows 2 commits on main — `73787bb` (root scaffold) and `9537d46` ("docs: point DEV_LAUNCH/USER_MANUAL references at docs/; add B-006 blocker", 2026-09-13 08:16). PROGRESS.md CURRENT STATE + last handoff reference only `73787bb`. No orphaned `[~]` tasks; `9537d46` is consistent with D-028/D-031/B-006 already logged.
+2. **Gitignore/doc drift:** `.gitignore` line 44–45 ignores `appsettings*.json` then negates `!appsettings.template.json` only — the `!appsettings.json` base-config negation described in DEV_LAUNCH §3 and D-021 is NOT present (reality matches D-027, which is the later decision). DEV_LAUNCH §3's "appsettings.json is committed" parenthetical is inaccurate.
+3. **DECISIONS.md duplicate IDs:** D-027 appears twice (template negation), D-028 twice (second entry is actually "Single Canonical Location for Docs Instructions"), and "D-029 Root commit goes directly on main" duplicates the first D-028's content. Needs renumber/cleanup.
+
+State summary follows below; awaiting owner "go".
+
+## 2026-09-13 — Docs Path Fix + Reconciliation
+- Commit 9537d46: DEV_LAUNCH/USER_MANUAL references repointed at docs/; B-006 blocker added.
+- Reconciliation (§14) run: 3 pre-existing drifts found.
+- Fixed under this branch: duplicate decision IDs, appsettings doc drift, PROGRESS.md gap.
+
 ### Session Handoff — 2026-09-13 07:06
 Branch: main (no commits yet — everything untracked)
 Status: In-Progress (scaffold done; awaiting owner approval to commit bootstrap)
@@ -110,6 +186,6 @@ Initial commit pushed: 73787bb at 2026-09-13 07:30
 - **REQUIREMENTS.md created (2026-09-13):** derived traceability matrix synced to PRD v1.3.0 — 46 requirements (UI 4, Data 10, SIM 10, STAT/VAL 13, TOKEN 3, NFR 6), all `[ ]`, 0% coverage; FR-SIM-11 placeholder dropped (no such PRD requirement); header/net-count/changelog corrected from the draft (v1.0.0 → v1.3.0, 41 → 46). TODO gained the "Requirements not DONE until Source+Test row updated" gate and a verify-traceability script task.
 - **Bidirectional rule (AGENTS §9.7, D-025):** §9.7 now forbids orphan/placeholder/"to-be-decided"/speculative rows — the matrix may only contain PRD requirements. FR-SIM-11 drop formalized (already executed at creation, approved earlier); REQUIREMENTS.md audited against PRD v1.3.0 (zero orphans); Changelog row added. "Last synced" unchanged (already today, v1.3.0).
 - **Config template tracked via negation (D-027):** `.gitignore` now un-ignores `appsettings.template.json` (`!appsettings.template.json` after `appsettings.*.json`); docs/DEV_LAUNCH §3 copy step moved to the top of First-Time Restore ("Before building, copy the config template") with the `# Linux` / `# Windows` commands and the Serilog/defaults explanation folded in; bottom duplicate block removed; §12 changelog row added. REQUIREMENTS.md NFR-5 Source filled (`.gitignore, DEV_LAUNCH.md §3, appsettings.template.json`) + Decision `D-027`.
-- **Single canonical location for docs instructions (AGENTS §10.7, D-028):** new §10.7 — every docs/DEV_LAUNCH.md / docs/USER_MANUAL.md instruction has exactly one canonical location; duplicates consolidated into cross-references; grep the key phrase before marking any docs task `[x] DONE`. Verification: `grep -c "cp appsettings.template.json appsettings.json" docs/DEV_LAUNCH.md` → **1** (the step exists once). `grep -c "appsettings.template.json" docs/DEV_LAUNCH.md` → **5** (2 in the §3 step command pair + 1 in the §3 Configuration-file paragraph + 1 §8 layout reference + 1 §12 changelog historical row — all legitimate references, not duplicate steps).
-- **Root commit exception (AGENTS §11.2, D-029):** §11.2 now states the repository's first commit goes **directly on `main`** (root commit convention); all subsequent changes use feature branches. Supersedes the earlier `chore/bootstrap` branch plan noted in D-020. TODO bootstrap item updated to direct-on-`main`.
+- **Single canonical location for docs instructions (AGENTS §10.7, D-030):** new §10.7 — every docs/DEV_LAUNCH.md / docs/USER_MANUAL.md instruction has exactly one canonical location; duplicates consolidated into cross-references; grep the key phrase before marking any docs task `[x] DONE`. Verification: `grep -c "cp appsettings.template.json appsettings.json" docs/DEV_LAUNCH.md` → **1** (the step exists once). `grep -c "appsettings.template.json" docs/DEV_LAUNCH.md` → **5** (2 in the §3 step command pair + 1 in the §3 Configuration-file paragraph + 1 §8 layout reference + 1 §12 changelog historical row — all legitimate references, not duplicate steps).
+- **Root commit exception (AGENTS §11.2, D-028):** §11.2 now states the repository's first commit goes **directly on `main`** (root commit convention); all subsequent changes use feature branches. Supersedes the earlier `chore/bootstrap` branch plan noted in D-020. TODO bootstrap item updated to direct-on-`main`.
 - **Blocker B-006 opened:** Windows dead-state verification (dead-state build + run per AGENTS §10.4) blocked until a Windows machine is available; target before M5 (UI). TODO "Verify dead-state launch on Linux + Windows" → `[?] BLOCKED` (Linux half already verified 2026-09-13 on Ubuntu 24.04).

@@ -56,7 +56,6 @@ Last updated: 2026-09-13
 - [?] Verify dead-state launch on Linux + Windows (delete `bin/`/`obj/`, follow DEV_LAUNCH alone) — Linux half verified 2026-09-13 (Ubuntu 24.04); Windows half blocked by B-006
 - [ ] Produce `DEMO_CHECKLIST` in DEV_LAUNCH (offline pre-restore, single launch command, sample file, click path, fallback)
 - [ ] Final README + USER_MANUAL polish
-- [ ] Initial commit of bootstrap (AGENTS.md, docs/, global.json, scripts/, README, solution scaffold, appsettings.template.json) directly on `main` as the root commit (AGENTS §11.2 exception, D-029)
 - [ ] Create `.github/workflows/ci.yml` (ubuntu-latest + windows-latest: restore → build --no-restore -c Release → test --no-build -c Release) and add README badge once green (AGENTS §11.8)
 - [x] Add Serilog packages (Serilog, Serilog.Sinks.Console, Serilog.Sinks.File) via NuGet (update DEV_LAUNCH in the same change) — 2026-09-13 (Serilog 4.4.0 + Sinks.Console 6.1.1 in Cli; App additionally Serilog.Extensions.Logging 10.0.0 + Sinks.File 7.0.0; see D-026)
 - [ ] Configure logging in `appsettings.json`: console + rolling file (7-day retention) + error file sinks (AGENTS §12.1) — template has console + rolling file; error-only sink pending
@@ -67,6 +66,10 @@ Last updated: 2026-09-13
 - (none yet — see BLOCKERS.md B-001..B-004 for owner-pending items, none blocking current work)
 
 ## Done
+- [x] FIX (docs/reconcile-decisions-and-paths): renumber duplicate decision IDs (D-027b→D-029, D-028b→D-030, D-029→D-031) + update all cross-references — 2026-09-13 (commit 27a1a34)
+- [x] FIX (docs/reconcile-decisions-and-paths): align DEV_LAUNCH §3 + D-021/D-027 with template-only rule; log D-032 — 2026-09-13 (commit dee90c2)
+- [x] FIX (docs/reconcile-decisions-and-paths): fill PROGRESS.md gap for commit 9537d46 + resume line — 2026-09-13 (commit 2fecab9)
+- [x] Initial commit of bootstrap (AGENTS.md, docs/, global.json, scripts/, README, solution scaffold, appsettings.template.json) directly on `main` as the root commit (AGENTS §11.2 exception, D-028) — 2026-09-13 (commit 73787bb, pushed to origin/main)
 - [x] Repo cleanup: removed Python-era content (`src/ku_modeling_hospital/`, `tests/`, `data/`, `artifacts/`, `notebooks/`, `pyproject.toml`, `uv.lock`, `.python-version`, `project-ideas.*`, `.venv/`, caches, NOC docs incl. `docs/make_noc.py`); `Simulator Start Prompt.txt` moved to `docs/agent-prompts/kickoff-bootstrap.md` — 2026-09-13
 - [x] Create `scripts/run.sh` and `scripts/run.ps1` (already present since 2026-09-13; verified this session, still `chmod +x`) — 2026-09-13
 - [x] Choose C# + Avalonia + MathNet.Numerics (+ ClosedXML, CsvHelper, xUnit) — 2026-09-13

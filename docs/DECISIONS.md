@@ -219,6 +219,8 @@ impact (positive and negative), alternatives considered.
 - **Impact (−):** Serialized-to-disk I/O per event; extra packages and config surface.
 - **Alternatives considered:** Microsoft.Extensions.Logging (no Serilog-level structured console/file sinks — replaced); plain file writes (no envelope, no rolling — rejected); no logging (rejected — impossible to debug or defend in the viva).
 
+> **Note:** Superseded by D-027: only `appsettings.template.json` is committed; `appsettings.json` is gitignored.
+
 ## D-022 Session wrap-up format standardized
 
 - **Date:** 2026-09-13
@@ -277,9 +279,9 @@ impact (positive and negative), alternatives considered.
 ## D-027 `appsettings.template.json` must ship in the repo
 
 - **Date:** 2026-09-13
-- **Decision:** `.gitignore` negates `appsettings.template.json` (`!appsettings.template.json`) so the config template is committed, while `appsettings.*.json` environment/secret variants stay ignored (per-env files still ignored; only the base and the template are tracked).
+- **Decision:** `.gitignore` negates `appsettings.template.json` (`!appsettings.template.json`) so the config template is committed, while `appsettings.*.json` (including the local `appsettings.json` created by copying the template) stays ignored.
 - **Rationale:** DEV_LAUNCH §3 instructs fresh clones to `cp appsettings.template.json appsettings.json`. Under the un-negated owner template, `appsettings.*.json` matched the template too, so a fresh clone would lack it and the bootstrapping step would fail (dead-state rule, AGENTS §10.4). Deviance from the exact owner block is deliberate and minimal.
-- **Implementation details:** `.gitignore` "Configuration" section: `appsettings.*.json`, then `!appsettings.json`, then `!appsettings.template.json`. Verified with `git status`: template shows as untracked/committable, per-env variants stay ignored.
+- **Implementation details:** `.gitignore` "Configuration" section: `appsettings*.json`, then `!appsettings.template.json`. Verified with `git status`: template shows as untracked/committable, `appsettings.json` and per-env variants stay ignored.
 - **Impact (+):** Template is present in the bootstrap commit and on any fresh clone; §3 copy step works from a dead state.
 - **Impact (−):** Minor deviation from the literal owner-provided `.gitignore` block (order/negation preserved otherwise).
 - **Alternatives considered:** Keep template local-only and have first run create `appsettings.json` (rejected — breaks dead-state §3); rename to `appsettings.template.json.example` (rejected — owner preferred the negation).
@@ -294,7 +296,7 @@ impact (positive and negative), alternatives considered.
 - **Impact (−):** None material — the root commit is the only exception; all later branches follow §11.2.
 - **Alternatives considered:** Create `chore/bootstrap` and PR-merge the root (no base exists — rejected); keep the file at root (rejected by owner — archive it in `docs/agent-prompts/`).
 
-## D-027 appsettings.template.json Committed via Negation
+## D-029 appsettings.template.json Committed via Negation
 
 - **Date:** 2026-09-13
 - **Decision:** Keep `appsettings.template.json` committed by adding `!appsettings.template.json` after the `appsettings.*.json` ignore pattern in .gitignore.
@@ -307,7 +309,7 @@ impact (positive and negative), alternatives considered.
   (b) Leave template ignored — rejected: forces manual config creation on every fresh clone, breaks the dead-state promise.
 - **Impact:** .gitignore config section grows by one line. DEV_LAUNCH.md §3 gains a single copy step. No code impact.
 
-## D-028 Single Canonical Location for Docs Instructions
+## D-030 Single Canonical Location for Docs Instructions
 
 - **Date:** 2026-09-13
 - **Decision:** Each instruction in DEV_LAUNCH.md and USER_MANUAL.md has one canonical location. Duplicates are consolidated and replaced with cross-references.
@@ -315,7 +317,7 @@ impact (positive and negative), alternatives considered.
 - **Alternatives:** (a) Keep both — rejected: guaranteed drift. (b) Delete both, put in a separate file — rejected: over-splitting.
 - **Impact:** DEV_LAUNCH §3 consolidated. New rule added to AGENTS.md §10.7. Agents must grep before marking docs tasks done.
 
-## D-029 Root commit goes directly on `main`
+## D-031 Root commit goes directly on `main`
 
 - **Date:** 2026-09-13
 - **Decision:** The repository's very first commit (bootstrap: AGENTS.md, docs/, global.json, scripts/, README, solution scaffold, appsettings.template.json) goes directly on `main` as the root commit. All subsequent changes use short-lived feature branches per AGENTS §11.2. Supersedes the `chore/bootstrap` branch plan recorded in D-020's implementation details.
@@ -324,3 +326,13 @@ impact (positive and negative), alternatives considered.
 - **Impact (+):** Simplified bootstrap; `main` starts with the full documented state; no throwaway branch.
 - **Impact (−):** The one commit that skips the feature-branch flow is the largest (the whole scaffold) — mitigated because it is the root, reviewed by the owner before creation.
 - **Alternatives considered:** Keep the `chore/bootstrap` branch (recorded plan, but adds no review value over a reviewed root commit — superseded); split the scaffold across multiple bootstrap commits (rejected — history would pretend the scaffold grew incrementally when it did not).
+
+## D-032 Reconciliation fixes gated before M1
+
+- **Date:** 2026-09-13
+- **Decision:** The documentation-hygiene drifts found during the AGENTS §14 reconciliation were fixed on a dedicated `docs/` branch before any Milestone 1 code: duplicate decision IDs renumbered, appsettings-gitignore doc claims realigned with the actual rule, PROGRESS.md history gap filled.
+- **Rationale:** Decision-ID collisions corrupt traceability — a REQUIREMENTS.md row or viva citation can point at two different decisions under one ID, or at none. Stale claims about a `!appsettings.json` negation would mislead anyone debugging the config flow.
+- **Implementation details:** The three tail entries of DECISIONS.md collided with earlier IDs; renumbered to D-029 (template-negation draft), D-030 (single canonical location), D-031 (root-commit draft). The canonical root-commit entry stays D-028. Cross-references corrected in PROGRESS.md, DEV_LAUNCH.md, TODO.md (AGENTS.md already pointed at the canonical D-028 and needed no change; verified by re-grep). DEV_LAUNCH §3 and D-021/D-027 corrected to the actual rule (`appsettings*.json` ignored, only `!appsettings.template.json`). PROGRESS.md gained the missing `9537d46` entry.
+- **Impact (+):** M1 starts from a clean, unambiguous, traceable doc state.
+- **Impact (−):** None — doc-only changes, no application code.
+- **Alternatives considered:** Fixing the drifts silently inside M1 commits (rejected — conflates doc hygiene with feature work); deferring until the viva (rejected — traceability is a live artifact that must stay current).
