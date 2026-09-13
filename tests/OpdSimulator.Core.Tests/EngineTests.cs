@@ -1,3 +1,4 @@
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 using OpdSimulator.Core.Servers;
@@ -240,5 +241,138 @@ public class EngineTests
 
         double diff = Math.Abs(result.PerServerUtilisation[0] - result.PerServerUtilisation[1]);
         Assert.True(diff >= 0.10, $"lowest-ID assignment must produce a palpable imbalance (|util0 − util1| = {diff:F4})");
+    }
+
+    // ---- Calendar-aware runs (M3 C) --------------------------------------
+
+    private static NetworkTopology ClinicNetwork()
+        // λ0 = 0.5/min; Reception ρ = 0.5/1.5 = 0.33, Screening ρ = 0.5/2 = 0.25,
+        // Doctor ρ = 0.5·(1−0.3)/(3·0.8) = 0.35/2.4 ≈ 0.146 — all stable.
+        => new NetworkTopology(0.5, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 1.5),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 1.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 0.8),
+        }, exitStageIndex: 1, exitProbability: 0.3);
+
+    [Fact]
+    public void Run_Calendar_SingleDay_AdmitsInsideWindowAndDrains()
+    {
+        // One Monday block: every admitted patient must eventually drain out of
+        // the system (FR-SIM-6), so served == admitted and the run terminates.
+        var topology = NetworkTopology.CreateSingleStage(0.5, 1.2, serverCount: 1, "Reception");
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, calendar, generatorDays: 1, seed: 42);
+
+        Assert.Single(result.AdmittedPerDay);
+        Assert.Equal(result.AdmittedPerDay[0], result.TotalPatientsServed);
+        Assert.InRange(result.AdmittedPerDay[0], 40, 130);   // ~82 expected at λ0 = 0.5 over 165 min
+        Assert.True(result.OperatingTimeMinutes > 0, "operating time must cover the day's window");
+    }
+
+    [Fact]
+    public void Run_Calendar_SevenDays_ClosedFridayAndSundayAdmitNothing()
+    {
+        // Day 0 = Monday: open Mon–Thu (0..3), closed Fri (4), open Sat (5),
+        // closed Sun (6). Admissions must mirror the calendar exactly and every
+        // admitted patient must be served (drain completes).
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(7, result.AdmittedPerDay.Count);
+        for (int d = 0; d < 4; d++)
+            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
+        Assert.Equal(0, result.AdmittedPerDay[4]); // Friday
+        Assert.True(result.AdmittedPerDay[5] > 0);
+        Assert.Equal(0, result.AdmittedPerDay[6]); // Sunday
+
+        Assert.Equal(result.AdmittedPerDay.Sum(), result.TotalPatientsServed);
+
+        // Per-stage metrics must remain sane across the multi-day run.
+        Assert.Equal(3, result.StageMetrics.Count);
+        foreach (var metric in result.StageMetrics)
+        {
+            Assert.InRange(metric.StageUtilisation, 0.0, 1.0);
+            Assert.True(metric.AverageWaitMinutes >= 0);
+            Assert.True(metric.PatientsServed >= 0);
+        }
+    }
+
+    [Fact]
+    public void Run_Calendar_StartDayFriday_ExposesFirstClosedBlock()
+    {
+        // Day 0 = Friday: closed (0), open Sat (1), closed Sun (2),
+        // open Mon–Thu (3..6). Proves --start-day semantics at the engine level.
+        var calendar = new ClinicCalendar(startDayOfWeek: DayOfWeek.Friday);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(0, result.AdmittedPerDay[0]); // Friday
+        Assert.True(result.AdmittedPerDay[1] > 0); // Saturday
+        Assert.Equal(0, result.AdmittedPerDay[2]); // Sunday
+        for (int d = 3; d <= 6; d++)
+            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
+    }
+
+    [Fact]
+    public void Run_Calendar_Cap_BindsEveryOpenDay_ResetsDaily()
+    {
+        // Cap = 4 with ~82 arrivals/day: every open day must hit exactly the cap
+        // (subsequent Poisson arrivals that day are gated out), while closed
+        // days stay at 0. Proves the cap resets per day block (D-009).
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42, dailyCap: 4);
+
+        Assert.Equal(new[] { 4, 4, 4, 4, 0, 4, 0 }, result.AdmittedPerDay);
+        Assert.Equal(4 * 5, result.TotalPatientsServed); // 5 open days × cap
+        Assert.Equal(4, result.DailyCap);
+        Assert.Equal(7, result.GeneratorDays);
+    }
+
+    [Fact]
+    public void Run_Calendar_SameSeed_TwoRuns_ProduceIdenticalDayAdmissions()
+    {
+        var calendar = new ClinicCalendar();
+
+        var first = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+        var second = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(first.AdmittedPerDay, second.AdmittedPerDay);
+        Assert.Equal(first.TotalPatientsServed, second.TotalPatientsServed);
+        Assert.Equal(first.OperatingTimeMinutes, second.OperatingTimeMinutes);
+    }
+
+    [Fact]
+    public void Run_Calendar_DrainContinuesPastWindowEnd()
+    {
+        // Slow services (μ = 0.1/min, 10 min average) over a 10-server stage
+        // (ρ = 0.5 → stable) guarantee services still running when the window
+        // closes; the last service end must land well past 11:00 (FR-SIM-6).
+        var topology = NetworkTopology.CreateSingleStage(0.5, 0.1, serverCount: 10, "Reception");
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, new ClinicCalendar(), generatorDays: 1, seed: 42);
+
+        Assert.True(result.OperatingTimeMinutes > 165,
+            $"drain must extend past the 165-minute window (got {result.OperatingTimeMinutes:F1})");
+    }
+
+    [Fact]
+    public void Run_Calendar_RejectsInvalidDayCountsAndCaps()
+    {
+        var calendar = new ClinicCalendar();
+        var topology = NetworkTopology.CreateSingleStage(0.5, 1.2, serverCount: 1, "Reception");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, calendar, generatorDays: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, calendar, generatorDays: 1, dailyCap: 0));
     }
 }

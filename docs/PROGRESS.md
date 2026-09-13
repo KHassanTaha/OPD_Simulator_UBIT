@@ -2,6 +2,26 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block C: clinic calendar + engine arrival gating — 2026-09-13 (feat/milestone-3-multi-stage-network)
+`ClinicCalendar` (Core/Calendar) encodes the OPD schedule: open Mon–Thu + Sat,
+window 08:15–11:00 (CONTEXT §1.1), optional daily cap, and a start-day anchor
+(future `--start-day`). The time model (D-051) anchors t = 0 at the day-0 window
+so all times are ≥ 0: a day block is 24 h from the anchor, weekday =
+`(startDay + block) mod 7`, admission window = first 165 minutes of an open
+block. Arrivals are ONE continuous Poisson stream that the engine gates at fire
+time — the demand exists, the calendar is the admission gate — so no per-day
+draw resets and no first-arrival-after-the-weekend special case. New `Engine.Run
+(topology, calendar, generatorDays, seed, dailyCap)` (+`CalendarGate` nested
+class) shares `RunCore` with the horizon path; the byte-for-byte M1 loop is
+untouched (calendar == null branch). Operating time per open day = first admitted
+arrival → last service end, summed (D-018, not diluted by nights/weekends);
+services drain past 11:00 (FR-SIM-6). 22 new tests (11 ClinicCalendar + 7 engine
+facts + theory rows): defaults, window boundary (165 exclusive), Fri/Sun admit
+zero, start-day-Friday shift, cap binds 4/day × 5 open days and resets daily,
+same-seed reproducibility incl. AdmittedPerDay, drain-into-the-evening with
+μ = 0.1/ρ = 0.5, arg guards. 139 tests green (76 Core + 56 Data + 7 Cli),
+0 warnings. D-051.
+
 ### M3 sub-block B: per-stage ρ refusal at engine level — 2026-09-13 (feat/milestone-3-multi-stage-network)
 B1/B2 landed inside sub-block A (NetworkTopology uses the D-007 product rule for
 λᵢ = λ₀·Π(1−p_exit), and Validate() throws UnstableSystemException listing every

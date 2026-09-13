@@ -1,5 +1,6 @@
 namespace OpdSimulator.Core.Engine;
 
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Events;
 using OpdSimulator.Core.Patients;
@@ -122,13 +123,86 @@ public sealed class Engine
         if (horizonMinutes <= 0)
             throw new ArgumentOutOfRangeException(nameof(horizonMinutes), horizonMinutes, "Horizon must be strictly positive.");
 
-        topology.Validate(); // throws UnstableSystemException listing every unstable stage (FR-VAL-1)
+        return RunCore(topology, seed, horizonMinutes, null, generatorDays: 0, dailyCap: null);
+    }
+
+    /// <summary>
+    /// Runs a serial network topology over a clinic calendar and returns the
+    /// aggregate plus per-stage metrics.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The calendar anchors t = 0 at the day-0 arrival window (CONTEXT §5.1).
+    /// Arrivals are generated as one continuous Poisson stream for
+    /// <paramref name="generatorDays"/> calendar-day blocks and admitted only
+    /// on open weekdays inside the arrival window; arrivals landing elsewhere
+    /// are gated out but the stream continues (the clinic's demand exists, the
+    /// calendar is the admission gate). Services in progress keep running to
+    /// completion, so a run drains past the last window (FR-SIM-6).
+    /// </para>
+    /// <para>
+    /// Operating time (D-018) is summed per open day block: first admitted
+    /// arrival to last service end within that block, so overnight gaps never
+    /// dilute utilisation. The optional <paramref name="dailyCap"/> resets each
+    /// day block (D-009).
+    /// </para>
+    /// </remarks>
+    /// <param name="topology">The ordered stage configuration to simulate.</param>
+    /// <param name="calendar">The clinic schedule (weekdays + arrival window).</param>
+    /// <param name="generatorDays">Number of calendar-day blocks over which arrivals are generated.</param>
+    /// <param name="seed">Random seed for reproducibility (FR-VAL-3, default 42).</param>
+    /// <param name="dailyCap">Maximum admissions per day block; null = unlimited.</param>
+    /// <returns>The collected statistics of the run, including <see cref="SimulationResult.AdmittedPerDay"/>.</returns>
+    /// <exception cref="ArgumentNullException">If <paramref name="topology"/> or <paramref name="calendar"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">If <paramref name="generatorDays"/> &lt; 1 or <paramref name="dailyCap"/> &lt; 1.</exception>
+    /// <exception cref="UnstableSystemException">If any stage has ρ ≥ 1 (FR-VAL-1).</exception>
+    public SimulationResult Run(NetworkTopology topology, ClinicCalendar calendar, int generatorDays,
+        int seed = SeededRandomSource.DefaultSeed, int? dailyCap = null)
+    {
+        if (topology is null)
+            throw new ArgumentNullException(nameof(topology));
+        if (calendar is null)
+            throw new ArgumentNullException(nameof(calendar));
+        if (generatorDays < 1)
+            throw new ArgumentOutOfRangeException(nameof(generatorDays), generatorDays, "At least one day must be generated.");
+        if (dailyCap is < 1)
+            throw new ArgumentOutOfRangeException(nameof(dailyCap), dailyCap, "The daily cap must be at least 1.");
+
+        return RunCore(topology, seed, horizonMinutes: 0, calendar, generatorDays, dailyCap);
+    }
+
+    private SimulationResult RunCore(
+        NetworkTopology topology,
+        int seed,
+        double horizonMinutes,
+        ClinicCalendar? calendar,
+        int generatorDays,
+        int? dailyCap)
+    {
+        // Stability check first: refuses with every unstable stage listed
+        // (FR-VAL-1). The RNG is seeded only after the check, so a refusal
+        // never consumes draws.
+        topology.Validate();
+
+        var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap);
 
         _random.SetSeed(seed);
-        _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} horizon={Horizon} ρs=[{Rhos}]",
-            string.Join(" → ", topology.StageSpecs.Select(s => $"{s.Name}(c={s.ServerCount}, μ={s.ServiceRate:F3})")),
-            topology.ArrivalRate, seed, horizonMinutes,
-            string.Join(",", Enumerable.Range(0, topology.StageSpecs.Count).Select(i => topology.RhoFor(i).ToString("0.##"))));
+        if (calendar is null)
+        {
+            _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} horizon={Horizon} ρs=[{Rhos}]",
+                string.Join(" → ", topology.StageSpecs.Select(s => $"{s.Name}(c={s.ServerCount}, μ={s.ServiceRate:F3})")),
+                topology.ArrivalRate, seed, horizonMinutes,
+                string.Join(",", Enumerable.Range(0, topology.StageSpecs.Count).Select(i => topology.RhoFor(i).ToString("0.##"))));
+        }
+        else
+        {
+            _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} days={Days} window={Window} cap={Cap} start-day={StartDay} ρs=[{Rhos}]",
+                string.Join(" → ", topology.StageSpecs.Select(s => $"{s.Name}(c={s.ServerCount}, μ={s.ServiceRate:F3})")),
+                topology.ArrivalRate, seed, generatorDays,
+                $"{calendar.FormatClock(0)}–{calendar.FormatClock(calendar.OpenDurationMinutes)}",
+                dailyCap?.ToString() ?? "∞", calendar.StartDayOfWeek,
+                string.Join(",", Enumerable.Range(0, topology.StageSpecs.Count).Select(i => topology.RhoFor(i).ToString("0.##"))));
+        }
 
         // Fresh per-run runtime state: queues and servers never leak between runs.
         var stages = Enumerable.Range(0, topology.StageSpecs.Count)
@@ -155,6 +229,10 @@ public sealed class Engine
             Event evt = fel.Dequeue();
             clock = evt.Time;
 
+            // Calendar bookkeeping must be current before any admission or
+            // service-accounting decision in this event.
+            gate?.AdvanceTo(clock);
+
             // Time-weighted queue length: each stage's queue sampled throughout
             // the interval [lastMetricTime, clock] held its previous length.
             for (int i = 0; i < stages.Length; i++)
@@ -170,13 +248,15 @@ public sealed class Engine
             switch (evt.Type)
             {
                 case EventType.Arrival:
-                    HandleArrival(evt, clock, stages[0], topology.ArrivalRate, horizonMinutes, fel,
-                        inService, patientServer, ref nextPatientId, stageWaitMinutes);
+                    HandleArrival(evt, clock, stages[0], topology.ArrivalRate, fel,
+                        inService, patientServer, ref nextPatientId, stageWaitMinutes,
+                        gate, horizonMinutes);
                     break;
 
                 case EventType.ReceptionEnd:
                 case EventType.ScreeningEnd:
                 case EventType.DoctorEnd:
+                    gate?.NoteServiceEnd(clock);
                     HandleServiceEnd(evt, clock, stages, topology, fel, inService, patientServer,
                         stageWaitMinutes, ref totalSystemMinutes, ref completed);
                     break;
@@ -189,8 +269,11 @@ public sealed class Engine
         }
 
         // Operating time = time from first arrival (t=0) to last service end
-        // (D-018). The FEL is empty, so `clock` is exactly that (FR-SIM-6).
-        double operatingTime = clock;
+        // (D-018). In a horizon run the FEL drains at the last service end, so
+        // `clock` is exactly that (FR-SIM-6). In a calendar run the denominator
+        // is summed per open day block so overnight gaps do not dilute
+        // utilisation.
+        double operatingTime = gate is not null ? gate.OperatingTimeMinutes : clock;
 
         var stageMetrics = stages.Select((stage, i) =>
         {
@@ -230,6 +313,9 @@ public sealed class Engine
             ThroughputPerMinute = operatingTime > 0 ? completed / operatingTime : 0,
             OperatingTimeMinutes = operatingTime,
             StageMetrics = stageMetrics,
+            AdmittedPerDay = gate?.AdmittedPerDay ?? Array.Empty<int>(),
+            GeneratorDays = gate?.GeneratorDays ?? 0,
+            DailyCap = gate?.DailyCap,
         };
     }
 
@@ -238,34 +324,49 @@ public sealed class Engine
         double clock,
         Stage stage,
         double arrivalRate,
-        double horizonMinutes,
         FEL fel,
         Dictionary<int, Patient> inService,
         Dictionary<int, Server> patientServer,
         ref int nextPatientId,
-        double[] stageWaitMinutes)
+        double[] stageWaitMinutes,
+        CalendarGate? gate,
+        double horizonMinutes)
     {
-        var patient = new Patient(evt.PatientId, clock, stageIndex: 0);
-
-        if (stage.HasIdleServer)
+        // A calendar run admits only arrivals that land inside an open-day
+        // window and remain under the daily cap; everything else is gated out
+        // but the Poisson stream still advances (the demand exists, the
+        // calendar is the admission gate).
+        if (gate is null || gate.TryAdmit(clock))
         {
-            var server = _serverSelection.SelectIdleServer(stage.Servers, _random);
-            StartService(patient, server, stage, clock, fel, inService, patientServer, stageWaitMinutes);
+            var patient = new Patient(evt.PatientId, clock, stageIndex: 0);
+
+            if (stage.HasIdleServer)
+            {
+                var server = _serverSelection.SelectIdleServer(stage.Servers, _random);
+                StartService(patient, server, stage, clock, fel, inService, patientServer, stageWaitMinutes);
+            }
+            else
+            {
+                stage.Queue.Enqueue(patient);
+                _log.Debug("    -> queued patient={PatientId}, queueLen={QueueLen}", patient.Id, stage.Queue.Count);
+            }
         }
         else
         {
-            stage.Queue.Enqueue(patient);
-            _log.Debug("    -> queued patient={PatientId}, queueLen={QueueLen}", patient.Id, stage.Queue.Count);
+            _log.Debug("    -> arrival outside the window (or over the daily cap): patient={PatientId} not admitted", evt.PatientId);
         }
 
-        // Schedule the next arrival only inside the arrival window (FR-SIM-5).
-        // The inter-arrival draw is logged (FR-VAL-4).
+        // Schedule the next arrival only inside the arrival window — horizon
+        // mode stops at [0, horizon) (FR-SIM-5), calendar mode stops at the
+        // end of the last generated day's window. The inter-arrival draw is
+        // logged (FR-VAL-4).
         double interArrival = _interarrivalSampler.Sample(arrivalRate);
         double nextArrivalTime = clock + interArrival;
         _log.Debug("    -> inter-arrival draw={Draw:0.####} min, next arrival t={Time:0.###}",
             interArrival, nextArrivalTime);
 
-        if (nextArrivalTime < horizonMinutes)
+        double stopTime = gate is not null ? gate.StopTime : horizonMinutes;
+        if (nextArrivalTime < stopTime)
         {
             nextPatientId++;
             fel.Enqueue(new Event(nextArrivalTime, EventType.Arrival, nextPatientId));
@@ -381,4 +482,127 @@ public sealed class Engine
 
     private static string ServerStateString(IEnumerable<Stage> stages)
         => string.Join("|", stages.Select(s => string.Join(",", s.Servers.Select(srv => srv.IsBusy ? "busy" : "idle"))));
+
+    /// <summary>
+    /// Per-run bookkeeping for a calendar-aware simulation (see
+    /// <see cref="Run(NetworkTopology, ClinicCalendar, int, int, int?)"/>).
+    /// </summary>
+    /// <remarks>
+    /// Day blocks are <see cref="ClinicCalendar.MinutesPerDay"/> long and start
+    /// at each day's arrival window; the admission window is the first
+    /// <see cref="ClinicCalendar.OpenDurationMinutes"/> minutes of an open day's
+    /// block. The gate deliberately tracks no patient-level state — it only
+    /// answers "may this arrival enter?" and "what is the operating-time
+    /// denominator so far?", keeping the engine loop free of calendar logic.
+    /// </remarks>
+    private sealed class CalendarGate
+    {
+        private readonly ClinicCalendar _calendar;
+
+        private readonly int[] _admittedPerDay;
+        private readonly double?[] _dayFirstArrival;
+        private readonly double[] _dayLastServiceEnd;
+
+        /// <summary>
+        /// Creates the gate for a run of <paramref name="generatorDays"/>
+        /// calendar days.
+        /// </summary>
+        /// <param name="calendar">The clinic schedule.</param>
+        /// <param name="generatorDays">Number of calendar-day blocks to generate arrivals for.</param>
+        /// <param name="dailyCap">Maximum admissions per day block; null = unlimited.</param>
+        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap)
+        {
+            _calendar = calendar;
+            GeneratorDays = generatorDays;
+            DailyCap = dailyCap;
+
+            // Arrivals stop at the arrival-window end of the last generated day
+            // block; the run then drains service events only (FR-SIM-6).
+            StopTime = (generatorDays - 1) * ClinicCalendar.MinutesPerDay + calendar.OpenDurationMinutes;
+
+            _admittedPerDay = new int[generatorDays];
+            _dayFirstArrival = new double?[generatorDays];
+            _dayLastServiceEnd = new double[generatorDays];
+
+            CurrentDayIndex = -1;
+        }
+
+        /// <summary>Number of calendar-day blocks the run generates arrivals for.</summary>
+        public int GeneratorDays { get; }
+
+        /// <summary>Maximum admissions per day block, or null when unlimited.</summary>
+        public int? DailyCap { get; }
+
+        /// <summary>Clock time after which no further arrivals are scheduled.</summary>
+        public double StopTime { get; }
+
+        /// <summary>The day block the clock is currently inside (clamped).</summary>
+        public int CurrentDayIndex { get; private set; }
+
+        /// <summary>Admissions so far in the current day block.</summary>
+        public int AdmittedToday { get; private set; }
+
+        /// <summary>Admitted arrivals per day block over the whole run.</summary>
+        public int[] AdmittedPerDay => _admittedPerDay;
+
+        /// <summary>
+        /// Switches the day bookkeeping to the block containing
+        /// <paramref name="clock"/>. Blocks past the last generated day are
+        /// clamped so trailing drain work stays attributed to that day.
+        /// </summary>
+        /// <param name="clock">The current simulation clock.</param>
+        public void AdvanceTo(double clock)
+        {
+            int absoluteDay = (int)(clock / ClinicCalendar.MinutesPerDay);
+            int day = Math.Min(absoluteDay, GeneratorDays - 1);
+            if (day != CurrentDayIndex)
+            {
+                CurrentDayIndex = day;
+                AdmittedToday = 0; // daily cap resets each day block (D-009)
+            }
+        }
+
+        /// <summary>
+        /// Attempts to admit an arrival at <paramref name="clock"/>.
+        /// </summary>
+        /// <param name="clock">The arrival's simulation time.</param>
+        /// <returns>True if the arrival is inside an open-day window and under
+        /// the daily cap; false (gated out) otherwise.</returns>
+        public bool TryAdmit(double clock)
+        {
+            if (!_calendar.IsInArrivalWindow(clock))
+                return false;
+            if (DailyCap is { } cap && AdmittedToday >= cap)
+                return false;
+
+            AdmittedToday++;
+            _admittedPerDay[CurrentDayIndex]++;
+            _dayFirstArrival[CurrentDayIndex] ??= clock;
+            return true;
+        }
+
+        /// <summary>
+        /// Records a service-completion time for the current day block, keeping
+        /// that day's last service end monotonic.
+        /// </summary>
+        /// <param name="clock">The completion's simulation time.</param>
+        public void NoteServiceEnd(double clock)
+            => _dayLastServiceEnd[CurrentDayIndex] = Math.Max(_dayLastServiceEnd[CurrentDayIndex], clock);
+
+        /// <summary>
+        /// Operating-time denominator: summed per open day block (first admitted
+        /// arrival to last service end), never diluted by overnight gaps (D-018).
+        /// </summary>
+        public double OperatingTimeMinutes
+        {
+            get
+            {
+                double sum = 0;
+                for (int i = 0; i < GeneratorDays; i++)
+                    if (_dayFirstArrival[i] is { } firstArrival)
+                        sum += _dayLastServiceEnd[i] - firstArrival;
+                return sum;
+            }
+        }
+    }
 }
