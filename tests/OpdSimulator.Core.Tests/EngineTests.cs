@@ -1,5 +1,8 @@
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
+using OpdSimulator.Core.Servers;
+using OpdSimulator.Core.Stages;
 using Serilog;
 
 namespace OpdSimulator.Core.Tests;
@@ -72,5 +75,304 @@ public class EngineTests
         var result = new Engine(config, new SeededRandomSource(), Log).Run();
 
         Assert.InRange(result.ThroughputPerMinute, 2.7, 3.3);
+    }
+
+    [Fact]
+    public void Run_SingleStage_ByteForByteRegression()
+    {
+        // Guard on the Milestone-1 delegation (kickoff G2): after the engine
+        // became N-stage generic, the legacy single-stage path must still
+        // reproduce the exact known output — seed 42, λ=3, μ=4, c=1, h=10000.
+        var config = new EngineConfig(3.0, 4.0, serverCount: 1, horizonMinutes: 10000, seed: 42);
+        var result = new Engine(config, new SeededRandomSource(), Log).Run();
+
+        Assert.Equal(29892, result.TotalPatientsServed);
+        Assert.Equal(0.724, result.AverageWaitMinutes, 3);
+        Assert.Equal(1, result.StageMetrics.Count);
+        Assert.Equal(config.StageName, result.StageMetrics[0].StageName);
+    }
+
+    [Fact]
+    public void Run_ClinicNetwork_ProducesPerStageMetrics()
+    {
+        // Reception(c=1, μ=10) → Screening(c=2, μ=4) → Doctor(c=3, μ=1.6),
+        // p_exit = 0.4. All stable: ρ_R = 0.30, ρ_S = 0.375, ρ_D = 3·0.6/4.8 = 0.375.
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 1000);
+
+        Assert.Equal(3, result.StageMetrics.Count);
+        Assert.Equal("Reception", result.StageMetrics[0].StageName);
+        Assert.Equal(0.30, result.StageMetrics[0].Rho, 3);
+
+        // Routing-derived effective rates (D-007): λ_screening = λ0, λ_doctor = λ0·(1−p_exit).
+        Assert.Equal(3.0, result.StageMetrics[1].ArrivalRate, 3);
+        Assert.Equal(1.8, result.StageMetrics[2].ArrivalRate, 3);
+
+        // Every stage saw work and every utilisation stays inside [0, 1] (FR-VAL-2).
+        Assert.All(result.StageMetrics, m => Assert.True(m.PatientsServed > 0, $"{m.StageName} must serve at least one patient"));
+        Assert.All(result.StageMetrics, m => Assert.InRange(m.StageUtilisation, 0.0, 1.0));
+        Assert.All(result.StageMetrics, m => Assert.All(m.PerServerUtilisation, u => Assert.InRange(u, 0.0, 1.0)));
+    }
+
+    [Fact]
+    public void Run_ClinicNetwork_ExitProbability_RoutesOnlyFractionToDoctor()
+    {
+        // p_exit = 0.6 ⇒ 40% of screening completions continue to Doctor, so the
+        // doctor stage must see strictly fewer patients than screening.
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.6);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 2000);
+
+        int screening = result.StageMetrics[1].PatientsServed;
+        int doctor = result.StageMetrics[2].PatientsServed;
+
+        Assert.True(doctor > 0, "some patients must reach the doctor stage");
+        Assert.True(doctor < screening, "only the continuation fraction may reach the doctor stage");
+        Assert.InRange((double)doctor / screening, 0.30, 0.50); // ≈ 0.40, wide band for sampling noise
+        Assert.True(result.TotalPatientsServed >= doctor, "completed patients = doctor completions + screening exits");
+    }
+
+    [Fact]
+    public void Run_Network_DoctorOnlyUnstable_RefusesWithStageRho()
+    {
+        // λ0 = 3, p_exit = 0.4: Reception ρ = 3/10 = 0.30, Screening ρ = 3/8 = 0.375,
+        // Doctor ρ = 3·(1−0.4)/(3·0.5) = 1.20 ≥ 1 — the ONLY unstable stage. The
+        // refusal must name it and its routing-derived λ (D-007): 1.8 = λ0·(1−p).
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 0.5),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var ex = Assert.Throws<UnstableSystemException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, seed: 42, horizonMinutes: 1000));
+
+        Assert.Equal("Doctor", ex.StageName);
+        Assert.Equal(1.2, ex.Rho, 3);
+        Assert.Contains("Doctor", ex.Message);
+        Assert.Contains("1.20", ex.Message);
+        Assert.Contains("λ = 1.800", ex.Message);   // λ_doctor = λ0·(1 − p_exit)
+        Assert.DoesNotContain("Reception is unstable", ex.Message);
+        Assert.DoesNotContain("Screening is unstable", ex.Message);
+    }
+
+    [Fact]
+    public void Run_Network_MultipleStagesUnstable_ListsEveryStage()
+    {
+        // Reception ρ = 3/(1·1) = 3.0 and Screening ρ = 3/(2·1) = 1.5 — both over
+        // the bound, Doctor ρ = 3·(1−0.4)/(3·1) = 0.6 stable. The refusal must
+        // list BOTH offenders with their derived λᵢ and cᵢ (FR-VAL-1).
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 1.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 1.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.0),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var ex = Assert.Throws<UnstableSystemException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, seed: 42, horizonMinutes: 1000));
+
+        Assert.Contains("Reception", ex.Message);
+        Assert.Contains("Screening", ex.Message);
+        Assert.Contains("3.00", ex.Message);  // Reception ρ
+        Assert.Contains("1.50", ex.Message);  // Screening ρ
+        Assert.Contains("c = 1", ex.Message);
+        Assert.Contains("c = 2", ex.Message);
+        Assert.Equal("Reception", ex.StageName); // first offender wins the exception's payload
+    }
+
+    [Fact]
+    public void Run_NetworkAllStable_RunsAndReportsRhoPerStage()
+    {
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 1000);
+
+        Assert.Equal(3, result.StageMetrics.Count);
+        Assert.Equal(0.30, result.StageMetrics[0].Rho, 3);
+        Assert.Equal(0.375, result.StageMetrics[1].Rho, 3);
+        Assert.Equal(0.375, result.StageMetrics[2].Rho, 3); // 1.8/(3·1.6)
+    }
+
+    [Fact]
+    public void Run_NetworkSymmetricServers2_RandomSelection_BalancesUtilisation()
+    {
+        // D-017 latent-bug regression: ρ = 0.25 at a 2-server single stage
+        // (λ = 2, μ = 4, c = 2) — low load, so most arrivals find both servers
+        // idle and assignment bias is at its strongest. Random-among-idle must
+        // spread the load, keeping |util₀ − util₁| under the 0.10 flag.
+        var topology = NetworkTopology.CreateSingleStage(2.0, 4.0, serverCount: 2, stageName: "Reception");
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 10000);
+
+        double diff = Math.Abs(result.PerServerUtilisation[0] - result.PerServerUtilisation[1]);
+        Assert.True(diff < 0.10, $"random selection must balance identical servers (|util0 − util1| = {diff:F4})");
+    }
+
+    [Fact]
+    public void Run_NetworkSymmetricServers2_LowestIdPolicy_RecreatesImbalance()
+    {
+        // Negative control for the same threshold: the old lowest-ID policy
+        // (latent M1 bug, D-017) must exceed 0.10 in the same low-load regime,
+        // proving the flag catches it.
+        var topology = NetworkTopology.CreateSingleStage(2.0, 4.0, serverCount: 2, stageName: "Reception");
+        var engine = new Engine(new SeededRandomSource(), Log, serverSelection: new LowestIdSelection());
+        var result = engine.Run(topology, seed: 42, horizonMinutes: 10000);
+
+        double diff = Math.Abs(result.PerServerUtilisation[0] - result.PerServerUtilisation[1]);
+        Assert.True(diff >= 0.10, $"lowest-ID assignment must produce a palpable imbalance (|util0 − util1| = {diff:F4})");
+    }
+
+    // ---- Calendar-aware runs (M3 C) --------------------------------------
+
+    private static NetworkTopology ClinicNetwork()
+        // λ0 = 0.5/min; Reception ρ = 0.5/1.5 = 0.33, Screening ρ = 0.5/2 = 0.25,
+        // Doctor ρ = 0.5·(1−0.3)/(3·0.8) = 0.35/2.4 ≈ 0.146 — all stable.
+        => new NetworkTopology(0.5, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 1.5),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 1.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 0.8),
+        }, exitStageIndex: 1, exitProbability: 0.3);
+
+    [Fact]
+    public void Run_Calendar_SingleDay_AdmitsInsideWindowAndDrains()
+    {
+        // One Monday block: every admitted patient must eventually drain out of
+        // the system (FR-SIM-6), so served == admitted and the run terminates.
+        var topology = NetworkTopology.CreateSingleStage(0.5, 1.2, serverCount: 1, "Reception");
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, calendar, generatorDays: 1, seed: 42);
+
+        Assert.Single(result.AdmittedPerDay);
+        Assert.Equal(result.AdmittedPerDay[0], result.TotalPatientsServed);
+        Assert.InRange(result.AdmittedPerDay[0], 40, 130);   // ~82 expected at λ0 = 0.5 over 165 min
+        Assert.True(result.OperatingTimeMinutes > 0, "operating time must cover the day's window");
+    }
+
+    [Fact]
+    public void Run_Calendar_SevenDays_ClosedFridayAndSundayAdmitNothing()
+    {
+        // Day 0 = Monday: open Mon–Thu (0..3), closed Fri (4), open Sat (5),
+        // closed Sun (6). Admissions must mirror the calendar exactly and every
+        // admitted patient must be served (drain completes).
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(7, result.AdmittedPerDay.Count);
+        for (int d = 0; d < 4; d++)
+            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
+        Assert.Equal(0, result.AdmittedPerDay[4]); // Friday
+        Assert.True(result.AdmittedPerDay[5] > 0);
+        Assert.Equal(0, result.AdmittedPerDay[6]); // Sunday
+
+        Assert.Equal(result.AdmittedPerDay.Sum(), result.TotalPatientsServed);
+
+        // Per-stage metrics must remain sane across the multi-day run.
+        Assert.Equal(3, result.StageMetrics.Count);
+        foreach (var metric in result.StageMetrics)
+        {
+            Assert.InRange(metric.StageUtilisation, 0.0, 1.0);
+            Assert.True(metric.AverageWaitMinutes >= 0);
+            Assert.True(metric.PatientsServed >= 0);
+        }
+    }
+
+    [Fact]
+    public void Run_Calendar_StartDayFriday_ExposesFirstClosedBlock()
+    {
+        // Day 0 = Friday: closed (0), open Sat (1), closed Sun (2),
+        // open Mon–Thu (3..6). Proves --start-day semantics at the engine level.
+        var calendar = new ClinicCalendar(startDayOfWeek: DayOfWeek.Friday);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(0, result.AdmittedPerDay[0]); // Friday
+        Assert.True(result.AdmittedPerDay[1] > 0); // Saturday
+        Assert.Equal(0, result.AdmittedPerDay[2]); // Sunday
+        for (int d = 3; d <= 6; d++)
+            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
+    }
+
+    [Fact]
+    public void Run_Calendar_Cap_BindsEveryOpenDay_ResetsDaily()
+    {
+        // Cap = 4 with ~82 arrivals/day: every open day must hit exactly the cap
+        // (subsequent Poisson arrivals that day are gated out), while closed
+        // days stay at 0. Proves the cap resets per day block (D-009).
+        var calendar = new ClinicCalendar();
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42, dailyCap: 4);
+
+        Assert.Equal(new[] { 4, 4, 4, 4, 0, 4, 0 }, result.AdmittedPerDay);
+        Assert.Equal(4 * 5, result.TotalPatientsServed); // 5 open days × cap
+        Assert.Equal(4, result.DailyCap);
+        Assert.Equal(7, result.GeneratorDays);
+    }
+
+    [Fact]
+    public void Run_Calendar_SameSeed_TwoRuns_ProduceIdenticalDayAdmissions()
+    {
+        var calendar = new ClinicCalendar();
+
+        var first = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+        var second = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+
+        Assert.Equal(first.AdmittedPerDay, second.AdmittedPerDay);
+        Assert.Equal(first.TotalPatientsServed, second.TotalPatientsServed);
+        Assert.Equal(first.OperatingTimeMinutes, second.OperatingTimeMinutes);
+    }
+
+    [Fact]
+    public void Run_Calendar_DrainContinuesPastWindowEnd()
+    {
+        // Slow services (μ = 0.1/min, 10 min average) over a 10-server stage
+        // (ρ = 0.5 → stable) guarantee services still running when the window
+        // closes; the last service end must land well past 11:00 (FR-SIM-6).
+        var topology = NetworkTopology.CreateSingleStage(0.5, 0.1, serverCount: 10, "Reception");
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, new ClinicCalendar(), generatorDays: 1, seed: 42);
+
+        Assert.True(result.OperatingTimeMinutes > 165,
+            $"drain must extend past the 165-minute window (got {result.OperatingTimeMinutes:F1})");
+    }
+
+    [Fact]
+    public void Run_Calendar_RejectsInvalidDayCountsAndCaps()
+    {
+        var calendar = new ClinicCalendar();
+        var topology = NetworkTopology.CreateSingleStage(0.5, 1.2, serverCount: 1, "Reception");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, calendar, generatorDays: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, calendar, generatorDays: 1, dailyCap: 0));
     }
 }

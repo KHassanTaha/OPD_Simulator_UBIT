@@ -221,13 +221,47 @@ a metrics block each (patients served, average wait, ρ). Unstable counts are
 refused per-count with no stack trace; exit 0 if at least one run completed.
 Only `exponential` is accepted in M2 (other families: clean refusal, exit 2).
 
+**Stage-aware data (M3):** a file with more than one service stage is ordered by
+the clinic flow (Reception → Screening → Doctor, `ClinicStageOrder`), fitted with
+per-stage μᵢ, and `--servers` then takes exactly one count per detected stage in
+flow order (mismatch → exit 2). `p_exit` is estimated from `departure_stage`
+when Doctor is present (blank doctor cells for Screening exits are valid — see
+D-052), and one network run prints a per-stage block plus network totals. An
+unstable network refuses with exit 1 listing every unstable stage:
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-data --file samples/sample_3stage_clinic.csv --servers 1,2,3 --seed 42 --horizon 500
+# p_exit = 0.7; three per-stage blocks + network totals; exit 0
+```
+
 **Verified 2026-09-13 on `samples/sample_patients.csv` (seed 42, HH:MM:SS times — D-048):** λ = 0.562/min
 (mean inter-arrival 1.78 min), μ = 0.683/min (mean service 1.464 min, stage
-`screening`); ρ/avg-wait = 0.82/6.1 min (c=1), 0.41/0.25 min (c=2), 0.27/0.04 min
-(c=3). `fit` accepts the exponential for both quantities (p = 0.103 inter-arrival,
-p = 0.258 service — the second-precision storage lets the chi-square no longer see
-the minute-rounded data as discrete). The mean inter-arrival is ~1.78 min vs the
-generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).
+`screening`); ρ/avg-wait = 0.82/6.058 min (c=1), 0.41/0.315 min (c=2), 0.27/0.030 min
+(c=3). The c=2/c=3 waits were refreshed on 2026-09-13 after D-050 changed server assignment
+to random-among-idle (Milestone-1's lowest-ID bias only affected c>1 runs; the c=1 path is
+byte-for-byte, 6.058 min unchanged). `fit` accepts the exponential for both quantities
+(p = 0.103 inter-arrival, p = 0.258 service — the second-precision storage lets the
+chi-square no longer see the minute-rounded data as discrete). The mean inter-arrival is
+~1.78 min vs the generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).
+The stage-aware form was verified on `samples/sample_3stage_clinic.csv` (λ0 = 0.2/min,
+p_exit = 0.7, μ 0.5/0.25/0.2, 3 metric blocks + network totals).
+
+### 7.5 `simulate-network --lambda λ₀ --c c₁,c₂,c₃ --mu μ₁,μ₂,μ₃ [--stages …] [--p-exit p] [--days N] [--start-day D] [--cap N] [--horizon m] [--seed s] [--verbose]` — parameter-driven multi-stage run (M3)
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-network --lambda 0.2 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 --days 5 --cap 80 --verbose
+```
+Builds the network from named parameters (no data file): `--c`/`--mu` provide one
+value per stage (names default to the clinic flow; `--stages` overrides). `--p-exit`
+is bound to the Screening stage and needs ≥ 3 stages; λ_doctor = λ₀·(1 − p_exit)
+(then ρ_doctor = 0.1 in the example). `--days N` runs the clinic calendar
+(open Mon–Thu + Sat, window 08:15–11:00, D-051) with optional `--start-day` and
+per-day `--cap`; `--horizon` is the alternative run mode and the two are mutually
+exclusive. `--verbose` prints the pre-run routing-derived ρᵢ per stage (the B3
+trace aid). Exit 1 with a single stderr line listing EVERY unstable stage.
+
+**Verified 2026-09-13 (Ubuntu 24.04):** the example command printed the day-model
+header, pre-run ρᵢ (0.4/0.4/0.1), three per-stage blocks and network totals
+(124 served); `--days 5 --cap 80 --seed 42` reproduced identical stdout on a
+second run (FR-VAL-3).
 
 ---
 
@@ -250,7 +284,8 @@ opd-simulator/
 │   └── sample-data-generator/       # standalone console app (NOT in the sln)
 ├── samples/
 │   ├── sample_patients.xlsx         # committed demo data (generator, seed 42)
-│   └── sample_patients.csv          # committed twin for terminal workflows
+│   ├── sample_patients.csv          # committed twin for terminal workflows
+│   └── sample_3stage_clinic.csv     # committed 3-stage fixture (Reception→Screening→Doctor, p_exit 0.7)
 ├── src/
 │   ├── OpdSimulator.Core/      # simulation engine (no UI)
 │   ├── OpdSimulator.Data/      # Excel/CSV loader, fitting
@@ -374,6 +409,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-13 | M3: `simulate-data` is stage-aware (per-stage μᵢ, p_exit, per-stage blocks, D-052), new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (D-053) and `--p-exit` routing; `samples/sample_3stage_clinic.csv` tracked; §7.4/§7.5 + §8 updated; M2 sweep c=2/3 waits refreshed (§7.4); 156 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 156 green, 0 warnings; `simulate-network` (incl. `--days 5 --cap 80 --verbose`) and stage-aware `simulate-data` live-run verified; M1 regression live (29892/0.724/0.75); §7.4 c=2/3 refresh command run |
 | 2026-09-13 | M2: CLI is a subcommand dispatcher — `simulate-params` (renamed M1 form), `verify`, `fit`, `simulate-data` (server sweep), `export` (§5/§7); Data layer lands (loaders, validator, preprocessing, fitters, chi-square); sample files committed + regenerable via `scripts/make-sample-data.sh` (§8); 97 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test pass, 0 warnings; verify/fit/simulate-data/export live-run verified, exit codes observed |
 | 2026-09-13 | M1: CLI takes `--lambda/--mu/--servers/--horizon/--seed`, prints metrics + ρ, exits 0/1/2 (§5); tests exist (34 green, §6); headless mode updated to the rate-driven form, M2 data form noted (§7); Serilog.Sinks.File 7.0.0 + Core Serilog 4.4.0 + ProjectReferences noted (§3) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test + M1 CLI F2/F3 all pass, 0 warnings |
 | 2026-09-13 | File created (starter template); OS corrected to Ubuntu 24.04 | Not yet verified |

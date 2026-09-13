@@ -2,6 +2,214 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 16:30
+Branch: feat/milestone-3-multi-stage-network
+Status: Clean
+
+Done
+M3 sub-block A — engine generalisation (StageSpec/Stage/NetworkTopology, Run(topology,…), StageMetrics[], D-050)
+M3 sub-block B — engine-level per-stage refusal listing ALL unstable stages (B3 CLI surface folded into E/F)
+M3 sub-block C — ClinicCalendar + engine arrival gating (D-051)
+M3 sub-block E — stage-aware simulate-data (D-052)
+M3 sub-block F — simulate-network command + day-model flags + --verbose ρᵢ (D-053)
+M3 sub-block G — acceptance: 156 tests, 0 warnings; M1 byte-for-byte; refusals; day-repeatability; c=2/3 sweep refreshed
+M3 sub-block H — docs pass: DEV_LAUNCH, USER_MANUAL, REQUIREMENTS (63.0%), VIVA_ANSWERS +5 Q&As, dead-state verified
+
+In Progress
+None
+
+What is complete: M1–M3 end-to-end. Single-stage M1 byte-for-byte intact (served 29892,
+wait 0.724, ρ 0.75). M2 data layer intact. M3 network: stage-aware simulate-data,
+parameter-driven simulate-network with clinic calendar (--days/--start-day/--cap),
+per-stage ρᵢ + refusal listing every unstable stage, p_exit routing. 156 tests (76 Core +
+58 Data + 22 Cli), 0 warnings, dead-state restore/build/test pass.
+
+What remains: owner review + merge of feat/milestone-3-multi-stage-network into main
+(AGENTS §11.5 item 6); M4 (event logging + step-by-step trace) and M5 (GUI) and M6
+(token generator) not yet started.
+
+Next Session Should Start With
+Owner: review/P R the branch into main (per AGENTS §11.5); then pick the next milestone
+M4 event logging & step-by-step trace (the deviation-kickoff plan had D-block run modes
+absorbed into C/F, B3 into E/F — both landed).
+M5 GUI (Avalonia; B-005 remains a pending owner decision).
+
+Blocked
+None (B-001..003, B-005, B-006 remain open owner/OS blockers, unrelated to M3).
+
+Git State
+Commits made this session: c5efd5c (stage-aware simulate-data), 9751986 (docs D-052),
+46e2a00 (simulate-network), ae13a73 (docs D-053), ff4f565 (docs acceptance + sweep refresh),
+7e0843a (sample fixture), 8dd93ea (docs H + dead-state). Prior session: 8d26fa6, babed9a,
+35fefd4, 9b17f80, c476299.
+Pushed to origin: Yes (feat/milestone-3-multi-stage-network).
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings)
+dotnet test: PASS — 156 passed, 0 failed (76 Core + 58 Data + 22 Cli) from dead-state
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core: Stages/NetworkTopology.cs (M3-A), Calendar/ClinicCalendar.cs (C), Engine/Engine.cs, SimulationResult.cs, StageMetrics.cs, Servers/* (D-050) — from prior commits this session set
+src/OpdSimulator.Data: Preprocess/ClinicStageOrder.cs (new), Validation/DataValidator.cs (blank-downstream rule)
+src/OpdSimulator.Cli: Commands/SimulateDataCommand.cs (stage-aware), Commands/SimulateNetworkCommand.cs (new), Commands/CliShared.cs (+TryParsePositive), Program.cs (dispatch, PrintNetworkMetrics)
+tests/: DataValidatorTests (+2), CliSimulateDataNetworkTests (new), CliSimulateNetworkTests (new)
+docs/: DECISIONS (D-052, D-053), PROGRESS, TODO, DEV_LAUNCH, USER_MANUAL, REQUIREMENTS; VIVA_ANSWERS.md, .gitignore, samples/sample_3stage_clinic.csv (new)
+
+Decisions Made
+D-052 — stage-aware simulate-data flows (DECISIONS.md)
+D-053 — simulate-network inline flags + B3 pre-run ρᵢ (DECISIONS.md)
+
+Assumptions Added/Changed
+None new besides D-052's documented blank-downstream-cell rule (logical consequence of CONTEXT §1.2, not a new assumption).
+
+Notes for Next Session
+Branch is ready for owner review/merge to main; DO NOT merge to main yourself.
+DEV_LAUNCH §7.4 c=2/c=3 numbers (0.315/0.030) reflect D-050 and are re-derivable via the documented command.
+The kickoff "M3 D run modes" (single-day default, --days N, --start-day) was delivered engine-side in C and CLI-side in F (both DONE, D-051/D-053) — no work item remains.
+Next natural task from TODO.md "Upcoming": M4 event trace milestone — see docs/TODO.md.
+
+### M3 sub-block H: docs pass + dead-state check — 2026-09-13 (feat/milestone-3-multi-stage-network)
+Every living doc brought current and the dead-state rule re-run:
+**DEV_LAUNCH** §7.4 documents the stage-aware `simulate-data` form with the
+committed `samples/sample_3stage_clinic.csv` (verified command + output), new
+§7.5 for `simulate-network` (verified example, exit-code + refusal semantics),
+§8 layout lists the new sample, §12 changelog row with the Ubuntu-24.04
+verification stamp. **USER_MANUAL** §7.4 gains the multi-stage paragraph,
+new §7.5 (simulate-network, non-technical), §7.6 regenerating samples; §12
+changelog row. **REQUIREMENTS.md** M3 rows: FR-SIM-1/4/6/7/8/9 → `[x]` with
+network sources + tests + D-049→D-053, FR-SIM-10 → `[~]` (real-clock binding
+is M5), FR-STAT-6/7 → `[x]`, FR-VAL-1 source refreshed to
+`NetworkTopology.Validate`; coverage 63.0% (29/46 `[x]` + 3 `[~]`); changelog
+row added. **VIVA_ANSWERS.md** +5 M3 Q&As (per-stage ρ routing, blank-doctor
+days rule, --servers contract, calendar-as-one-stream, D-050 c=1 unchanged).
+**BLOCKERS** — no stale M3 entries (B-001..003/005/006 unaffected). Dead-state
+check (AGENTS §10.4): `bin`/`obj` deleted everywhere, `dotnet restore` →
+`dotnet build` (0 warnings) → `dotnet test` 156 green. **M3 sub-blocks A–H all
+DONE.**
+
+### M3 sub-block G: acceptance pass — 2026-09-13 (feat/milestone-3-multi-stage-network)
+Every kickoff acceptance item verified, live where a live check exists:
+**≥128 tests / 0 warnings** → 156 tests (76 Core + 58 Data + 22 Cli), 0 warnings.
+**M1 byte-for-byte** → live `simulate-params --lambda 3 --mu 4 --servers 1 --horizon
+10000 --seed 42` prints served 29892, wait 0.724, ρ 0.75 (both EngineTests +
+CliSimulateParamsTests guard it). **simulate-network per-stage** → 3 metric blocks
++ network totals; `--verbose` pre-run ρᵢ (0.4/0.4/0.1). **Unstable refusal via
+CLI** → both commands exit 1 with one stderr line listing every unstable stage
+(live: Reception ρ = 6.06 + Screening ρ = 4.00). **simulate-data 3-stage** →
+fit λ0 + per-stage μᵢ + p_exit, 3 blocks, network totals. **Day-repeatability** →
+same-seed `--days` runs byte-identical stdout. **M2 sweep c=2/3 refreshed**
+→ D-050 changed assignment to random-among-idle; c=1 path unchanged
+(6.058 min); `simulate-data samples/sample_patients.csv --servers 1,2,3 --seed
+42` now reports 0.82/6.058, 0.41/0.315, 0.27/0.030 — DEV_LAUNCH §7.4 updated
+with the exact command used (wording marks the refresh date and cause).
+
+### M3 sub-block F: `simulate-network` command + day-model flags + B3 pre-run ρᵢ — 2026-09-13 (feat/milestone-3-multi-stage-network)
+New `Cli/Commands/SimulateNetworkCommand.cs`: the parameter-driven twin of the
+fitted path. `--lambda λ₀ --c 1,2,3 --mu μ₁,μ₂,μ₃` build `StageSpec[]` (names
+default to the clinic flow unless `--stages` overrides), `--p-exit` binds to
+the second-to-last stage and requires ≥ 3 stages, and the D-009 day model lands
+as CLI flags: `--days N` → `Engine.Run(topology, ClinicCalendar(), N, seed,
+--cap)` with `--start-day` naming day 0 (D-051 block-relative weekdays);
+`--horizon` stays the no-`--days` run mode and the two are mutually exclusive.
+`--verbose` prints the B3 pre-run routing-derived ρᵢ per stage
+(`NetworkTopology.EffectiveArrivalRate/RhoFor`, pure reads); calendar runs add
+a `── Clinic day model ──` header before `PrintNetworkMetrics`. `CliShared`
+gains `TryParsePositive`. Unstable refusals exit 1 with the single stderr line
+listing EVERY unstable stage. Tests: 12 new facts in
+`CliSimulateNetworkTests` (3-stage run, p-exit run, --verbose ρᵢ block,
+5-day same-seed reproducibility, all-stages unstable refusal, 7-case
+usage-error theory) — full suite **156 green** (76 Core + 58 Data + 22 Cli),
+0 warnings. Live smoke: `--verbose --days 5 --cap 80` serves 124 patients with
+pre-run ρᵢ (0.4/0.4/0.1), day-model header, and 3 per-stage blocks. D-053
+(logging the inline-flags-vs-JSON decision). The JSON-scenario deviation from
+the kickoff TODO wording is intentional and owner-visible via D-053.
+
+### M3 sub-block E: stage-aware `simulate-data` — 2026-09-13 (feat/milestone-3-multi-stage-network)
+`simulate-data` now runs the fitted 3-stage network. New `ClinicStageOrder`
+(Data/Preprocess): canonical clinic flow Reception → Screening → Doctor, used
+to (1) order detected stage pairs regardless of CSV column order and (2) power
+the only validator relaxation that M3 data needs — a stage column may be blank
+only when that stage comes strictly after the row's `departure_stage` in the
+flow (a Screening exit legitimately has no doctor times). `DataValidator`
+recognises this via `StageMayBeBlankFor`; all prior strictness (blank arrival,
+blank earlier-stage cells, unparseable times, inverted pairs, out-of-order
+arrivals) is unchanged. `SimulateDataCommand` was rewritten: λ₀ = 1/mean
+inter-arrival; per-stage μᵢ = 1/mean(service) over the stage's usable rows
+(refusal if a stage has none); p_exit via `PExitCalculator` with the exit stage
+bound to Screening **only when Doctor exists** (else all exit at the last stage
+and no p_exit — routing λ_doctor = λ₀·(1−p_exit) only applies with Doctor).
+Single-stage files keep the M2 `--servers 1,2,3` sweep byte-for-byte (the same
+`Fitted from data: λ = 0.2 … stage 'Screening').` line and PrintMetrics);
+stage-aware files require exactly one `--servers` count per detected stage in
+flow order (mismatch = usage exit 2) and run one network. New
+`Program.PrintNetworkMetrics` emits a per-stage block (patients served, avg
+wait, avg queue, stage util, per-server util, throughput, ρᵢ) plus network
+totals. Unstable networks refuse with exit 1 and the message listing EVERY
+unstable stage (λᵢ, cᵢ, μᵢ, ρᵢ). Tests: 2 DataValidator facts (blank doctor
+allowed for Screening exit; blank reception for Doctor exit still rejected) +
+3 CLI facts (`CliSimulateDataNetworkTests`: 3-stage fit+p_exit=0.7+3 metric
+blocks, all-stages unstable refusal, server-count mismatch exit 2). 144 tests
+green (76 Core + 58 Data + 10 Cli), 0 warnings; live smoke run verified a full
+3-stage run (109 served, per-stage blocks, network totals). D-052.
+
+### M3 sub-block C: clinic calendar + engine arrival gating — 2026-09-13 (feat/milestone-3-multi-stage-network)
+`ClinicCalendar` (Core/Calendar) encodes the OPD schedule: open Mon–Thu + Sat,
+window 08:15–11:00 (CONTEXT §1.1), optional daily cap, and a start-day anchor
+(future `--start-day`). The time model (D-051) anchors t = 0 at the day-0 window
+so all times are ≥ 0: a day block is 24 h from the anchor, weekday =
+`(startDay + block) mod 7`, admission window = first 165 minutes of an open
+block. Arrivals are ONE continuous Poisson stream that the engine gates at fire
+time — the demand exists, the calendar is the admission gate — so no per-day
+draw resets and no first-arrival-after-the-weekend special case. New `Engine.Run
+(topology, calendar, generatorDays, seed, dailyCap)` (+`CalendarGate` nested
+class) shares `RunCore` with the horizon path; the byte-for-byte M1 loop is
+untouched (calendar == null branch). Operating time per open day = first admitted
+arrival → last service end, summed (D-018, not diluted by nights/weekends);
+services drain past 11:00 (FR-SIM-6). 22 new tests (11 ClinicCalendar + 7 engine
+facts + theory rows): defaults, window boundary (165 exclusive), Fri/Sun admit
+zero, start-day-Friday shift, cap binds 4/day × 5 open days and resets daily,
+same-seed reproducibility incl. AdmittedPerDay, drain-into-the-evening with
+μ = 0.1/ρ = 0.5, arg guards. 139 tests green (76 Core + 56 Data + 7 Cli),
+0 warnings. D-051.
+
+### M3 sub-block B: per-stage ρ refusal at engine level — 2026-09-13 (feat/milestone-3-multi-stage-network)
+B1/B2 landed inside sub-block A (NetworkTopology uses the D-007 product rule for
+λᵢ = λ₀·Π(1−p_exit), and Validate() throws UnstableSystemException listing every
+offender with λᵢ, cᵢ, μᵢ, ρᵢ). This letter proved the full engine path (FR-VAL-1)
+with three new tests: doctor-only-unstable (ρ = 1.20, refusal carries the
+routing-derived λ = 1.800 and does NOT mention the stable stages), two-stages-
+unstable (both Reception 3.00 and Screening 1.50 listed with their cᵢ), and an
+all-stable network whose StageMetrics report ρ = 0.30 / 0.375 / 0.375 per stage
+(FR-STAT-6 engine groundwork). B3 (CLI `--verbose` per-stage ρᵢ before the run)
+is genuinely a network-command feature, so it is folded into E/F rather than
+half-built against the still-single-stage CLI. 117 tests green (54 Core + 7 Cli
++ 56 Data), 0 warnings. Milestone-3 sub-block plan persisted into TODO.md so the
+kickoff survives sessions.
+
+### M3 sub-block A: engine N-stage generalisation + server-assignment latent-bug fix — 2026-09-13 (feat/milestone-3-multi-stage-network)
+First commit on the branch cleared the stale M2 `[~]` TODO row (`8d26fa6`,
+message per kickoff). Then the engine became network-capable without a rewrite:
+new `Core/Stages/{StageSpec,Stage,NetworkTopology}` and `Engine.Run(NetworkTopology,
+seed, horizon)`; `SimulationResult.StageMetrics[]`; `Patient.SystemArrivalTime` +
+`AdvanceToStage`; `UnstableSystemException` now lists ALL unstable stages
+(`UnstableStage` payload). Routing uses the existing EventType mapping (stage i →
+completion event i+1, D-006), and draws a uniform against p_exit only at the exit
+stage (FR-SIM-3). Latent M1 bug fixed (D-017 vs actual FirstOrDefault code):
+idle assignment is now `IServerSelectionPolicy` — `RandomIdleSelection` (default;
+no draw when a single server is idle → single-server stream untouched) and test-only
+`LowestIdSelection`. Byte-for-byte M1 guarded two ways: Core test
+(`Run_SingleStage_ByteForByteRegression`) and a CLI test asserting the exact
+simulate-params output lines (served 29892, wait 0.724, ρ 0.75). Balance regression
+uses a low-load 2-server stage (λ=2, μ=4, c=2): random-diff < 0.10, lowest-ID-diff
+≥ 0.10. Test infra fix: CLI tests share the static Serilog global, so the assembly
+is now `CollectionBehavior(DisableTestParallelization)` (was a latent race — new
+second CLI class tripped it). 114 tests green (51 Core + 7 Cli + 56 Data),
+0 warnings. Decisions D-049 (NetworkTopology generalisation), D-050 (server fix).
+
 ### M2.5 Sample data precision fix — 2026-09-13 (fix/sample-data-precision)
 Owner's smoke test found chi-square rejecting the sample's exponential fit at p ≈ 0
 for inter-arrival AND service. Root cause: the sample stored whole minutes

@@ -7,6 +7,10 @@ namespace OpdSimulator.Core.Patients;
 /// State is intentionally minimal: the engine owns the balances of time.
 /// A patient begins as a data record (id, arrival time, target stage) and
 /// the engine marks service milestones on it as the simulation progresses.
+/// <see cref="AdvanceToStage"/> records movement to the next stage's queue,
+/// so the same object follows the whole Reception → Screening → Doctor path
+/// while <see cref="SystemArrivalTime"/> keeps the clock of the patient's very
+/// first entry into the system.
 /// </remarks>
 public sealed class Patient
 {
@@ -19,6 +23,7 @@ public sealed class Patient
     public Patient(int id, double arrivalTime, int stageIndex)
     {
         Id = id;
+        SystemArrivalTime = arrivalTime;
         ArrivalTime = arrivalTime;
         StageIndex = stageIndex;
     }
@@ -26,11 +31,14 @@ public sealed class Patient
     /// <summary>Unique identifier, assigned by the engine in arrival order.</summary>
     public int Id { get; }
 
-    /// <summary>Clock time (minutes from t=0) at which the patient entered the stage queue.</summary>
-    public double ArrivalTime { get; }
+    /// <summary>Clock time (minutes from t=0) at which the patient first entered the system.</summary>
+    public double SystemArrivalTime { get; }
+
+    /// <summary>Clock time (minutes from t=0) at which the patient entered the current stage's queue.</summary>
+    public double ArrivalTime { get; private set; }
 
     /// <summary>Zero-based index of the stage this patient is waiting for / being served at.</summary>
-    public int StageIndex { get; }
+    public int StageIndex { get; private set; }
 
     /// <summary>Clock time at which service actually began, once started (null while queued).</summary>
     public double? ServiceStartTime { get; private set; }
@@ -70,5 +78,27 @@ public sealed class Patient
         if (HasCompletedService)
             throw new InvalidOperationException($"Patient {Id} already completed service.");
         ServiceEndTime = now;
+    }
+
+    /// <summary>
+    /// Moves the patient to the next stage's queue, recording when it got there.
+    /// </summary>
+    /// <remarks>
+    /// Resets the per-visit service milestones (they belong to the stage just
+    /// left) and re-anchors <see cref="ArrivalTime"/> at the new stage queue,
+    /// so wait-time bookkeeping per stage stays correct. <see cref="SystemArrivalTime"/>
+    /// is preserved so the engine can measure the patient's whole journey.
+    /// </remarks>
+    /// <param name="stageIndex">Zero-based index of the next stage.</param>
+    /// <param name="arrivalTime">Clock time (minutes from t=0) the patient joined the new stage's queue.</param>
+    public void AdvanceToStage(int stageIndex, double arrivalTime)
+    {
+        if (arrivalTime < SystemArrivalTime)
+            throw new ArgumentException($"Stage arrival {arrivalTime} precedes the patient's system arrival {SystemArrivalTime}.", nameof(arrivalTime));
+
+        StageIndex = stageIndex;
+        ArrivalTime = arrivalTime;
+        ServiceStartTime = null;
+        ServiceEndTime = null;
     }
 }

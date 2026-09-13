@@ -41,16 +41,16 @@ PRD.md wins.
 
 | ID | Requirement | Status | Source | Test | Decision |
 |----|-------------|--------|--------|------|----------|
-| FR-SIM-1 | 3-stage serial network (1/2/3 servers) | [x] | src/OpdSimulator.Core/Engine/Engine.cs (N-stage-generic serial engine; 3-stage config = M3) | EngineTests | D-006 |
+| FR-SIM-1 | 3-stage serial network (1/2/3 servers) | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs + Engine/Engine.cs; Cli/Commands/{SimulateDataCommand,SimulateNetworkCommand}.cs | EngineTests.Run_Network_*, NetworkTopologyTests, CliSimulateDataNetworkTests, CliSimulateNetworkTests | D-006, D-049, D-052, D-053 |
 | FR-SIM-2 | DES with FEL; 4 event types | [x] | src/OpdSimulator.Core/Events/{Event,EventType,FEL}.cs, Engine/Engine.cs | FELTests, EventTests, EngineTests | D-033 |
 | FR-SIM-3 | RNG per selected distributions | [x] | src/OpdSimulator.Core/Distributions/{IRandomSource,SeededRandomSource,ExponentialSampler}.cs | SeededRandomSourceTests, ExponentialSamplerTests | D-035 |
-| FR-SIM-4 | p_exit routing after Screening | [ ] | — | — | — |
+| FR-SIM-4 | p_exit routing after Screening | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (routing λᵢ), Data/Preprocess/PExitCalculator.cs, Cli/Commands/SimulateDataCommand.cs (p_exit when Doctor present) | NetworkTopologyTests, CliSimulateDataNetworkTests, CliSimulateNetworkTests | D-007, D-015, D-052, D-053 |
 | FR-SIM-5 | Arrival window 8:15 → cap/11:00 | [x] | src/OpdSimulator.Core/Engine/Engine.cs (HandleArrival horizon gate — M1; clinic calendar hours are M3/M4) | EngineTests | — |
-| FR-SIM-6 | Services continue past close | [x] | src/OpdSimulator.Core/Engine/Engine.cs (FEL drains past horizon) | EngineTests, CLI F2 | — |
-| FR-SIM-7 | Day ends when cap served | [ ] | — | — | — |
-| FR-SIM-8 | Skip Fri/Sun | [ ] | — | — | — |
-| FR-SIM-9 | Single-day / multi-day modes | [ ] | — | — | — |
-| FR-SIM-10 | Internal minutes; UI shows clock time | [ ] | — | — | — |
+| FR-SIM-6 | Services continue past close | [x] | src/OpdSimulator.Core/Engine/Engine.cs (FEL drains past horizon), Calendar/ClinicCalendar.cs (drain in day model) | EngineTests.Run_Calendar_DrainsPastWindow | — |
+| FR-SIM-7 | Day ends when cap served | [x] | src/OpdSimulator.Core/Engine/Engine.cs (CalendarGate daily cap, D-051), Cli/Commands/SimulateNetworkCommand.cs (--cap) | EngineTests.Run_Calendar_CapBindsPerDay, CliSimulateNetworkTests.DaysTwo_SameSeed_RunsAreIdentical | D-009, D-051 |
+| FR-SIM-8 | Skip Fri/Sun | [x] | src/OpdSimulator.Core/Calendar/ClinicCalendar.cs (open days + closure gates) | ClinicCalendarTests, EngineTests.Run_Calendar_FridaySundayZeroAdmissions | D-051 |
+| FR-SIM-9 | Single-day / multi-day modes | [x] | src/OpdSimulator.Core/Engine/Engine.cs (calendar Run overload), Cli/Commands/SimulateNetworkCommand.cs (--days / --horizon mutually exclusive) | EngineTests.Run_Calendar_*, CliSimulateNetworkTests | D-009, D-051, D-053 |
+| FR-SIM-10 | Internal minutes; UI shows clock time | [~] | src/OpdSimulator.Core/Calendar/ClinicCalendar.cs (FormatClock), Patient.cs internal minutes | ClinicCalendarTests.FormatClock | — |
 
 ## Functional Requirements — Statistics & Validation
 
@@ -61,10 +61,10 @@ PRD.md wins.
 | FR-STAT-3 | Auto bin count | [x] | src/OpdSimulator.Data/Fitting/BinSelector.cs (k = ⌈√n⌉ clamped [5,20]) | ChiSquareTests (k = 5/8/20 bounds) | D-040 |
 | FR-STAT-4 | Display O, E, χ², df, p, decision | [~] | ChiSquareResult carries Observed/Expected arrays (tested); `fit` CLI prints χ², df, p, decision; the O/E table is the M5 GUI | ChiSquareTests | — |
 | FR-STAT-5 | Auto compare vs analytical M/M/c | [ ] | — | — | — |
-| FR-STAT-6 | Display per-stage ρ (bottleneck) | [ ] | — | — | — |
-| FR-STAT-7 | Per-server util + imbalance flag (>0.15) | [ ] | — | — | — |
+| FR-STAT-6 | Display per-stage ρ (bottleneck) | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (RhoFor, routing λᵢ) + cli/Program.cs PrintNetworkMetrics (`ρ = λᵢ/(c·μ)`) + SimulateNetworkCommand --verbose | CliSimulateNetworkTests.Verbose_PrintsPreRunRho, CliSimulateDataNetworkTests | D-015, D-052, D-053 |
+| FR-STAT-7 | Per-server util + imbalance flag (>0.15) | [x] | src/OpdSimulator.Core/Servers/{IServerSelectionPolicy,RandomIdleSelection}.cs + cli/Program.cs PrintNetworkMetrics per-server lines | EngineTests (balance/utilisation), CliSimulateNetworkTests | D-016, D-050 |
 | FR-STAT-8 | Histogram + fitted PDF overlay | [ ] | — | — | — |
-| FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Engine/{EngineConfig,UnstableSystemException}.cs, src/OpdSimulator.Cli/Program.cs | StabilityTests | D-034 |
+| FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (Validate — lists ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ), Engine/{EngineConfig,UnstableSystemException}.cs, Cli/Program.cs (clean stderr, D-037) | StabilityTests, EngineTests.Run_Network_*, CliSimulateDataNetworkTests, CliSimulateNetworkTests.UnstableStage_RefusedListingAllUnstable | D-034, D-015, D-049 |
 | FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [x] | src/OpdSimulator.Core/Servers/Server.cs, Engine/Engine.cs | ServerTests (Utilisation_StaysWithinUnitInterval), EngineTests | — |
 | FR-VAL-3 | Random seed (default 42, logged) | [x] | src/OpdSimulator.Core/Distributions/SeededRandomSource.cs, Engine/Engine.cs | SeededRandomSourceTests, EngineTests.Run_SameSeed | D-035 |
 | FR-VAL-4 | Event log with all state + RNG draws | [x] | src/OpdSimulator.Core/Engine/Engine.cs (Debug trace) | EventTraceTests (in-memory Serilog sink) | D-036 |
@@ -139,6 +139,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | M3: FR-SIM-1/4/7/8/9, FR-STAT-6/7 → `[x]` with network source/tests/decisions (D-049→D-053); FR-SIM-10 → `[~]` (FormatClock lands the real-clock piece, UI binding M5); FR-VAL-1 + FR-SIM-1 source refreshed for `NetworkTopology.Validate`/CLI; coverage now 63.0% (29/46 `[x]`, +3 `[~]`) |
 | 2026-09-13 | Initial matrix created from PRD v1.3.0 |
 | 2026-09-13 | Bidirectional rule (AGENTS §9.7) applied — matrix audited against PRD v1.3.0; zero orphan rows; D-025 logged |
 | 2026-09-13 | M1: FR-SIM-1/2/3/5/6, FR-VAL-1/2/3, NFR-4 marked `[x]` with Source + Test + Decision |

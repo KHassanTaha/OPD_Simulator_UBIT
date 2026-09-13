@@ -34,4 +34,29 @@ public sealed class SimulationResult
 
     /// <summary>Operating time (minutes): first arrival to last service end.</summary>
     public double OperatingTimeMinutes { get; init; }
+
+    /// <summary>
+    /// Per-stage metrics for the serial network. A single-element array for the
+    /// legacy single-stage model; one entry per stage for the multi-stage topology.
+    /// </summary>
+    public IReadOnlyList<StageMetrics> StageMetrics { get; init; } = Array.Empty<StageMetrics>();
+
+    /// <summary>
+    /// Patients admitted per calendar-day block. Only populated by a
+    /// calendar-aware run (<see cref="Engine.Run(NetworkTopology, ClinicCalendar, int, int, int?)"/>);
+    /// closed days hold 0. Empty for a plain horizon run.
+    /// </summary>
+    public IReadOnlyList<int> AdmittedPerDay { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Number of calendar days over which arrivals were generated in a
+    /// calendar-aware run; 0 for a plain horizon run.
+    /// </summary>
+    public int GeneratorDays { get; init; }
+
+    /// <summary>
+    /// If this run was calendar-aware and capped, the daily admission cap;
+    /// null otherwise.
+    /// </summary>
+    public int? DailyCap { get; init; }
 }

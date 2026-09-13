@@ -35,6 +35,7 @@ samples/*.xlsx
 samples/*.csv
 !samples/sample_patients.xlsx
 !samples/sample_patients.csv
+!samples/sample_3stage_clinic.csv
 
 # Secrets
 *.env

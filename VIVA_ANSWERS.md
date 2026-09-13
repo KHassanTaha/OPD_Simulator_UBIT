@@ -84,3 +84,20 @@ A: Stopping at the first error forces the user into a fix-reupload refix loop. R
 
 **Q: Why did chi-square initially reject the exponential fit of our own sample data?**
 Integer-minute granularity reduces chi-square power. With 60 samples rounded to whole minutes, a true exponential can be rejected because the empirical distribution looks discrete, not continuous. Our sample generator uses HH:MM:SS precision so the fit test has enough resolution to accept. Real clinic data at minute granularity will need to be evaluated with this limitation in mind; the simulator will honestly reject if the fit is genuinely poor.
+
+## Milestone 3 — multi-stage network, day model, stage-aware data
+
+**Q: Why is ρ defined per stage and how is λᵢ routed through the network?**
+A: There is no single "network ρ" — traffic intensity only makes sense stage-by-stage (CONTEXT §2.3). The routing derives each stage's arrival rate from λ₀ and the exit probability: λ_reception = λ₀, λ_screening = λ₀, λ_doctor = λ₀·(1 − p_exit) (D-007). `NetworkTopology.EffectiveArrivalRate` walks the product rule over preceding stages; `RhoFor` computes ρᵢ = λᵢ/(cᵢ·μᵢ). The refusal (`Validate`) reports EVERY unstable stage with λᵢ, cᵢ, μᵢ and ρᵢ so the answer to "why did you refuse?" is the entire bottleneck list, not one ρ.
+
+**Q: Why does simulate-data reject nothing when a Screening exit leaves doctor cells blank?**
+A: A patient who exits at Screening genuinely never reached the doctor — an empty doctor_* cell is real, not dirt (D-052). The validator accepts a stage cell only when that stage comes strictly AFTER the row's `departure_stage` in the clinic flow (Reception → Screening → Doctor). Every other blank — arrival, an earlier stage, an unparseable time — is still rejected, so strictness is preserved exactly where it guards quality.
+
+**Q: Why is simulate-data's --servers interpreted differently for a 3-stage file?**
+A: For a single-stage file `--servers 1,2,3` is the M2 sweep — three independent M/M/c validation runs and the byte-for-byte M1 demo path. For a stage-aware file the stages are ordered by clinic flow and `--servers` must supply exactly one count per stage (Reception, Screening, Doctor) for one network run; a count mismatch is a usage error that names the detected stages, so the contract is explicit rather than silently mis-assigned.
+
+**Q: How is the clinic calendar modelled as one continuous arrival stream?**
+A: t = 0 anchors the day-0 arrival window; a "day block" is 24 hours from that anchor with weekday (startDay + block) mod 7 (D-051). Arrivals are ONE Poisson stream for the requested days — the clinic's potential demand is Poisson — and the engine's gate admits an arrival only when the calendar says open (Mon–Thu + Sat) and inside 08:15–11:00, and under the optional daily cap. Closed days therefore simply gate everything out; the stream keeps going, so no per-day reset and no first-arrival-after-weekend special case to defend.
+
+**Q: Why did the c=2/c=3 sweep waits change for the same seed, while c=1 did not?**
+A: Milestone-1 assigned patients to the lowest-numbered idle server, biasing server 0 at multi-server stages. D-050 changed assignment to random-among-idle for fairness. A single-server stage always has the same idle server, so the random selection never draws an RNG value there and the M1 c=1 path is byte-for-byte identical (served 29892 / wait 0.724 / ρ 0.75, both tests locked). The sample sweep's c=2/c=3 waits refreshed from 0.25/0.04 to 0.315/0.030 under seed 42 (DEV_LAUNCH §7.4).
