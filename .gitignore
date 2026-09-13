@@ -34,6 +34,7 @@ Thumbs.db
 samples/*.xlsx
 samples/*.csv
 !samples/sample_patients.xlsx
+!samples/sample_patients.csv
 
 # Secrets
 *.env
