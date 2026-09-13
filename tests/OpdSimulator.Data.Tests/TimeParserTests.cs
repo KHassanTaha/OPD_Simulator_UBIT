@@ -9,6 +9,7 @@ public class TimeParserTests
     [InlineData("8:15", 495.0)]
     [InlineData("08:15", 495.0)]
     [InlineData("08:15:30", 495.5)]
+    [InlineData("8:17:30", 497.5)]
     [InlineData("0:00", 0.0)]
     [InlineData("23:59", 1439.0)]
     public void TryParse_24HourFormats(string text, double expectedMinutes)
