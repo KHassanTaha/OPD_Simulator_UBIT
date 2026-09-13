@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F9F83503-1963-4760-BFBB-D9B36EE66462}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.Core", "src\OpdSimulator.Core\OpdSimulator.Core.csproj", "{72D324EA-FD02-42DA-A554-2FEB80141EF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.Data", "src\OpdSimulator.Data\OpdSimulator.Data.csproj", "{A12217AD-04A4-4946-8E54-43F781CB951A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.App", "src\OpdSimulator.App\OpdSimulator.App.csproj", "{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.Cli", "src\OpdSimulator.Cli\OpdSimulator.Cli.csproj", "{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E1F436E2-3086-49C5-BA22-7B682137678E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.Core.Tests", "tests\OpdSimulator.Core.Tests\OpdSimulator.Core.Tests.csproj", "{10F43700-E819-42DA-A64F-B66EDBA7E09B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpdSimulator.Data.Tests", "tests\OpdSimulator.Data.Tests\OpdSimulator.Data.Tests.csproj", "{BFBD5B53-D790-4F9B-A552-C8B22936E3FE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{72D324EA-FD02-42DA-A554-2FEB80141EF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72D324EA-FD02-42DA-A554-2FEB80141EF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72D324EA-FD02-42DA-A554-2FEB80141EF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72D324EA-FD02-42DA-A554-2FEB80141EF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A12217AD-04A4-4946-8E54-43F781CB951A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A12217AD-04A4-4946-8E54-43F781CB951A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A12217AD-04A4-4946-8E54-43F781CB951A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A12217AD-04A4-4946-8E54-43F781CB951A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10F43700-E819-42DA-A64F-B66EDBA7E09B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10F43700-E819-42DA-A64F-B66EDBA7E09B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10F43700-E819-42DA-A64F-B66EDBA7E09B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10F43700-E819-42DA-A64F-B66EDBA7E09B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BFBD5B53-D790-4F9B-A552-C8B22936E3FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BFBD5B53-D790-4F9B-A552-C8B22936E3FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BFBD5B53-D790-4F9B-A552-C8B22936E3FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BFBD5B53-D790-4F9B-A552-C8B22936E3FE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{72D324EA-FD02-42DA-A554-2FEB80141EF2} = {F9F83503-1963-4760-BFBB-D9B36EE66462}
+		{A12217AD-04A4-4946-8E54-43F781CB951A} = {F9F83503-1963-4760-BFBB-D9B36EE66462}
+		{8D3D49C9-DC8C-4F9E-B6A6-F3C73DEE8A59} = {F9F83503-1963-4760-BFBB-D9B36EE66462}
+		{FA0EE385-F86D-4BEB-8ADF-D96FCAB61CE2} = {F9F83503-1963-4760-BFBB-D9B36EE66462}
+		{10F43700-E819-42DA-A64F-B66EDBA7E09B} = {E1F436E2-3086-49C5-BA22-7B682137678E}
+		{BFBD5B53-D790-4F9B-A552-C8B22936E3FE} = {E1F436E2-3086-49C5-BA22-7B682137678E}
+	EndGlobalSection
+EndGlobal

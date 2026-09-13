@@ -1,0 +1,45 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+
+# .NET / Visual Studio / Rider
+.vs/
+.idea/
+*.DotSettings.user
+
+# Test results
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# Avalonia / publish output
+publish/
+*.publishsettings
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (never commit real patient data)
+samples/*.xlsx
+samples/*.csv
+!samples/sample_patients.xlsx
+
+# Secrets
+*.env
+secrets.json
+
+# Configuration — keep template, ignore env-specific (incl. the local
+# appsettings.json created by copying the template per DEV_LAUNCH §3)
+appsettings*.json
+!appsettings.template.json
