@@ -41,4 +41,6 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Resolved
 
-- (none yet)
+- **B-004:** Sample patient data file (`samples/sample_patients.xlsx`) not yet received.
+  - **Resolution:** 2026-09-13 — since no real file was provided, a **stand-in** sample was generated deterministically (seed 42) by `scripts/sample-data-generator` (D-047): 60 rows, single Screening stage, inter-arrival Exp(λ=0.5), service Exp(μ=0.666…), all `departure_stage = "Screening"` ⇒ p_exit = 1.0 (matches CONTEXT §5.5). FixtureTests now lock these files to the loader/validator, so substituting the real spreadsheet later is a drop-in replacement that the tests will guard.
+  - Status: **Resolved** (real clinic data is still welcome and remains substitutable via the same file path).

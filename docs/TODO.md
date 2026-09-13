@@ -13,10 +13,15 @@ Last updated: 2026-09-13
 
 ## Active
 - [x] Pre-M2 fix: CLI refusal prints one clean stderr line; stack trace to file logs only — 2026-09-13 (Program.cs refactored to testable `Program.Run`; `UnstableSystemException` prefix removed; tests/OpdSimulator.Cli.Tests added; DEV_LAUNCH §5/§6/§8 + DECISIONS D-037 updated; 37 tests green; committed 5b0d4c4 and pushed to origin/fix/cli-clean-refusal, awaiting owner merge)
+- [x] M2 sub-block A–F: Data layer project (loaders, DataValidator, preprocessing, 5 fitters, chi-square, parameter modes, exporter) — 2026-09-13 (52 Data tests green on feat/milestone-2-data-and-fitting; commits 99cf03b, 3490cff; FR-DATA-1..9 all tested via LoaderTests/ValidatorTests/FitterTests/ChiSquareTests/ModeValidatorTests)
+- [x] M2 sub-block G: CLI subcommand dispatcher (`simulate-params`, `verify`, `fit`, `simulate-data`, `export`) — 2026-09-13 (5 CliDataCommandTests green; CliRefusalTests retargeted; commit 148d624; FR-STAT-1/3 CLI path; D-046)
+- [x] M2 sub-block H: sample data + dirty fixture via `scripts/sample-data-generator` + `make-sample-data.sh`; `.gitignore` negates the sample CSV — 2026-09-13 (commit 52b5ddf; 3 FixtureTests green; D-045, D-047; B-004 Resolved)
+- [x] M2 sub-block I (Ubuntu half): dead-state build + full suite + live `verify`/`fit`/`simulate-data`/`export` and M1 `simulate-params` regression — 2026-09-13 (97 tests green, 0 warnings; ρ 0.75 / wait 0.724; sweep 0.81/0.41/0.27)
+- [~] M2 sub-block J: docs pass (DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7; REQUIREMENTS 50% coverage; DECISIONS D-045..D-047; VIVA_ANSWERS; PROGRESS; BLOCKERS B-004 Resolved; this TODO) — committing now
 
 ## Upcoming
 - [ ] Create `scripts/verify-traceability.sh` (orphan check: `[x]` matrix rows without Source/Test; referenced by REQUIREMENTS.md Update Protocol)
-- [ ] Obtain `samples/sample_patients.xlsx` (owner; 1-stage demo data) — see BLOCKERS B-004
+- [x] Obtain `samples/sample_patients.xlsx` (owner; 1-stage demo data) — see BLOCKERS B-004 — 2026-09-13 (no real file provided → **stand-in** generated deterministically by `scripts/sample-data-generator`, seed 42: 60 rows, single Screening stage, Exp(λ=0.5)/Exp(μ=0.666…), p_exit=1.0 (CONTEXT §5.5); BLOCKERS B-004 Resolved; real clinic data remains substitutable at the same path)
 - [x] Add headless CLI mode to `OpdSimulator.Cli` (DEV_LAUNCH §7; demo path 2026-09-16) — 2026-09-13 (M1 CLI: `--lambda/--mu/--servers/--horizon/--seed`, ρ table, exit 0/1; F2/F3 verified on feat/milestone-1-single-stage-engine)
 - [x] Set up solution structure (Core / Data / App / CLI / Tests) — 2026-09-13 (sln + 6 projects, packages pinned per D-026; App is a placeholder classlib)
 - [?] Initialize Avalonia project — BLOCKED on B-005 (no Avalonia template installed; App is a classlib placeholder until M5)
@@ -27,11 +32,11 @@ Last updated: 2026-09-13
 - [ ] Implement per-stage ρᵢ (routing-derived λᵢ) refusal — report ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ (FR-VAL-1) + per-stage ρ display in results panel (FR-STAT-6) + utilisation assertion 0 ≤ util ≤ 1
 - [x] Write unit tests for engine — 2026-09-13 (E1–E8: 34 facts across Queue/Event/FEL/RNG/Exponential/Server/Engine/Stability; all green on feat/milestone-1-single-stage-engine)
 - [ ] Record the 5-patient hand trace (viva walk-through)
-- [ ] Implement Excel/CSV loader (ClosedXML + CsvHelper) with dirty-data rejection
-- [ ] Implement MLE fitting (Exponential first, then Normal/Lognormal/Gamma)
-- [ ] Implement chi-square test (auto bins ≈ √n, df = k−1−p, p-value, decision; expose binned data + fitted PDF points for charts — FR-STAT-8)
-- [ ] Implement `p_exit` estimation from `departure_stage` (exclude + warn on Reception rows)
-- [ ] Implement rate-wise / mean-wise toggle + manual λ override
+- [x] Implement Excel/CSV loader (ClosedXML + CsvHelper) with dirty-data rejection — 2026-09-13 (src/OpdSimulator.Data/Loaders/ + Validation/DataValidator, per-row issues; LoaderTests 55-german capacity; FR-DATA-1/2/7; D-038)
+- [x] Implement MLE fitting (Exponential first, then Normal/Lognormal/Gamma) — 2026-09-13 (5 fitters + DistributionFitterFactory incl. Uniform; MLE σ denominator n, D-043; gamma MoM, D-041; FR-DATA-5)
+- [x] Implement chi-square test (auto bins ≈ √n, df = k−1−p, p-value, decision; expose binned data + fitted PDF points for charts — FR-STAT-8) — 2026-09-13 (BinSelector k=⌈√n⌉∈[5,20], ChiSquareTest with fail-loud guards D-040/D-044; O/E arrays exposed in ChiSquareResult; fitted-PDF-points for the P1 chart is the FR-STAT-8 M5 row)
+- [x] Implement `p_exit` estimation from `departure_stage` (exclude + warn on Reception rows) — 2026-09-13 (PExitCalculator excludes Reception per CONTEXT §5.4; validator itself is strict Screening/Doctor per kickoff B1 — D-038; FR-DATA-6)
+- [~] Implement rate-wise / mean-wise toggle + manual λ override — 2026-09-13 (data layer landed: src/OpdSimulator.Data/Parameters/{ParameterMode,ModeValidator} with soft warnings, FR-DATA-8; the **UI toggle** + manual-λ side-by-side display remain M5 GUI)
 - [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite)
 - [ ] Implement clinic calendar (hours 8:15–11:00, closed Fri/Sun, daily cap, run-mode × horizon per D-009)
 - [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036 — FR-VAL-4 is `[x]` in REQUIREMENTS.md; the human-readable trace file + 5-patient hand trace remain from this row)
@@ -63,7 +68,7 @@ Last updated: 2026-09-13
 - [ ] Apply log-level discipline (Verbose = RNG draws, Debug = event scheduling, Information = run summaries, Warning/Error/Fatal per §12.2)
 
 ## Blocked
-- (none yet — see BLOCKERS.md B-001..B-004 for owner-pending items, none blocking current work)
+- (none — B-005 (Avalonia template) and B-006 (Windows dead-state) are pending, nothing blocks current work)
 
 ## Done
 - [x] FIX (feat/milestone-1-single-stage-engine): average-wait/system-time bug — `totalWaitMinutes`/`totalSystemMinutes` were `long`, truncating every sub-minute wait to 0 (mean wait read 0.41 vs analytical 0.75). Switched to `double` accumulators; EngineTests.Run_MatchesAnalyticalMM1 now green (0.724 within 15% of 0.75) — 2026-09-13

@@ -52,7 +52,7 @@ The graphical interface is not built yet (expected Milestone 5). To try the
 simulator today, open a terminal and run:
 
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
+dotnet run --project src/OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
 
 This simulates a single queue with one server where patients arrive at a rate
@@ -177,7 +177,74 @@ step by step.
 
 ---
 
-## 7. The Token Generator Tab
+## 7. Loading Real Data (from an Excel or CSV file)
+
+The graphical interface is not ready (Milestone 5), but you can already upload a
+real data file and have the program validate it, fit distributions, run
+goodness-of-fit, and simulate — all from the terminal.
+
+### 7.1 Required File Format
+
+One row per patient, with these columns:
+
+| Column | Meaning |
+|--------|---------|
+| `arrival_time` | When the patient arrived (e.g. `8:17`) |
+| `<stage>_start` | When service began at that stage (e.g. `screening_start`) |
+| `<stage>_end` | When service ended at that stage (e.g. `screening_end`) |
+| `departure_stage` | Exit stage: **`Screening`** or **`Doctor`** (case-insensitive) |
+
+Times can be `8:17`, `08:17`, `8:17:30`, or `8:17 PM` style. Arrivals must not go
+backwards, and each stage's `_end` must not be before its `_start`. A ready-made
+example is `samples/sample_patients.xlsx` (or `.csv`).
+
+### 7.2 Check your file first
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_patients.csv
+```
+
+A clean file prints `File is valid: 60 row(s), 1 service stage pair(s).`
+A file with problems prints **one line per problem** (each naming its row number),
+then `Validation failed: …` — fix and re-upload before simulating.
+
+### 7.3 Fit a distribution and run goodness-of-fit
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_patients.csv --stage all
+```
+
+This fits the **Exponential** distribution (or choose `--family normal`,
+`lognormal`, `gamma`, `uniform`) to the inter-arrival times and to each stage's
+service times, then prints:
+
+- **Fitted parameters** (e.g. rate) and the sample mean.
+- **Log-likelihood** and **AIC** (lower = better).
+- **χ², df, p, decision** — if the p-value is below 5%, the fit is **Reject**ed;
+- **p_exit** — the fraction of patients exiting after Screening (used for routing).
+
+A machine-readable copy is written to `logs/fit-YYYYMMDD-HHMMSS.json`.
+
+### 7.4 Simulate a whole day from your data
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-data --file samples/sample_patients.csv --servers 1,2,3 --seed 42 --horizon 10000
+```
+
+The program reads λ = 1/mean inter-arrival and μ = 1/mean service from your file,
+then runs one complete simulation **per server count**. For each count it prints a
+metrics block (see §6.1) incl. **ρ = λ/(c·μ)**. Compare the counts to see how much
+waiting extra servers remove. Curve counts that are unstable (ρ ≥ 1) are refused
+with a single clear line.
+
+### 7.5 Regenerating the sample file
+
+The committed sample was generated deterministically (seed 42). To regenerate it
+and the validation fixture: `bash scripts/make-sample-data.sh`.
+
+---
+
+## 8. The Token Generator Tab
 
 Shows a visual token for the next arriving patient:
 
@@ -188,18 +255,20 @@ Shows a visual token for the next arriving patient:
 
 ---
 
-## 8. Common Errors and Fixes
+## 9. Common Errors and Fixes
 
 | Message | Meaning | What to do |
 |---------|---------|------------|
 | `ρ ≥ 1 at stage X` | The system is unstable — arrivals outpace service | Lower the arrival rate, add servers, or use different data |
-| `File is missing required columns` | Excel file does not match expected format | Check column names; see §5.6 |
+| `File is missing required columns` | Excel file does not match expected format | Check column names; see §7.1 |
 | `Row N: missing value` | Dirty data | Clean the row in Excel and re-upload |
+| `Departure stage 'X' must be 'Screening' or 'Doctor'` | Invalid exit stage (ui) | Fix the `departure_stage` cell to `Screening` or `Doctor` |
+| `Validation failed: N issue(s)` | The file has data problems | Run `verify` again; every issue lists its row number |
 | `Parameter mode mismatch` | You selected Rate-wise but the data looks Mean-wise | Change the mode or re-check your data |
 
 ---
 
-## 9. Getting Help
+## 10. Getting Help
 
 - Read `docs/CONTEXT.md` for the theory behind the simulator.
 - Read `docs/DEV_LAUNCH.md` if the app will not start.
@@ -207,7 +276,7 @@ Shows a visual token for the next arriving patient:
 
 ---
 
-## 10. Glossary
+## 11. Glossary
 
 - **λ (lambda)** — Arrival rate.
 - **μ (mu)** — Service rate.
@@ -217,9 +286,10 @@ Shows a visual token for the next arriving patient:
 
 ---
 
-## 11. Changelog
+## 12. Changelog
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | Added "Loading Real Data" (§7) — the M2 CLI path: `verify`, `fit`, `simulate-data`, required file format, error messages; renamed the headless command to `simulate-params` (§3) |
 | 2026-09-13 | Added "Running without a GUI" section (§3) — the M1 CLI path with the metrics explained, the ρ < 1 rule, and the event trace location |
 | 2026-09-13 | Initial draft |

@@ -36,7 +36,7 @@ public class CliRefusalTests
             .CreateLogger();
 
         int exitCode = Program.Run(
-            new[] { "--lambda", "5", "--mu", "4", "--servers", "1", "--horizon", "1000" },
+            new[] { "simulate-params", "--lambda", "5", "--mu", "4", "--servers", "1", "--horizon", "1000" },
             stdout, stderr, detailLogger);
 
         Assert.Equal(1, exitCode);
