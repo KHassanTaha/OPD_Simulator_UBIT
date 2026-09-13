@@ -303,3 +303,19 @@ Initial commit pushed: 73787bb at 2026-09-13 07:30
 - **Single canonical location for docs instructions (AGENTS §10.7, D-030):** new §10.7 — every docs/DEV_LAUNCH.md / docs/USER_MANUAL.md instruction has exactly one canonical location; duplicates consolidated into cross-references; grep the key phrase before marking any docs task `[x] DONE`. Verification: `grep -c "cp appsettings.template.json appsettings.json" docs/DEV_LAUNCH.md` → **1** (the step exists once). `grep -c "appsettings.template.json" docs/DEV_LAUNCH.md` → **5** (2 in the §3 step command pair + 1 in the §3 Configuration-file paragraph + 1 §8 layout reference + 1 §12 changelog historical row — all legitimate references, not duplicate steps).
 - **Root commit exception (AGENTS §11.2, D-028):** §11.2 now states the repository's first commit goes **directly on `main`** (root commit convention); all subsequent changes use feature branches. Supersedes the earlier `chore/bootstrap` branch plan noted in D-020. TODO bootstrap item updated to direct-on-`main`.
 - **Blocker B-006 opened:** Windows dead-state verification (dead-state build + run per AGENTS §10.4) blocked until a Windows machine is available; target before M5 (UI). TODO "Verify dead-state launch on Linux + Windows" → `[?] BLOCKED` (Linux half already verified 2026-09-13 on Ubuntu 24.04).
+## M2 Data layer — 2026-09-13 (feat/milestone-2-data-and-fitting)
+Completed sub-blocks A–F on the Data project (no engine changes). New files:
+Loaders/ (DataSet, IDataSource, ExcelLoader, CsvLoader, DataLoaderFactory),
+Preprocess/ (TimeParser, StagePairDetector, StagePair, InterArrivalCalculator,
+ServiceTimeCalculator, PExitCalculator, PExitResult), Validation/ (DataValidator,
+DataValidationException, ValidationIssue), Fitting/ (IDistributionFitter +
+5 fitter classes + factory, FittedDistribution, BinSelector, ChiSquareTest,
+ChiSquareResult), Parameters/ (ParameterMode, ModeValidator), Export/DataExporter.
+Added MathNet.Numerics 5.0.0 to Data; ProjectReference from Data.Tests.
+52 new tests (loader, time-parser, validator, preprocess/export, fitting ×5 families,
+chi-square, mode-validator) — all green; core 37 tests still green.
+Fit `Distribution` holds CDF/InverseCDF delegates (MathNet's IContinuousDistribution
+exposes no CDF — captured from the concrete type at construction).
+Surfaced conflict: validator strictly rejects departure_stage ∉ {Screening, Doctor}
+(incl. Reception) per kickoff B1 — stricter than CONTEXT §5.4 warn-and-exclude.
+Logged as D-… in DECISIONS.md.
