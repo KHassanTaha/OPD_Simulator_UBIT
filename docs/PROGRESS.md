@@ -2,6 +2,27 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block F: `simulate-network` command + day-model flags + B3 pre-run ρᵢ — 2026-09-13 (feat/milestone-3-multi-stage-network)
+New `Cli/Commands/SimulateNetworkCommand.cs`: the parameter-driven twin of the
+fitted path. `--lambda λ₀ --c 1,2,3 --mu μ₁,μ₂,μ₃` build `StageSpec[]` (names
+default to the clinic flow unless `--stages` overrides), `--p-exit` binds to
+the second-to-last stage and requires ≥ 3 stages, and the D-009 day model lands
+as CLI flags: `--days N` → `Engine.Run(topology, ClinicCalendar(), N, seed,
+--cap)` with `--start-day` naming day 0 (D-051 block-relative weekdays);
+`--horizon` stays the no-`--days` run mode and the two are mutually exclusive.
+`--verbose` prints the B3 pre-run routing-derived ρᵢ per stage
+(`NetworkTopology.EffectiveArrivalRate/RhoFor`, pure reads); calendar runs add
+a `── Clinic day model ──` header before `PrintNetworkMetrics`. `CliShared`
+gains `TryParsePositive`. Unstable refusals exit 1 with the single stderr line
+listing EVERY unstable stage. Tests: 12 new facts in
+`CliSimulateNetworkTests` (3-stage run, p-exit run, --verbose ρᵢ block,
+5-day same-seed reproducibility, all-stages unstable refusal, 7-case
+usage-error theory) — full suite **156 green** (76 Core + 58 Data + 22 Cli),
+0 warnings. Live smoke: `--verbose --days 5 --cap 80` serves 124 patients with
+pre-run ρᵢ (0.4/0.4/0.1), day-model header, and 3 per-stage blocks. D-053
+(logging the inline-flags-vs-JSON decision). The JSON-scenario deviation from
+the kickoff TODO wording is intentional and owner-visible via D-053.
+
 ### M3 sub-block E: stage-aware `simulate-data` — 2026-09-13 (feat/milestone-3-multi-stage-network)
 `simulate-data` now runs the fitted 3-stage network. New `ClinicStageOrder`
 (Data/Preprocess): canonical clinic flow Reception → Screening → Doctor, used
