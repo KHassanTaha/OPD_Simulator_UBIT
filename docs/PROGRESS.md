@@ -2,6 +2,76 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 16:30
+Branch: feat/milestone-3-multi-stage-network
+Status: Clean
+
+Done
+M3 sub-block A — engine generalisation (StageSpec/Stage/NetworkTopology, Run(topology,…), StageMetrics[], D-050)
+M3 sub-block B — engine-level per-stage refusal listing ALL unstable stages (B3 CLI surface folded into E/F)
+M3 sub-block C — ClinicCalendar + engine arrival gating (D-051)
+M3 sub-block E — stage-aware simulate-data (D-052)
+M3 sub-block F — simulate-network command + day-model flags + --verbose ρᵢ (D-053)
+M3 sub-block G — acceptance: 156 tests, 0 warnings; M1 byte-for-byte; refusals; day-repeatability; c=2/3 sweep refreshed
+M3 sub-block H — docs pass: DEV_LAUNCH, USER_MANUAL, REQUIREMENTS (63.0%), VIVA_ANSWERS +5 Q&As, dead-state verified
+
+In Progress
+None
+
+What is complete: M1–M3 end-to-end. Single-stage M1 byte-for-byte intact (served 29892,
+wait 0.724, ρ 0.75). M2 data layer intact. M3 network: stage-aware simulate-data,
+parameter-driven simulate-network with clinic calendar (--days/--start-day/--cap),
+per-stage ρᵢ + refusal listing every unstable stage, p_exit routing. 156 tests (76 Core +
+58 Data + 22 Cli), 0 warnings, dead-state restore/build/test pass.
+
+What remains: owner review + merge of feat/milestone-3-multi-stage-network into main
+(AGENTS §11.5 item 6); M4 (event logging + step-by-step trace) and M5 (GUI) and M6
+(token generator) not yet started.
+
+Next Session Should Start With
+Owner: review/P R the branch into main (per AGENTS §11.5); then pick the next milestone
+M4 event logging & step-by-step trace (the deviation-kickoff plan had D-block run modes
+absorbed into C/F, B3 into E/F — both landed).
+M5 GUI (Avalonia; B-005 remains a pending owner decision).
+
+Blocked
+None (B-001..003, B-005, B-006 remain open owner/OS blockers, unrelated to M3).
+
+Git State
+Commits made this session: c5efd5c (stage-aware simulate-data), 9751986 (docs D-052),
+46e2a00 (simulate-network), ae13a73 (docs D-053), ff4f565 (docs acceptance + sweep refresh),
+7e0843a (sample fixture), 8dd93ea (docs H + dead-state). Prior session: 8d26fa6, babed9a,
+35fefd4, 9b17f80, c476299.
+Pushed to origin: Yes (feat/milestone-3-multi-stage-network).
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings)
+dotnet test: PASS — 156 passed, 0 failed (76 Core + 58 Data + 22 Cli) from dead-state
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core: Stages/NetworkTopology.cs (M3-A), Calendar/ClinicCalendar.cs (C), Engine/Engine.cs, SimulationResult.cs, StageMetrics.cs, Servers/* (D-050) — from prior commits this session set
+src/OpdSimulator.Data: Preprocess/ClinicStageOrder.cs (new), Validation/DataValidator.cs (blank-downstream rule)
+src/OpdSimulator.Cli: Commands/SimulateDataCommand.cs (stage-aware), Commands/SimulateNetworkCommand.cs (new), Commands/CliShared.cs (+TryParsePositive), Program.cs (dispatch, PrintNetworkMetrics)
+tests/: DataValidatorTests (+2), CliSimulateDataNetworkTests (new), CliSimulateNetworkTests (new)
+docs/: DECISIONS (D-052, D-053), PROGRESS, TODO, DEV_LAUNCH, USER_MANUAL, REQUIREMENTS; VIVA_ANSWERS.md, .gitignore, samples/sample_3stage_clinic.csv (new)
+
+Decisions Made
+D-052 — stage-aware simulate-data flows (DECISIONS.md)
+D-053 — simulate-network inline flags + B3 pre-run ρᵢ (DECISIONS.md)
+
+Assumptions Added/Changed
+None new besides D-052's documented blank-downstream-cell rule (logical consequence of CONTEXT §1.2, not a new assumption).
+
+Notes for Next Session
+Branch is ready for owner review/merge to main; DO NOT merge to main yourself.
+DEV_LAUNCH §7.4 c=2/c=3 numbers (0.315/0.030) reflect D-050 and are re-derivable via the documented command.
+The kickoff "M3 D run modes" (single-day default, --days N, --start-day) was delivered engine-side in C and CLI-side in F (both DONE, D-051/D-053) — no work item remains.
+Next natural task from TODO.md "Upcoming": M4 event trace milestone — see docs/TODO.md.
+
 ### M3 sub-block H: docs pass + dead-state check — 2026-09-13 (feat/milestone-3-multi-stage-network)
 Every living doc brought current and the dead-state rule re-run:
 **DEV_LAUNCH** §7.4 documents the stage-aware `simulate-data` form with the
