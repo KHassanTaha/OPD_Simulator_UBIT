@@ -2,6 +2,13 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-13 09:37 — reconciled: 3 findings
+
+1. **fix/cli-clean-refusal merged into `main`** (`e722f04 merge: clean CLI refusal output`): the PROGRESS top entry still says "awaiting owner review; do not merge". Reality wins — the clean-refusal fix (D-037) is on main. Next M2 branch must start from this main.
+2. **B-004 (real sample file) resolved by owner instruction:** the M2 kickoff orders programmatic sample generation (samples/sample_patients.xlsx + .csv via scripts/make-sample-data, plus a dirty fixture), superseding D-014 "wait for the owner's real sample". B-004 to be moved to Resolved when M2 starts.
+3. **DEV_LAUNCH §7 "Planned (M2): --input/--days" is stale:** the M2 kickoff specifies subcommands (simulate-params, verify, fit, simulate-data, export), not `--input/--days`. §7 must be rewritten during M2 (J1).
+4. **Test-count drift:** kickoff I1 expects "34 + ≥20 = ≥54"; current main has **37** tests (M1 + Core.Tests 36 + Cli.Tests 1 after the clean-refusal merge), so the M2 target should read **37 + ≥20 = ≥57**.
+
 ### Pre-M2 Micro-Fix — 2026-09-13 09:30 (fix/cli-clean-refusal)
 Owner requested a clean CLI refusal for unstable configurations (pre-M2 fix) after M1 was merged to
 main as `5720772`. Completed: `Program.cs` converted from top-level statements to a class-based
