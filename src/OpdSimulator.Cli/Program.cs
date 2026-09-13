@@ -32,7 +32,7 @@ public static class Program
         "  simulate-params  single-stage M/M/c simulation from rate parameters\n" +
         "  verify           load + validate a data file; prints every issue\n" +
         "  fit              fit a distribution + chi-square; writes logs/fit-*.json\n" +
-        "  simulate-data    single-stage simulation from fitted rates (--servers 1,2,3)\n" +
+        "  simulate-data    simulation from fitted rates (single stage: --servers sweep; stage-aware data: per-stage counts)\n" +
         "  export           write a validated file to a clean analysis-ready CSV\n" +
         "\n" +
         "Run 'dotnet run --project src/OpdSimulator.Cli -- <command> --help' for command options.";
@@ -124,6 +124,39 @@ public static class Program
         stdout.WriteLine($"  Throughput (patients/min): {result.ThroughputPerMinute,8:F3}");
         stdout.WriteLine($"  Operating time (min)     : {result.OperatingTimeMinutes,8:F3}");
         stdout.WriteLine($"  ρ = λ/(c·μ)              : {config.Rho,8:F2}");
+        stdout.WriteLine("─────────────────────────────────────────────────────");
+    }
+
+    /// <summary>
+    /// Prints a stage-aware simulation run: one metrics block per stage (per-stage
+    /// ρᵢ, utilisation, wait, queue, throughput — FR-STAT-6/7) followed by the
+    /// whole-network totals. Used by the stage-aware simulate-data path.
+    /// </summary>
+    internal static void PrintNetworkMetrics(TextWriter stdout, OpdSimulator.Core.Engine.SimulationResult result)
+    {
+        foreach (var metric in result.StageMetrics)
+        {
+            stdout.WriteLine();
+            stdout.WriteLine($"Stage: {metric.StageName}");
+            stdout.WriteLine("── Simulation metrics ──────────────────────────────");
+            stdout.WriteLine($"  Patients served          : {metric.PatientsServed,8}");
+            stdout.WriteLine($"  Average wait (min)       : {metric.AverageWaitMinutes,8:F3}");
+            stdout.WriteLine($"  Average queue length     : {metric.AverageQueueLength,8:F3}");
+            stdout.WriteLine($"  Stage utilisation        : {metric.StageUtilisation,8:P1}");
+            for (int i = 0; i < metric.PerServerUtilisation.Count; i++)
+                stdout.WriteLine($"  Server {i} utilisation    : {metric.PerServerUtilisation[i],8:P1}");
+            stdout.WriteLine($"  Throughput (patients/min): {metric.ThroughputPerMinute,8:F3}");
+            stdout.WriteLine($"  ρ = λᵢ/(c·μ)             : {metric.Rho,8:F2}");
+            stdout.WriteLine("─────────────────────────────────────────────────────");
+        }
+
+        stdout.WriteLine();
+        stdout.WriteLine("── Network totals ──────────────────────────────────");
+        stdout.WriteLine($"  Patients served          : {result.TotalPatientsServed,8}");
+        stdout.WriteLine($"  Average wait (min)       : {result.AverageWaitMinutes,8:F3}");
+        stdout.WriteLine($"  Average system time (min): {result.AverageSystemTimeMinutes,8:F3}");
+        stdout.WriteLine($"  Operating time (min)     : {result.OperatingTimeMinutes,8:F3}");
+        stdout.WriteLine($"  Throughput (patients/min): {result.ThroughputPerMinute,8:F3}");
         stdout.WriteLine("─────────────────────────────────────────────────────");
     }
 

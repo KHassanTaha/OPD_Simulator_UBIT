@@ -164,4 +164,42 @@ public class DataValidatorTests
         var ex = Assert.Throws<DataValidationException>(() => DataValidator.Validate(data));
         Assert.Single(ex.Issues);
     }
+
+    [Fact]
+    public void ThreeStageFile_BlankDoctorCellsForScreeningExit_AreAccepted()
+    {
+        // Real clinic flow (CONTEXT §1.2): a patient who exits at Screening has
+        // no doctor visit, so doctor_* cells are legitimately blank. Reception
+        // and Screening cells must always be filled (everyone passes through).
+        var data = Make(
+            new[] { "arrival_time", "departure_stage", "reception_start", "reception_end", "screening_start", "screening_end", "doctor_start", "doctor_end" },
+            new Dictionary<string, string>[]
+            {
+                new() { ["arrival_time"] = "8:15", ["departure_stage"] = "Screening", ["reception_start"] = "8:16", ["reception_end"] = "8:18", ["screening_start"] = "8:19", ["screening_end"] = "8:23" },
+                new() { ["arrival_time"] = "8:20", ["departure_stage"] = "Doctor", ["reception_start"] = "8:21", ["reception_end"] = "8:23", ["screening_start"] = "8:24", ["screening_end"] = "8:28", ["doctor_start"] = "8:29", ["doctor_end"] = "8:35" },
+            });
+
+        var issues = DataValidator.ValidateReturningIssues(data);
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void BlankReceptionCellForDoctorExit_IsStillReported()
+    {
+        // The relaxation is directional: only stages strictly AFTER the
+        // departure stage may be blank. A Doctor exit still had to pass
+        // Reception, so a blank reception cell stays an issue.
+        var data = Make(
+            new[] { "arrival_time", "departure_stage", "reception_start", "reception_end", "screening_start", "screening_end", "doctor_start", "doctor_end" },
+            new Dictionary<string, string>[]
+            {
+                new() { ["arrival_time"] = "8:15", ["departure_stage"] = "Doctor", ["reception_start"] = "", ["reception_end"] = "8:18", ["screening_start"] = "8:19", ["screening_end"] = "8:23", ["doctor_start"] = "8:24", ["doctor_end"] = "8:30" },
+            });
+
+        var issues = DataValidator.ValidateReturningIssues(data);
+
+        Assert.Contains(issues, i => i.RowNumber == 1 && i.ColumnName == "reception_start"
+                                     && i.Reason.Contains("Missing value"));
+    }
 }

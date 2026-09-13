@@ -13,7 +13,9 @@ using OpdSimulator.Data.Preprocess;
 /// <item>Present columns: <c>arrival_time</c>, <c>departure_stage</c>, and at least
 /// one <c>&lt;stage&gt;_start</c>/<c>&lt;stage&gt;_end</c> pair.</item>
 /// <item>No empty rows.</item>
-/// <item>No blank cells in any required column (arrival_time, departure_stage, every stage pair).</item>
+/// <item>No blank cells in any required column (arrival_time, departure_stage, every stage pair) —
+/// except a stage cell may be blank when the patient exited at an earlier stage in the clinic flow
+/// (<see cref="ClinicStageOrder"/>), e.g. a Screening exit has no <c>doctor_*</c> times.</item>
 /// <item>Every time value parses via <see cref="TimeParser"/>.</item>
 /// <item><c>departure_stage</c> ∈ {Screening, Doctor} (case-insensitive).</item>
 /// <item>Arrival times are monotonically non-decreasing.</item>
@@ -148,12 +150,31 @@ public static class DataValidator
     {
         if (!row.TryGetValue(column, out string? text) || string.IsNullOrWhiteSpace(text))
         {
+            // A blank stage cell is legitimate when the patient exited at an
+            // earlier stage in the clinic flow (e.g. Screening exiters have no
+            // doctor visit, CONTEXT §1.2). Any other blank stays an issue.
+            if (StageMayBeBlankFor(column, row))
+                return;
             issues.Add(new ValidationIssue(rowNumber, column, "Missing value in required column."));
             return;
         }
 
         if (!TimeParser.TryParse(text, out _))
             issues.Add(new ValidationIssue(rowNumber, column, $"Time value '{text}' could not be parsed."));
+    }
+
+    private static bool StageMayBeBlankFor(string column, IReadOnlyDictionary<string, string> row)
+    {
+        string stage = column.EndsWith("_end", StringComparison.OrdinalIgnoreCase)
+            ? column[..^"_end".Length]
+            : column[..^"_start".Length];
+
+        if (!row.TryGetValue("departure_stage", out string? departure) || string.IsNullOrWhiteSpace(departure))
+            return false;
+
+        // Blank is allowed only when this stage comes after the departure stage
+        // in the clinic flow (the patient never reached it).
+        return ClinicStageOrder.FlowIndex(stage) > ClinicStageOrder.FlowIndex(departure.Trim());
     }
 
     private static bool IsValidDepartureStage(string stage)
