@@ -175,8 +175,8 @@ Every task in `TODO.md` must have one of exactly these statuses:
 - `[-] CANCELLED` – No longer needed (with reason)
 
 A task that adds/removes a feature is NOT `[x] DONE` until:
-- `DEV_LAUNCH.md` reflects the change (if build/launch affected), AND
-- `USER_MANUAL.md` reflects the change (if UI/workflow affected).
+- `docs/DEV_LAUNCH.md` reflects the change (if build/launch affected), AND
+- `docs/USER_MANUAL.md` reflects the change (if UI/workflow affected).
 
 ### 9.3 Update Discipline
 
@@ -243,12 +243,12 @@ They are first-class deliverables, not afterthoughts.
 
 | File | Audience | Purpose |
 |------|----------|---------|
-| `DEV_LAUNCH.md` | Me + graders + any dev | Steps to launch from a dead state (fresh clone, no build artifacts) with zero errors |
-| `USER_MANUAL.md` | Non-technical end user | How to use the simulator, step by step |
+| `docs/DEV_LAUNCH.md` | Me + graders + any dev | Steps to launch from a dead state (fresh clone, no build artifacts) with zero errors |
+| `docs/USER_MANUAL.md` | Non-technical end user | How to use the simulator, step by step |
 
 Both live in `docs/` alongside the other living documents (moved from the repository root by owner request on 2026-09-13).
 
-### 10.2 When to Update `DEV_LAUNCH.md`
+### 10.2 When to Update `docs/DEV_LAUNCH.md`
 
 Update it **immediately**, in the same commit as the change, whenever any of these occur:
 - A new NuGet package is added.
@@ -261,7 +261,7 @@ Update it **immediately**, in the same commit as the change, whenever any of the
 - A failure mode is found and fixed — add it to the **Troubleshooting** section.
 - The verification checklist changes.
 
-### 10.3 When to Update `USER_MANUAL.md`
+### 10.3 When to Update `docs/USER_MANUAL.md`
 
 Update it **immediately** whenever any of these occur:
 - A UI element is added, removed, or renamed.
@@ -272,18 +272,18 @@ Update it **immediately** whenever any of these occur:
 
 ### 10.4 The Dead-State Rule (Non-Negotiable)
 
-"Dead state" means: **fresh clone of the repo, no `bin/`, no `obj/`, no cached packages, no prior setup** — and the app must launch successfully by following `DEV_LAUNCH.md` alone.
+"Dead state" means: **fresh clone of the repo, no `bin/`, no `obj/`, no cached packages, no prior setup** — and the app must launch successfully by following `docs/DEV_LAUNCH.md` alone.
 
 **Before marking any milestone DONE, you must:**
 1. Delete `bin/` and `obj/` from every project.
 2. Verify the documented commands work from that state.
-3. Confirm `DEV_LAUNCH.md` reflects reality.
+3. Confirm `docs/DEV_LAUNCH.md` reflects reality.
 
 If it does not work, the milestone is NOT done — fix the guide or the code first.
 
 ### 10.5 Demo-Day Guarantee
 
-Before any demo (I will tell you when one is coming), produce a **verified** `DEMO_CHECKLIST` section inside `DEV_LAUNCH.md` that includes:
+Before any demo (I will tell you when one is coming), produce a **verified** `DEMO_CHECKLIST` section inside `docs/DEV_LAUNCH.md` that includes:
 - Offline pre-restore steps (so the demo does not depend on Wi-Fi).
 - The exact single command to launch the app.
 - The exact sample data file to load.
@@ -292,13 +292,13 @@ Before any demo (I will tell you when one is coming), produce a **verified** `DE
 
 ### 10.6 Verification Discipline
 
-Whenever you run the app yourself, copy the exact commands you used into `DEV_LAUNCH.md`. Do not invent commands you have not executed.
+Whenever you run the app yourself, copy the exact commands you used into `docs/DEV_LAUNCH.md`. Do not invent commands you have not executed.
 
 Never write "should work" in these docs. Only "verified on <OS> on <date>".
 
 ### 10.7 No Duplicate Instructions
 
-Each instruction in DEV_LAUNCH.md and USER_MANUAL.md must have
+Each instruction in docs/DEV_LAUNCH.md and docs/USER_MANUAL.md must have
 exactly one canonical location. If the same step appears in two
 sections, consolidate into one and replace the other with a
 cross-reference like "see §3". Before marking any documentation
@@ -334,7 +334,7 @@ exception applies only to the root commit, never again.)
 - Use Conventional Commits:
     feat: add Event class with priority queue comparison
     fix: correct utilisation assertion in Server.EndService
-    docs: update DEV_LAUNCH with verified Ubuntu commands
+    docs: update docs/DEV_LAUNCH with verified Ubuntu commands
     chore: add LiveCharts2 package
     test: add unit tests for Queue.Enqueue
 - Commit message body: explain WHY, not what. The diff shows the what.
@@ -360,7 +360,7 @@ A milestone is only marked `[x] DONE` in TODO.md when:
 1. All tasks in the milestone are complete.
 2. `dotnet build` and `dotnet test` pass.
 3. The dead-state check (AGENTS.md §10.4) passes.
-4. DEV_LAUNCH.md and USER_MANUAL.md reflect any changes.
+4. docs/DEV_LAUNCH.md and docs/USER_MANUAL.md reflect any changes.
 5. The work is committed to a feature branch and pushed.
 6. I have reviewed and merged the branch into `main`.
 
@@ -566,7 +566,7 @@ cold-start reconciliation before any other action.
 1. **Read persistent files** in this order:
    `AGENTS.md` → `docs/TODO.md` → `docs/PROGRESS.md` (top 3 entries)
    → `docs/BLOCKERS.md` → `docs/DECISIONS.md` (last 5 entries)
-   → `DEV_LAUNCH.md` (Last verified date).
+   → `docs/DEV_LAUNCH.md` (Last verified date).
 
 2. **Inspect reality:**
    - `git status`
@@ -582,7 +582,7 @@ cold-start reconciliation before any other action.
      commit without approval.
    - Crash log newer than the newest PROGRESS.md entry → read the
      top 20 lines and quote the exception.
-   - DEV_LAUNCH.md "Last verified" older than the latest commit →
+   - docs/DEV_LAUNCH.md "Last verified" older than the latest commit →
      flag it (build may be broken).
    - REQUIREMENTS.md / PRD.md / DECISIONS.md disagreements → flag.
 

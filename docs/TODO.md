@@ -53,7 +53,7 @@ Last updated: 2026-09-13
 - [ ] Implement analytical M/M/c validation comparison → `validation_report.txt`
 - [ ] Implement token generator tab (LAST)
 - [ ] Cross-platform CI on GitHub Actions (ubuntu-latest + windows-latest)
-- [ ] Verify dead-state launch on Linux + Windows (delete `bin/`/`obj/`, follow DEV_LAUNCH alone)
+- [?] Verify dead-state launch on Linux + Windows (delete `bin/`/`obj/`, follow DEV_LAUNCH alone) — Linux half verified 2026-09-13 (Ubuntu 24.04); Windows half blocked by B-006
 - [ ] Produce `DEMO_CHECKLIST` in DEV_LAUNCH (offline pre-restore, single launch command, sample file, click path, fallback)
 - [ ] Final README + USER_MANUAL polish
 - [ ] Initial commit of bootstrap (AGENTS.md, docs/, global.json, scripts/, README, solution scaffold, appsettings.template.json) directly on `main` as the root commit (AGENTS §11.2 exception, D-029)

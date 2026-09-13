@@ -32,6 +32,13 @@ Anything preventing progress, with owner and needed action. A task in
   - Needed action: Approve `dotnet new install Avalonia.Templates` at M5 (or OK to hand-build the Avalonia project without the template).
   - Status: Pending
 
+- **B-006:** Verify dead-state build on Windows.
+  - Owner: Taha
+  - Impact: Cross-platform claim (Linux dev / Windows deploy, PRD NFR-5) cannot be certified until a real Windows dead-state build + run is confirmed (AGENTS §10.4). Gates Milestone 5 (UI).
+  - Needed action: Make a Windows machine available, or rule that CI `windows-latest` green suffices as the Windows verification.
+  - Target: Before Milestone 5 (UI)
+  - Status: Blocked until a Windows machine is available
+
 ## Resolved
 
 - (none yet)
