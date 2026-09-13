@@ -17,7 +17,8 @@ Last updated: 2026-09-13
 - [x] M2 sub-block G: CLI subcommand dispatcher (`simulate-params`, `verify`, `fit`, `simulate-data`, `export`) — 2026-09-13 (5 CliDataCommandTests green; CliRefusalTests retargeted; commit 148d624; FR-STAT-1/3 CLI path; D-046)
 - [x] M2 sub-block H: sample data + dirty fixture via `scripts/sample-data-generator` + `make-sample-data.sh`; `.gitignore` negates the sample CSV — 2026-09-13 (commit 52b5ddf; 3 FixtureTests green; D-045, D-047; B-004 Resolved)
 - [x] M2 sub-block I (Ubuntu half): dead-state build + full suite + live `verify`/`fit`/`simulate-data`/`export` and M1 `simulate-params` regression — 2026-09-13 (97 tests green, 0 warnings; ρ 0.75 / wait 0.724; sweep 0.81/0.41/0.27)
-- [~] M2 sub-block J: docs pass (DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7; REQUIREMENTS 50% coverage; DECISIONS D-045..D-047; VIVA_ANSWERS; PROGRESS; BLOCKERS B-004 Resolved; this TODO) — committing now
+- [~] M2 sub-block J: docs pass (DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7; REQUIREMENTS 50% coverage; DECISIONS D-045..D-047; VIVA_ANSWERS; PROGRESS; BLOCKERS B-004 Resolved; this TODO) — 2026-09-13 (commit 384c2be; M2 branch pushed, awaiting owner review)
+- [x] M2.5 fix: sample data at HH:MM:SS precision (chi-square rejected a true exponential at p ≈ 0 due to minute-rounded storage) — 2026-09-13 (generator format only, RNG stream unchanged; TimeParser `H:mm:ss` test added — HH:MM untouched; samples + fixture regenerated; `fit` accepts p = 0.103 / 0.258; D-048; VIVA line; 98 tests green — on fix/sample-data-precision)
 
 ## Upcoming
 - [ ] Create `scripts/verify-traceability.sh` (orphan check: `[x]` matrix rows without Source/Test; referenced by REQUIREMENTS.md Update Protocol)
