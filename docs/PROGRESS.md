@@ -2,6 +2,34 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block E: stage-aware `simulate-data` — 2026-09-13 (feat/milestone-3-multi-stage-network)
+`simulate-data` now runs the fitted 3-stage network. New `ClinicStageOrder`
+(Data/Preprocess): canonical clinic flow Reception → Screening → Doctor, used
+to (1) order detected stage pairs regardless of CSV column order and (2) power
+the only validator relaxation that M3 data needs — a stage column may be blank
+only when that stage comes strictly after the row's `departure_stage` in the
+flow (a Screening exit legitimately has no doctor times). `DataValidator`
+recognises this via `StageMayBeBlankFor`; all prior strictness (blank arrival,
+blank earlier-stage cells, unparseable times, inverted pairs, out-of-order
+arrivals) is unchanged. `SimulateDataCommand` was rewritten: λ₀ = 1/mean
+inter-arrival; per-stage μᵢ = 1/mean(service) over the stage's usable rows
+(refusal if a stage has none); p_exit via `PExitCalculator` with the exit stage
+bound to Screening **only when Doctor exists** (else all exit at the last stage
+and no p_exit — routing λ_doctor = λ₀·(1−p_exit) only applies with Doctor).
+Single-stage files keep the M2 `--servers 1,2,3` sweep byte-for-byte (the same
+`Fitted from data: λ = 0.2 … stage 'Screening').` line and PrintMetrics);
+stage-aware files require exactly one `--servers` count per detected stage in
+flow order (mismatch = usage exit 2) and run one network. New
+`Program.PrintNetworkMetrics` emits a per-stage block (patients served, avg
+wait, avg queue, stage util, per-server util, throughput, ρᵢ) plus network
+totals. Unstable networks refuse with exit 1 and the message listing EVERY
+unstable stage (λᵢ, cᵢ, μᵢ, ρᵢ). Tests: 2 DataValidator facts (blank doctor
+allowed for Screening exit; blank reception for Doctor exit still rejected) +
+3 CLI facts (`CliSimulateDataNetworkTests`: 3-stage fit+p_exit=0.7+3 metric
+blocks, all-stages unstable refusal, server-count mismatch exit 2). 144 tests
+green (76 Core + 58 Data + 10 Cli), 0 warnings; live smoke run verified a full
+3-stage run (109 served, per-stage blocks, network totals). D-052.
+
 ### M3 sub-block C: clinic calendar + engine arrival gating — 2026-09-13 (feat/milestone-3-multi-stage-network)
 `ClinicCalendar` (Core/Calendar) encodes the OPD schedule: open Mon–Thu + Sat,
 window 08:15–11:00 (CONTEXT §1.1), optional daily cap, and a start-day anchor

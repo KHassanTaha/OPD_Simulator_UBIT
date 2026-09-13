@@ -36,10 +36,12 @@ Last updated: 2026-09-13
 - [ ] Implement per-stage ρᵢ (routing-derived λᵢ) refusal — report ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ (FR-VAL-1) + per-stage ρ display in results panel (FR-STAT-6) + utilisation assertion 0 ≤ util ≤ 1 — engine/topology-level refusal + listing LANDED (M3 sub-blocks A/B); CLI per-stage ρᵢ display (`--verbose`) + UI panel pending (E/F/M5)
 
 Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
-- [ ] M3 C: `ClinicCalendar` (open Mon–Thu + Sat, 08:15–11:00 arrivals, service drain past 11:00, daily cap) + engine calendar integration + real-clock display (CONTEXT §5.1–5.3, §1.1; D-009)
-- [ ] M3 D: run modes — single-day default, `--days N`, `--start-day` (per D-009: horizon = days × opening window)
-- [ ] M3 E: `simulate-data` becomes 3-stage: per-stage fitted μᵢ, p_exit from data (PExitCalculator), per-stage metrics output, `--verbose` ρᵢ pre-run print (B3)
-- [ ] M3 F: new `simulate-network` command (named network JSON/config), `--p-exit-override`, `--days`, per-stage ρᵢ + metrics output, refusal exit 1 listing ALL unstable stages
+- [x] M3 A: engine generalisation — StageSpec/Stage/NetworkTopology, `Run(topology, seed, horizon)`, StageMetrics[], Patient.SystemArrivalTime/AdvanceToStage, ALL-stage unstable refusal; D-050 random-among-idle server fix — 2026-09-13 (commits babed9a + docs 35fefd4; balance tests at λ=2, μ=4, c=2 green; D-049/D-050)
+- [x] M3 B: engine-level per-stage refusal listing ALL unstable stages — 2026-09-13 (commit 9b17f80; 3 new EngineTests; B3 CLI display folded into E/F)
+- [x] M3 C: `ClinicCalendar` (open Mon–Thu + Sat, 08:15–11:00 arrivals, service drain past 11:00, daily cap) + engine calendar integration + real-clock display (CONTEXT §5.1–5.3, §1.1; D-009) — 2026-09-13 (commit c476299; 22 new tests; D-051)
+- [-] M3 D: run modes — engine-side fully absorbed by C (generatorDays + startDayOfWeek express all D-009 modes); only CLI flags remain, land in F (2026-09-13)
+- [x] M3 E: `simulate-data` becomes 3-stage: per-stage fitted μᵢ, p_exit from data (PExitCalculator), per-stage metrics output — 2026-09-13 (ClinicStageOrder + validator blank-downstream relaxation + SimulateDataCommand rework + PrintNetworkMetrics; 5 new tests; 144 green, 0 warnings; D-052). NOTE: B3 `--verbose` ρᵢ pre-run print remains part of F
+- [ ] M3 F: new `simulate-network` command (named network JSON/config), `--p-exit-override`, `--days N`, `--start-day`, `--cap`, `--verbose` ρᵢ pre-run print (B3)
 - [ ] M3 G: acceptance — ≥128 tests, 0 warnings; M1 byte-for-byte; simulate-network per-stage; unstable refusal via CLI; simulate-data 3-stage; day-repeatability; refresh M2 sweep c=2/3 waits (D-050 RNG change)
 - [ ] M3 H: docs pass — DEV_LAUNCH, USER_MANUAL, REQUIREMENTS (FR-SIM-1/2/3, FR-STAT-6/7, FR-VAL-1), DECISIONS, VIVA_ANSWERS, TODO, PROGRESS, BLOCKERS
 - [x] Write unit tests for engine — 2026-09-13 (E1–E8: 34 facts across Queue/Event/FEL/RNG/Exponential/Server/Engine/Stability; all green on feat/milestone-1-single-stage-engine)
