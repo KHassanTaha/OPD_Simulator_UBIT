@@ -12,7 +12,7 @@ Last updated: 2026-09-13
 > updated with Source + Test.
 
 ## Active
-- (none yet)
+- [~] Pre-M2 fix: CLI refusal prints one clean stderr line; stack trace to file logs only — 2026-09-13 (Program.cs refactored to testable `Program.Run`; `UnstableSystemException` prefix removed; tests/OpdSimulator.Cli.Tests added; DEV_LAUNCH §5/§6/§8 + DECISIONS D-037 updated; 37 tests green; commit + push pending on fix/cli-clean-refusal)
 
 ## Upcoming
 - [ ] Create `scripts/verify-traceability.sh` (orphan check: `[x]` matrix rows without Source/Test; referenced by REQUIREMENTS.md Update Protocol)

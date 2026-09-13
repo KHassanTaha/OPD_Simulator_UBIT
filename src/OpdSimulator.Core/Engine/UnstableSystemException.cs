@@ -18,7 +18,7 @@ public sealed class UnstableSystemException : Exception
     /// <param name="config">The configuration whose stage is unstable.</param>
     public UnstableSystemException(EngineConfig config)
         : base(
-            $"Refusing to run: stage '{config.StageName}' is unstable — " +
+            $"stage '{config.StageName}' is unstable — " +
             $"ρ = {config.Rho:F2} (≥ 1) with λ = {config.ArrivalRate:F3}, c = {config.ServerCount}, μ = {config.ServiceRate:F3}. " +
             "The queue would grow without bound; lower the arrival rate or add servers.")
     {

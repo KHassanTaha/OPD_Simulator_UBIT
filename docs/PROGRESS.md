@@ -2,6 +2,21 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Pre-M2 Micro-Fix — 2026-09-13 09:30 (fix/cli-clean-refusal)
+Owner requested a clean CLI refusal for unstable configurations (pre-M2 fix) after M1 was merged to
+main as `5720772`. Completed: `Program.cs` converted from top-level statements to a class-based
+`Program` exposing public `static int Run(args, stdout, stderr, fileLogger)` for in-process testing;
+the `UnstableSystemException` catch now writes exactly one line `Refusing to run: {ex.Message}` to
+stderr with **no stack trace** and logs the full exception to the file logs only via a file-only
+Serilog logger (`shared: true` writers — D-037). `UnstableSystemException.Message` no longer repeats
+the "Refusing to run: " prefix (removed to avoid "Refusing to run: Refusing to run: …"). New project
+`tests/OpdSimulator.Cli.Tests` (added to sln) with `CliRefusalTests` asserting exit 1, clean stderr
+(no `at OpdSimulator`, no exception type), empty stdout, and that the detail logger captured the
+exception while the console-level logger captured none. Docs: DEV_LAUNCH §5 F3 example + §6 (37 tests)
++ §8 layout + changelog; DECISIONS D-037; TODO row. Verified: `dotnet build` 0 warnings; 37/37 tests
+green; F3 runs show a single clean stderr line with exit 1 while `logs/errors-*.log` retains the full
+stack trace; F2 (ρ=0.75) unchanged. Commit + push pending immediately after this entry.
+
 ### Session Handoff — 2026-09-13 09:15
 Branch: feat/milestone-1-single-stage-engine
 Status: Clean (local branch, 4 commits, not pushed — awaiting owner approval per §13/§14 wrap-up rules)
