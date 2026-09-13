@@ -48,7 +48,7 @@ Commits made this session:
 - 0a87fa0 feat: add Milestone 1 core engine (Patient/Event/FEL/Queue/Server/RNG/Engine)
 - fef6d01 feat: add Milestone 1 headless CLI (--lambda/--mu/--servers/--horizon/--seed)
 - 30b7771 test: add E1-E8 unit tests for queue, FEL, RNG, server, engine, stability
-- <docs> docs: update TODO/DECISIONS/REQUIREMENTS/DEV_LAUNCH/USER_MANUAL/VIVA_ANSWERS/PROGRESS for M1 (this commit)
+- 581c6b1 docs: update TODO/DECISIONS/REQUIREMENTS/DEV_LAUNCH/USER_MANUAL/VIVA_ANSWERS/PROGRESS for M1
 Pushed to origin: No — per AGENTS §11.4/§13, the branch waits for owner review before push.
 
 Uncommitted changes: None (checked after this commit)
