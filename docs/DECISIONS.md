@@ -219,6 +219,8 @@ impact (positive and negative), alternatives considered.
 - **Impact (−):** Serialized-to-disk I/O per event; extra packages and config surface.
 - **Alternatives considered:** Microsoft.Extensions.Logging (no Serilog-level structured console/file sinks — replaced); plain file writes (no envelope, no rolling — rejected); no logging (rejected — impossible to debug or defend in the viva).
 
+> **Note:** Superseded by D-027: only `appsettings.template.json` is committed; `appsettings.json` is gitignored.
+
 ## D-022 Session wrap-up format standardized
 
 - **Date:** 2026-09-13
@@ -277,9 +279,9 @@ impact (positive and negative), alternatives considered.
 ## D-027 `appsettings.template.json` must ship in the repo
 
 - **Date:** 2026-09-13
-- **Decision:** `.gitignore` negates `appsettings.template.json` (`!appsettings.template.json`) so the config template is committed, while `appsettings.*.json` environment/secret variants stay ignored (per-env files still ignored; only the base and the template are tracked).
+- **Decision:** `.gitignore` negates `appsettings.template.json` (`!appsettings.template.json`) so the config template is committed, while `appsettings.*.json` (including the local `appsettings.json` created by copying the template) stays ignored.
 - **Rationale:** DEV_LAUNCH §3 instructs fresh clones to `cp appsettings.template.json appsettings.json`. Under the un-negated owner template, `appsettings.*.json` matched the template too, so a fresh clone would lack it and the bootstrapping step would fail (dead-state rule, AGENTS §10.4). Deviance from the exact owner block is deliberate and minimal.
-- **Implementation details:** `.gitignore` "Configuration" section: `appsettings.*.json`, then `!appsettings.json`, then `!appsettings.template.json`. Verified with `git status`: template shows as untracked/committable, per-env variants stay ignored.
+- **Implementation details:** `.gitignore` "Configuration" section: `appsettings*.json`, then `!appsettings.template.json`. Verified with `git status`: template shows as untracked/committable, `appsettings.json` and per-env variants stay ignored.
 - **Impact (+):** Template is present in the bootstrap commit and on any fresh clone; §3 copy step works from a dead state.
 - **Impact (−):** Minor deviation from the literal owner-provided `.gitignore` block (order/negation preserved otherwise).
 - **Alternatives considered:** Keep template local-only and have first run create `appsettings.json` (rejected — breaks dead-state §3); rename to `appsettings.template.json.example` (rejected — owner preferred the negation).
