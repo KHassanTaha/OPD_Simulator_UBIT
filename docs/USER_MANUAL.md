@@ -66,8 +66,11 @@ of 3 per minute (λ) and the server works at 4 per minute (μ). The screen shows
 - **ρ = λ/(c·μ)** — traffic intensity; **must be below 1**.
 
 **If ρ is 1 or more** the system cannot cope and the program refuses to run —
-for example `--lambda 5 --mu 4` prints `ρ = 1.25` and stops. Lower the arrival
-rate, raise the service rate, or add servers (`--servers 2`).
+for example `--lambda 5 --mu 4` prints a single `Refusing to run: …` line (with
+`ρ = 1.25`) and stops. This is an intentional refusal, not an error — no error
+dialog or stack trace appears; the full detail is only written to
+`logs/errors-YYYYMMDD.log`. Lower the arrival rate, raise the service rate, or
+add servers (`--servers 2`).
 
 Every run also writes a full event-by-event trace to `logs/app-YYYYMMDD.log` —
 useful if you want to see exactly what happened.
