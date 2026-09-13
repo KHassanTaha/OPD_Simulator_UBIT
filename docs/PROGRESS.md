@@ -2,6 +2,25 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block H: docs pass + dead-state check — 2026-09-13 (feat/milestone-3-multi-stage-network)
+Every living doc brought current and the dead-state rule re-run:
+**DEV_LAUNCH** §7.4 documents the stage-aware `simulate-data` form with the
+committed `samples/sample_3stage_clinic.csv` (verified command + output), new
+§7.5 for `simulate-network` (verified example, exit-code + refusal semantics),
+§8 layout lists the new sample, §12 changelog row with the Ubuntu-24.04
+verification stamp. **USER_MANUAL** §7.4 gains the multi-stage paragraph,
+new §7.5 (simulate-network, non-technical), §7.6 regenerating samples; §12
+changelog row. **REQUIREMENTS.md** M3 rows: FR-SIM-1/4/6/7/8/9 → `[x]` with
+network sources + tests + D-049→D-053, FR-SIM-10 → `[~]` (real-clock binding
+is M5), FR-STAT-6/7 → `[x]`, FR-VAL-1 source refreshed to
+`NetworkTopology.Validate`; coverage 63.0% (29/46 `[x]` + 3 `[~]`); changelog
+row added. **VIVA_ANSWERS.md** +5 M3 Q&As (per-stage ρ routing, blank-doctor
+days rule, --servers contract, calendar-as-one-stream, D-050 c=1 unchanged).
+**BLOCKERS** — no stale M3 entries (B-001..003/005/006 unaffected). Dead-state
+check (AGENTS §10.4): `bin`/`obj` deleted everywhere, `dotnet restore` →
+`dotnet build` (0 warnings) → `dotnet test` 156 green. **M3 sub-blocks A–H all
+DONE.**
+
 ### M3 sub-block G: acceptance pass — 2026-09-13 (feat/milestone-3-multi-stage-network)
 Every kickoff acceptance item verified, live where a live check exists:
 **≥128 tests / 0 warnings** → 156 tests (76 Core + 58 Data + 22 Cli), 0 warnings.

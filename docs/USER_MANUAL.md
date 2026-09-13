@@ -237,10 +237,39 @@ metrics block (see §6.1) incl. **ρ = λ/(c·μ)**. Compare the counts to see h
 waiting extra servers remove. Curve counts that are unstable (ρ ≥ 1) are refused
 with a single clear line.
 
-### 7.5 Regenerating the sample file
+**Multi-stage files (3 stages).** If your file contains more than one service stage
+(columns like `reception_*`, `screening_*`, `doctor_*`), the program orders the
+stages by the clinic flow (Reception → Screening → Doctor), fits each stage's own
+μᵢ, estimates `p_exit` from the `departure_stage` column, and runs **one** network
+simulation — `--servers` then takes exactly one count per stage in that order:
 
-The committed sample was generated deterministically (seed 42). To regenerate it
-and the validation fixture: `bash scripts/make-sample-data.sh`.
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-data --file samples/sample_3stage_clinic.csv --servers 1,2,3 --seed 42 --horizon 500
+```
+
+You will see a per-stage block for Reception/Screening/Doctor, the network totals,
+and the fitted `p_exit`. A stage not visited by some patients (a Screening exit has
+no doctor times) may leave those cells blank — the program accepts them.
+
+### 7.5 Simulate a network from parameters (no data file)
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- simulate-network --lambda 0.2 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 --days 5 --cap 80
+```
+
+Run the named 3-stage clinic directly, without uploading data: `--lambda` is the
+arrival rate, `--c`/`--mu` give one server count and one service rate per stage,
+`--p-exit` the probability of leaving after Screening. Add `--days N` to simulate
+real clinic days (open Mon–Thu + Sat, arrivals 08:15–11:00, `--start-day` and
+`--cap` optional) or `--horizon <minutes>` for the classic fixed-window run (the
+two modes are mutually exclusive). `--verbose` prints each stage's ρᵢ before the
+run. If any stage has ρ ≥ 1 the program refuses with one line naming every
+unstable stage.
+
+### 7.6 Regenerating the sample files
+
+The committed samples were generated deterministically (seed 42). To regenerate
+them and the validation fixture: `bash scripts/make-sample-data.sh`.
 
 ---
 
@@ -290,6 +319,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | M3 CLI: `simulate-data` now runs multi-stage files (per-stage μᵢ, p_exit, one network run — §7.4) and a new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (§7.5); blank doctor cells for Screening exits are accepted; multi-stage runs print a per-stage block and network totals |
 | 2026-09-13 | Added "Loading Real Data" (§7) — the M2 CLI path: `verify`, `fit`, `simulate-data`, required file format, error messages; renamed the headless command to `simulate-params` (§3) |
 | 2026-09-13 | Added "Running without a GUI" section (§3) — the M1 CLI path with the metrics explained, the ρ < 1 rule, and the event trace location |
 | 2026-09-13 | Initial draft |
