@@ -12,7 +12,8 @@ using Serilog.Events;
 /// where <c>command</c> is one of:
 /// <c>simulate-params</c> (M/M/c from rates), <c>verify</c> (data validation),
 /// <c>fit</c> (distribution fitting + chi-square, writes JSON for SPSS),
-/// <c>simulate-data</c> (simulate from fitted rates), <c>export</c> (clean CSV).
+/// <c>simulate-data</c> (simulate from fitted rates), <c>export</c> (clean CSV),
+/// <c>simulate-network</c> (parameter-driven multi-stage run with the day model).
 /// </para>
 /// <para>
 /// Exit codes: <c>0</c> success; <c>1</c> refused (unstable system, ρ ≥ 1, or
@@ -33,6 +34,7 @@ public static class Program
         "  verify           load + validate a data file; prints every issue\n" +
         "  fit              fit a distribution + chi-square; writes logs/fit-*.json\n" +
         "  simulate-data    simulation from fitted rates (single stage: --servers sweep; stage-aware data: per-stage counts)\n" +
+        "  simulate-network parameter-driven multi-stage run; --days for the clinic calendar, --verbose for pre-run ρᵢ\n" +
         "  export           write a validated file to a clean analysis-ready CSV\n" +
         "\n" +
         "Run 'dotnet run --project src/OpdSimulator.Cli -- <command> --help' for command options.";
@@ -93,6 +95,7 @@ public static class Program
             "verify" => VerifyCommand.Run(rest, stdout, stderr, fileLogger),
             "fit" => FitCommand.Run(rest, stdout, stderr, fileLogger),
             "simulate-data" => SimulateDataCommand.Run(rest, stdout, stderr, fileLogger),
+            "simulate-network" => SimulateNetworkCommand.Run(rest, stdout, stderr, fileLogger),
             "export" => ExportCommand.Run(rest, stdout, stderr, fileLogger),
             _ => UnknownCommand(command, stderr),
         };
@@ -130,7 +133,8 @@ public static class Program
     /// <summary>
     /// Prints a stage-aware simulation run: one metrics block per stage (per-stage
     /// ρᵢ, utilisation, wait, queue, throughput — FR-STAT-6/7) followed by the
-    /// whole-network totals. Used by the stage-aware simulate-data path.
+    /// whole-network totals. Used by the stage-aware simulate-data and
+    /// simulate-network paths.
     /// </summary>
     internal static void PrintNetworkMetrics(TextWriter stdout, OpdSimulator.Core.Engine.SimulationResult result)
     {
