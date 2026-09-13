@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and unstable refusal (ρ 1.25, exit 1). [Windows: TBD]
+**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -120,9 +120,12 @@ window in minutes (default 10000), `--seed` (default 42).
 
 Exit codes: `0` run completed · `1` refused to run (unstable ρ ≥ 1) · `2` bad arguments.
 
-Unstable example (refuses, prints `ρ = 1.25`, exit 1):
+Unstable example (refuses, exit 1). The refusal is one clean line on stderr —
+no stack trace (D-037); the full exception is written to `logs/errors-YYYYMMDD.log`:
 ```bash
 dotnet run --project src/OpdSimulator.Cli -- --lambda 5 --mu 4 --servers 1 --horizon 1000
+# exit code 1; stderr shows exactly:
+#   Refusing to run: stage 'Stage 0 (single-stage)' is unstable — ρ = 1.25 (≥ 1) with λ = 5.000, c = 1, μ = 4.000. The queue would grow without bound; lower the arrival rate or add servers.
 ```
 
 Event trace location: `logs/app-YYYYMMDD.log` (Debug level, one line per event) and
@@ -157,9 +160,12 @@ does not, see **Troubleshooting** below.
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of Milestone 1 (2026-09-13) **34 tests pass** in
-`OpdSimulator.Core.Tests` (queue, event/FEL ordering, RNG determinism, exponential
-sampling, server utilisation, engine M/M/1 analytical bound, stability refusal).
+Expected: `Passed! - Failed: 0`. As of 2026-09-13 **37 tests pass**:
+- `OpdSimulator.Core.Tests` (36) — queue, event/FEL ordering, RNG determinism, exponential
+  sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace.
+- `OpdSimulator.Cli.Tests` (1) — CLI refusal: exit 1, clean stderr without a stack trace,
+  full exception in the file-detail logger (D-037).
+
 `OpdSimulator.Data.Tests` is still an intentionally empty placeholder (noted as
 `No test is available` — harmless, exits 0).
 
@@ -207,6 +213,7 @@ opd-simulator/
 │   └── OpdSimulator.Cli/       # headless runner
 └── tests/
     ├── OpdSimulator.Core.Tests/
+    ├── OpdSimulator.Cli.Tests/
     └── OpdSimulator.Data.Tests/
 ```
 
@@ -320,6 +327,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-13 | FIX (fix/cli-clean-refusal): CLI refusal prints one clean line to stderr, no stack trace (D-037); exception+stack logged to file only; new `OpdSimulator.Cli.Tests` project added to solution (§6/§8); F3 example shows clean output (§5) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — F3 verified: stderr single line, exit 1; 37 tests green; F2 unchanged |
 | 2026-09-13 | M1: CLI takes `--lambda/--mu/--servers/--horizon/--seed`, prints metrics + ρ, exits 0/1/2 (§5); tests exist (34 green, §6); headless mode updated to the rate-driven form, M2 data form noted (§7); Serilog.Sinks.File 7.0.0 + Core Serilog 4.4.0 + ProjectReferences noted (§3) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test + M1 CLI F2/F3 all pass, 0 warnings |
 | 2026-09-13 | File created (starter template); OS corrected to Ubuntu 24.04 | Not yet verified |
 | 2026-09-13 | Added §11 Resuming Work After a Session Ends (renumbered Changelog → §12) | Not yet verified |
