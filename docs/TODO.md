@@ -12,6 +12,7 @@ Last updated: 2026-09-13
 > updated with Source + Test.
 
 ## Active
+- [x] M3 sub-block B: per-stage ρᵢ refusal lists ALL unstable stages (λᵢ, cᵢ, μᵢ, ρᵢ) at engine level — 2026-09-13 (Run_Network_DoctorOnlyUnstable_ListsStageRho / MultipleStagesUnstable_ListsEveryStage / AllStable_RunsAndReportsRhoPerStage; 117 tests green, 0 warnings; the CLI `--verbose` pre-run ρᵢ print — B3 — is folded into E/F where the network commands land)
 - [x] M3 sub-block A: engine N-stage generalisation (StageSpec/Stage/NetworkTopology, `Run(topology, seed, horizon)`, StageMetrics, p_exit routing via existing EventType mapping) + latent server-assignment fix (random-among-idle, D-050) + byte-for-byte M1 regression (served 29892 / wait 0.724 / ρ 0.75) — 2026-09-13 (D-049/D-050; 114 tests green, 0 warnings; on feat/milestone-3-multi-stage-network)
 - [x] Pre-M2 fix: CLI refusal prints one clean stderr line; stack trace to file logs only — 2026-09-13 (Program.cs refactored to testable `Program.Run`; `UnstableSystemException` prefix removed; tests/OpdSimulator.Cli.Tests added; DEV_LAUNCH §5/§6/§8 + DECISIONS D-037 updated; 37 tests green; committed 5b0d4c4 and pushed to origin/fix/cli-clean-refusal, awaiting owner merge)
 - [x] M2 sub-block A–F: Data layer project (loaders, DataValidator, preprocessing, 5 fitters, chi-square, parameter modes, exporter) — 2026-09-13 (52 Data tests green on feat/milestone-2-data-and-fitting; commits 99cf03b, 3490cff; FR-DATA-1..9 all tested via LoaderTests/ValidatorTests/FitterTests/ChiSquareTests/ModeValidatorTests)
@@ -31,7 +32,15 @@ Last updated: 2026-09-13
 - [x] Implement Event, Queue, Server, Patient classes (M1: A1–A6 on feat/milestone-1-single-stage-engine) — 2026-09-13 (all M1 Core classes written; 34 tests green; dead-state verified)
 - [x] Implement FEL (priority queue) and generic N-stage DES engine — validated against M/M/1 and M/M/2 (per D-006) — 2026-09-13 (FEL + generic single-stage engine; validated vs analytical M/M/1 in EngineTests, 0.724 vs 0.75; M/M/2 + M/M/c table comparison tracked by the "Implement analytical M/M/c validation comparison" row)
 - [ ] Implement Statistics collector (avg wait, queue length, utilisation, time-in-system; expose per-server busy times + waiting-time samples for charts — D-019) — M1 core metrics live in SimulationResult.cs; D-019 chart hooks pending
-- [ ] Implement per-stage ρᵢ (routing-derived λᵢ) refusal — report ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ (FR-VAL-1) + per-stage ρ display in results panel (FR-STAT-6) + utilisation assertion 0 ≤ util ≤ 1
+- [ ] Implement per-stage ρᵢ (routing-derived λᵢ) refusal — report ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ (FR-VAL-1) + per-stage ρ display in results panel (FR-STAT-6) + utilisation assertion 0 ≤ util ≤ 1 — engine/topology-level refusal + listing LANDED (M3 sub-blocks A/B); CLI per-stage ρᵢ display (`--verbose`) + UI panel pending (E/F/M5)
+
+Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
+- [ ] M3 C: `ClinicCalendar` (open Mon–Thu + Sat, 08:15–11:00 arrivals, service drain past 11:00, daily cap) + engine calendar integration + real-clock display (CONTEXT §5.1–5.3, §1.1; D-009)
+- [ ] M3 D: run modes — single-day default, `--days N`, `--start-day` (per D-009: horizon = days × opening window)
+- [ ] M3 E: `simulate-data` becomes 3-stage: per-stage fitted μᵢ, p_exit from data (PExitCalculator), per-stage metrics output, `--verbose` ρᵢ pre-run print (B3)
+- [ ] M3 F: new `simulate-network` command (named network JSON/config), `--p-exit-override`, `--days`, per-stage ρᵢ + metrics output, refusal exit 1 listing ALL unstable stages
+- [ ] M3 G: acceptance — ≥128 tests, 0 warnings; M1 byte-for-byte; simulate-network per-stage; unstable refusal via CLI; simulate-data 3-stage; day-repeatability; refresh M2 sweep c=2/3 waits (D-050 RNG change)
+- [ ] M3 H: docs pass — DEV_LAUNCH, USER_MANUAL, REQUIREMENTS (FR-SIM-1/2/3, FR-STAT-6/7, FR-VAL-1), DECISIONS, VIVA_ANSWERS, TODO, PROGRESS, BLOCKERS
 - [x] Write unit tests for engine — 2026-09-13 (E1–E8: 34 facts across Queue/Event/FEL/RNG/Exponential/Server/Engine/Stability; all green on feat/milestone-1-single-stage-engine)
 - [ ] Record the 5-patient hand trace (viva walk-through)
 - [x] Implement Excel/CSV loader (ClosedXML + CsvHelper) with dirty-data rejection — 2026-09-13 (src/OpdSimulator.Data/Loaders/ + Validation/DataValidator, per-row issues; LoaderTests 55-german capacity; FR-DATA-1/2/7; D-038)
@@ -39,7 +48,7 @@ Last updated: 2026-09-13
 - [x] Implement chi-square test (auto bins ≈ √n, df = k−1−p, p-value, decision; expose binned data + fitted PDF points for charts — FR-STAT-8) — 2026-09-13 (BinSelector k=⌈√n⌉∈[5,20], ChiSquareTest with fail-loud guards D-040/D-044; O/E arrays exposed in ChiSquareResult; fitted-PDF-points for the P1 chart is the FR-STAT-8 M5 row)
 - [x] Implement `p_exit` estimation from `departure_stage` (exclude + warn on Reception rows) — 2026-09-13 (PExitCalculator excludes Reception per CONTEXT §5.4; validator itself is strict Screening/Doctor per kickoff B1 — D-038; FR-DATA-6)
 - [~] Implement rate-wise / mean-wise toggle + manual λ override — 2026-09-13 (data layer landed: src/OpdSimulator.Data/Parameters/{ParameterMode,ModeValidator} with soft warnings, FR-DATA-8; the **UI toggle** + manual-λ side-by-side display remain M5 GUI)
-- [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite)
+- [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite) — engine architecture done (M3 sub-block A); network wiring into `simulate-data`/`simulate-network` CLI pending (M3 E/F)
 - [ ] Implement clinic calendar (hours 8:15–11:00, closed Fri/Sun, daily cap, run-mode × horizon per D-009)
 - [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036 — FR-VAL-4 is `[x]` in REQUIREMENTS.md; the human-readable trace file + 5-patient hand trace remain from this row)
 - [x] Engine: assign patient to random idle server (log the policy) — 2026-09-13 (IRandomServerSelectionPolicy D-050; RandomIdleSelection default, LowestIdSelection test-only; balance + negative regression tests green)

@@ -145,6 +145,75 @@ public class EngineTests
     }
 
     [Fact]
+    public void Run_Network_DoctorOnlyUnstable_RefusesWithStageRho()
+    {
+        // λ0 = 3, p_exit = 0.4: Reception ρ = 3/10 = 0.30, Screening ρ = 3/8 = 0.375,
+        // Doctor ρ = 3·(1−0.4)/(3·0.5) = 1.20 ≥ 1 — the ONLY unstable stage. The
+        // refusal must name it and its routing-derived λ (D-007): 1.8 = λ0·(1−p).
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 0.5),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var ex = Assert.Throws<UnstableSystemException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, seed: 42, horizonMinutes: 1000));
+
+        Assert.Equal("Doctor", ex.StageName);
+        Assert.Equal(1.2, ex.Rho, 3);
+        Assert.Contains("Doctor", ex.Message);
+        Assert.Contains("1.20", ex.Message);
+        Assert.Contains("λ = 1.800", ex.Message);   // λ_doctor = λ0·(1 − p_exit)
+        Assert.DoesNotContain("Reception is unstable", ex.Message);
+        Assert.DoesNotContain("Screening is unstable", ex.Message);
+    }
+
+    [Fact]
+    public void Run_Network_MultipleStagesUnstable_ListsEveryStage()
+    {
+        // Reception ρ = 3/(1·1) = 3.0 and Screening ρ = 3/(2·1) = 1.5 — both over
+        // the bound, Doctor ρ = 3·(1−0.4)/(3·1) = 0.6 stable. The refusal must
+        // list BOTH offenders with their derived λᵢ and cᵢ (FR-VAL-1).
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 1.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 1.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.0),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var ex = Assert.Throws<UnstableSystemException>(
+            () => new Engine(new SeededRandomSource(), Log).Run(topology, seed: 42, horizonMinutes: 1000));
+
+        Assert.Contains("Reception", ex.Message);
+        Assert.Contains("Screening", ex.Message);
+        Assert.Contains("3.00", ex.Message);  // Reception ρ
+        Assert.Contains("1.50", ex.Message);  // Screening ρ
+        Assert.Contains("c = 1", ex.Message);
+        Assert.Contains("c = 2", ex.Message);
+        Assert.Equal("Reception", ex.StageName); // first offender wins the exception's payload
+    }
+
+    [Fact]
+    public void Run_NetworkAllStable_RunsAndReportsRhoPerStage()
+    {
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.4);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 1000);
+
+        Assert.Equal(3, result.StageMetrics.Count);
+        Assert.Equal(0.30, result.StageMetrics[0].Rho, 3);
+        Assert.Equal(0.375, result.StageMetrics[1].Rho, 3);
+        Assert.Equal(0.375, result.StageMetrics[2].Rho, 3); // 1.8/(3·1.6)
+    }
+
+    [Fact]
     public void Run_NetworkSymmetricServers2_RandomSelection_BalancesUtilisation()
     {
         // D-017 latent-bug regression: ρ = 0.25 at a 2-server single stage

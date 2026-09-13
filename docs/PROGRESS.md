@@ -2,6 +2,20 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block B: per-stage ρ refusal at engine level — 2026-09-13 (feat/milestone-3-multi-stage-network)
+B1/B2 landed inside sub-block A (NetworkTopology uses the D-007 product rule for
+λᵢ = λ₀·Π(1−p_exit), and Validate() throws UnstableSystemException listing every
+offender with λᵢ, cᵢ, μᵢ, ρᵢ). This letter proved the full engine path (FR-VAL-1)
+with three new tests: doctor-only-unstable (ρ = 1.20, refusal carries the
+routing-derived λ = 1.800 and does NOT mention the stable stages), two-stages-
+unstable (both Reception 3.00 and Screening 1.50 listed with their cᵢ), and an
+all-stable network whose StageMetrics report ρ = 0.30 / 0.375 / 0.375 per stage
+(FR-STAT-6 engine groundwork). B3 (CLI `--verbose` per-stage ρᵢ before the run)
+is genuinely a network-command feature, so it is folded into E/F rather than
+half-built against the still-single-stage CLI. 117 tests green (54 Core + 7 Cli
++ 56 Data), 0 warnings. Milestone-3 sub-block plan persisted into TODO.md so the
+kickoff survives sessions.
+
 ### M3 sub-block A: engine N-stage generalisation + server-assignment latent-bug fix — 2026-09-13 (feat/milestone-3-multi-stage-network)
 First commit on the branch cleared the stale M2 `[~]` TODO row (`8d26fa6`,
 message per kickoff). Then the engine became network-capable without a rewrite:
