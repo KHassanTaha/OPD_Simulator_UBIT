@@ -336,3 +336,42 @@ impact (positive and negative), alternatives considered.
 - **Impact (+):** M1 starts from a clean, unambiguous, traceable doc state.
 - **Impact (−):** None — doc-only changes, no application code.
 - **Alternatives considered:** Fixing the drifts silently inside M1 commits (rejected — conflates doc hygiene with feature work); deferring until the viva (rejected — traceability is a live artifact that must stay current).
+
+## D-033 FEL ordering: time → event type → patient id
+
+- **Date:** 2026-09-13
+- **Decision:** The Future Event List (`Event` class implementing `IComparable<Event>`) orders events by simulation time, then by `EventType` enum value (`Arrival=0 < ReceptionEnd=1 < ScreeningEnd=2 < DoctorEnd=3`), then by patient id. Ties at equal time are broken by type; equal time **and** type break by patient id (smaller first).
+- **Rationale:** DES correctness is order-sensitive: at an identical clock time the events a model generates are not physically simultaneous (or must be given an agreed order), and the choice changes waits/queue lengths. A **total, documented order** makes the FEL deterministic for the same seed — required by NFR-4 and the REPRODUCIBLE enforcement rule. The type ordering (Arrival before Service End at the same instant) is a stated convention so the viva can be answered precisely: a patient arriving at the exact instant a server frees up is handed to that server.
+- **Implementation details:** `Event.CompareTo` compares `Time`, then `(int)Type`, then `PatientId`. `FEL` wraps `System.Collections.Generic.PriorityQueue<Event, Event>` whose default priority comparer uses `Comparer<Event>.Default` — i.e. our `CompareTo`. ARM-verdict-free, no custom comparer needed.
+- **Impact (+):** Deterministic, explainable tie-breaking; no ambiguity in the trace; PriorityQueue supplied by the BCL (nothing to hand-roll).
+- **Impact (−):** The enum-value ordering couples event semantics to priority; adding a new event type in M3 must place it in the numeric order of stage execution.
+- **Alternatives considered:** FIFO insertion order for ties (rejected — insertion order is implementation-defined and not reproducible across collection resizes); random tie-breaking (rejected — never reproducible for the same seed); a custom `IComparer<Event>` (rejected — redundant, `IComparable<Event>` is the natural home for a total order).
+
+## D-034 UnstableSystemException replaces silent endless growth (FR-VAL-1)
+
+- **Date:** 2026-09-13
+- **Decision:** `EngineConfig.Validate()` refuses to run when ρ = λ/(c·μ) ≥ 1 for any stage, throwing `UnstableSystemException` carrying the stage name, λ, c, μ and the exact ρ. The CLI prints the message and exits with code 1.
+- **Rationale:** A queue with ρ ≥ 1 never reaches steady state; the analytical M/M/c formulas break down and a simulation's queue lengths would grow without bound, producing misleading metrics. FR-VAL-1 mandates refusal. Carrying the numeric ρ in the exception gives the user (and the viva) an immediate, quantified reason.
+- **Implementation details:** `EngineConfig.Rho` = `ArrivalRate / (ServerCount * ServiceRate)`; `Validate()` uses `Rho >= 1.0 - 1e-9` to avoid double-representation flakiness at exactly ρ = 1. `UnstableSystemException` is a subclass of `Exception` with a formatted message. `StabilityTests` cover ρ > 1 and ρ = 1 throwing, and ρ < 1 running.
+- **Impact (+):** Fails loud and early (AGENTS §5.0); the message is directly viva-presentable; prevents garbage "results" from unstable runs.
+- **Impact (−):** A threshold float-precision guard (`- 1e-9`) must be explained in the viva; users with genuinely unstable data must change inputs (λ down, c up, μ up).
+- **Alternatives considered:** Run anyway and let queue length grow (rejected — misleading); seed/cap the queue (rejected — hides instability); warn but run (rejected — FR-VAL-1 explicitly refuses).
+
+## D-035 Deterministic RNG: System.Random wrapper + inverse-CDF exponential
+
+- **Date:** 2026-09-13
+- **Decision:** M1 randomness comes from `IRandomSource` (SetSeed/NextDouble) backed by `SeededRandomSource`, a thin wrapper over `System.Random` with default seed 42. `ExponentialSampler` transforms ~U(0,1) to Exp(λ) via the inverse CDF `X = -ln(U)/λ`, clamping U to `double.Epsilon` when the draw is 0.
+- **Rationale:** NFR-4 (deterministic given seed) requires the engine to re-seed at run start so the same seed always reproduces the identical event sequence. The inverse-CDF transform is simple enough to defend line-by-line in the viva and needs no third-party dependency for the exponential case. MathNet.Numerics remains the library for the rarer distributions (Normal/Lognormal/Gamma) later (D-003).
+- **Implementation details:** `Engine.Run()` calls `_random.SetSeed(_config.Seed)` before the loop. `Sampled` draws log to Debug (FR-VAL-4). The `ln(0)` edge case is clamped to `double.Epsilon` so it can never produce `+∞`. `System.Random` is not thread-safe, but the engine is single-threaded by design (the GUI will run the whole run on a background thread, M5).
+- **Impact (+):** Zero-dependency exponential sampling; fully reproducible runs; deterministic unit tests.
+- **Impact (−):** `System.Random` is implementation-defined across .NET versions — acceptable because both CI platforms run the same .NET 8 and the seed contract only promises run-to-run equality on a given runtime, not across runtimes.
+- **Alternatives considered:** MathNet's `Exponential.Sample` (deferred to the distribution-parameterized stage, D-003/D-026); `System.Random.Shared` (rejected — not seedable per-run); crypto-grade RNG (rejected — overkill, no seed contract).
+
+## D-036 Engine event trace at Serilog Debug level
+
+- **Date:** 2026-09-13
+- **Decision:** Every event the engine processes is logged at `Debug` level with clock time, event type, patient id, queue length, server states, and the RNG draws consumed (inter-arrival and service time). The CLI configures three sinks per AGENTS §12.1: console at Information (the metrics table stays readable), rolling file `logs/app-YYYYMMDD.log` at Debug (the full trace, 7-day retention), and `logs/errors-YYYYMMDD.log` at Warning+.
+- **Rationale:** FR-VAL-4 requires an event log capturing all state and RNG draws — this is the viva's step-by-step evidence ("here is patient 12's arrival, this draw produced service time X") and the basis for the M4 human-readable trace file. Keeping the console at Information avoids flooding while the file retains the Debug trace.
+- **Implementation details:** `Engine` receives a Serilog `ILogger` via constructor injection; `HandleArrival`, `StartService`, `HandleServiceEnd` each emit Debug lines including the draw values. The CLI builds the logger programmatically for M1; the appsettings.json-driven configuration (todo item) remains.
+- **Impact (+):** Complete, citable event trace for the viva; log-driven debugging (AGENTS §12.6); no behavior change to the engine when logging is disabled.
+- **Impact (−):** Verbose files for long horizons (mitigated by 7-day retention and Debug-only in files); console stays sparser by design.

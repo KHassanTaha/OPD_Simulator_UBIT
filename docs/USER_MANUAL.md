@@ -46,6 +46,32 @@ would wait.
 ### If you are running from source
 See `docs/DEV_LAUNCH.md` §5.
 
+### Running without a GUI (currently the only runnable path)
+
+The graphical interface is not built yet (expected Milestone 5). To try the
+simulator today, open a terminal and run:
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
+```
+
+This simulates a single queue with one server where patients arrive at a rate
+of 3 per minute (λ) and the server works at 4 per minute (μ). The screen shows:
+
+- **Patients served** — how many patients finished service.
+- **Average wait (min)** — how long patients queued on average.
+- **Average queue length** — patients waiting at a typical moment.
+- **Stage / Server utilisation** — fraction of time each server was busy (0–100%).
+- **Throughput** — patients served per minute.
+- **ρ = λ/(c·μ)** — traffic intensity; **must be below 1**.
+
+**If ρ is 1 or more** the system cannot cope and the program refuses to run —
+for example `--lambda 5 --mu 4` prints `ρ = 1.25` and stops. Lower the arrival
+rate, raise the service rate, or add servers (`--servers 2`).
+
+Every run also writes a full event-by-event trace to `logs/app-YYYYMMDD.log` —
+useful if you want to see exactly what happened.
+
 ---
 
 ## 4. The Main Screen
@@ -192,4 +218,5 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | Added "Running without a GUI" section (§3) — the M1 CLI path with the metrics explained, the ρ < 1 rule, and the event trace location |
 | 2026-09-13 | Initial draft |

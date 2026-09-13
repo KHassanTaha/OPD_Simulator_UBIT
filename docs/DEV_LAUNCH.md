@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). [Windows: TBD]
+**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and unstable refusal (ρ 1.25, exit 1). [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -67,8 +67,13 @@ Run **once** (needs internet):
 dotnet restore OpdSimulator.sln
 ```
 
-This pulls all NuGet packages (MathNet.Numerics, Avalonia, ClosedXML, CsvHelper, etc.).
+This pulls all NuGet packages (MathNet.Numerics, Avalonia, ClosedXML, CsvHelper, Serilog, etc.).
 Expected output ends with `Restored ...`.
+
+> M1 dependency changes (2026-09-13): `OpdSimulator.Core` now references
+> **Serilog 4.4.0** (event trace, D-036); `OpdSimulator.Cli` references
+> **Serilog.Sinks.File 7.0.0** (rolling + error sinks) and
+> `<ProjectReference>` to Core; `OpdSimulator.Core.Tests` references Core.
 
 **Troubleshooting:**
 - `NU1101` — package not found → check `NuGet.config`, check spelling.
@@ -97,15 +102,31 @@ If warnings appear, treat them as errors — this project enforces zero-warning 
 
 **Linux / macOS:**
 ```bash
-dotnet run --project src/OpdSimulator.Cli
+dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
 
 **Windows (PowerShell):**
 ```powershell
-dotnet run --project src\OpdSimulator.Cli
+dotnet run --project src\OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
 
-Expected output at scaffold stage: `Hello, World!` (the placeholder entry point).
+Expected output (Milestone 1, verified 2026-09-13): a metrics table ending with
+`ρ = λ/(c·μ)              :     0.75` and exit code 0 (average wait ≈ 0.72 min
+against the analytical M/M/1 value 0.75).
+
+Arguments: `--lambda` arrival rate λ (required), `--mu` service rate per server μ
+(required), `--servers` parallel servers (default 1), `--horizon` arrival-generation
+window in minutes (default 10000), `--seed` (default 42).
+
+Exit codes: `0` run completed · `1` refused to run (unstable ρ ≥ 1) · `2` bad arguments.
+
+Unstable example (refuses, prints `ρ = 1.25`, exit 1):
+```bash
+dotnet run --project src/OpdSimulator.Cli -- --lambda 5 --mu 4 --servers 1 --horizon 1000
+```
+
+Event trace location: `logs/app-YYYYMMDD.log` (Debug level, one line per event) and
+`logs/errors-YYYYMMDD.log` (warnings+) are written on every CLI run.
 
 **GUI (from Milestone 5) — Linux:**
 ```bash
@@ -136,24 +157,29 @@ does not, see **Troubleshooting** below.
 dotnet test OpdSimulator.sln
 ```
 
-Expected once tests exist: `Passed! - Failed: 0, Passed: N`.
-
-> **Scaffold stage (2026-09-13):** the two test projects are intentionally empty,
-> so the output reads `No test is available in ...` for each and the command still
-> **exits 0**. Real tests are added in Milestone 1.
+Expected: `Passed! - Failed: 0`. As of Milestone 1 (2026-09-13) **34 tests pass** in
+`OpdSimulator.Core.Tests` (queue, event/FEL ordering, RNG determinism, exponential
+sampling, server utilisation, engine M/M/1 analytical bound, stability refusal).
+`OpdSimulator.Data.Tests` is still an intentionally empty placeholder (noted as
+`No test is available` — harmless, exits 0).
 
 ---
 
 ## 7. Headless Mode (for CI and demos without a display)
 
+Since Milestone 1, the CLI is the headless path, driven by rates rather than data:
+
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- --input samples/sample_patients.xlsx --days 1
+dotnet run --project src/OpdSimulator.Cli -- --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
 ```
 
-Prints metrics and chi-square results to stdout. This path is guaranteed to
-work even if the GUI cannot open (e.g., remote demo machine).
+Prints the metrics table and `ρ = λ/(c·μ)` to stdout (see §5). Unstable
+configurations are refused with a clear message and exit code 1.
 
-> Status: **[NOT YET IMPLEMENTED]** — will be added in Milestone 2.
+> **Planned (Milestone 2):** the data-driven form
+> `dotnet run --project src/OpdSimulator.Cli -- --input samples/sample_patients.xlsx --days 1`
+> — loads data, fits distributions, runs chi-square, prints metrics + goodness-of-fit.
+> Simulated-M/M-c validation output (`validation_report.txt`) also lands via this path.
 
 ---
 
@@ -294,6 +320,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-13 | M1: CLI takes `--lambda/--mu/--servers/--horizon/--seed`, prints metrics + ρ, exits 0/1/2 (§5); tests exist (34 green, §6); headless mode updated to the rate-driven form, M2 data form noted (§7); Serilog.Sinks.File 7.0.0 + Core Serilog 4.4.0 + ProjectReferences noted (§3) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test + M1 CLI F2/F3 all pass, 0 warnings |
 | 2026-09-13 | File created (starter template); OS corrected to Ubuntu 24.04 | Not yet verified |
 | 2026-09-13 | Added §11 Resuming Work After a Session Ends (renumbered Changelog → §12) | Not yet verified |
 | 2026-09-13 | Scaffold: solution + 6 projects created, NuGet pinned (D-026), appsettings.template.json + copy step in §3, §5 rewritten for CLI-until-M5, §8 layout updated, test-projects-empty note added to §6 | **Ubuntu 24.04** (dotnet SDK 8.0.131) — restore/build/test/CLI all pass, 0 warnings |

@@ -2,6 +2,96 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 09:15
+Branch: feat/milestone-1-single-stage-engine
+Status: Clean (local branch, 4 commits, not pushed — awaiting owner approval per §13/§14 wrap-up rules)
+
+Done
+- [x] Implement Event, Queue, Server, Patient classes (M1: A1–A6)
+- [x] Implement FEL (priority queue) and generic N-stage DES engine — validated against analytical M/M/1
+- [x] Write unit tests for engine (E1–E8, 34 facts)
+- [x] Add headless CLI mode to `OpdSimulator.Cli` (`--lambda/--mu/--servers/--horizon/--seed`)
+- [x] FIX: wait/system accumulation `long`→`double` (E7 exposed 0.41 vs analytical 0.75; now 0.724)
+
+In Progress
+- Implement event log and step-by-step trace (viva trace file) — the engine's Debug event trace is live
+  (D-036, FR-VAL-4 left `[~]` in REQUIREMENTS.md); the human-readable trace file + 5-patient hand
+  trace are the next trace tasks.
+
+What is complete:
+Milestone 1 end-to-end on `feat/milestone-1-single-stage-engine` (commits 0a87fa0, fef6d01, 30b7771,
+this docs commit). Core: `Patient`, `EventType`/`Event`/`FEL` (time→type→id total order), FIFO
+`Queue`, `Server`, `IRandomSource`/`SeededRandomSource` (default seed 42), `ExponentialSampler`
+(inverse CDF), `EngineConfig` (ρ = λ/(c·μ), refuses ρ ≥ 1), `UnstableSystemException`,
+`SimulationResult`, and the generic single-stage `Engine` (arrival gating at horizon, services
+draining past it, Debug event trace). CLI: full arg parsing + Serilog three-sink logging, metrics
+table + ρ, exit codes 0/1/2. Tests: 34/34 green including same-seed determinism, M/M/1
+average-wait 15% bound, and stability refusal; dead-state restore/build/test re-verified in
+Release with 0 warnings. F2 (λ=3, μ=4): ρ=0.75, wait 0.724. F3 (λ=5, μ=4): refused, ρ=1.25,
+exit 1. Docs updated: TODO, DECISIONS (D-033..D-036), REQUIREMENTS (9 rows `[x]`, FR-VAL-4 `[~]`,
+coverage 0%→19.6%), DEV_LAUNCH (§3/§5/§6/§7 + changelog), USER_MANUAL (§3 CLI path),
+VIVA_ANSWERS (M1 entries). Decisions D-033..D-036 logged.
+
+What remains:
+Owner review + merge of this branch into `main`; then M2 (data loading & distribution fitting) —
+loader, MLE Exponential fit, chi-square, sample `.xlsx`, per-stage ρ refusal extension, and the
+data-driven CLI `--input/--days`.
+
+Next Session Should Start With
+Milestone 2 kickoff (reconcile → implement Data loader + fitting + chi-square + validation_report).
+Second item: record the 5-patient hand trace (viva) using the engine's Debug event output.
+Blocked
+None new — BLOCKERS.md unchanged (B-001..B-006 all active, none touch this branch).
+
+Git State
+Commits made this session:
+- 0a87fa0 feat: add Milestone 1 core engine (Patient/Event/FEL/Queue/Server/RNG/Engine)
+- fef6d01 feat: add Milestone 1 headless CLI (--lambda/--mu/--servers/--horizon/--seed)
+- 30b7771 test: add E1-E8 unit tests for queue, FEL, RNG, server, engine, stability
+- <docs> docs: update TODO/DECISIONS/REQUIREMENTS/DEV_LAUNCH/USER_MANUAL/VIVA_ANSWERS/PROGRESS for M1 (this commit)
+Pushed to origin: No — per AGENTS §11.4/§13, the branch waits for owner review before push.
+
+Uncommitted changes: None (checked after this commit)
+
+Build & Test
+dotnet build: PASS (Release, dead-state, 0 warnings)
+dotnet test: PASS — 34 passed, 0 failed (OpdSimulator.Core.Tests; Data.Tests is an empty placeholder)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Patients, Events, Queues, Servers, Distributions, Engine: added (14 files)
+src/OpdSimulator.Core/OpdSimulator.Core.csproj: modified (Serilog 4.4.0)
+src/OpdSimulator.Cli/Program.cs + .csproj: modified (CLI, Serilog.Sinks.File 7.0.0, ref → Core)
+tests/OpdSimulator.Core.Tests/: added 8 test files + ProjectReference to Core
+docs/: TODO, DECISIONS, REQUIREMENTS, DEV_LAUNCH, USER_MANUAL, PROGRESS modified; VIVA_ANSWERS at repo root modified
+
+Decisions Made
+D-033 — FEL ordering: time → event type → patient id (DECISIONS.md)
+D-034 — UnstableSystemException refuses ρ ≥ 1 (FR-VAL-1)
+D-035 — Deterministic RNG: System.Random wrapper + inverse-CDF exponential
+D-036 — Engine event trace at Serilog Debug; console Info, file Debug, error file Warning+
+
+Assumptions Added/Changed
+None new — existing CONTEXT assumptions unchanged; no `[UNVERIFIED]` created this session.
+
+Notes for Next Session
+- Branch not pushed; owner must review/merge before M2 starts (AGENTS §11.4).
+- FR-VAL-4 intentionally `[~]`, not `[x]`: the Debug event trace exists but lacks its
+  human-readable trace file + hand-trace test (both tracked in TODO).
+- FR-SIM-1 marked `[x]` with the interpretation noted in its REQUIREMENTS row (generic engine
+  in place; 3-stage config is M3) — flagged pre-go in the resume line, owner approved.
+- FR-SIM-5 `[x]` covers the M1 arrival-generation gate; the true clinic calendar
+  (8:15–11:00, closed Fri/Sun) is M3/M4 work.
+- `OpdSimulator.Data.Tests` is an empty placeholder — restore that project's content in M2.
+- DEV_LAUNCH "Last verified" refreshed; Windows half still TBD (B-006).
+
+## Resume — 2026-09-13 08:40 — reconciled: 3 findings
+
+Findings (all non-blocking for M1):
+1. **PROGRESS merge-status lag:** the top handoff still reads "awaiting review — do NOT merge without approval", but the docs branch was merged into `main` (d02da96). Reality wins; will refresh the CURRENT STATE line during M1 wrap-up.
+2. **AGENTS §9.8 cited but absent:** the M1 kickoff references "Decision ID hygiene: AGENTS.md §9.8", but the file's §9 ends at §9.7. The rule ("scan for next free ID, never assume the last visible number") will be followed; codifying it in AGENTS.md is a proposed follow-up for owner approval.
+3. **FR-SIM-1 marking needs an explicit reading:** kickoff G2 says mark FR-SIM-1 `[x]`, but FR-SIM-1's literal text is "3-stage serial network (defaults 1/2/3)" — the 3-stage *configuration* is not built until M3. PRD v1.3.0 FR-SIM-1 itself carries the clause "engine is N-stage generic from day one — the 3-stage network is a configuration, not a hard-coded structure", and D-006 commits to generic-first. Plan: build the engine as an N-stage-generic serial pipeline exercised as M/M/1 in M1, mark FR-SIM-1 `[x]` with a row note "generic engine in place; 3-stage config in M3", and log the interpretation as a decision. Flagged here so the owner can override at the "go".
+
 ### Session Handoff — 2026-09-13 08:30
 Branch: docs/reconcile-decisions-and-paths
 Status: Clean (pushed to origin, awaiting review — do NOT merge without approval)
