@@ -386,3 +386,66 @@ impact (positive and negative), alternatives considered.
 - **Impact (−):** `Program.Run`'s additional parameters slightly widen the CLI's public surface (accepted for testability); message wording for `UnstableSystemException` changed in a way that only caller is the CLI refusal line, so no other formatting is affected.
 - **Alternatives considered:** Catching the exception at the `Main` level and wrapping Serilog output — rejected: `Main` is not cleanly testable in-process. Launching the CLI as a subprocess in tests — rejected: slower and OS-dependent, and it cannot observe the file-detail logger.
 - **Verification:** `dotnet run --project src/OpdSimulator.Cli -- --lambda 5 --mu 4 --servers 1 --horizon 1000` → stderr single line, exit 1; `grep -c 'at OpdSimulator.Core.Engine' logs/errors-*.log` ≥ 1 confirms the stack trace survives in the file log. Full solution: 37 tests green, 0 warnings.
+## D-038 M2 validation stricter than CONTEXT §5.4 for `departure_stage`
+
+- **Date:** 2026-09-13
+- **Decision:** The M2 `verify`/`fit`/`simulate-data` path validates `departure_stage` ∈ {Screening, Doctor} (case-insensitive) strictly, per kickoff rule B1 ("bad departure_stage cell value → reject"). Any other value — including `Reception` — is a per-row rejection issue.
+- **Rationale:** Kickoff B1 explicitly enumerates this rule and B3 demands rejection tests; it is the newest owner instruction and trivially testable. CONTEXT §5.4 (verified 2026-09-13) instead said Reception rows warn-and-are-excluded from p_exit. This is a real conflict between two owner instructions; per AGENTS §7 we do not average — we pick the newer, concrete rule for the CLI path and surface the conflict.
+- **Implementation details:** `DataValidator.IsValidDepartureStage` accepts exactly Screening/Doctor (OrdinalIgnoreCase). `PExitCalculator` still implements the FR-DATA-6 exclusion logic (Reception counted but excluded from numerator/denominator) so the computation stays correct for any future non-validation-gated path; its unit test exercises the Reception branch directly. In the CLI path Reception rows never reach it (validator rejects the file).
+- **Impact (+):** dirty-data handling is unambiguous; matches kickoff tests.
+- **Impact (−):** a real clinic file containing Reception rows from the demo data (all exit Screening) is unaffected; if the owner wants warn-and-exclude at the CLI, this decision flips to a check in `ModeValidator`-style soft warning instead.
+- **Alternatives considered:** Warn+exclude Reception at the CLI (CONTEXT §5.4) — rejected for now because B1 explicitly says reject; ambiguity flagged to owner.
+- **Verification:** `DataValidatorTests.InvalidDepartureStage_IsRejected`; `AllIssuesCollected_NotStoppedAtFirst` (bad stage among 3 issues).
+
+## D-039 TimeParser accepted formats and the bare-number heuristic
+
+- **Date:** 2026-09-13
+- **Decision:** `TimeParser.TryParse` accepts 24-hour (`H:mm`, `HH:mm`, with optional `:ss`), 12-hour `h:mm AM/PM` (case-insensitive; lowercase meridiem normalised), and bare numbers. A bare number `< 1` is an Excel fraction of a day (×1440); a number `≥ 1` is already minutes since midnight.
+- **Rationale:** Excel (ClosedXML) serialises time cells as day-fractions (0.34375 = 08:15) — confirmed in the loader test — and clinic data may arrive typed as "8:15", "08:15:30" or "8:15 AM". The three formats cover what the demo CSV/Excel realistically contains; the bifurcation `<1` vs `≥1` is unambiguous because a day-fraction is always < 1 and minute-counts are always ≥ 0.
+- **Implementation details:** Uses `DateTime.TryParseExact` (invariant culture) rather than `TimeSpan.TryParseExact`, because TimeSpan custom formats have no meridiem specifier and no uppercase hour specifier. Meridiem text is normalised (`prefix + " AM/PM"`) so lowercase "am/pm" parses.
+- **Impact (+):** one parser for every file type; round-trips Excel fractions and human text alike.
+- **Impact (−):** a bare integer like `60` means 01:00, not 60 seconds — acceptable because column semantics are minutes (documented in USER_MANUAL).
+- **Verification:** `TimeParserTests` (theories for 24h, 12h, fraction, bare number, invalid).
+
+## D-040 Chi-square: equal-probability bins, square-root count, df = k − 1 − p
+
+- **Date:** 2026-09-13
+- **Decision:** Bins are equal-probability (interior edges at the fitted distribution's quantiles i/k; outer edges at sample min/max). Bin count k = ceil(√n) clamped to [5,20]. Degrees of freedom df = k − 1 − p with p = number of fitted parameters.
+- **Rationale:** Equal-probability bins are the textbook approach for continuous GOF; every interior bin is expected to hold n/k observations, which keeps the test unbiased regardless of the fitted shape. k≈√n is the standard rule of thumb (CONTEXT §3.5 predates this choice); clamping keeps tiny samples testable and huge samples printable.
+- **Implementation details:** `BinSelector.BinCount`, `BinomialSelector.EqualProbabilityEdges` build edges from the fitted CDF captured as a delegate (see D-042); `ChiSquareTest` computes Σ(O−E)²/E and p = 1 − CDF_χ²(statistic). MathNet `ChiSquared` supplies only the CDF; the test itself is implemented here (D-003 note about nested critical values applies).
+- **Impact (+):** deterministic, defensible, matches the viva formula.
+- **Impact (−):** outer-edge approximation makes the first/last bin expected counts slightly less than n/k — immaterial in practice (guarded, see D-044).
+- **Verification:** `ChiSquareTests.BinCount_FollowsSquareRootRule_ClampedToFiveAndTwenty`.
+
+## D-041 Gamma fitter uses method-of-moments
+
+- **Date:** 2026-09-13
+- **Decision:** `GammaFitter` estimates shape = x̄²/Var, rate = x̄/Var (moment matching).
+- **Rationale:** Gamma MLE has no closed form (numeric optimisation). The viva can derive MoM in one line from E[X]=shape/rate and Var[X]=shape/rate²; the uniform and normal fitters are closed-form MLE, so MoM is the only approximate family and is clearly documented, per kickoff D ("Gamma MoM").
+- **Implementation details:** MathNet `Gamma(shape, rate)` is shape–rate parameterised; parameters stored as `shape`/`rate`.
+- **Verification:** `FittingTests.Gamma_MomentEstimatesMatchSampleMoments` (shape/rate ≈ mean, shape/rate² ≈ variance within 5%).
+
+## D-042 FittedDistribution carries CDF/InverseCDF delegates
+
+- **Date:** 2026-09-13
+- **Decision:** `FittedDistribution` wraps the MathNet distribution instance plus `Func<double,double>` `Cdf`/`InverseCdf` delegates captured at construction from the concrete distribution type.
+- **Rationale:** MathNet's public `IContinuousDistribution` interface exposes densities and sampling but NOT the CDF/quantile function (the class carrying them is internal — confirmed by reflection). The equal-probability binning needs exactly those two functions; capturing them where the concrete type is known keeps `FittedDistribution` dependency-light and its consumers type-agnostic.
+- **Implementation details:** Each fitter builds `new Exponential(rate)` etc. and passes `dist.CumulativeDistribution` / `dist.InverseCumulativeDistribution` as method groups. BinSelector/ChiSquareTest consume the delegates, not the MathNet type.
+- **Impact (+):** no reliance on an internal MathNet type name; binning logic testable with any fit.
+- **Impact (−):** three extra properties in the record — worth it to keep the API honest.
+- **Verification:** full FittingTests + ChiSquareTests green.
+
+## D-043 Normal/Lognormal σ use MLE denominator n
+
+- **Date:** 2026-09-13
+- **Decision:** `NormalFitter` and `LognormalFitter` divide the squared deviations by n (not n−1).
+- **Rationale:** We report MLE parameter estimates; the MLE of σ² divides by n. The chi-square test treats parameters as fixed, so the bias correction is irrelevant to the GOF and mixing estimators would only confuse the viva narrative.
+- **Verification:** `FittingTests.Normal_RecoversTrueMoments` / `Lognormal_RecoversMuSigma`.
+
+## D-044 Chi-square guards fail loud (E ≥ 1, df ≥ 1)
+
+- **Date:** 2026-09-13
+- **Decision:** `ChiSquareTest.Run` throws `InvalidOperationException` when any expected bin count is < 1 or when df = k−1−p drops below 1.
+- **Rationale:** The χ² approximation is unreliable below these thresholds; printing a p-value anyway would silently endorse a garbage test. Per AGENTS §12, fail loud rather than fabricate a number.
+- **Implementation details:** k is clamped ≥ 5 and df≥1 normally holds; the guard protects degenerate fitters (e.g. uniform with tiny n) and 2-parameter families at the lowest bin count.
+- **Verification:** `ChiSquareTests` green; degenerate paths raise clean exceptions (fit command prints them as errors, not stack traces).

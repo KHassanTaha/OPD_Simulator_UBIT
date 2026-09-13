@@ -318,4 +318,5 @@ Fit `Distribution` holds CDF/InverseCDF delegates (MathNet's IContinuousDistribu
 exposes no CDF — captured from the concrete type at construction).
 Surfaced conflict: validator strictly rejects departure_stage ∉ {Screening, Doctor}
 (incl. Reception) per kickoff B1 — stricter than CONTEXT §5.4 warn-and-exclude.
-Logged as D-… in DECISIONS.md.
+Logged as the M2-D-validator-stage decision in DECISIONS.md (plugin author to confirm
+which behaviour the CLI must have).
