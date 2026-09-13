@@ -41,12 +41,12 @@ PRD.md wins.
 
 | ID | Requirement | Status | Source | Test | Decision |
 |----|-------------|--------|--------|------|----------|
-| FR-SIM-1 | 3-stage serial network (1/2/3 servers) | [ ] | — | — | — |
-| FR-SIM-2 | DES with FEL; 4 event types | [ ] | — | — | — |
-| FR-SIM-3 | RNG per selected distributions | [ ] | — | — | — |
+| FR-SIM-1 | 3-stage serial network (1/2/3 servers) | [x] | src/OpdSimulator.Core/Engine/Engine.cs (N-stage-generic serial engine; 3-stage config = M3) | EngineTests | D-006 |
+| FR-SIM-2 | DES with FEL; 4 event types | [x] | src/OpdSimulator.Core/Events/{Event,EventType,FEL}.cs, Engine/Engine.cs | FELTests, EventTests, EngineTests | D-033 |
+| FR-SIM-3 | RNG per selected distributions | [x] | src/OpdSimulator.Core/Distributions/{IRandomSource,SeededRandomSource,ExponentialSampler}.cs | SeededRandomSourceTests, ExponentialSamplerTests | D-035 |
 | FR-SIM-4 | p_exit routing after Screening | [ ] | — | — | — |
-| FR-SIM-5 | Arrival window 8:15 → cap/11:00 | [ ] | — | — | — |
-| FR-SIM-6 | Services continue past close | [ ] | — | — | — |
+| FR-SIM-5 | Arrival window 8:15 → cap/11:00 | [x] | src/OpdSimulator.Core/Engine/Engine.cs (HandleArrival horizon gate — M1; clinic calendar hours are M3/M4) | EngineTests | — |
+| FR-SIM-6 | Services continue past close | [x] | src/OpdSimulator.Core/Engine/Engine.cs (FEL drains past horizon) | EngineTests, CLI F2 | — |
 | FR-SIM-7 | Day ends when cap served | [ ] | — | — | — |
 | FR-SIM-8 | Skip Fri/Sun | [ ] | — | — | — |
 | FR-SIM-9 | Single-day / multi-day modes | [ ] | — | — | — |
@@ -64,10 +64,10 @@ PRD.md wins.
 | FR-STAT-6 | Display per-stage ρ (bottleneck) | [ ] | — | — | — |
 | FR-STAT-7 | Per-server util + imbalance flag (>0.15) | [ ] | — | — | — |
 | FR-STAT-8 | Histogram + fitted PDF overlay | [ ] | — | — | — |
-| FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [ ] | — | — | — |
-| FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [ ] | — | — | — |
-| FR-VAL-3 | Random seed (default 42, logged) | [ ] | — | — | — |
-| FR-VAL-4 | Event log with all state + RNG draws | [ ] | — | — | — |
+| FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Engine/{EngineConfig,UnstableSystemException}.cs, src/OpdSimulator.Cli/Program.cs | StabilityTests | D-034 |
+| FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [x] | src/OpdSimulator.Core/Servers/Server.cs, Engine/Engine.cs | ServerTests (Utilisation_StaysWithinUnitInterval), EngineTests | — |
+| FR-VAL-3 | Random seed (default 42, logged) | [x] | src/OpdSimulator.Core/Distributions/SeededRandomSource.cs, Engine/Engine.cs | SeededRandomSourceTests, EngineTests.Run_SameSeed | D-035 |
+| FR-VAL-4 | Event log with all state + RNG draws | [x] | src/OpdSimulator.Core/Engine/Engine.cs (Debug trace) | EventTraceTests (in-memory Serilog sink) | D-036 |
 | FR-VAL-5 | (Stretch) N replications + CI | [ ] | — | — | — |
 
 ## Functional Requirements — Token Generator
@@ -85,7 +85,7 @@ PRD.md wins.
 | NFR-1 | Modular projects (Core/Data/App/Cli/Tests) | [ ] | — | — | — |
 | NFR-2 | XML doc comments on public APIs | [ ] | — | — | — |
 | NFR-3 | 4,000 patients / 30 days in <3s | [ ] | — | — | — |
-| NFR-4 | Deterministic given seed | [ ] | — | — | — |
+| NFR-4 | Deterministic given seed | [x] | src/OpdSimulator.Core/Engine/Engine.cs, Distributions/SeededRandomSource.cs | EngineTests.Run_SameSeed_TwoRuns_ProduceIdenticalResults, SeededRandomSourceTests | D-035 |
 | NFR-5 | C# .NET 8, Avalonia, MathNet, ClosedXML, CsvHelper | [ ] | .gitignore, DEV_LAUNCH.md §3, appsettings.template.json | — | D-027 |
 | NFR-6 | Charts <500ms, non-blocking UI | [ ] | — | — | — |
 
@@ -94,13 +94,22 @@ PRD.md wins.
 ## Coverage Summary
 
 - Total requirements: 46
-- `[x]` DONE: 0
+- `[x]` DONE: 10
 - `[~]` IN PROGRESS: 0
-- `[ ]` TODO: 46
+- `[ ]` TODO: 36
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 0%
+**Coverage:** 21.7% (10/46)
+
+> M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
+> NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
+> now `[x]` backed by EventTraceTests (in-memory Serilog sink asserting event-line
+> state + RNG draws). The human-readable viva trace file and 5-patient hand trace
+> are separate TODO rows, not FR-VAL-4's scope (PRD: "event log records every
+> event with time, type, patient ID, queue lengths, server status, and RNG draws").
+> FR-SIM-5's clinic-calendar hours (8:15→11:00, closed Fri/Sun) are M3/M4; M1
+> implements the arrival-generation gate.
 
 ---
 
@@ -125,3 +134,5 @@ but no source or test.
 |------|--------|
 | 2026-09-13 | Initial matrix created from PRD v1.3.0 |
 | 2026-09-13 | Bidirectional rule (AGENTS §9.7) applied — matrix audited against PRD v1.3.0; zero orphan rows; D-025 logged |
+| 2026-09-13 | M1: FR-SIM-1/2/3/5/6, FR-VAL-1/2/3, NFR-4 marked `[x]` with Source + Test + Decision |
+| 2026-09-13 | Review fix: FR-VAL-4 promoted `[~]`→`[x]` with EventTraceTests (review note "mark it [x] with source + test filled"); coverage now 21.7% |

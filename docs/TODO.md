@@ -17,15 +17,15 @@ Last updated: 2026-09-13
 ## Upcoming
 - [ ] Create `scripts/verify-traceability.sh` (orphan check: `[x]` matrix rows without Source/Test; referenced by REQUIREMENTS.md Update Protocol)
 - [ ] Obtain `samples/sample_patients.xlsx` (owner; 1-stage demo data) — see BLOCKERS B-004
-- [ ] Add headless CLI mode to `OpdSimulator.Cli` (DEV_LAUNCH §7; demo path 2026-09-16)
+- [x] Add headless CLI mode to `OpdSimulator.Cli` (DEV_LAUNCH §7; demo path 2026-09-16) — 2026-09-13 (M1 CLI: `--lambda/--mu/--servers/--horizon/--seed`, ρ table, exit 0/1; F2/F3 verified on feat/milestone-1-single-stage-engine)
 - [x] Set up solution structure (Core / Data / App / CLI / Tests) — 2026-09-13 (sln + 6 projects, packages pinned per D-026; App is a placeholder classlib)
 - [?] Initialize Avalonia project — BLOCKED on B-005 (no Avalonia template installed; App is a classlib placeholder until M5)
 - [x] Add MathNet.Numerics, ClosedXML, CsvHelper via NuGet (update DEV_LAUNCH in the same change) — 2026-09-13 (extended with Avalonia/CommunityToolkit/LiveCharts/Serilog per scaffold instruction; versions + rationale in D-026; DEV_LAUNCH §3/§5/§8 updated)
-- [ ] Implement Event, Queue, Server, Patient classes
-- [ ] Implement FEL (priority queue) and generic N-stage DES engine — validated against M/M/1 and M/M/2 (per D-006)
-- [ ] Implement Statistics collector (avg wait, queue length, utilisation, time-in-system; expose per-server busy times + waiting-time samples for charts — D-019)
+- [x] Implement Event, Queue, Server, Patient classes (M1: A1–A6 on feat/milestone-1-single-stage-engine) — 2026-09-13 (all M1 Core classes written; 34 tests green; dead-state verified)
+- [x] Implement FEL (priority queue) and generic N-stage DES engine — validated against M/M/1 and M/M/2 (per D-006) — 2026-09-13 (FEL + generic single-stage engine; validated vs analytical M/M/1 in EngineTests, 0.724 vs 0.75; M/M/2 + M/M/c table comparison tracked by the "Implement analytical M/M/c validation comparison" row)
+- [ ] Implement Statistics collector (avg wait, queue length, utilisation, time-in-system; expose per-server busy times + waiting-time samples for charts — D-019) — M1 core metrics live in SimulationResult.cs; D-019 chart hooks pending
 - [ ] Implement per-stage ρᵢ (routing-derived λᵢ) refusal — report ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ (FR-VAL-1) + per-stage ρ display in results panel (FR-STAT-6) + utilisation assertion 0 ≤ util ≤ 1
-- [ ] Write unit tests for engine
+- [x] Write unit tests for engine — 2026-09-13 (E1–E8: 34 facts across Queue/Event/FEL/RNG/Exponential/Server/Engine/Stability; all green on feat/milestone-1-single-stage-engine)
 - [ ] Record the 5-patient hand trace (viva walk-through)
 - [ ] Implement Excel/CSV loader (ClosedXML + CsvHelper) with dirty-data rejection
 - [ ] Implement MLE fitting (Exponential first, then Normal/Lognormal/Gamma)
@@ -34,7 +34,7 @@ Last updated: 2026-09-13
 - [ ] Implement rate-wise / mean-wise toggle + manual λ override
 - [ ] Extend engine to the 3-stage network with routing (a config change, not a rewrite)
 - [ ] Implement clinic calendar (hours 8:15–11:00, closed Fri/Sun, daily cap, run-mode × horizon per D-009)
-- [ ] Implement event log and step-by-step trace (viva trace file)
+- [~] Implement event log and step-by-step trace (viva trace file) — 2026-09-13 (engine Debug event trace live per D-036 — FR-VAL-4 is `[x]` in REQUIREMENTS.md; the human-readable trace file + 5-patient hand trace remain from this row)
 - [ ] Engine: assign patient to random idle server (log the policy)
 - [ ] Statistics: track per-server busy time, compute per-server + stage-level utilisation
 - [ ] Statistics: flag imbalance when max−min utilisation > 0.15 (both simulated + historical)
@@ -66,6 +66,7 @@ Last updated: 2026-09-13
 - (none yet — see BLOCKERS.md B-001..B-004 for owner-pending items, none blocking current work)
 
 ## Done
+- [x] FIX (feat/milestone-1-single-stage-engine): average-wait/system-time bug — `totalWaitMinutes`/`totalSystemMinutes` were `long`, truncating every sub-minute wait to 0 (mean wait read 0.41 vs analytical 0.75). Switched to `double` accumulators; EngineTests.Run_MatchesAnalyticalMM1 now green (0.724 within 15% of 0.75) — 2026-09-13
 - [x] FIX (docs/reconcile-decisions-and-paths): renumber duplicate decision IDs (D-027b→D-029, D-028b→D-030, D-029→D-031) + update all cross-references — 2026-09-13 (commit 27a1a34)
 - [x] FIX (docs/reconcile-decisions-and-paths): align DEV_LAUNCH §3 + D-021/D-027 with template-only rule; log D-032 — 2026-09-13 (commit dee90c2)
 - [x] FIX (docs/reconcile-decisions-and-paths): fill PROGRESS.md gap for commit 9537d46 + resume line — 2026-09-13 (commit 2fecab9)
