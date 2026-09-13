@@ -34,4 +34,10 @@ public sealed class SimulationResult
 
     /// <summary>Operating time (minutes): first arrival to last service end.</summary>
     public double OperatingTimeMinutes { get; init; }
+
+    /// <summary>
+    /// Per-stage metrics for the serial network. A single-element array for the
+    /// legacy single-stage model; one entry per stage for the multi-stage topology.
+    /// </summary>
+    public IReadOnlyList<StageMetrics> StageMetrics { get; init; } = Array.Empty<StageMetrics>();
 }
