@@ -2,6 +2,68 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-13 08:30
+Branch: docs/reconcile-decisions-and-paths
+Status: Clean (pushed to origin, awaiting review — do NOT merge without approval)
+
+Done
+- [x] FIX: renumber duplicate decision IDs (D-027b→D-029, D-028b→D-030, D-029→D-031) + update references
+- [x] FIX: align DEV_LAUNCH §3 + D-021/D-027 with template-only rule
+- [x] FIX: fill PROGRESS.md gap for commit 9537d46
+- [x] Initial bootstrap root commit task marked DONE (was stale `[ ]` in TODO despite 73787bb pushed)
+
+In Progress
+None
+
+What is complete:
+All three reconciliation drifts fixed and committed: duplicate decision IDs renumbered with every cross-reference updated and re-grepped to zero stale IDs; DEV_LAUNCH §3 + D-021/D-027 corrected to the actual template-only gitignore rule (verified via git check-ignore); PROGRESS.md gap for commit 9537d46 filled plus the §14 resume line and D-032 process-fix decision logged.
+
+What remains:
+Owner review and merge of the branch into main; then Milestone 1 (Event/Queue/Server/Patient + FEL + M/M/1 engine) on feat/milestone-1-single-stage-engine.
+
+Next Session Should Start With
+Milestone 1 kickoff (reconcile → branch feat/milestone-1-single-stage-engine → implement A1..A8 per kickoff prompt) — drifts now cleared.
+Second item: none until M1 done.
+
+Blocked
+None new — BLOCKERS.md unchanged (B-001..B-006 all active, none touch this branch).
+
+Git State
+Commits made this session:
+- 27a1a34 docs: renumber duplicate decision IDs and update references
+- dee90c2 docs: align DEV_LAUNCH §3 and D-021/D-027 with template-only rule
+- 2fecab9 docs: fill PROGRESS.md gap for commit 9537d46
+
+Pushed to origin: Yes (docs/reconcile-decisions-and-paths → origin; PR creation intentionally skipped — owner opens it)
+
+Uncommitted changes: none at wrap time (TODO.md Done-row additions committed below as 2fecab9)
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors, Debug)
+dotnet test: PASS (exit 0 — no tests yet; expected at scaffold, M1 adds them)
+
+Warnings: 0
+
+Files Touched
+docs/DECISIONS.md: modified (renumber + D-021 note + D-032 entry)
+docs/DEV_LAUNCH.md: modified (§3 wording, changelog D-030)
+docs/PROGRESS.md: modified (resume line, gap entry, reference fixes, this handoff)
+docs/TODO.md: modified (root-commit item → Done with D-028, three FIX items → Done)
+AGENTS.md: read-only (its D-028 reference needed no change — verified by grep)
+
+Decisions Made
+D-032 — Reconciliation fixes gated before M1 (decision IDs renumbered, appsettings doc drift corrected, PROGRESS gap filled; rationale: ID collisions corrupt traceability)
+
+ID renumber mapping (D-027b→D-029, D-028b→D-030, D-029→D-031); canonical D-028 = root commit unchanged.
+
+Assumptions Added/Changed
+None — no new assumptions; CONTEXT.md untouched.
+
+Notes for Next Session
+- Reference sweep verified: every D-ID cited resolves to exactly one DECISIONS.md entry (D-001..D-032 sequential, zero stale refs).
+- git check-ignore verified: appsettings.json → `.gitignore:44 appsettings*.json`; appsettings.template.json → nothing (exit 1).
+- DEV_LAUNCH §3 "Last verified" still reads 2026-09-13 (Ubuntu 24.04) — unchanged by this docs-only branch; restore+build re-run green.
+
 ## Resume — 2026-09-13 08:22 — reconciled: 3 findings
 
 Findings (all pre-existing, none blocking M1):
