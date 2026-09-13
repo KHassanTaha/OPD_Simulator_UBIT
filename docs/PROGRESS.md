@@ -2,6 +2,22 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M3 sub-block G: acceptance pass — 2026-09-13 (feat/milestone-3-multi-stage-network)
+Every kickoff acceptance item verified, live where a live check exists:
+**≥128 tests / 0 warnings** → 156 tests (76 Core + 58 Data + 22 Cli), 0 warnings.
+**M1 byte-for-byte** → live `simulate-params --lambda 3 --mu 4 --servers 1 --horizon
+10000 --seed 42` prints served 29892, wait 0.724, ρ 0.75 (both EngineTests +
+CliSimulateParamsTests guard it). **simulate-network per-stage** → 3 metric blocks
++ network totals; `--verbose` pre-run ρᵢ (0.4/0.4/0.1). **Unstable refusal via
+CLI** → both commands exit 1 with one stderr line listing every unstable stage
+(live: Reception ρ = 6.06 + Screening ρ = 4.00). **simulate-data 3-stage** →
+fit λ0 + per-stage μᵢ + p_exit, 3 blocks, network totals. **Day-repeatability** →
+same-seed `--days` runs byte-identical stdout. **M2 sweep c=2/3 refreshed**
+→ D-050 changed assignment to random-among-idle; c=1 path unchanged
+(6.058 min); `simulate-data samples/sample_patients.csv --servers 1,2,3 --seed
+42` now reports 0.82/6.058, 0.41/0.315, 0.27/0.030 — DEV_LAUNCH §7.4 updated
+with the exact command used (wording marks the refresh date and cause).
+
 ### M3 sub-block F: `simulate-network` command + day-model flags + B3 pre-run ρᵢ — 2026-09-13 (feat/milestone-3-multi-stage-network)
 New `Cli/Commands/SimulateNetworkCommand.cs`: the parameter-driven twin of the
 fitted path. `--lambda λ₀ --c 1,2,3 --mu μ₁,μ₂,μ₃` build `StageSpec[]` (names

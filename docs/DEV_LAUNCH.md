@@ -223,11 +223,13 @@ Only `exponential` is accepted in M2 (other families: clean refusal, exit 2).
 
 **Verified 2026-09-13 on `samples/sample_patients.csv` (seed 42, HH:MM:SS times — D-048):** λ = 0.562/min
 (mean inter-arrival 1.78 min), μ = 0.683/min (mean service 1.464 min, stage
-`screening`); ρ/avg-wait = 0.82/6.1 min (c=1), 0.41/0.25 min (c=2), 0.27/0.04 min
-(c=3). `fit` accepts the exponential for both quantities (p = 0.103 inter-arrival,
-p = 0.258 service — the second-precision storage lets the chi-square no longer see
-the minute-rounded data as discrete). The mean inter-arrival is ~1.78 min vs the
-generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).
+`screening`); ρ/avg-wait = 0.82/6.058 min (c=1), 0.41/0.315 min (c=2), 0.27/0.030 min
+(c=3). The c=2/c=3 waits were refreshed on 2026-09-13 after D-050 changed server assignment
+to random-among-idle (Milestone-1's lowest-ID bias only affected c>1 runs; the c=1 path is
+byte-for-byte, 6.058 min unchanged). `fit` accepts the exponential for both quantities
+(p = 0.103 inter-arrival, p = 0.258 service — the second-precision storage lets the
+chi-square no longer see the minute-rounded data as discrete). The mean inter-arrival is
+~1.78 min vs the generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).
 
 ---
 
