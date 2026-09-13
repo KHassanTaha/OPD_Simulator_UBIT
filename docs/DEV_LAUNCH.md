@@ -221,11 +221,13 @@ a metrics block each (patients served, average wait, ρ). Unstable counts are
 refused per-count with no stack trace; exit 0 if at least one run completed.
 Only `exponential` is accepted in M2 (other families: clean refusal, exit 2).
 
-**Verified 2026-09-13 on `samples/sample_patients.csv` (seed 42):** λ = 0.562/min
-(mean inter-arrival 1.78 min), μ = 0.69/min (mean service 1.45 min, stage
-`screening`); ρ/avg-wait = 0.81/5.1 min (c=1), 0.41/0.23 min (c=2), 0.27/0.04 min
-(c=3). The mean inter-arrival is ~1.78 min vs the generator's 2.0 — sampling
-variation of the deterministic seed 42 (SE ≈ 0.26).
+**Verified 2026-09-13 on `samples/sample_patients.csv` (seed 42, HH:MM:SS times — D-048):** λ = 0.562/min
+(mean inter-arrival 1.78 min), μ = 0.683/min (mean service 1.464 min, stage
+`screening`); ρ/avg-wait = 0.82/6.1 min (c=1), 0.41/0.25 min (c=2), 0.27/0.04 min
+(c=3). `fit` accepts the exponential for both quantities (p = 0.103 inter-arrival,
+p = 0.258 service — the second-precision storage lets the chi-square no longer see
+the minute-rounded data as discrete). The mean inter-arrival is ~1.78 min vs the
+generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).
 
 ---
 

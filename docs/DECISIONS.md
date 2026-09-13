@@ -479,3 +479,13 @@ impact (positive and negative), alternatives considered.
 - **Impact:** (+) Deterministic, self-healing fixtures; the CSV sample is diffable. (−) A third generator to keep in sync with the loader schema (columns) — guarded by FixtureTests, which fail loudly if the fixtures no longer pass validation.
 - **Alternatives considered:** Hand-writing the Excel once by scripted commands — rejected: not reproducible for the viva.
 - **Verification:** `FixtureTests` (3 tests) green: both samples validate clean, the dirty fixture is rejected with exact row numbers; live `verify`/`fit`/`simulate-data` runs match the committed files.
+
+## D-048 Sample data stores wall-clock times at second precision (HH:MM:SS)
+
+- **Date:** 2026-09-13
+- **Decision:** `scripts/sample-data-generator` writes times as `H:mm:ss` (e.g. `8:17:12`), quantised to whole seconds, instead of `H:mm` whole minutes. Chosen over decimal minutes (e.g. `8.25`).
+- **Rationale:** The M2 smoke test showed chi-square rejecting a genuinely exponential sample at p ≈ 0 for BOTH inter-arrival and service times. The test is calibrated correctly — the minute-rounded storage collapsed the continuous exponential to ties, so the empirical distribution looked discrete. Quantising at 1/60 min keeps the distortion (~0.008 min) far below the chi-square bin width (≈13 min at k = 8), which the divergence from p ≈ 0 to p ≈ 0.10/0.26 confirms. HH:MM:SS wins over decimal minutes because the wall-clock strings remain human-readable in the viva and match a plausible real clinic log format; decimal minutes are opaque to field staff.
+- **Implementation details:** The RNG stream is untouched — seed 42 draws the same exponential gaps/ service times as before; only the string format changes. TimeParser already accepted `H:mm:ss`, so no parser change was needed; a new `TimeParserTests` case (`8:17:30` → 497.5) pins the `H:mm:ss` path alongside the existing `HH:mm` cases (no HH:MM regression).
+- **Impact:** (+) chi-square now honestly accepts the fitted exponential (p 0.103 / 0.258); (+) demo output is sample-consistent with the fitted means. (−) Simulated ρ at c=1 nudges 0.81 → 0.82 because μ̂ now uses untruncated service times (1.45 → 1.464 min).
+- **Alternatives considered:** (a) HH:MM:SS — chosen, see rationale. (b) Decimal minutes — rejected: unreadable and unlike clinical logs.
+- **Verification:** `fit --file samples/sample_patients.xlsx --distribution exponential` → p = 0.103 (inter-arrival) and p = 0.258 (service), both Fail-to-reject at α = 0.05. Full suite 98 tests green.

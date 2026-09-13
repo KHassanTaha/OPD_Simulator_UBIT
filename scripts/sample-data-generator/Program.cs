@@ -80,9 +80,15 @@ internal static class Program
 
     private static string TimeText(double minutes)
     {
-        int h = (int)minutes / 60;
-        int m = (int)minutes % 60;
-        return $"{h}:{m:D2}";
+        // Second precision (HH:MM:SS) — see D-048. Minute-precision storage made
+        // the fitted distribution look discrete, so chi-square rejected a true
+        // exponential at p ≈ 0. Quantising at 1/60 min keeps the distortion far
+        // below the bin width (~13 min with k = 8) instead of creating ties.
+        long totalSeconds = (long)Math.Round(minutes * 60.0);
+        long h = totalSeconds / 3600;
+        long m = (totalSeconds % 3600) / 60;
+        long s = totalSeconds % 60;
+        return $"{h}:{m:D2}:{s:D2}";
     }
 
     private static void WriteXlsx(string path, List<Row> rows)

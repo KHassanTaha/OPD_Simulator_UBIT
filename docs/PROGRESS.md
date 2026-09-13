@@ -2,6 +2,19 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### M2.5 Sample data precision fix — 2026-09-13 (fix/sample-data-precision)
+Owner's smoke test found chi-square rejecting the sample's exponential fit at p ≈ 0
+for inter-arrival AND service. Root cause: the sample stored whole minutes
+(`H:mm`), collapsing continuous exponential draws to ties — the empirical
+distribution looked discrete. Fix (D-048): generator now writes `H:mm:ss`
+(quantised to 1/60 min); RNG stream untouched (same seed-42 draws), so the
+underlying samples are identical. TimeParser already accepted `H:mm:ss`; a new
+`TimeParserTests` case (`8:17:30` → 497.5) pins it — HH:MM cases unchanged.
+Samples + dirty fixture regenerated. `fit` now reports p = 0.103 / 0.258, both
+Fail-to-reject; sweep numbers refreshed (ρ 0.82/0.41/0.27; μ̂ 0.683 from the now
+untruncated service mean 1.464). 98 tests green. VIVA line on rounding vs
+chi-square power added; DEV_LAUNCH §7.4 verified block updated.
+
 ### Session Handoff — 2026-09-13 10:12
 Branch: feat/milestone-2-data-and-fitting
 Status: Clean (3 commits, not yet pushed; awaiting owner review — do not merge)

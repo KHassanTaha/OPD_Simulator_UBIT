@@ -81,3 +81,6 @@ A: SPSS validates our numbers (parameter estimates, chi-square p-values) but the
 
 **Q: Why does verify print every issue instead of stopping at the first?**
 A: Stopping at the first error forces the user into a fix-reupload refix loop. Reporting all issues (one per row, with column name and reason) lets the file be cleaned in a single pass — and the dirty fixture proves it names rows 2–6 in order, with the clean row 1 never flagged (FixtureTests).
+
+**Q: Why did chi-square initially reject the exponential fit of our own sample data?**
+Integer-minute granularity reduces chi-square power. With 60 samples rounded to whole minutes, a true exponential can be rejected because the empirical distribution looks discrete, not continuous. Our sample generator uses HH:MM:SS precision so the fit test has enough resolution to accept. Real clinic data at minute granularity will need to be evaluated with this limitation in mind; the simulator will honestly reject if the fit is genuinely poor.
