@@ -15,7 +15,8 @@ the "Refusing to run: " prefix (removed to avoid "Refusing to run: Refusing to r
 exception while the console-level logger captured none. Docs: DEV_LAUNCH §5 F3 example + §6 (37 tests)
 + §8 layout + changelog; DECISIONS D-037; TODO row. Verified: `dotnet build` 0 warnings; 37/37 tests
 green; F3 runs show a single clean stderr line with exit 1 while `logs/errors-*.log` retains the full
-stack trace; F2 (ρ=0.75) unchanged. Commit + push pending immediately after this entry.
+stack trace; F2 (ρ=0.75) unchanged. Committed as `5b0d4c4` and pushed to `origin/fix/cli-clean-refusal`
+— awaiting owner review; do not merge.
 
 ### Session Handoff — 2026-09-13 09:15
 Branch: feat/milestone-1-single-stage-engine
