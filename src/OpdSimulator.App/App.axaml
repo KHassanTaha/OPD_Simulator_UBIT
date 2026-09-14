@@ -10,4 +10,13 @@
     <Application.Styles>
         <FluentTheme/>
     </Application.Styles>
+
+    <!-- Theme.axaml is the single source of all colours/fonts/spacing (AGENTS §16.3). -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://OpdSimulator.App/Assets/Theme.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>
