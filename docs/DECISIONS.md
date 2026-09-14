@@ -1027,3 +1027,102 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** (a) install `Avalonia.Controls.ItemsRepeater`
   — rejected (extra dependency, API unfamiliarity); (b) `ItemsControl` in a
   `ScrollViewer` — rejected: does not virtualize, fails FR-UI-20.
+
+## D-082 In-Program Guide Uses a Hand-Rolled Parser Instead of Markdig
+
+- **Date:** 2026-09-14
+- **Decision:** The guide renders `docs/USER_MANUAL.md` (embedded as
+  `OpdSimulator.App.Assets.UserManual.md`) through a small purpose-built
+  parser (`Services/GuideMarkdown.cs`) rather than the Markdig NuGet package.
+- **Rationale:** The manual is a constrained subset of markdown (headings,
+  paragraphs, bullet/numbered lists, inline code, inline bold, links). A
+  150-line parser covers exactly that subset with zero dependencies; Markdig
+  adds a package and (worse) its AST is generic HTML-flavoured markup, so we
+  would still have to walk its tree to map to our blocks. For the viva, a
+  parser we can explain line-by-line beats a third-party dependency for a
+  four-block subset. The original AGENTS §17.1 suggestion of Markdig was a
+  recommendation, not a mandate.
+- **Implementation details:** `GuideMarkdown.Parse` returns `GuideSection[]`
+  (Id = lower-hyphen slug of the title, used for deep links); `GuidePanel`
+  renders blocks (Heading/Paragraph/Bullet/Numbered/Code/Separator) with a
+  `SimpleStackPanel`, splitting inline runs for **bold** and `` `code` ``;
+  search ranks by ranking (title words ⇒ body-word matches).
+- **Impact:** (+) no extra package; (+) drift-guard test compares embedded
+  copy against `docs/USER_MANUAL.md`; (−) non-markdown manual files render
+  with degraded formatting (acceptable — the file is ours).
+- **Alternatives:** (a) Markdig — rejected (extra dep, generic AST);
+  (b) raw `TextBox` of the whole file — rejected: no sections/search,
+  violates FR-UI-18.
+
+## D-083 Preset Schema v1, "arrivalParameter" Field, No Auto-Restore
+
+- **Date:** 2026-09-14
+- **Decision:** Presets are JSON files under `<ApplicationData>/OpdSimulator/
+  presets/` with `schemaVersion: 1`, a `config` object mirroring the view
+  model fields, an optional `dataFile` path, and a `view` object persisting
+  only widget visibility + collapsed sections. A new `arrivalParameter`
+  field (a double, minutes) carries the manual arrival value when the user
+  configures it — the earlier M4-era design (a `manualLambda` in one mode,
+  `manualMean` in another) could not round-trip mean-wise mode.
+- **Rationale:** FR-UI-19 needs a cross-platform, validated, human-readable
+  format; JSON via `System.Text.Json` is dependency-free and diffable.
+  `arrivalParameter` is stored in canonical units (minutes) and converted
+  per the active `parameterMode` at load time, so a preset round-trips
+  identically in both modes. FR-UI-21 forbids auto-restore, so presets are
+  strictly opt-in (dropdown default `(none)`; no `_lastSession.json`).
+- **Implementation details:** `PresetStore` on `<ApplicationData>` (resolved
+  via `Environment.GetFolderPath` — never CWD or the exe directory);
+  `PresetNaming.Sanitize` strips `/\:*?"<>|` + control chars; comparisons are
+  case-insensitive; unknown JSON fields ignored (forward-compatible);
+  missing dataFile on load → preset still loads, inline "reselect data"
+  error shown (FR-UI-9/17).
+- **Impact:** (+) testable round-trip; (+) same store works on Linux/Windows;
+  (−) schema v1 written before all M5 fields are final — v2 can add fields
+  without breaking v1 (unknown fields ignored).
+- **Alternatives considered:** (a) store next to exe — rejected (Program
+  Files read-only on Windows); (b) CWD — rejected (launch-location
+  dependent); (c) re-use `manualLambda` — rejected (mean-wise round-trip
+  broken).
+
+## D-084 Chart Resource Colours via Application.Resources Fallback Factory
+
+- **Date:** 2026-09-14
+- **Decision:** `ChartsPanelViewModel` never hardcodes hex colours; a static
+  `ForResources()` factory reads `ColorBrandGreen`/`ColorAccentInfo` from
+  `Application.Current?.Resources.TryGetResource(...)`, falling back to the
+  same literal values baked only in `Theme.axaml` (D-084 fallback exists for
+  headless/test sessions where no Avalonia application is running).
+- **Rationale:** AGENTS §16.3 demands a single colour source. `TryFindResource`
+  (the classic Avalonia extension) was observed in this codebase to fail on
+  `Application.Current` during tests, so the resolver uses the framework API
+  directly and falls back deterministically so unit tests (no app session)
+  still construct charts.
+- **Implementation details:** fallback `SKColor` literals live in the
+  factory only and duplicate the Theme values; **if Theme.axaml changes
+  either colour, this fallback must be updated too** (guarded by a comment
+  in both files).
+- **Impact:** (+) charts work in headless tests; (−) duplicated literal as a
+  drift risk, mitigated by an explicit comment pair rather than a coupling.
+- **Alternatives considered:** (a) hardcode in VM — rejected (§16.3);
+  (b) require an Avalonia app in tests — rejected (chart VM tests are pure
+  data tests).
+
+## D-085 Computed ViewModel Booleans Instead of Value Converters
+
+- **Date:** 2026-09-14
+- **Decision:** View-state predicates (`ResultsViewModel.ShowResults`,
+  `HasError`; `ChartViewModel.ShowEmpty`; `ChartsPanelViewModel.ShowEmpty`)
+  are computed properties raised via `partial void On...Changed` hooks from
+  their source observable properties, not `IValueConverter`s.
+- **Rationale:** No `ObjectConverters.IsNotNull`/`BoolConverters.Not`
+  converters exist in this codebase (hand-built shell, D-078), and adding
+  converter classes for two booleans duplicates logic in two files. A
+  computed property is one line, testable, and XAML stays
+  `IsVisible="{Binding ShowResults}"`.
+- **Impact:** (+) no converter infrastructure; (+) logic lives beside its
+  source in the VM; (−) compiled bindings must still reference the computed
+  member (compiler enforces this — catching typos).
+- **Alternatives considered:** (a) add converter classes — rejected (extra
+  files for trivial negation); (b) bind `IsVisible` with a data-trigger
+  Style — rejected (Avalonia style triggers over a dynamic container are
+  fiddly and hard to eyeball; a VM predicate is simpler).

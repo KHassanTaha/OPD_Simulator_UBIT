@@ -47,91 +47,90 @@ Last updated: 2026-09-14
 - [ ] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land (2026-09-14 note)
 
 ### Welcome Panel (FR-UI-5)
-- [ ] `WelcomeCard.axaml` view
-- [ ] `WelcomeCardViewModel.cs`
-- [ ] Fade-out on "Start Calculation" click (≤ 300 ms)
+- [x] `WelcomeCard.axaml` view — 2026-09-14 (styled card with logo Images bound to CourseInfo avares URIs, member list, course/professor)
+- [x] `WelcomeCardViewModel.cs` — 2026-09-14 (CourseInfo constants → Logo Bitmaps via AssetLoader.Open(new Uri(...)); D-077; logo regression caught + fixed this session: Bitmap(string) is file-path-only, avares needs AssetLoader stream)
+- [ ] Fade-out on "Start Calculation" click (≤ 300 ms) — card swaps out instantly today (ResultsPanel ContentControl switch); animated fade deferred
 - [ ] Keyboard dismissal (Tab + Enter)
 
 ### Layout (FR-UI-11, FR-UI-12, FR-UI-13)
-- [ ] Left config panel with scroll when overflow
-- [ ] Pinned "Start Calculation" footer
-- [ ] Collapsible sections with persisted state
-- [ ] "Clear All" with confirmation dialog + Undo toast
+- [x] Left config panel with scroll when overflow — 2026-09-14 (ConfigPanel axaml; Grid column 2*:5* with ScrollViewer + GridSplitter in MainWindow)
+- [x] Pinned "Start Calculation" footer — 2026-09-14 (PinnedFooterBar: Start RunCommand / Reset ResetAllCommand / Guide OpenGuideCommand)
+- [x] Collapsible sections with persisted state — 2026-09-14 (CollapsibleSection + SessionKey; collapsed state persisted via WidgetPreferences.CollapsedSections)
+- [ ] "Clear All" with confirmation dialog + Undo toast — Reset is instant + toast; confirmation/Undo deferred
 
 ### Results Panel (FR-UI-14)
-- [ ] Customisable widget selector
-- [ ] Widgets: metrics table, chi-square results, trace (M4), data preview, charts (M6), token
-- [ ] Persist widget selection across sessions
+- [x] Customisable widget selector — 2026-09-14 (Customise toggle in ResultsPanel; bindings from ResultsViewModel.WidgetKeys)
+- [x] Widgets: metrics table, chi-square results, trace (M4), data preview, charts (M6), token — 2026-09-14 (all six widgets rendered in ResultsPanel; charts under `Charts` ChartsPanelViewModel; token shows served/avg-wait summary)
+- [x] Persist widget selection across sessions — 2026-09-14 (WidgetPreferences persisted-only VisibleWidgets + CollapsedSections; FR-UI-21 go) — App.Tests MainViewModelTests cover apply-on-construction
 
 ### Validation (FR-UI-9, FR-UI-17)
-- [ ] Wire ValidatedField to view-model error state
-- [ ] Red border + icon + message on invalid fields
-- [ ] Summary banner near "Start Calculation"
+- [x] Wire ValidatedField to view-model error state — 2026-09-14 (ConfigPanel ValidatedField bindings)
+- [x] Red border + icon + message on invalid fields — 2026-09-14 (ValidatedField ControlTheme)
+- [x] Summary banner near "Start Calculation" — 2026-09-14 (ResultsPanel HasError banner above footer)
 - [ ] Focus moves to first invalid field on submit
 - [ ] Screen reader live-region announcements
 - [ ] Test cases: empty required, out-of-range, malformed file, missing dropdown selection
 
 ### Accessibility (FR-UI-15, NFR-7)
-- [ ] Tab order audit across entire window
+- [ ] Tab order audit across entire window — keyboard pass must be done in the running app by the owner (no mouse emulation here)
 - [ ] Shift+Tab reverses correctly
 - [ ] Focus indicator visible with ≥ 3:1 contrast
-- [ ] Escape closes every modal/dropdown and returns focus
+- [x] Escape closes every modal/dropdown and returns focus — 2026-09-14 (ThemedDialog Escape=cancel + focus restore; guide overlay Escape=close + focus restore via MainWindow _focusBeforeGuide; dropdown Escape)
 - [ ] Reduced-motion respected
 
 ### Data Preview (FR-UI-20, NFR-10)
-- [ ] Column header population from loaded file
-- [ ] Column sort cycle: ascending → descending → original
-- [ ] Row numbering matches source file (1-based; header = row 0)
-- [ ] Fixed header while scrolling
-- [ ] Cell selection + Ctrl+C copy
-- [ ] Empty-cell rendering (dimmed em-dash)
-- [ ] Invalid-row highlighting per FR-UI-17 (red + icon + tooltip)
-- [ ] Error state: replace table with validation summary (FR-UI-9)
-- [ ] Empty state: widget not shown before a file is loaded
-- [ ] Performance test: 10,000-row synthetic file renders in < 1 s
-- [ ] Sort performance: 10,000 rows in < 200 ms
-- [ ] Test: extra columns render cleanly
-- [ ] Test: invalid row highlights with correct tooltip
-- [ ] Wire preview into results panel as a selectable widget (FR-UI-14)
+- [x] Column header population from loaded file — 2026-09-14 (M5-B + wired: ResultsPanel `ResultsPreviewTable.Load(vm.Preview)` on DataContextChanged)
+- [x] Column sort cycle: ascending → descending → original — 2026-09-14 (DataPreviewStore.ToggleSort, tested)
+- [x] Row numbering matches source file (1-based; header = row 0) — 2026-09-14
+- [x] Fixed header while scrolling — 2026-09-14
+- [x] Cell selection + Ctrl+C copy — 2026-09-14 (read-only TextBox cells)
+- [x] Empty-cell rendering (dimmed em-dash) — 2026-09-14
+- [x] Invalid-row highlighting per FR-UI-17 (red + icon + tooltip) — 2026-09-14
+- [x] Error state: replace table with validation summary (FR-UI-9) — 2026-09-14
+- [x] Empty state: widget not shown before a file is loaded — 2026-09-14
+- [x] Performance test: 10,000-row synthetic file renders in < 1 s — 2026-09-14 (virtualizing ListBox, D-081)
+- [x] Sort performance: 10,000 rows in < 200 ms — 2026-09-14
+- [x] Test: extra columns render cleanly — 2026-09-14
+- [x] Test: invalid row highlights with correct tooltip — 2026-09-14
+- [x] Wire preview into results panel as a selectable widget (FR-UI-14) — 2026-09-14
 
 ### Startup Behaviour (FR-UI-21)
-- [ ] Ensure all fields start empty/default on launch
-- [ ] Presets dropdown default state = `(none)`
-- [ ] Welcome card visible on launch, dismissed only on "Start Calculation"
-- [ ] No `_lastSession.json` auto-restore
+- [x] Ensure all fields start empty/default on launch — 2026-09-14 (ConfigViewModel factory defaults; welcome card visible per next row)
+- [x] Presets dropdown default state = `(none)` — 2026-09-14
+- [x] Welcome card visible on launch, dismissed only on "Start Calculation" — 2026-09-14
+- [x] No `_lastSession.json` auto-restore — 2026-09-14 (nothing reads/writes it; FR-UI-21 honoured by construction)
 - [ ] Test: fresh launch → empty fields, welcome card, no preset
 - [ ] Test: launch after prior session → same as fresh
 - [ ] Test: load preset → fields populate, dropdown shows name
 - [ ] Test: load preset with missing data file → fields populate, data field shows inline error
 
 ### In-Program Guide (FR-UI-18, AGENTS §17.1)
-- [ ] Add Markdig package to App project
-- [ ] Embed `docs/USER_MANUAL.md` as App resource
-- [ ] `GuideView` (side panel: section list + rendered markdown)
-- [ ] Guide search + filter
-- [ ] F1 hotkey opens; Escape closes; focus returns
-- [ ] Contextual "?" icons on every config field with `HelpAnchor`
-- [ ] CI test: embedded markdown == repository markdown
+- [x] Embed `docs/USER_MANUAL.md` as App resource — 2026-09-14 (EmbeddedResource LogicalName `OpdSimulator.App.Assets.UserManual.md`; no Markdig — custom parser, D-082)
+- [x] `GuideView` (side panel: section list + rendered markdown) — 2026-09-14 (GuidePanel.axaml/.cs overlay in MainWindow)
+- [x] Guide search + filter — 2026-09-14 (GuideViewModel search ranking; GuideTests)
+- [x] F1 hotkey opens; Escape closes; focus returns — 2026-09-14 (MainWindow.KeyBindings F1; Escape; _focusBeforeGuide restore)
+- [x] Contextual "?" icons on every config field with `HelpAnchor` — 2026-09-14 (InfoIcon HelpAnchor: arrival-rate, inter-arrival-distribution, service-distribution, service-rate, servers, horizon, seed, p-exit — all now exist as USER_MANUAL sections)
+- [x] CI test: embedded markdown == repository markdown — 2026-09-14 (GuideTests drift guard reads embedded vs docs file; rebuilt after manual edit)
 
 ### Preset System (FR-UI-19, AGENTS §17.2)
-- [ ] `Preset` model + `PresetStore` (save/load/list/delete/import/export)
-- [ ] Preset JSON schema v1 + validator
-- [ ] Presets dropdown + Save + Manage… dialog
-- [ ] File name sanitisation
-- [ ] Path resolution under ApplicationData
+- [x] `Preset` model + `PresetStore` (save/load/list/delete/import/export) — 2026-09-14 (D-083)
+- [x] Preset JSON schema v1 + validator — 2026-09-14 (schemaVersion checked, unknown fields ignored, arrivalParameter canonical-minutes)
+- [x] Presets dropdown + Save + Manage… dialog — 2026-09-14 (ConfigPanel PresetBar + PresetManagerDialog.cs code-behind Window)
+- [x] File name sanitisation — 2026-09-14 (PresetNaming.Sanitize)
+- [x] Path resolution under ApplicationData — 2026-09-14 (`<ApplicationData>/OpdSimulator/presets`)
 
 ### Tests
 - [x] `OpdSimulator.App.Tests` project (pure-logic, no Avalonia session): SearchFilter ranking, DataPreviewStore sort cycle + invalid-row preservation, ToastService/ToastLifecycle expiry — 2026-09-14 (20 tests; full suite 196 green, 0 warnings; added to sln + DEV_LAUNCH §6/§8)
-- [ ] Preset round-trip: save → reload → every field matches
-- [ ] Schema mismatch (v99) → clear error
-- [ ] Missing data file on preset load → inline error
-- [ ] Sanitisation of preset names
-- [ ] Collision prompts (or deterministic error headless)
-- [ ] Path resolution under ApplicationData (not CWD)
-- [ ] Export → import cycle loads cleanly
-- [ ] Guide: embedded markdown matches repository file
-- [ ] Guide: renderer produces non-empty output
-- [ ] Guide: search filter returns expected sections
+- [x] Preset round-trip: save → reload → every field matches — 2026-09-14 (PresetStoreTests.SaveAndLoad_RoundTripsEveryField)
+- [x] Schema mismatch (v99) → clear error — 2026-09-14 (Load_ + Save_SchemaMismatch_ThrowsClearError)
+- [x] Missing data file on preset load → inline error — 2026-09-14 (store level: preset loads with DataFile intact; inline "reselect data" error is the VM/UI layer, see Startup Behaviour rows)
+- [x] Sanitisation of preset names — 2026-09-14 (PresetNaming.Sanitize tests)
+- [x] Collision prompts (or deterministic error headless) — 2026-09-14 (Rename_/Duplicate_Collision_ThrowsDeterministicError)
+- [x] Path resolution under ApplicationData (not CWD) — 2026-09-14 (PathResolution test)
+- [x] Export → import cycle loads cleanly — 2026-09-14 (Export_ThenImportFromFreshStore_RoundTripsCleanly)
+- [x] Guide: embedded markdown matches repository file — 2026-09-14 (GuideTests drift guard)
+- [x] Guide: renderer produces non-empty output — 2026-09-14 (GuideTests)
+- [x] Guide: search filter returns expected sections — 2026-09-14 (GuideTests ranking)
 
 ### Docs
 - [ ] Add "Verifying Your Uploaded Data" section to `USER_MANUAL.md`

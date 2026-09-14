@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite 196 green (incl. new `OpdSimulator.App.Tests` for the M5-B reusable controls), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). M5-A GUI shell launches on Linux. [Windows: TBD]
+**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **243 green** (Core 85, Data 58, Cli 35, App 65), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5 GUI verified: `dotnet run --project src/OpdSimulator.App` opens the full panel window and stays alive (≥ 10 s smoke run, no crash log, welcome logos load via AssetLoader).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -151,9 +151,11 @@ dotnet run --project src\OpdSimulator.App
 - `scripts/run.sh` — Linux launcher (`chmod +x run.sh` once)
 - `scripts/run.ps1` — Windows launcher
 
-> Both scripts invoke `src/OpdSimulator.App`. The Avalonia shell launches a window
-> as of 2026-09-14 (M5-A), still with placeholder panels; the in-GUI workflow is
-> completed in M5-D..H. Until then, CLI verification stays via `OpdSimulator.Cli`.
+> Both scripts invoke `src/OpdSimulator.App`. The full M5 GUI landed 2026-09-14:
+> left config panel (parameter mode, distributions, servers, upload, horizon,
+> seed, presets), right results panel (metrics, chi-square, charts, trace,
+> data preview, token), in-program guide (F1), toasts and themed dialogs.
+> The CLI remains the headless/scripting path (§7).
 
 The window should open within ~5 seconds. If it does not, see **Troubleshooting** below.
 
@@ -165,8 +167,8 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-14 **196 tests pass**:
-- `OpdSimulator.Core.Tests` (83) — queue, event/FEL ordering, RNG determinism, exponential
+Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
+- `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
 - `OpdSimulator.Data.Tests` (58) — Excel/CSV loaders, TimeParser, validator (per-row issues),
@@ -176,10 +178,18 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-14 **196 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (20, added M5-B) — pure logic only, no Avalonia session needed:
+- `OpdSimulator.App.Tests` (65, M5-B..L) — pure logic only, no Avalonia session needed:
   SearchFilter prefix>substring ranking + empty/no-match cases (FR-UI-6); DataPreviewStore
   asc→desc→original sort cycle, invalid-row preservation, out-of-range column (FR-UI-20);
-  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10).
+  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10);
+  **ResultsViewModel** (run lifecycle, error banner, widget toggles persist, reset);
+  **MainViewModel** (widget prefs apply on construction, run-summary line, ResetAll toast);
+  **ChartViewModel/ChartsPanelViewModel** (empty state, line/histogram projections,
+  SetCharts/Clear, theme-resource fallback); **GuideViewModel** (embedded-vs-repo drift guard,
+  section parse, search ranking, anchor deep-link); **PresetStore** (round-trip, schema
+  mismatch v99, missing data file, sanitisation, collisions, ApplicationData path resolution,
+  export→import, case-insensitive names); **WelcomeCardViewModel** (course constants, logo
+  null-safety headless).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
