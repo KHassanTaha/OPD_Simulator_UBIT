@@ -26,12 +26,14 @@ public sealed partial class ToastItem : ViewModelBase
     /// <param name="message">Text shown on the card.</param>
     /// <param name="kind">Severity variant.</param>
     /// <param name="duration">How long the card stays visible before expiring.</param>
-    public ToastItem(string message, ToastKind kind, TimeSpan duration)
+    /// <param name="createdUtc">Creation time; defaults to now (injectable for tests).</param>
+    public ToastItem(string message, ToastKind kind, TimeSpan duration,
+        DateTimeOffset? createdUtc = null)
     {
         Message = message;
         Kind = kind;
         Duration = duration;
-        CreatedUtc = DateTimeOffset.UtcNow;
+        CreatedUtc = createdUtc ?? DateTimeOffset.UtcNow;
     }
 
     /// <summary>Gets the message text.</summary>

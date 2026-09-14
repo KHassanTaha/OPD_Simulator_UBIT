@@ -7,7 +7,7 @@ namespace OpdSimulator.App.Services;
 /// testable and viva-defensible (a late-ticking host timer cannot influence
 /// the decision about whether a toast is still visible).
 /// </summary>
-internal static class ToastLifecycle
+public static class ToastLifecycle
 {
     /// <summary>Returns true when the toast has been visible for at least its duration.</summary>
     /// <param name="item">The toast to evaluate.</param>

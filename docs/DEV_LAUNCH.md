@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite 176 green, 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). [Windows: TBD]
+**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite 196 green (incl. new `OpdSimulator.App.Tests` for the M5-B reusable controls), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). M5-A GUI shell launches on Linux. [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -165,7 +165,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-14 **176 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-14 **196 tests pass**:
 - `OpdSimulator.Core.Tests` (83) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -176,6 +176,10 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-14 **176 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
+- `OpdSimulator.App.Tests` (20, added M5-B) — pure logic only, no Avalonia session needed:
+  SearchFilter prefix>substring ranking + empty/no-match cases (FR-UI-6); DataPreviewStore
+  asc→desc→original sort cycle, invalid-row preservation, out-of-range column (FR-UI-20);
+  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -324,7 +328,9 @@ opd-simulator/
 └── tests/
     ├── OpdSimulator.Core.Tests/
     ├── OpdSimulator.Cli.Tests/
-    └── OpdSimulator.Data.Tests/
+    ├── OpdSimulator.Data.Tests/
+    └── OpdSimulator.App.Tests/   # M5-B: pure-logic tests (SearchFilter, DataPreviewStore,
+        #                           ToastService) — no Avalonia session required
 ```
 
 > `samples/sample_patients.xlsx` and `.csv` are committed and regenerable via
@@ -439,6 +445,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |
 | 2026-09-14 | M5-A: §1 prerequisites add Linux system libs row (libx11-6 libice6 libsm6 libfontconfig1, D-079 — installed by owner, not the agent); §9 blank-window row replaced with cross-ref to §1 (one canonical apt command, AGENTS §10.7); §5/§8 status updated: App is now a real Avalonia shell (D-078), placeholder panels until M5-D | docs-only (owner installed libs; App launch smoke-tested 2026-09-14) |
 | 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |
 | 2026-09-13 | M3: `simulate-data` is stage-aware (per-stage μᵢ, p_exit, per-stage blocks, D-052), new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (D-053) and `--p-exit` routing; `samples/sample_3stage_clinic.csv` tracked; §7.4/§7.5 + §8 updated; M2 sweep c=2/3 waits refreshed (§7.4); 156 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 156 green, 0 warnings; `simulate-network` (incl. `--days 5 --cap 80 --verbose`) and stage-aware `simulate-data` live-run verified; M1 regression live (29892/0.724/0.75); §7.4 c=2/3 refresh command run |
