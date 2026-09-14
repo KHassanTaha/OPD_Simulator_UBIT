@@ -9,13 +9,30 @@
 
     <Application.Styles>
         <FluentTheme/>
+
+        <!-- Shared styles for controls defined in ControlStyles.axaml. -->
+        <Style Selector="ToggleButton.collapsibleHeader">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="CornerRadius" Value="8,8,0,0"/>
+        </Style>
+        <Style Selector="ToggleButton.collapsibleHeader:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BrushBackgroundHover}"/>
+        </Style>
     </Application.Styles>
 
-    <!-- Theme.axaml is the single source of all colours/fonts/spacing (AGENTS §16.3). -->
+    <!-- Theme.axaml is the single source of all colours/fonts/spacing (AGENTS §16.3).
+         ControlStyles.axaml holds the ControlThemes for chrome-style controls. -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://OpdSimulator.App/Assets/Theme.axaml"/>
+                <ResourceInclude Source="avares://OpdSimulator.App/Controls/ControlStyles.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

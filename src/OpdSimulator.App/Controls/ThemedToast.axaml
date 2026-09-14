@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpdSimulator.App.Controls.ThemedToast">
+
+    <!-- Card background and text colours are switched by the success/error/
+         info classes (toggled in code-behind), never hardcoded per toast. -->
+    <Border x:Name="Card"
+            CornerRadius="{DynamicResource CornerRadiusMedium}"
+            MinHeight="52">
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,10">
+            <Border x:Name="IconBadge"
+                    Width="28"
+                    Height="28"
+                    CornerRadius="14"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    HorizontalAlignment="Center">
+                <TextBlock x:Name="Glyph" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontWeight="SemiBold" FontSize="{DynamicResource FontSizeBodyStrong}"/>
+            </Border>
+            <TextBlock x:Name="MessageText"
+                       Grid.Column="1"
+                       Margin="12,0"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource FontSizeBodyStrong}"/>
+            <Button x:Name="CloseButton"
+                    Grid.Column="2"
+                    Classes="toastClose"
+                    Content="&#xE711;"
+                    Click="OnCloseClicked"
+                    ToolTip.Tip="Dismiss this notification"/>
+        </Grid>
+    </Border>
+
+    <UserControl.Styles>
+        <Style Selector="Border.toastSuccess">
+            <Setter Property="Background" Value="{DynamicResource BrushToastSuccessBackground}"/>
+        </Style>
+        <Style Selector="Border.toastError">
+            <Setter Property="Background" Value="{DynamicResource BrushToastErrorBackground}"/>
+        </Style>
+        <Style Selector="Border.toastInfo">
+            <Setter Property="Background" Value="{DynamicResource BrushToastInfoBackground}"/>
+        </Style>
+        <Style Selector="Border.toastSuccess TextBlock.toastMessage">
+            <Setter Property="Foreground" Value="{DynamicResource BrushToastSuccessText}"/>
+        </Style>
+        <Style Selector="Border.toastError TextBlock.toastMessage">
+            <Setter Property="Foreground" Value="{DynamicResource BrushToastErrorText}"/>
+        </Style>
+        <Style Selector="Border.toastInfo TextBlock.toastMessage">
+            <Setter Property="Foreground" Value="{DynamicResource BrushToastInfoText}"/>
+        </Style>
+        <Style Selector="Button.toastClose">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>
