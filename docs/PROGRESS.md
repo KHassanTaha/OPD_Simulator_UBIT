@@ -2,6 +2,47 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M5-B Reusable Controls — 2026-09-14 (feat/milestone-5-gui)
+
+Implemented all eight M5-B reusable controls (§16.5) on `feat/milestone-5-gui`
+plus their pure-logic tests. Commits: `b097c49` (B1+B2), `6a32951` (B3–B6),
+`93ec0c2` (tests + docs).
+
+1. **Architecture split (D-080)** — chrome-only controls (`CollapsibleSection`,
+   `PinnedFooterBar`) are `ContentControl` subclass + type-keyed `ControlTheme`
+   in `Controls/ControlStyles.axaml` (merged into App.axaml); functional
+   composites (`InfoIcon`, `ThemedToast`, `SearchableDropdown`, `ValidatedField`,
+   `DataPreviewTable`, `ThemedDialog`) are `UserControl`s wired in code-behind.
+   All visuals pull `DynamicResource` from Theme.axaml (zero hex elsewhere).
+2. **B1** — `InfoIcon` ('?' + hover tooltip + clickable `HelpAnchor`);
+   `ThemedToast` card + `ToastItem` VM + `ToastService` + pure `ToastLifecycle` expiry.
+3. **B2** — `CollapsibleSection` + `PinnedFooterBar` via ControlTheme;
+   shared `ToggleButton.collapsibleHeader` styles moved to `App.Styles`.
+4. **B3** — `ThemedDialog`: Escape=Cancel / Enter=Confirm, focus restores to
+   opener, error/info accent variants; parameterless ctor added for the XAML
+   loader (AVLN3001).
+5. **B4** — `SearchableDropdown` (type-to-filter, clear ×, chevron, arrow/Enter/
+   Escape keys) + pure `SearchFilter` (prefix > substring ranking).
+6. **B5** — `ValidatedField` (persistent label, optional '?', themed border,
+   inline cause+remedy error that clears on fix).
+7. **B6** — `DataPreviewTable` + pure `DataPreviewStore` (asc→desc→original sort
+   cycle). **D-081:** stock Avalonia 11.3.3 has no `ItemsRepeater`, so the body is
+   a virtualizing `ListBox` with read-only `TextBox` cells (selectable, Ctrl+C),
+   invalid-row error tint + warning badge + reason tooltip.
+8. **Tests** — new `tests/OpdSimulator.App.Tests` (xunit): SearchFilter (6),
+   DataPreviewStore (8, incl. invalid-row preservation), ToastService (6);
+   `ToastItem` gained an injectable `createdUtc` and `ToastLifecycle` is public
+   for deterministic expiry. Added to sln; DEV_LAUNCH §6 refresh to 196 + §8 layout.
+
+Fix-log (fail-loud): `ContentPresenter`→`Avalonia.Controls.Presenters`,
+`TemplateAppliedEventArgs`→`Avalonia.Controls.Primitives` (both Avalonia 11.3);
+`Classes.Reset()`→remove-then-add; `Panel.ZIndex` removed (unresolved attached
+setter); `TextBox.Text` is nullable; `IsAttachedToVisualTree` is an extension in
+`Avalonia.VisualTree`; `SelectionMode.None` doesn't exist.
+
+Verification: `dotnet build OpdSimulator.sln -c Debug/Release` 0 warnings,
+0 errors; `dotnet test` **196 green** (83/58/35/20), 0 failed.
+
 ## M5-A Assets & Foundation — 2026-09-14 (feat/milestone-5-gui)
 
 Completed the foundation sub-block of Milestone 5 after owner's GO + kickoff adjustments:

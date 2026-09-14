@@ -964,3 +964,66 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** (a) document only in the README — rejected: the
   dead-state guide is the canonical setup path; (b) keep the `-dev` command —
   rejected: duplicates the same fix, violates §10.7.
+
+## D-080 Reusable Controls: ContentControl-Themes vs UserControl Composites
+
+- **Date:** 2026-09-14
+- **Decision:** Split the eight M5-B reusable controls (§16.5) into two
+  groups. Chrome-only controls (`CollapsibleSection`, `PinnedFooterBar`) are
+  `ContentControl` subclasses rendered by type-keyed `ControlTheme`s in
+  `Controls/ControlStyles.axaml`; functional composites (`InfoIcon`,
+  `ThemedToast`, `SearchableDropdown`, `ValidatedField`, `DataPreviewTable`,
+  `ThemedDialog`) are `UserControl`s whose parts are wired in code-behind with
+  generated field references (with `{ReflectionBinding}` for self/ancestor
+  bindings inside templates).
+- **Rationale:** A custom control's own `Content`, `Header` etc. are first-
+  class styled properties only if it derives from `ContentControl`; a
+  `UserControl` subclassing approach hides the base `Content` and forces
+  re-declaring properties (a compile-time trap seen while drafting the first
+  `PinnedFooterBar`). Type-keyed `ControlTheme`s keep the visual to a switch
+  statement-free resource, and group-local styles for both chrome controls
+  live in `App.axaml` `Application.Styles` (not the dictionary, whose `Style`
+  children need keys). Composites go `UserControl` because they want plain
+  event wiring and accessibility names per child.
+- **Implementation details:** `ControlStyles.axaml` is merged into App.axaml
+  resources (with `Theme.axaml`). All visuals reference `DynamicResource`
+  from Theme.axaml only — no hex outside it. `DataPreviewTable` uses a
+  virtualizing `ListBox` for the body (stock Avalonia 11.3 has no
+  `ItemsRepeater` — D-081) and a fixed header row; columns are equal `1*`
+  widths plus a trailing Auto badge column, so every row grid aligns without
+  shared-size groups. Pure logic (ranking, sort cycle, toast expiry) is
+  extracted to `Services/` and covered by `OpdSimulator.App.Tests` (20 tests).
+- **Impact:** (+) every view later binds to the same chrome; (+) pure helpers
+  are unit tested without an Avalonia session; (−) two idioms to explain in
+  the viva (ControlTheme vs composited UserControl).
+- **Alternatives considered:** (a) UserControl everywhere — rejected: content
+  property clash; (b) always-composited UserControls + `ControlTheme` at
+  application level — rejected: adds indirection where a plain composite is
+  clearer; (c) ItemsRepeater body — rejected, not in stock Avalonia (D-081).
+
+## D-081 DataPreviewTable Uses Virtualizing ListBox, Not ItemsRepeater
+
+- **Date:** 2026-09-14
+- **Decision:** The preview body is a stock `ListBox` (virtualizes via its
+  built-in panel) with `SelectionMode` defaulting to single but the selected
+  state styled transparent, rows built by a `FuncDataTemplate<DataPreviewRow>`
+  where every cell is a read-only `TextBox`.
+- **Rationale:** During M5-B the XAML name `Rows` for an `ItemsRepeater`
+  produced no generated field and the C# type resolved to nothing — the type
+  is not shipped in stock Avalonia 11.3.3 (only references remain in its XML
+  docs). Adding the separate `Avalonia.Controls.ItemsRepeater` package is an
+  extra dependency and an unfamiliar experimental API; the viva must be
+  defended with minimal, known-idiomatic code. `ListBox` virtualizes out of
+  the box, gives scrolling for free, and the FR-UI-20 performance target
+  (10k rows < 1 s) is measurable directly on it.
+- **Implementation details:** read-only `TextBox`es give selectable text and
+  native Ctrl+C; invalid rows tint `BrushErrorBackground`/`BrushErrorDark`
+  and carry a warning glyph whose tooltip states the specific validator
+  reason; header cells are `StackPanel`s with a chevron indicator, sorted
+  via the pure `DataPreviewStore.ToggleSort` cycle.
+- **Impact:** (+) zero new packages, viva-safe; (+) real virtualization
+  instead of a 10k-element `StackPanel` (explicitly an anti-pattern §16.10);
+  (−) star-scaled columns (no per-column pixel widths yet).
+- **Alternatives considered:** (a) install `Avalonia.Controls.ItemsRepeater`
+  — rejected (extra dependency, API unfamiliarity); (b) `ItemsControl` in a
+  `ScrollViewer` — rejected: does not virtualize, fails FR-UI-20.

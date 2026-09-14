@@ -36,14 +36,15 @@ Last updated: 2026-09-14
 - [x] Install global exception handlers in the App project (AppDomain, UnobservedTaskException, Avalonia Dispatcher) → `logs/crash-*.log` + dialog (AGENTS §12.3, 12.5) — 2026-09-14 (Logging/CrashReporter.cs; CrashReporter.Report appends crash log + themed dialog; CrashReporterTests pending)
 
 ### Reusable Controls (build once, use everywhere)
-- [ ] `SearchableDropdown.axaml` (FR-UI-6)
-- [ ] `ThemedToast.axaml` (FR-UI-10)
-- [ ] `ThemedDialog.axaml` (FR-UI-10)
-- [ ] `CollapsibleSection.axaml` (FR-UI-12)
-- [ ] `InfoIcon.axaml` (FR-UI-8)
-- [ ] `PinnedFooterBar.axaml` (FR-UI-11)
-- [ ] `ValidatedField.axaml` (FR-UI-16 + FR-UI-17)
-- [ ] `DataPreviewTable.axaml` (FR-UI-20, virtualised)
+- [x] `SearchableDropdown.axaml` (FR-UI-6) — 2026-09-14 (type-to-filter + `SearchFilter` pure ranking, clear ×, chevron toggle, arrow/Enter/Escape keys; pure-logic tests in App.Tests)
+- [x] `ThemedToast.axaml` (FR-UI-10) — 2026-09-14 (single card, success/error/info classes + glyphs, `Dismissed` event; `ToastItem`/`ToastService`/`ToastLifecycle` — expiry tested)
+- [x] `ThemedDialog.axaml` (FR-UI-10) — 2026-09-14 (Escape=cancel, Enter=confirm, focus restored to opener, accent/error variants)
+- [x] `CollapsibleSection.axaml` (FR-UI-12) — 2026-09-14 (ContentControl + type-keyed ControlTheme in ControlStyles.axaml, chevron E70D/E70E, `IsExpanded`/`SessionKey`)
+- [x] `InfoIcon.axaml` (FR-UI-8) — 2026-09-14 (hover tooltip + `HelpAnchor`/`HelpRequested` click)
+- [x] `PinnedFooterBar.axaml` (FR-UI-11) — 2026-09-14 (ContentControl + ControlTheme)
+- [x] `ValidatedField.axaml` (FR-UI-16 + FR-UI-17) — 2026-09-14 (persistent label + '?' + themed border + inline cause/remedy error; error clears on fix)
+- [x] `DataPreviewTable.axaml` (FR-UI-20, virtualised) — 2026-09-14 (virtualizing ListBox body, file-driven headers, asc→desc→original `DataPreviewStore` sort, invalid-row badge + reason tooltip, read-only selectable cells; D-081)
+- [ ] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land (2026-09-14 note)
 
 ### Welcome Panel (FR-UI-5)
 - [ ] `WelcomeCard.axaml` view
@@ -120,6 +121,7 @@ Last updated: 2026-09-14
 - [ ] Path resolution under ApplicationData
 
 ### Tests
+- [x] `OpdSimulator.App.Tests` project (pure-logic, no Avalonia session): SearchFilter ranking, DataPreviewStore sort cycle + invalid-row preservation, ToastService/ToastLifecycle expiry — 2026-09-14 (20 tests; full suite 196 green, 0 warnings; added to sln + DEV_LAUNCH §6/§8)
 - [ ] Preset round-trip: save → reload → every field matches
 - [ ] Schema mismatch (v99) → clear error
 - [ ] Missing data file on preset load → inline error
