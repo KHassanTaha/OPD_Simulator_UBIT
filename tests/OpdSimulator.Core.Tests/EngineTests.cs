@@ -78,11 +78,12 @@ public class EngineTests
     }
 
     [Fact]
-    public void Run_SingleStage_ByteForByteRegression()
+    public void Run_M1Regression_SingleStage_GoldenValues()
     {
         // Guard on the Milestone-1 delegation (kickoff G2): after the engine
         // became N-stage generic, the legacy single-stage path must still
-        // reproduce the exact known output — seed 42, λ=3, μ=4, c=1, h=10000.
+        // reproduce the exact known numbers — seed 42, λ=3, μ=4, c=1, h=10000.
+        // Numbers, not string format: the output text is not a contract (D-054).
         var config = new EngineConfig(3.0, 4.0, serverCount: 1, horizonMinutes: 10000, seed: 42);
         var result = new Engine(config, new SeededRandomSource(), Log).Run();
 

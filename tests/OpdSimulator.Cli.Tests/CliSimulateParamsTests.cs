@@ -21,7 +21,7 @@ public class CliSimulateParamsTests
     }
 
     [Fact]
-    public void SimulateParams_Regression_ByteForByteKnownOutput()
+    public void SimulateParams_Regression_M1GoldenValues()
     {
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
@@ -33,7 +33,8 @@ public class CliSimulateParamsTests
         Assert.Equal(0, exitCode);
         string output = stdout.ToString();
 
-        // Kickoff G2: served = 29892, wait = 0.724, ρ = 0.75 — byte-for-byte.
+        // Kickoff G2: served = 29892, wait = 0.724, ρ = 0.75 — metric values,
+        // not string bytes (the output text is not a contract — D-054).
         Assert.Contains("Patients served", output);
         Assert.Contains("29892", output);
         Assert.Contains("0.724", output);
