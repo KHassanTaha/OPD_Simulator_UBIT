@@ -45,4 +45,11 @@ public sealed record StageMetrics
 
     /// <summary>Throughput at this stage = patients completed / operating time (patients per minute).</summary>
     public double ThroughputPerMinute { get; init; }
+
+    /// <summary>Per-patient waiting times at this stage's queue, in completion order (FR-UI-4 P2 chart).</summary>
+    /// <remarks>Populated only when the engine records samples; empty for single-stage M/M/1 runs that opt out.</remarks>
+    public IReadOnlyList<double> WaitingTimeSamples { get; init; } = Array.Empty<double>();
+
+    /// <summary>Queue length sampled once per processed event — the P2 queue-length-over-time line series.</summary>
+    public IReadOnlyList<QueueSample> QueueLengthSeries { get; init; } = Array.Empty<QueueSample>();
 }

@@ -53,6 +53,12 @@ public sealed class Engine
     private readonly ILogger _log;
     private ITraceSink? _traceSink;
 
+    // Per-run chart samples (FR-UI-4 P2): waiting-time histograms and the
+    // queue-length-over-time lines. Recorded only while a run is active, then
+    // handed into StageMetrics and released so a later run starts clean.
+    private List<double>[]? _stageWaitSamples;
+    private List<QueueSample>[]? _stageQueueSeries;
+
     /// <summary>
     /// Creates an engine for a network run (no single-stage <see cref="EngineConfig"/>).
     /// </summary>
@@ -249,6 +255,10 @@ public sealed class Engine
         int completed = 0;
         int nextPatientId = 1;
 
+        // Chart-sample buffers, released into StageMetrics at the end.
+        _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<double>()).ToArray();
+        _stageQueueSeries = Enumerable.Range(0, stages.Length).Select(_ => new List<QueueSample>()).ToArray();
+
         // First arrival at t = 0 (CONTEXT §4.3).
         fel.Enqueue(new Event(0, EventType.Arrival, nextPatientId));
 
@@ -267,6 +277,9 @@ public sealed class Engine
             {
                 areaUnderQueue[i] += stages[i].Queue.Count * (clock - lastMetricTime[i]);
                 lastMetricTime[i] = clock;
+
+                // One (time, length) point per event per stage — the P2 line series.
+                _stageQueueSeries![i].Add(new QueueSample(clock, stages[i].Queue.Count));
             }
 
             _log.Debug("t={Clock:0.###} {Type} patient={PatientId} queueLen={QueueLen} stageQueues=[{StageQueueLens}] servers=[{ServerStates}]",
@@ -329,8 +342,14 @@ public sealed class Engine
                 StageUtilisation = perServerUtil.Length > 0 ? perServerUtil.Average() : 0,
                 PerServerUtilisation = perServerUtil,
                 ThroughputPerMinute = operatingTime > 0 ? servedHere / operatingTime : 0,
+                WaitingTimeSamples = _stageWaitSamples![i],
+                QueueLengthSeries = _stageQueueSeries![i],
             };
         }).ToArray();
+
+        // Release the per-run buffers; a later run allocates fresh ones.
+        _stageWaitSamples = null;
+        _stageQueueSeries = null;
 
         double[] perServerUtilisation = stageMetrics
             .SelectMany(m => m.PerServerUtilisation)
@@ -431,6 +450,7 @@ public sealed class Engine
         patientServer[patient.Id] = server;
 
         stageWaitMinutes[patient.StageIndex] += clock - patient.ArrivalTime; // wait = start - stage arrival
+        _stageWaitSamples![patient.StageIndex].Add(clock - patient.ArrivalTime); // P2 waiting-time histogram
 
         // Start row: q is the stage queue after any dequeue (the caller already
         // dequeued the patient that starts here), i.e. how many are left behind.

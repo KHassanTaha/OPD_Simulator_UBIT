@@ -1,6 +1,15 @@
 namespace OpdSimulator.Core.Engine;
 
 /// <summary>
+/// One point of a stage's queue-length-over-time series (FR-UI-4 P2 chart).
+/// Sampled once per processed event so the line chart and the time-weighted
+/// average (area ÷ operating time) use the exact same observables.
+/// </summary>
+/// <param name="Time">Simulation clock minutes at the sample.</param>
+/// <param name="Length">Number of patients waiting in that stage's queue.</param>
+public readonly record struct QueueSample(double Time, int Length);
+
+/// <summary>
 /// Immutable report of a completed simulation run.
 /// </summary>
 /// <remarks>
