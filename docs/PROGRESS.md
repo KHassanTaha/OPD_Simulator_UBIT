@@ -2,6 +2,122 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M5-C/D/E/F/L VIEW LAYER + TESTS — 2026-09-14 (feat/milestone-5-gui)
+
+View/view-model layer for the whole M5 GUI landed and is verified. Build:
+`dotnet build -c Release` → 0 warnings / 0 errors. Tests: full suite **243 green**
+(Core 85 / Data 58 / Cli 35 / App 65), 0 failures.
+
+**Shipped (sub-blocks C, D, E, F, L):**
+1. `MainWindow` — `400,6,*` layout with GridSplitter; `ConfigPanel` | `ResultsPanel`;
+   `PinnedFooterBar` (Start=`RunCommand`, Reset, Guide); guide overlay (F1 open,
+   Esc close, focus save/restore via `_focusBeforeGuide`); ToastHost ItemsControl +
+   600 ms DispatcherTimer purge; `OnClosed` override.
+2. `ResultsPanel` — welcome-card switch via `ContentControl.ContentTemplate`
+   (NOT `DataTemplate`), `HasError` banner, running progress, Customise widget
+   picker (per-widget `ToggleWidgetCommand`), all six widgets: Metrics (+stages),
+   ChiSquare, Charts (`Charts`/`ChartsPanelViewModel`), Trace (monospace
+   ItemsControl), DataPreview (`ResultsPreviewTable.Load(vm.Preview)`), Token.
+3. `ChartsPanel` — Input-analysis / Simulation-run tabs over `InputCharts`/
+   `RunCharts` `ChartViewModel`s; LiveCharts `CartesianChart`; `ShowEmpty` +
+   `HasCharts` states; OneTime bindings for stable props.
+4. `GuidePanel` + `GuideViewModel` — search + section list (`SelectedTitle`
+   string binding), code-behind block renderer (Heading/Paragraph/Bullet/
+   Numbered/Code/Separator, inline **bold** + `code` runs), `FocusSearch()`.
+5. `WelcomeCard` + `WelcomeCardViewModel` — CourseInfo values; logos via
+   `AssetLoader.Open(new Uri(...))`. **Bug fixed this session:** `Bitmap(string)`
+   treats its argument as a file path, so `avares://` URIs failed the smoke run;
+   the AssetLoader-stream constructor is the correct avares path (crash-log
+   evidence: `DirectoryNotFoundException .../avares:/OpdSimulator.App/...`).
+6. `PresetManagerDialog.cs` — code-behind-only themed Window over `ThemedDialog`
+   helpers; Load/Rename/Duplicate/Delete/Export/Import; `AppBrush` theme-resource
+   helper (the `TryFindResource` extension does not resolve on a Window here).
+7. Services: `SimulationCoordinator` (3 stages, exit index 1, p_exit 0.4 default,
+   `UnstableSystemException` → `RunOutcome.Error`, capped trace sink),
+   `ChartsBuilder`, `FitsService`, `DataAnalyzer`, `WidgetPreferences`,
+   `GuideMarkdown` (no Markdig — **D-082**), `PresetStore`/`Preset`/`PresetNaming`
+   (**D-083**).
+8. Tests: `ResultsViewModelTests`, `MainViewModelTests`, `ChartViewModelTests`,
+   `GuideTests`, `SimOutcomeFactory`, `PresetStoreTests`, `WelcomeCardViewModelTests`.
+
+**Facts verified by running (Linux, this session):**
+- `dotnet run --project src/OpdSimulator.App` opens the window and stays alive
+  (10 s smoke run, exit 124 = still running at `timeout`), no crash log.
+- After the AssetLoader fix, the app log shows no logo warning during startup.
+- Pre-existing **gap found + closed**: the preset system had *no tests* despite
+  an earlier handwritten claim; AGENTS §17.3 minimum suite written
+  (round-trip, v99 schema refusal, missing-dataFile, sanitisation, collisions,
+  ApplicationData path, export→import, case-insensitivity). The
+  case-insensitive-name contract was enforced everywhere by adding
+  `PresetStore.ResolveFile` (a directory scan fallback for Linux's
+  case-sensitive FS).
+
+**Decisions:** D-082 (guide uses a purpose-built parser, not Markdig), D-083
+(preset schema v1 + `arrivalParameter` canonical minutes), D-084 (chart colour
+fallback factory), D-085 (computed VM booleans over converters).
+
+**Remaining, honest gaps (not done):** FR-UI-2 edge-case validation tests;
+FR-UI-7 disabled-field reason tooltips; FR-UI-13 Clear All confirm+undo;
+FR-UI-15/17 live-region + full keyboard-acceptance pass (§16.8 needs a real
+mouse-less session on the running GUI — cannot be emulated here); welcome-card
+fade-out; reduced-motion; preset UI `_lastSession`-less startup edge tests
+(covered by design + one MainViewModel test). Windows dead-state verification
+still pending (BLOCKERS B-006).
+
+## M5-B Reusable Controls — 2026-09-14 (feat/milestone-5-gui)
+
+Implemented all eight M5-B reusable controls (§16.5) on `feat/milestone-5-gui`
+plus their pure-logic tests. Commits: `b097c49` (B1+B2), `6a32951` (B3–B6),
+`93ec0c2` (tests + docs).
+
+1. **Architecture split (D-080)** — chrome-only controls (`CollapsibleSection`,
+   `PinnedFooterBar`) are `ContentControl` subclass + type-keyed `ControlTheme`
+   in `Controls/ControlStyles.axaml` (merged into App.axaml); functional
+   composites (`InfoIcon`, `ThemedToast`, `SearchableDropdown`, `ValidatedField`,
+   `DataPreviewTable`, `ThemedDialog`) are `UserControl`s wired in code-behind.
+   All visuals pull `DynamicResource` from Theme.axaml (zero hex elsewhere).
+2. **B1** — `InfoIcon` ('?' + hover tooltip + clickable `HelpAnchor`);
+   `ThemedToast` card + `ToastItem` VM + `ToastService` + pure `ToastLifecycle` expiry.
+3. **B2** — `CollapsibleSection` + `PinnedFooterBar` via ControlTheme;
+   shared `ToggleButton.collapsibleHeader` styles moved to `App.Styles`.
+4. **B3** — `ThemedDialog`: Escape=Cancel / Enter=Confirm, focus restores to
+   opener, error/info accent variants; parameterless ctor added for the XAML
+   loader (AVLN3001).
+5. **B4** — `SearchableDropdown` (type-to-filter, clear ×, chevron, arrow/Enter/
+   Escape keys) + pure `SearchFilter` (prefix > substring ranking).
+6. **B5** — `ValidatedField` (persistent label, optional '?', themed border,
+   inline cause+remedy error that clears on fix).
+7. **B6** — `DataPreviewTable` + pure `DataPreviewStore` (asc→desc→original sort
+   cycle). **D-081:** stock Avalonia 11.3.3 has no `ItemsRepeater`, so the body is
+   a virtualizing `ListBox` with read-only `TextBox` cells (selectable, Ctrl+C),
+   invalid-row error tint + warning badge + reason tooltip.
+8. **Tests** — new `tests/OpdSimulator.App.Tests` (xunit): SearchFilter (6),
+   DataPreviewStore (8, incl. invalid-row preservation), ToastService (6);
+   `ToastItem` gained an injectable `createdUtc` and `ToastLifecycle` is public
+   for deterministic expiry. Added to sln; DEV_LAUNCH §6 refresh to 196 + §8 layout.
+
+Fix-log (fail-loud): `ContentPresenter`→`Avalonia.Controls.Presenters`,
+`TemplateAppliedEventArgs`→`Avalonia.Controls.Primitives` (both Avalonia 11.3);
+`Classes.Reset()`→remove-then-add; `Panel.ZIndex` removed (unresolved attached
+setter); `TextBox.Text` is nullable; `IsAttachedToVisualTree` is an extension in
+`Avalonia.VisualTree`; `SelectionMode.None` doesn't exist.
+
+Verification: `dotnet build OpdSimulator.sln -c Debug/Release` 0 warnings,
+0 errors; `dotnet test` **196 green** (83/58/35/20), 0 failed.
+
+## M5-A Assets & Foundation — 2026-09-14 (feat/milestone-5-gui)
+
+Completed the foundation sub-block of Milestone 5 after owner's GO + kickoff adjustments:
+1. **PRD header synced** to v1.4.0 / 2026-09-14 (docs-only commit a3d372e).
+2. **A1 Avalonia shell hand-built** (D-078) — Program.cs (Serilog bootstrap: console + `logs/app-*.log` rolling 7-day + error-only sink), App.axaml/.cs (ViewLocator + the three §12.3 global exception handlers), ViewModels (ViewModelBase, MainViewModel), Views/MainWindow scaffold (placeholder config/results panels, replaced in M5-D), Logging/CrashReporter (appends `logs/crash-YYYMMDD.log` + user dialog, sim-state param ready for M5-E), app.manifest (PerMonitorV2, Windows-only). csproj → WinExe, compiled bindings on, references Core+Data, embeds `Assets\**`. Committed cc1bce3.
+3. **A2 CourseInfo.cs** — CourseName "Simulation & Modelling", CourseCode "CS-577", Professor "Dr. Shaista Rais", 6 members, logo URIs (D-077). Single source; XAML keeps zero references.
+4. **A3 Theme.axaml** — single palette source (D-077-era): 40 colours → brushes, typography (Inter/Segoe/system sans), spacing, radii, durations; `sys:TimeSpan` syntax fix; merged into App.axaml. No hex anywhere else.
+5. **A4 logos** — `Assets/uok-logo.png` (1080×1080) + `Assets/ubit-cs-logo.png` (369×293) copied from ~/Downloads (D-077; quality flag on the 369 px UBIT logo reported, not blocking).
+6. **DEV_LAUNCH** — §1 prerequisites row for Linux system libs (libx11-6 libice6 libsm6 libfontconfig1, owner-installed, D-079); §9 blank-window row consolidated to a cross-ref (§10.7, single canonical apt command); §5/§8 App status refreshed. Committed 53f8bba.
+7. **BLOCKERS B-005 Resolved** via hand-build; D-077..D-079 logged; TODO 5 foundation rows `[x]`.
+
+Verification: `dotnet build OpdSimulator.sln` 0 warnings, 0 errors; **176 tests green** (83/58/35 — unchanged); app launch smoke-tested on Ubuntu (`Application started. Main window created.`; logs/app-20260914.log written). 0 warnings everywhere.
+
 ## M5 UI/UX requirements capture — 2026-09-14 (fix/ui-requirements-capture)
 
 Applied the six-file M5 documentation batch as a single docs-only change:

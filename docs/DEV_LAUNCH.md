@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite 176 green, 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). [Windows: TBD]
+**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **243 green** (Core 85, Data 58, Cli 35, App 65), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5 GUI verified: `dotnet run --project src/OpdSimulator.App` opens the full panel window and stays alive (≥ 10 s smoke run, no crash log, welcome logos load via AssetLoader).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -20,6 +20,7 @@ updating this file.
 |------|---------|-----|-----------------|-------------------|
 | .NET SDK | 8.0.x (see `global.json`) | Build + run | `sudo apt install dotnet-sdk-8.0` or via Microsoft feed | https://dotnet.microsoft.com/download/dotnet/8.0 |
 | Git | any recent | Clone | `sudo apt install git` | https://git-scm.com/ |
+| System libs (Linux only) | libx11-6, libice6, libsm6, libfontconfig1 | Avalonia X11 rendering + font discovery | `sudo apt install libx11-6 libice6 libsm6 libfontconfig1` | — (bundled with Windows) |
 | (optional) JetBrains Rider / VS Code + C# Dev Kit | latest | IDE | — | — |
 
 **Verify:**
@@ -95,10 +96,11 @@ If warnings appear, treat them as errors — this project enforces zero-warning 
 
 ## 5. Run the Simulator (Single Command)
 
-> **Status as of 2026-09-13:** the Avalonia GUI is not built yet. `src/OpdSimulator.App`
-> is an **empty class library placeholder** (the Avalonia project template was not
-> installed at scaffold time — BLOCKERS B-005). Until Milestone 5, run the headless
-> CLI project instead.
+> **Status as of 2026-09-14:** the Avalonia GUI shell is up (Program.cs + App.axaml +
+> ViewLocator + CrashReporter, foundry hand-built — no template installed, see
+> DECISIONS.md D-078). The window opens but shows placeholder config/results panels;
+> the real layout lands in M5-D. Until then the CLI stays the primary path for
+> verified command-line runs.
 
 **Linux / macOS:**
 ```bash
@@ -149,12 +151,13 @@ dotnet run --project src\OpdSimulator.App
 - `scripts/run.sh` — Linux launcher (`chmod +x run.sh` once)
 - `scripts/run.ps1` — Windows launcher
 
-> Both scripts invoke `src/OpdSimulator.App`. They will not launch a runnable app
-> until the Avalonia UI project replaces the placeholder (Milestone 5). Until then,
-> use the `OpdSimulator.Cli` commands above.
+> Both scripts invoke `src/OpdSimulator.App`. The full M5 GUI landed 2026-09-14:
+> left config panel (parameter mode, distributions, servers, upload, horizon,
+> seed, presets), right results panel (metrics, chi-square, charts, trace,
+> data preview, token), in-program guide (F1), toasts and themed dialogs.
+> The CLI remains the headless/scripting path (§7).
 
-Once the real Avalonia app exists, the window should open within ~5 seconds. If it
-does not, see **Troubleshooting** below.
+The window should open within ~5 seconds. If it does not, see **Troubleshooting** below.
 
 ---
 
@@ -164,8 +167,8 @@ does not, see **Troubleshooting** below.
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-14 **176 tests pass**:
-- `OpdSimulator.Core.Tests` (83) — queue, event/FEL ordering, RNG determinism, exponential
+Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
+- `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
 - `OpdSimulator.Data.Tests` (58) — Excel/CSV loaders, TimeParser, validator (per-row issues),
@@ -175,6 +178,18 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-14 **176 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
+- `OpdSimulator.App.Tests` (65, M5-B..L) — pure logic only, no Avalonia session needed:
+  SearchFilter prefix>substring ranking + empty/no-match cases (FR-UI-6); DataPreviewStore
+  asc→desc→original sort cycle, invalid-row preservation, out-of-range column (FR-UI-20);
+  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10);
+  **ResultsViewModel** (run lifecycle, error banner, widget toggles persist, reset);
+  **MainViewModel** (widget prefs apply on construction, run-summary line, ResetAll toast);
+  **ChartViewModel/ChartsPanelViewModel** (empty state, line/histogram projections,
+  SetCharts/Clear, theme-resource fallback); **GuideViewModel** (embedded-vs-repo drift guard,
+  section parse, search ranking, anchor deep-link); **PresetStore** (round-trip, schema
+  mismatch v99, missing data file, sanitisation, collisions, ApplicationData path resolution,
+  export→import, case-insensitive names); **WelcomeCardViewModel** (course constants, logo
+  null-safety headless).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -318,12 +333,14 @@ opd-simulator/
 ├── src/
 │   ├── OpdSimulator.Core/      # simulation engine (no UI); Trace/ = M4 event trace (D-055)
 │   ├── OpdSimulator.Data/      # Excel/CSV loader, fitting
-│   ├── OpdSimulator.App/       # Avalonia UI — empty classlib placeholder until M5 (B-005)
+│   ├── OpdSimulator.App/       # Avalonia UI — hand-built shell landed M5-A (D-078)
 │   └── OpdSimulator.Cli/       # headless runner
 └── tests/
     ├── OpdSimulator.Core.Tests/
     ├── OpdSimulator.Cli.Tests/
-    └── OpdSimulator.Data.Tests/
+    ├── OpdSimulator.Data.Tests/
+    └── OpdSimulator.App.Tests/   # M5-B: pure-logic tests (SearchFilter, DataPreviewStore,
+        #                           ToastService) — no Avalonia session required
 ```
 
 > `samples/sample_patients.xlsx` and `.csv` are committed and regenerable via
@@ -338,7 +355,7 @@ opd-simulator/
 |---------|-------|-----|
 | `A compatible .NET SDK was not found` | Wrong SDK installed | Install 8.0.x per `global.json` |
 | `dotnet: command not found` | SDK not on PATH | Reopen terminal; check `~/.bashrc` |
-| GUI window opens blank on Linux | Missing X11/display libs | `sudo apt install libx11-dev libice-dev libsm-dev libfontconfig1` |
+| App starts but window is blank on Linux | Missing X11 or fontconfig libs | Install the Linux system libs in §1 (a one-time `sudo apt install libx11-6 libice6 libsm6 libfontconfig1`) |
 | `NU1301` / restore fails | Offline or NuGet blocked | Connect to internet; run `dotnet restore` again |
 | App crashes on start | Missing `samples/` file or config | Check console output; file a bug in `BLOCKERS.md` |
 | App crashes at runtime | Unhandled exception | Open `logs/crash-*.log` FIRST (full stack trace); see §9.1 |
@@ -438,6 +455,8 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |
+| 2026-09-14 | M5-A: §1 prerequisites add Linux system libs row (libx11-6 libice6 libsm6 libfontconfig1, D-079 — installed by owner, not the agent); §9 blank-window row replaced with cross-ref to §1 (one canonical apt command, AGENTS §10.7); §5/§8 status updated: App is now a real Avalonia shell (D-078), placeholder panels until M5-D | docs-only (owner installed libs; App launch smoke-tested 2026-09-14) |
 | 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |
 | 2026-09-13 | M3: `simulate-data` is stage-aware (per-stage μᵢ, p_exit, per-stage blocks, D-052), new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (D-053) and `--p-exit` routing; `samples/sample_3stage_clinic.csv` tracked; §7.4/§7.5 + §8 updated; M2 sweep c=2/3 waits refreshed (§7.4); 156 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 156 green, 0 warnings; `simulate-network` (incl. `--days 5 --cap 80 --verbose`) and stage-aware `simulate-data` live-run verified; M1 regression live (29892/0.724/0.75); §7.4 c=2/3 refresh command run |
 | 2026-09-13 | M2: CLI is a subcommand dispatcher — `simulate-params` (renamed M1 form), `verify`, `fit`, `simulate-data` (server sweep), `export` (§5/§7); Data layer lands (loaders, validator, preprocessing, fitters, chi-square); sample files committed + regenerable via `scripts/make-sample-data.sh` (§8); 97 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test pass, 0 warnings; verify/fit/simulate-data/export live-run verified, exit codes observed |

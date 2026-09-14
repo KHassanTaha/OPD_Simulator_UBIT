@@ -46,10 +46,19 @@ would wait.
 ### If you are running from source
 See `docs/DEV_LAUNCH.md` §5.
 
-### Running without a GUI (currently the only runnable path)
+### Running from source with the graphical interface
 
-The graphical interface is not built yet (expected Milestone 5). To try the
-simulator today, open a terminal and run:
+```bash
+dotnet run --project src/OpdSimulator.App
+```
+
+This launches the full Milestone 5 desktop app. See §5 for the step-by-step
+workflow and press **F1** inside the app for an in-program copy of this guide.
+
+### Running without a GUI (headless)
+
+The command-line tool supports the same experiments for scripting and
+validation:
 
 ```bash
 dotnet run --project src/OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 --servers 1 --horizon 10000 --seed 42
@@ -99,6 +108,63 @@ The window has two panels:
 
       [ Tab: Simulation ]   [ Tab: Token Generator ]
 ```
+
+---
+
+## Config fields explained
+
+The subsections below are the targets of the "?" help icons on every
+configuration field (press **F1** anytime or click a "?" icon to jump here).
+
+### Arrival rate
+
+The arrival rate λ₀ (patients per minute) arriving at **Reception**. In
+**Rate-wise** mode enter the rate directly (e.g. 0.5 = one patient every two
+minutes). In **Mean-wise** mode enter the mean inter-arrival time in minutes
+(e.g. 2), which the app converts via λ = 1/mean.
+
+### Inter-arrival distribution
+
+The probability distribution fitted to the inter-arrival times of the
+uploaded file (or used to generate arrivals when no file is loaded).
+**Exponential** was the default in every recorded clinic dataset; the Fitted
+histogram tab shows how well it describes your data.
+
+### Service distribution
+
+The distribution family fitted to each stage's service times from the
+uploaded file. When no data file is loaded this family is used to **generate**
+service durations at the service rates you enter.
+
+### Service rate
+
+Service rate μ per server per stage (patients per minute). With **c** servers
+in parallel the stage capacity is `c × μ`, so keep ρᵢ = λᵢ/(cᵢ·μᵢ) below 1 —
+the app refuses to run an unstable stage (FR-VAL-1).
+
+### Servers
+
+The number of parallel servers c at each stage. The clinic reference model
+uses **Reception 1, Screening 2, Doctor 3**, but you can change them to
+experiment (e.g. an M/M/1 baseline single stage).
+
+### Horizon
+
+How long to simulate. **Days** mode runs whole clinic days (Mon–Thu and Sat,
+9:00–11:00 with arrivals from 8:15). **Minutes** mode runs a raw window of
+minutes from the start of arrival generation.
+
+### Seed
+
+The random-number seed. The same seed + the same inputs reproduce the exact
+same run (FR-VAL-3), which is what makes validation against the M/M/c
+formulas possible.
+
+### P-exit
+
+The probability that a patient exits after **Screening** instead of queueing
+for the Doctor stage. Leave it empty to fit it from the `departure_stage`
+column of your file; type a number (e.g. 0.4) to override the fitted value.
 
 ---
 

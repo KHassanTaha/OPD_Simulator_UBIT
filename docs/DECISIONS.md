@@ -902,3 +902,227 @@ impact (positive and negative), alternatives considered.
 - **Impact:** (+) honest UI state.
 - **Alternatives considered:** pre-select the most recently created preset —
   rejected: implies a state the user didn't choose.
+
+## D-077 Welcome Card Logos Use PNG Sources Instead of SVG
+
+- **Date:** 2026-09-14
+- **Decision:** The welcome card shows
+  `Assets/uok-logo.png` (1080×1080) and `Assets/ubit-cs-logo.png` (369×293),
+  both supplied by the department as PNG; the SVG assets named in
+  `M5_UI_SPEC.md` do not exist.
+- **Rationale:** only PNG variants were provided; requesting SVG conversion
+  would block M5-A for no functional gain at 100 px display size.
+- **Implementation details:** logos are embedded via `AvaloniaResource` (csproj
+  `Assets\**` glob) and referenced **by URI string in `CourseInfo.cs`**, so a
+  swap to higher-resolution SVG needs no XAML or code change. Quality flag:
+  `ubit-cs-logo.png` is 369×293 (long edge < 512 px) — acceptable at intended
+  display size; reported to owner, did not block.
+- **Impact:** (+) no dependency on assets we don't have; (+) single-path swap
+  later; (−) slight quality ceiling on the UBIT logo at large sizes.
+- **Alternatives considered:** (a) wait for SVG files — rejected: blocks M5;
+  (b) vector-render in code — rejected: over-engineering for a static logo.
+
+## D-078 Avalonia App Scaffolded by Hand Rather Than via the dotnet Template
+
+- **Date:** 2026-09-14
+- **Decision:** The Avalonia application shell (Program.cs, App.axaml/.cs,
+  ViewLocator, ViewModels, Views, Logging/CrashReporter, app.manifest) was
+  written directly instead of creating the project through the
+  `dotnet new avalonia.mvvm` template.
+- **Rationale:** `OpdSimulator.App.csproj` already pinned Avalonia 11.3.3,
+  Avalonia.Desktop, Avalonia.Themes.Fluent and CommunityToolkit.Mvvm 8.4.2
+  from the scaffold milestone; the template would have duplicated those
+  references and required installing `Avalonia.Templates` (BLOCKERS B-005),
+  which needs network + a template decision for zero benefit.
+- **Implementation details:** csproj switched to `WinExe`, enabled
+  `AvaloniaUseCompiledBindingsByDefault`, added `app.manifest`
+  (PerMonitorV2, Windows-only element, harmless on Linux), added
+  `AvaloniaResource` for `Assets\**`, added ProjectReferences to Core and
+  Data. B-005 resolved as "resolved via hand-build".
+- **Impact:** (+) no extra tooling/network; (+) every line of the thin shell
+  was authored and is viva-defensible; (−) must keep the shell aligned with
+  Avalonia conventions manually.
+- **Alternatives considered:** (a) install Avalonia.Templates — rejected:
+  network + no benefit; (b) defer App work until GVNCI — rejected: UI needs
+  a runnable shell for every later sub-block.
+
+## D-079 Avalonia on Linux Requires Native X11/Fontconfig Libraries
+
+- **Date:** 2026-09-14
+- **Decision:** The App requires `libx11-6 libice6 libsm6 libfontconfig1`
+  on Linux for window creation and font discovery. The owner installed these
+  system-wide before M5-A began; the agent does NOT run `sudo apt install`
+  (system changes are the owner's responsibility).
+- **Rationale:** NuGet cannot ship native X11/client libraries; without them
+  Avalonia renders nothing on X11.
+- **Implementation details:** added one row to DEV_LAUNCH §1 Prerequisites and
+  cross-referenced it from §9 Troubleshooting (single canonical apt command per
+  §10.7). The old blank-window row using `-dev` packages was folded into the
+  cross-reference, since runtime (not dev) packages satisfy Avalonia.
+- **Impact:** (+) demo machine setup is documented; (−) Linux-only; Windows
+  bundles these.
+- **Alternatives considered:** (a) document only in the README — rejected: the
+  dead-state guide is the canonical setup path; (b) keep the `-dev` command —
+  rejected: duplicates the same fix, violates §10.7.
+
+## D-080 Reusable Controls: ContentControl-Themes vs UserControl Composites
+
+- **Date:** 2026-09-14
+- **Decision:** Split the eight M5-B reusable controls (§16.5) into two
+  groups. Chrome-only controls (`CollapsibleSection`, `PinnedFooterBar`) are
+  `ContentControl` subclasses rendered by type-keyed `ControlTheme`s in
+  `Controls/ControlStyles.axaml`; functional composites (`InfoIcon`,
+  `ThemedToast`, `SearchableDropdown`, `ValidatedField`, `DataPreviewTable`,
+  `ThemedDialog`) are `UserControl`s whose parts are wired in code-behind with
+  generated field references (with `{ReflectionBinding}` for self/ancestor
+  bindings inside templates).
+- **Rationale:** A custom control's own `Content`, `Header` etc. are first-
+  class styled properties only if it derives from `ContentControl`; a
+  `UserControl` subclassing approach hides the base `Content` and forces
+  re-declaring properties (a compile-time trap seen while drafting the first
+  `PinnedFooterBar`). Type-keyed `ControlTheme`s keep the visual to a switch
+  statement-free resource, and group-local styles for both chrome controls
+  live in `App.axaml` `Application.Styles` (not the dictionary, whose `Style`
+  children need keys). Composites go `UserControl` because they want plain
+  event wiring and accessibility names per child.
+- **Implementation details:** `ControlStyles.axaml` is merged into App.axaml
+  resources (with `Theme.axaml`). All visuals reference `DynamicResource`
+  from Theme.axaml only — no hex outside it. `DataPreviewTable` uses a
+  virtualizing `ListBox` for the body (stock Avalonia 11.3 has no
+  `ItemsRepeater` — D-081) and a fixed header row; columns are equal `1*`
+  widths plus a trailing Auto badge column, so every row grid aligns without
+  shared-size groups. Pure logic (ranking, sort cycle, toast expiry) is
+  extracted to `Services/` and covered by `OpdSimulator.App.Tests` (20 tests).
+- **Impact:** (+) every view later binds to the same chrome; (+) pure helpers
+  are unit tested without an Avalonia session; (−) two idioms to explain in
+  the viva (ControlTheme vs composited UserControl).
+- **Alternatives considered:** (a) UserControl everywhere — rejected: content
+  property clash; (b) always-composited UserControls + `ControlTheme` at
+  application level — rejected: adds indirection where a plain composite is
+  clearer; (c) ItemsRepeater body — rejected, not in stock Avalonia (D-081).
+
+## D-081 DataPreviewTable Uses Virtualizing ListBox, Not ItemsRepeater
+
+- **Date:** 2026-09-14
+- **Decision:** The preview body is a stock `ListBox` (virtualizes via its
+  built-in panel) with `SelectionMode` defaulting to single but the selected
+  state styled transparent, rows built by a `FuncDataTemplate<DataPreviewRow>`
+  where every cell is a read-only `TextBox`.
+- **Rationale:** During M5-B the XAML name `Rows` for an `ItemsRepeater`
+  produced no generated field and the C# type resolved to nothing — the type
+  is not shipped in stock Avalonia 11.3.3 (only references remain in its XML
+  docs). Adding the separate `Avalonia.Controls.ItemsRepeater` package is an
+  extra dependency and an unfamiliar experimental API; the viva must be
+  defended with minimal, known-idiomatic code. `ListBox` virtualizes out of
+  the box, gives scrolling for free, and the FR-UI-20 performance target
+  (10k rows < 1 s) is measurable directly on it.
+- **Implementation details:** read-only `TextBox`es give selectable text and
+  native Ctrl+C; invalid rows tint `BrushErrorBackground`/`BrushErrorDark`
+  and carry a warning glyph whose tooltip states the specific validator
+  reason; header cells are `StackPanel`s with a chevron indicator, sorted
+  via the pure `DataPreviewStore.ToggleSort` cycle.
+- **Impact:** (+) zero new packages, viva-safe; (+) real virtualization
+  instead of a 10k-element `StackPanel` (explicitly an anti-pattern §16.10);
+  (−) star-scaled columns (no per-column pixel widths yet).
+- **Alternatives considered:** (a) install `Avalonia.Controls.ItemsRepeater`
+  — rejected (extra dependency, API unfamiliarity); (b) `ItemsControl` in a
+  `ScrollViewer` — rejected: does not virtualize, fails FR-UI-20.
+
+## D-082 In-Program Guide Uses a Hand-Rolled Parser Instead of Markdig
+
+- **Date:** 2026-09-14
+- **Decision:** The guide renders `docs/USER_MANUAL.md` (embedded as
+  `OpdSimulator.App.Assets.UserManual.md`) through a small purpose-built
+  parser (`Services/GuideMarkdown.cs`) rather than the Markdig NuGet package.
+- **Rationale:** The manual is a constrained subset of markdown (headings,
+  paragraphs, bullet/numbered lists, inline code, inline bold, links). A
+  150-line parser covers exactly that subset with zero dependencies; Markdig
+  adds a package and (worse) its AST is generic HTML-flavoured markup, so we
+  would still have to walk its tree to map to our blocks. For the viva, a
+  parser we can explain line-by-line beats a third-party dependency for a
+  four-block subset. The original AGENTS §17.1 suggestion of Markdig was a
+  recommendation, not a mandate.
+- **Implementation details:** `GuideMarkdown.Parse` returns `GuideSection[]`
+  (Id = lower-hyphen slug of the title, used for deep links); `GuidePanel`
+  renders blocks (Heading/Paragraph/Bullet/Numbered/Code/Separator) with a
+  `SimpleStackPanel`, splitting inline runs for **bold** and `` `code` ``;
+  search ranks by ranking (title words ⇒ body-word matches).
+- **Impact:** (+) no extra package; (+) drift-guard test compares embedded
+  copy against `docs/USER_MANUAL.md`; (−) non-markdown manual files render
+  with degraded formatting (acceptable — the file is ours).
+- **Alternatives:** (a) Markdig — rejected (extra dep, generic AST);
+  (b) raw `TextBox` of the whole file — rejected: no sections/search,
+  violates FR-UI-18.
+
+## D-083 Preset Schema v1, "arrivalParameter" Field, No Auto-Restore
+
+- **Date:** 2026-09-14
+- **Decision:** Presets are JSON files under `<ApplicationData>/OpdSimulator/
+  presets/` with `schemaVersion: 1`, a `config` object mirroring the view
+  model fields, an optional `dataFile` path, and a `view` object persisting
+  only widget visibility + collapsed sections. A new `arrivalParameter`
+  field (a double, minutes) carries the manual arrival value when the user
+  configures it — the earlier M4-era design (a `manualLambda` in one mode,
+  `manualMean` in another) could not round-trip mean-wise mode.
+- **Rationale:** FR-UI-19 needs a cross-platform, validated, human-readable
+  format; JSON via `System.Text.Json` is dependency-free and diffable.
+  `arrivalParameter` is stored in canonical units (minutes) and converted
+  per the active `parameterMode` at load time, so a preset round-trips
+  identically in both modes. FR-UI-21 forbids auto-restore, so presets are
+  strictly opt-in (dropdown default `(none)`; no `_lastSession.json`).
+- **Implementation details:** `PresetStore` on `<ApplicationData>` (resolved
+  via `Environment.GetFolderPath` — never CWD or the exe directory);
+  `PresetNaming.Sanitize` strips `/\:*?"<>|` + control chars; comparisons are
+  case-insensitive; unknown JSON fields ignored (forward-compatible);
+  missing dataFile on load → preset still loads, inline "reselect data"
+  error shown (FR-UI-9/17).
+- **Impact:** (+) testable round-trip; (+) same store works on Linux/Windows;
+  (−) schema v1 written before all M5 fields are final — v2 can add fields
+  without breaking v1 (unknown fields ignored).
+- **Alternatives considered:** (a) store next to exe — rejected (Program
+  Files read-only on Windows); (b) CWD — rejected (launch-location
+  dependent); (c) re-use `manualLambda` — rejected (mean-wise round-trip
+  broken).
+
+## D-084 Chart Resource Colours via Application.Resources Fallback Factory
+
+- **Date:** 2026-09-14
+- **Decision:** `ChartsPanelViewModel` never hardcodes hex colours; a static
+  `ForResources()` factory reads `ColorBrandGreen`/`ColorAccentInfo` from
+  `Application.Current?.Resources.TryGetResource(...)`, falling back to the
+  same literal values baked only in `Theme.axaml` (D-084 fallback exists for
+  headless/test sessions where no Avalonia application is running).
+- **Rationale:** AGENTS §16.3 demands a single colour source. `TryFindResource`
+  (the classic Avalonia extension) was observed in this codebase to fail on
+  `Application.Current` during tests, so the resolver uses the framework API
+  directly and falls back deterministically so unit tests (no app session)
+  still construct charts.
+- **Implementation details:** fallback `SKColor` literals live in the
+  factory only and duplicate the Theme values; **if Theme.axaml changes
+  either colour, this fallback must be updated too** (guarded by a comment
+  in both files).
+- **Impact:** (+) charts work in headless tests; (−) duplicated literal as a
+  drift risk, mitigated by an explicit comment pair rather than a coupling.
+- **Alternatives considered:** (a) hardcode in VM — rejected (§16.3);
+  (b) require an Avalonia app in tests — rejected (chart VM tests are pure
+  data tests).
+
+## D-085 Computed ViewModel Booleans Instead of Value Converters
+
+- **Date:** 2026-09-14
+- **Decision:** View-state predicates (`ResultsViewModel.ShowResults`,
+  `HasError`; `ChartViewModel.ShowEmpty`; `ChartsPanelViewModel.ShowEmpty`)
+  are computed properties raised via `partial void On...Changed` hooks from
+  their source observable properties, not `IValueConverter`s.
+- **Rationale:** No `ObjectConverters.IsNotNull`/`BoolConverters.Not`
+  converters exist in this codebase (hand-built shell, D-078), and adding
+  converter classes for two booleans duplicates logic in two files. A
+  computed property is one line, testable, and XAML stays
+  `IsVisible="{Binding ShowResults}"`.
+- **Impact:** (+) no converter infrastructure; (+) logic lives beside its
+  source in the VM; (−) compiled bindings must still reference the computed
+  member (compiler enforces this — catching typos).
+- **Alternatives considered:** (a) add converter classes — rejected (extra
+  files for trivial negation); (b) bind `IsVisible` with a data-trigger
+  Style — rejected (Avalonia style triggers over a dynamic container are
+  fiddly and hard to eyeball; a VM predicate is simpler).

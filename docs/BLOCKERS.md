@@ -20,12 +20,6 @@ Anything preventing progress, with owner and needed action. A task in
   - Impact: UI labeling (maps to PRD OQ-3)
   - Status: Pending
 
-- **B-004:** Sample patient data file (`samples/sample_patients.xlsx`) not yet received.
-  - Owner: Taha
-  - Impact: Blocks Milestone 2 demo path, loader integration tests, and DEV_LAUNCH §7 verification; CONTEXT §5.5 demo data format documented
-  - Needed action: Provide the real sample file (or confirm I should generate a stand-in)
-  - Status: Pending
-
 - **B-005:** Avalonia MVVM template not installed (`dotnet new install Avalonia.Templates` not run).
   - Owner: Taha
   - Impact: `OpdSimulator.App` created as an empty classlib placeholder this session (per scaffold instructions); Avalonia packages referenced but App not runnable until M5. DEV_LAUNCH §5 already documents running against `OpdSimulator.Cli` until then.
@@ -40,6 +34,10 @@ Anything preventing progress, with owner and needed action. A task in
   - Status: Blocked until a Windows machine is available
 
 ## Resolved
+
+- **B-005:** Avalonia MVVM template not installed (`dotnet new install Avalonia.Templates` not run).
+  - **Resolution:** 2026-09-14 — owner approved hand-building the Avalonia project (M5 kickoff adjustment 3). The App shell (Program.cs, App.axaml/.cs, ViewLocator, ViewModels, Views, Logging/CrashReporter, app.manifest) was authored directly (D-078) with no template installation or network dependency; `dotnet build` 0 warnings and the window launches on Ubuntu.
+  - Status: **Resolved via hand-build**
 
 - **B-004:** Sample patient data file (`samples/sample_patients.xlsx`) not yet received.
   - **Resolution:** 2026-09-13 — since no real file was provided, a **stand-in** sample was generated deterministically (seed 42) by `scripts/sample-data-generator` (D-047): 60 rows, single Screening stage, inter-arrival Exp(λ=0.5), service Exp(μ=0.666…), all `departure_stage = "Screening"` ⇒ p_exit = 1.0 (matches CONTEXT §5.5). FixtureTests now lock these files to the loader/validator, so substituting the real spreadsheet later is a drop-in replacement that the tests will guard.

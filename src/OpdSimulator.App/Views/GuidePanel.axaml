@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OpdSimulator.App.ViewModels"
+             x:DataType="vm:GuideViewModel"
+             x:Class="OpdSimulator.App.Views.GuidePanel">
+
+    <!-- In-program guide (§17.1): searchable section list on the left, the
+         selected section rendered on the right. Esc closes via the overlay
+         (see MainWindow). -->
+    <Grid ColumnDefinitions="*,2*" ColumnSpacing="16">
+
+        <Panel Grid.Column="0">
+            <StackPanel Spacing="8">
+                <TextBlock Text="User manual" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding SearchText}" Watermark="Search the guide…"
+                         x:Name="SearchBox" TabIndex="0"/>
+                <ListBox ItemsSource="{Binding SectionTitles}"
+                         SelectedItem="{Binding SelectedTitle}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Panel>
+
+        <ScrollViewer Grid.Column="1" VerticalContentAlignment="Stretch" Margin="8,0,0,8">
+            <StackPanel x:Name="Body" Spacing="8"/>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -17,27 +17,27 @@ PRD.md wins.
 
 | ID | Requirement | Status | Source | Test | Decision |
 |----|-------------|--------|--------|------|----------|
-| FR-UI-1 | Left config panel + right results panel | [ ] | — | — | — |
-| FR-UI-2 | Input validation (numeric, file type, mode mismatch) | [ ] | — | — | — |
-| FR-UI-3 | Background thread + progress indicator | [ ] | — | — | — |
-| FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [ ] | — | — | — |
-| FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [ ] | — | — | — |
-| FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [ ] | — | — | — |
+| FR-UI-1 | Left config panel + right results panel | [x] | Views/MainWindow.axaml, Views/ConfigPanel.axaml, Views/ResultsPanel.axaml | — (visual acceptance §16.8 pending owner keyboard pass) | D-085 |
+| FR-UI-2 | Input validation (numeric, file type, mode mismatch) | [~] | Controls/ValidatedField.axaml + Views/ConfigPanel.axaml | — (edge-case test rows outstanding) | D-080 |
+| FR-UI-3 | Background thread + progress indicator | [x] | ViewModels/MainViewModel.cs (RunAsync → Task.Run), ResultsViewModel.IsRunning | ResultsViewModelTests.BeginRun (App.Tests) | D-078 |
+| FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [x] | Views/ChartsPanel.axaml, ViewModels/ChartViewModels.cs, Services/ChartsBuilder.cs | ChartViewModelTests (App.Tests) | D-084 |
+| FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [x] | Views/WelcomeCard.axaml, ViewModels/WelcomeCardViewModel.cs, CourseInfo.cs | WelcomeCardViewModelTests (App.Tests) | D-077 |
+| FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [x] | Controls/SearchableDropdown.axaml + Services/SearchFilter.cs | SearchFilterTests (App.Tests) | D-080 |
 | FR-UI-7 | Disabled field treatment (dimmed + reason tooltip) | [ ] | — | — | — |
-| FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [ ] | — | — | — |
-| FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [ ] | — | — | — |
-| FR-UI-10 | Themed dialogs and toasts | [ ] | — | — | — |
-| FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [ ] | — | — | — |
-| FR-UI-12 | Collapsible config sections (>4 sections) | [ ] | — | — | — |
+| FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [x] | Controls/InfoIcon.axaml (hover + HelpAnchor deep-link) | — (visual acceptance pending) | D-080 |
+| FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [~] | Views/ResultsPanel.axaml (HasError banner) + Controls/ValidatedField.axaml | ResultsViewModelTests.EndRun_WithError (App.Tests) | D-085 |
+| FR-UI-10 | Themed dialogs and toasts | [x] | Controls/ThemedDialog.axaml, ThemedToast.axaml, Services/ToastService.cs + ToastLifecycle.cs, ViewModels/ToastItem.cs | ToastServiceTests (App.Tests) | D-080 |
+| FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [x] | Views/MainWindow.axaml + Views/ConfigPanel.axaml + Controls/PinnedFooterBar.axaml.cs | — (visual acceptance pending) | D-080 |
+| FR-UI-12 | Collapsible config sections (>4 sections) | [x] | Controls/CollapsibleSection.axaml.cs + ControlStyles.axaml | — (visual acceptance pending) | D-080 |
 | FR-UI-13 | Clear All with confirmation + undo | [ ] | — | — | — |
-| FR-UI-14 | User-selectable results panel widgets (persisted) | [ ] | — | — | — |
-| FR-UI-15 | Full Tab navigation (focus order, Escape, focus return) | [ ] | — | — | — |
-| FR-UI-16 | Persistent labels + format placeholders + units | [ ] | — | — | — |
-| FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [ ] | — | — | — |
-| FR-UI-18 | In-program guide (F1, searchable, deep links, embedded markdown) | [ ] | — | — | — |
-| FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [ ] | — | — | — |
-| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [ ] | — | — | — |
-| FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [ ] | — | — | — |
+| FR-UI-14 | User-selectable results panel widgets (persisted) | [x] | Views/ResultsPanel.axaml (Customise toggle) + ViewModels/ResultsViewModel.cs + Services/WidgetPreferences.cs | ResultsViewModelTests.ToggleWidget*, MainViewModelTests (widget prefs apply on construction) | D-085 |
+| FR-UI-15 | Full Tab navigation (focus order, Escape, focus return) | [~] | Views/MainWindow.axaml.cs (guide overlay focus save/restore) + Controls/ThemedDialog.axaml | — (§16.8 keyboard pass required) | — |
+| FR-UI-16 | Persistent labels + format placeholders + units | [x] | Controls/ValidatedField.axaml + Views/ConfigPanel.axaml | — (visual acceptance pending) | D-080 |
+| FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [~] | Controls/ValidatedField.axaml | — (red/border/icon wired; live-region announcements outstanding) | D-080 |
+| FR-UI-18 | In-program guide (F1, searchable, deep links, embedded markdown) | [x] | Views/GuidePanel.axaml, ViewModels/GuideViewModel.cs, Services/GuideMarkdown.cs, OpdSimulator.App.csproj (EmbeddedResource) | GuideTests (App.Tests) | D-082 |
+| FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [x] | Services/PresetStore.cs, Preset.cs, PresetConfig.cs, PresetNaming.cs, Views/PresetManagerDialog.cs | PresetStoreTests (App.Tests) | D-083 |
+| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [x] | Controls/DataPreviewTable.axaml + Services/DataPreviewStore.cs + Views/ResultsPanel.axaml (widget wiring) | DataPreviewStoreTests (App.Tests) | D-080, D-081 |
+| FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [x] | ConfigViewModel factory defaults, MainWindow (no _lastSession.json), PresetBar "(none)" default | MainViewModelTests (applies only persisted widget prefs at construction — config untouched) | D-083 |
 
 ## Functional Requirements — Data
 
@@ -163,6 +163,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | M5 view layer landed + tested: FR-UI-1/3/4/5/6/8/10/11/12/14/16/18/19/20/21 → `[x]` with Source + Test + Decision (D-077..D-085); FR-UI-9/15/17 stay `[~]` (banner/escape wired, live-region + keyboard-acceptance rows open); FR-UI-2/7/13 still `[ ]`. Coverage now 65.7% (44/67 `[x]`, 7 `[~]`) — authority: PRD v1.4.0 |
 | 2026-09-14 | M5: 21 new rows registered for the M5 UI/UX batch — FR-UI-5..21 and NFR-7..10, all `[ ]` (captured, no source/test yet). PRD bumped to v1.4.0; decisions D-060..D-076; M5_UI_SPEC.md added. Coverage recomputed: 29/67 = 43.3% (35 `[ ]` now open because M5 work is not started) |
 | 2026-09-14 | M4: FR-VAL-4 Source/Test/Decision refreshed — the first-class deterministic trace (Trace/ namespace + `trace` CLI, D-055) supersedes the Serilog Debug channel as the implementation; tests now TraceRegressionTests (golden fixture, draw-by-draw RNG parity, stats cross-check) + CliTraceTests + EventTraceTests; coverage summary block recomputed from 50.0% to the actual 63.0% (constituting stale from M3) |
 | 2026-09-13 | M3: FR-SIM-1/4/7/8/9, FR-STAT-6/7 → `[x]` with network source/tests/decisions (D-049→D-053); FR-SIM-10 → `[~]` (FormatClock lands the real-clock piece, UI binding M5); FR-VAL-1 + FR-SIM-1 source refreshed for `NetworkTopology.Validate`/CLI; coverage now 63.0% (29/46 `[x]`, +3 `[~]`) |

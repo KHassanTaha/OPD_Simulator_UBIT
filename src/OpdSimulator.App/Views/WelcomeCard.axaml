@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OpdSimulator.App.ViewModels"
+             x:DataType="vm:WelcomeCardViewModel"
+             x:Class="OpdSimulator.App.Views.WelcomeCard">
+
+    <!-- Welcome card (FR-UI-5 / AGENTS §16.6): logos, course identity and the
+         member list, all from CourseInfo via the view model. Disappears when
+         the user starts a calculation. -->
+    <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="520"
+                Spacing="16">
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="48">
+            <Image Source="{Binding UokLogoImage}" Width="96" Height="96" Stretch="Uniform"/>
+            <Image Source="{Binding UbitLogoImage}" Width="96" Height="96" Stretch="Uniform"/>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="University of Karachi"
+                       FontSize="{DynamicResource FontSizeHeading2}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding CourseCode} — {Binding CourseName}"
+                       FontSize="{DynamicResource FontSizeHeading4}"
+                       Foreground="{DynamicResource BrushTextSecondary}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding Professor}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource BrushTextMuted}"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <Border Background="{DynamicResource BrushBackgroundAlt}"
+                CornerRadius="{DynamicResource CornerRadiusMedium}"
+                Padding="{DynamicResource ThicknessSpaceM}">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Group members"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextSecondary}"/>
+                <ItemsControl ItemsSource="{Binding Members}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontSize="{DynamicResource FontSizeBody}"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Configure the clinic on the left and press Start Calculation."
+                   FontSize="{DynamicResource FontSizeBody}"
+                   Foreground="{DynamicResource BrushTextMuted}"
+                   HorizontalAlignment="Center"/>
+    </StackPanel>
+</UserControl>

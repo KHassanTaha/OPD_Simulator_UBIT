@@ -94,6 +94,54 @@ public class EngineTests
     }
 
     [Fact]
+    public void Run_SamplesWaitingTimesAndQueueSeries_ForP2Charts()
+    {
+        // FR-UI-4 P2: waiting-time histograms and queue-length-over-time need
+        // the raw per-patient samples, not just the aggregates. This guards
+        // that the engine actually records them (and that a rerun on the same
+        // seed returns the same count, so the charts stay reproducible).
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+        }, exitStageIndex: 0, exitProbability: 0.0);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 42, horizonMinutes: 500);
+
+        Assert.Equal(2, result.StageMetrics.Count);
+        foreach (var stage in result.StageMetrics)
+        {
+            Assert.NotEmpty(stage.WaitingTimeSamples);
+            Assert.Equal(stage.PatientsServed, stage.WaitingTimeSamples.Count);
+            Assert.All(stage.WaitingTimeSamples, w => Assert.True(w >= 0, "Waiting times cannot be negative"));
+            Assert.NotEmpty(stage.QueueLengthSeries);
+            Assert.All(stage.QueueLengthSeries, p => Assert.True(p.Time >= 0 && p.Length >= 0));
+        }
+    }
+
+    [Fact]
+    public void Run_WaitingTimeSamplesStartFromZero_AndAreUnchangedByLaterRuns()
+    {
+        // A second run on the same seed must yield the same first waiting-time
+        // sample — the per-run buffers must not leak state between runs.
+        var topology = new NetworkTopology(3.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 6.0),
+        }, exitStageIndex: 0, exitProbability: 0.0);
+
+        SimulationResult RunOnce() => new Engine(new SeededRandomSource(), Log)
+            .Run(topology, seed: 7, horizonMinutes: 100);
+
+        var first = RunOnce().StageMetrics[0];
+        var second = RunOnce().StageMetrics[0];
+
+        Assert.NotEmpty(first.WaitingTimeSamples);
+        Assert.Equal(first.WaitingTimeSamples[0], second.WaitingTimeSamples[0]);
+        Assert.Equal(first.QueueLengthSeries.Count, second.QueueLengthSeries.Count);
+    }
+
+    [Fact]
     public void Run_ClinicNetwork_ProducesPerStageMetrics()
     {
         // Reception(c=1, μ=10) → Screening(c=2, μ=4) → Doctor(c=3, μ=1.6),
