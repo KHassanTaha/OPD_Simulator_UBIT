@@ -28,11 +28,12 @@ Last updated: 2026-09-14
 
 ## M5 — GUI (see PRD §5.1, AGENTS §16–17)
 
-### Assets & Foundation
-- [ ] Asset inventory: receive official UoK green logo + UBIT CS logo
-- [ ] Create `CourseInfo.cs` constants (names, course, professor, logo paths)
-- [ ] Create `Theme.axaml` resource dictionary (all colours, fonts, spacing)
-- [ ] Set up App project for MVVM (CommunityToolkit.Mvvm or equivalent)
+### Assets & Foundation (M5-A)
+- [x] Asset inventory: receive official UoK green logo + UBIT CS logo — 2026-09-14 (PNG copies from ~/Downloads landed as `Assets/uok-logo.png` 1080×1080 and `Assets/ubit-cs-logo.png` 369×293; D-077)
+- [x] Create `CourseInfo.cs` constants (names, course, professor, logo paths) — 2026-09-14 (6 members; CS-577; Dr. Shaista Rais; `avares://` paths via CourseInfo, no XAML references)
+- [x] Create `Theme.axaml` resource dictionary (all colours, fonts, spacing) — 2026-09-14 (single hex source; brushes/typography/spacing/radii/durations; merged into App.axaml)
+- [x] Set up App project for MVVM (CommunityToolkit.Mvvm or equivalent) — 2026-09-14 (hand-built shell D-078: Program.cs, App.axaml/.cs, ViewLocator, ViewModelBase, MainViewModel, MainWindow; B-005 Resolved; WinExe + compiled bindings; Core/Data refs)
+- [x] Install global exception handlers in the App project (AppDomain, UnobservedTaskException, Avalonia Dispatcher) → `logs/crash-*.log` + dialog (AGENTS §12.3, 12.5) — 2026-09-14 (Logging/CrashReporter.cs; CrashReporter.Report appends crash log + themed dialog; CrashReporterTests pending)
 
 ### Reusable Controls (build once, use everywhere)
 - [ ] `SearchableDropdown.axaml` (FR-UI-6)
@@ -140,7 +141,7 @@ Last updated: 2026-09-14
 - [x] Obtain `samples/sample_patients.xlsx` (owner; 1-stage demo data) — see BLOCKERS B-004 — 2026-09-13 (no real file provided → **stand-in** generated deterministically by `scripts/sample-data-generator`, seed 42: 60 rows, single Screening stage, Exp(λ=0.5)/Exp(μ=0.666…), p_exit=1.0 (CONTEXT §5.5); BLOCKERS B-004 Resolved; real clinic data remains substitutable at the same path)
 - [x] Add headless CLI mode to `OpdSimulator.Cli` (DEV_LAUNCH §7; demo path 2026-09-16) — 2026-09-13 (M1 CLI: `--lambda/--mu/--servers/--horizon/--seed`, ρ table, exit 0/1; F2/F3 verified on feat/milestone-1-single-stage-engine)
 - [x] Set up solution structure (Core / Data / App / CLI / Tests) — 2026-09-13 (sln + 6 projects, packages pinned per D-026; App is a placeholder classlib)
-- [?] Initialize Avalonia project — BLOCKED on B-005 (no Avalonia template installed; App is a classlib placeholder until M5)
+- [x] Initialize Avalonia project — 2026-09-14 (hand-built shell on feat/milestone-5-gui, D-078; B-005 Resolved via hand-build; window launches on Ubuntu; `dotnet run --project src/OpdSimulator.App` verified, logs/app created)
 - [x] Add MathNet.Numerics, ClosedXML, CsvHelper via NuGet (update DEV_LAUNCH in the same change) — 2026-09-13 (extended with Avalonia/CommunityToolkit/LiveCharts/Serilog per scaffold instruction; versions + rationale in D-026; DEV_LAUNCH §3/§5/§8 updated)
 - [x] Implement Event, Queue, Server, Patient classes (M1: A1–A6 on feat/milestone-1-single-stage-engine) — 2026-09-13 (all M1 Core classes written; 34 tests green; dead-state verified)
 - [x] Implement FEL (priority queue) and generic N-stage DES engine — validated against M/M/1 and M/M/2 (per D-006) — 2026-09-13 (FEL + generic single-stage engine; validated vs analytical M/M/1 in EngineTests, 0.724 vs 0.75; M/M/2 + M/M/c table comparison tracked by the "Implement analytical M/M/c validation comparison" row)
@@ -190,11 +191,11 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [ ] Create `.github/workflows/ci.yml` (ubuntu-latest + windows-latest: restore → build --no-restore -c Release → test --no-build -c Release) and add README badge once green (AGENTS §11.8)
 - [x] Add Serilog packages (Serilog, Serilog.Sinks.Console, Serilog.Sinks.File) via NuGet (update DEV_LAUNCH in the same change) — 2026-09-13 (Serilog 4.4.0 + Sinks.Console 6.1.1 in Cli; App additionally Serilog.Extensions.Logging 10.0.0 + Sinks.File 7.0.0; see D-026)
 - [ ] Configure logging in `appsettings.json`: console + rolling file (7-day retention) + error file sinks (AGENTS §12.1) — template has console + rolling file; error-only sink pending
-- [ ] Install global exception handlers in the App project (AppDomain, UnobservedTaskException, Avalonia Dispatcher) → `logs/crash-*.log` + dialog (AGENTS §12.3, 12.5)
+- [x] Install global exception handlers in the App project (AppDomain, UnobservedTaskException, Avalonia Dispatcher) → `logs/crash-*.log` + dialog (AGENTS §12.3, 12.5) — 2026-09-14 (see Assets & Foundation "Install global exception handlers" row above: CrashReporter.cs landed with M5-A)
 - [ ] Apply log-level discipline (Verbose = RNG draws, Debug = event scheduling, Information = run summaries, Warning/Error/Fatal per §12.2)
 
 ## Blocked
-- (none — B-005 (Avalonia template) and B-006 (Windows dead-state) are pending, nothing blocks current work)
+- (none — B-006 (Windows dead-state) is pending, nothing blocks current work; B-005 resolved 2026-09-14 via hand-build, D-078)
 
 ## Done
 - [x] FIX (feat/milestone-1-single-stage-engine): average-wait/system-time bug — `totalWaitMinutes`/`totalSystemMinutes` were `long`, truncating every sub-minute wait to 0 (mean wait read 0.41 vs analytical 0.75). Switched to `double` accumulators; EngineTests.Run_MatchesAnalyticalMM1 now green (0.724 within 15% of 0.75) — 2026-09-13

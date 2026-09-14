@@ -902,3 +902,65 @@ impact (positive and negative), alternatives considered.
 - **Impact:** (+) honest UI state.
 - **Alternatives considered:** pre-select the most recently created preset —
   rejected: implies a state the user didn't choose.
+
+## D-077 Welcome Card Logos Use PNG Sources Instead of SVG
+
+- **Date:** 2026-09-14
+- **Decision:** The welcome card shows
+  `Assets/uok-logo.png` (1080×1080) and `Assets/ubit-cs-logo.png` (369×293),
+  both supplied by the department as PNG; the SVG assets named in
+  `M5_UI_SPEC.md` do not exist.
+- **Rationale:** only PNG variants were provided; requesting SVG conversion
+  would block M5-A for no functional gain at 100 px display size.
+- **Implementation details:** logos are embedded via `AvaloniaResource` (csproj
+  `Assets\**` glob) and referenced **by URI string in `CourseInfo.cs`**, so a
+  swap to higher-resolution SVG needs no XAML or code change. Quality flag:
+  `ubit-cs-logo.png` is 369×293 (long edge < 512 px) — acceptable at intended
+  display size; reported to owner, did not block.
+- **Impact:** (+) no dependency on assets we don't have; (+) single-path swap
+  later; (−) slight quality ceiling on the UBIT logo at large sizes.
+- **Alternatives considered:** (a) wait for SVG files — rejected: blocks M5;
+  (b) vector-render in code — rejected: over-engineering for a static logo.
+
+## D-078 Avalonia App Scaffolded by Hand Rather Than via the dotnet Template
+
+- **Date:** 2026-09-14
+- **Decision:** The Avalonia application shell (Program.cs, App.axaml/.cs,
+  ViewLocator, ViewModels, Views, Logging/CrashReporter, app.manifest) was
+  written directly instead of creating the project through the
+  `dotnet new avalonia.mvvm` template.
+- **Rationale:** `OpdSimulator.App.csproj` already pinned Avalonia 11.3.3,
+  Avalonia.Desktop, Avalonia.Themes.Fluent and CommunityToolkit.Mvvm 8.4.2
+  from the scaffold milestone; the template would have duplicated those
+  references and required installing `Avalonia.Templates` (BLOCKERS B-005),
+  which needs network + a template decision for zero benefit.
+- **Implementation details:** csproj switched to `WinExe`, enabled
+  `AvaloniaUseCompiledBindingsByDefault`, added `app.manifest`
+  (PerMonitorV2, Windows-only element, harmless on Linux), added
+  `AvaloniaResource` for `Assets\**`, added ProjectReferences to Core and
+  Data. B-005 resolved as "resolved via hand-build".
+- **Impact:** (+) no extra tooling/network; (+) every line of the thin shell
+  was authored and is viva-defensible; (−) must keep the shell aligned with
+  Avalonia conventions manually.
+- **Alternatives considered:** (a) install Avalonia.Templates — rejected:
+  network + no benefit; (b) defer App work until GVNCI — rejected: UI needs
+  a runnable shell for every later sub-block.
+
+## D-079 Avalonia on Linux Requires Native X11/Fontconfig Libraries
+
+- **Date:** 2026-09-14
+- **Decision:** The App requires `libx11-6 libice6 libsm6 libfontconfig1`
+  on Linux for window creation and font discovery. The owner installed these
+  system-wide before M5-A began; the agent does NOT run `sudo apt install`
+  (system changes are the owner's responsibility).
+- **Rationale:** NuGet cannot ship native X11/client libraries; without them
+  Avalonia renders nothing on X11.
+- **Implementation details:** added one row to DEV_LAUNCH §1 Prerequisites and
+  cross-referenced it from §9 Troubleshooting (single canonical apt command per
+  §10.7). The old blank-window row using `-dev` packages was folded into the
+  cross-reference, since runtime (not dev) packages satisfy Avalonia.
+- **Impact:** (+) demo machine setup is documented; (−) Linux-only; Windows
+  bundles these.
+- **Alternatives considered:** (a) document only in the README — rejected: the
+  dead-state guide is the canonical setup path; (b) keep the `-dev` command —
+  rejected: duplicates the same fix, violates §10.7.

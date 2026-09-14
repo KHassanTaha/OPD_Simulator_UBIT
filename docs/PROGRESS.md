@@ -2,6 +2,19 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M5-A Assets & Foundation — 2026-09-14 (feat/milestone-5-gui)
+
+Completed the foundation sub-block of Milestone 5 after owner's GO + kickoff adjustments:
+1. **PRD header synced** to v1.4.0 / 2026-09-14 (docs-only commit a3d372e).
+2. **A1 Avalonia shell hand-built** (D-078) — Program.cs (Serilog bootstrap: console + `logs/app-*.log` rolling 7-day + error-only sink), App.axaml/.cs (ViewLocator + the three §12.3 global exception handlers), ViewModels (ViewModelBase, MainViewModel), Views/MainWindow scaffold (placeholder config/results panels, replaced in M5-D), Logging/CrashReporter (appends `logs/crash-YYYMMDD.log` + user dialog, sim-state param ready for M5-E), app.manifest (PerMonitorV2, Windows-only). csproj → WinExe, compiled bindings on, references Core+Data, embeds `Assets\**`. Committed cc1bce3.
+3. **A2 CourseInfo.cs** — CourseName "Simulation & Modelling", CourseCode "CS-577", Professor "Dr. Shaista Rais", 6 members, logo URIs (D-077). Single source; XAML keeps zero references.
+4. **A3 Theme.axaml** — single palette source (D-077-era): 40 colours → brushes, typography (Inter/Segoe/system sans), spacing, radii, durations; `sys:TimeSpan` syntax fix; merged into App.axaml. No hex anywhere else.
+5. **A4 logos** — `Assets/uok-logo.png` (1080×1080) + `Assets/ubit-cs-logo.png` (369×293) copied from ~/Downloads (D-077; quality flag on the 369 px UBIT logo reported, not blocking).
+6. **DEV_LAUNCH** — §1 prerequisites row for Linux system libs (libx11-6 libice6 libsm6 libfontconfig1, owner-installed, D-079); §9 blank-window row consolidated to a cross-ref (§10.7, single canonical apt command); §5/§8 App status refreshed. Committed 53f8bba.
+7. **BLOCKERS B-005 Resolved** via hand-build; D-077..D-079 logged; TODO 5 foundation rows `[x]`.
+
+Verification: `dotnet build OpdSimulator.sln` 0 warnings, 0 errors; **176 tests green** (83/58/35 — unchanged); app launch smoke-tested on Ubuntu (`Application started. Main window created.`; logs/app-20260914.log written). 0 warnings everywhere.
+
 ## M5 UI/UX requirements capture — 2026-09-14 (fix/ui-requirements-capture)
 
 Applied the six-file M5 documentation batch as a single docs-only change:
