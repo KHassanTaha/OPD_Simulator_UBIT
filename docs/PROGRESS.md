@@ -2,6 +2,27 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-14 05:20 — reconciled: 6 findings
+
+Findings (all non-blocking, fixed during M4):
+1. DEAD-STATE BASELINE VERIFIED: `git status` clean on `main`, up-to-date with
+   origin, HEAD = merge 51d6d92 (metric-identical wording). `dotnet build` 0
+   warnings; `dotnet test` 156 green (76 Core + 58 Data + 22 Cli) — matches the
+   handoff claim. M4 branch can start from this green baseline.
+2. DEV_LAUNCH §6 test count is stale: still reads "As of 2026-09-13 97 tests
+   pass" (M2 count); reality is 156. §6 must be refreshed during M4's docs pass.
+3. REQUIREMENTS.md Coverage Summary block is stale: top block reads 23 `[x]` /
+   2 `[~]` / 50.0%, but the M3 changelog row and the rows themselves say 29 `[x]`
+   / 3 `[~]` / 63.0%. The summary block must be recomputed during M4.
+4. TODO.md carries two `[~]` IN PROGRESS rows simultaneously — the rate-wise /
+   mean-wise toggle row (its data layer is done; the M5 GUI toggle remains) and
+   the event-log/trace row (M4's natural home). Reclassify the toggle row to `[ ]`
+   (or leave `[~]` with M5 note) at the M4 TODO pass so one-at-a-time holds.
+5. M5_UI_SPEC.md is absent — the kickoff said "if present"; nothing to reconcile.
+6. FR-VAL-4 is already `[x]` in REQUIREMENTS.md backed by EventTraceTests
+   (Serilog Debug events). M4's first-class trace supersedes it as the stronger
+   implementation; the row's Source/Test will be refreshed rather than promoted.
+
 ## Resume — 2026-09-14 05:11 — reconciled: 6 findings
 
 ### fix/metric-identical-wording — M3 post-merge wording pass — 2026-09-14
