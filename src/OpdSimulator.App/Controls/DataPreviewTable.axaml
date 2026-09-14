@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpdSimulator.App.Controls.DataPreviewTable">
+
+    <!-- Verification surface, not an editor (FR-UI-20). The header row is
+         fixed; the body is a virtualizing ListBox (reads from the viewport
+         only) so 10,000 rows do not all realise their cells. Rows/cells are
+         built in code because the column count comes from the loaded file. -->
+    <Grid RowDefinitions="Auto,*">
+        <Grid x:Name="HeaderGrid"
+              Background="{DynamicResource BrushBackgroundAlt}"
+              MinHeight="34"/>
+        <ListBox x:Name="RowsList"
+                 Grid.Row="1"
+                 BorderThickness="0"
+                 Background="Transparent">
+            <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="IsTabStop" Value="False"/>
+                </Style>
+                <Style Selector="ListBoxItem:selected">
+                    <Setter Property="Background" Value="Transparent"/>
+                </Style>
+                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                    <Setter Property="Background" Value="Transparent"/>
+                </Style>
+            </ListBox.Styles>
+        </ListBox>
+    </Grid>
+</UserControl>

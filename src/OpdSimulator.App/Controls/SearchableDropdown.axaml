@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpdSimulator.App.Controls.SearchableDropdown">
+
+    <!-- Type-to-filter select (FR-UI-6): textbox + clear + chevron + an
+         in-layout suggestion list that opens below the field. All colours
+         come from Theme.axaml. -->
+    <Grid>
+        <Border x:Name="FieldBorder"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="{DynamicResource ThicknessFieldBorder}"
+                Background="{DynamicResource BrushBackgroundPanel}"
+                CornerRadius="{DynamicResource CornerRadiusSmall}"
+                Padding="0,6">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox x:Name="SearchBox"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Padding="10,0"
+                         VerticalContentAlignment="Center"
+                         TextChanged="OnFilterChanged"
+                         Watermark="Type to filter…"
+                         CaretIndex="0"/>
+                <Button x:Name="ClearButton"
+                        Grid.Column="1"
+                        Classes="fieldIconButton"
+                        Content="&#xE711;"
+                        IsVisible="False"
+                        Click="OnClearClicked"
+                        ToolTip.Tip="Clear the selected value"/>
+                <ToggleButton x:Name="ToggleButton"
+                              Grid.Column="2"
+                              Classes="fieldIconButton"
+                              Content="&#xE70D;"
+                              Checked="OnToggleChanged"
+                              Unchecked="OnToggleChanged"
+                              ToolTip.Tip="Show or hide the option list"/>
+            </Grid>
+        </Border>
+
+        <Border x:Name="DropDown"
+                Grid.ColumnSpan="1"
+                Margin="0,34,0,0"
+                VerticalAlignment="Top"
+                IsVisible="False"
+                Background="{DynamicResource BrushBackgroundPanel}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource CornerRadiusSmall}">
+            <Grid RowDefinitions="Auto,*" MaxHeight="300">
+                <TextBlock x:Name="NoResults"
+                           IsVisible="False"
+                           Padding="10,8"
+                           FontSize="{DynamicResource FontSizeBody}"
+                           Foreground="{DynamicResource BrushTextMuted}"
+                           Text="No matches"/>
+                <ListBox x:Name="Suggestions"
+                         Grid.Row="1"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         SelectionChanged="OnSelectionChanged"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -24,6 +24,40 @@
         <Style Selector="ToggleButton.collapsibleHeader:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource BrushBackgroundHover}"/>
         </Style>
+
+        <!-- ThemedDialog buttons: neutral vs primary (FR-UI-10). -->
+        <Style Selector="Button.dialogButton">
+            <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
+            <Setter Property="MinWidth" Value="88"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
+            <Setter Property="Background" Value="{DynamicResource BrushBackgroundAlt}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource ThicknessFieldBorder}"/>
+        </Style>
+        <Style Selector="Button.primaryDialogButton">
+            <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
+            <Setter Property="MinWidth" Value="88"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextOnBrand}"/>
+            <Setter Property="Background" Value="{DynamicResource BrushBrandGreen}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <!-- Field chrome shared by ValidatedField and SearchableDropdown (§16.9). -->
+        <Style Selector="Border.fieldError">
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushError}"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="Button.fieldIconButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+        </Style>
+        <Style Selector="Button.fieldIconButton:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+        </Style>
     </Application.Styles>
 
     <!-- Theme.axaml is the single source of all colours/fonts/spacing (AGENTS §16.3).
