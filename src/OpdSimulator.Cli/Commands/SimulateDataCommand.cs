@@ -15,7 +15,7 @@ using Serilog;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Single-stage data (M2 behaviour, byte-for-byte): λ = 1/mean(inter-arrival),
+/// Single-stage data (M2 behaviour, numerically identical metrics): λ = 1/mean(inter-arrival),
 /// μ = 1/mean(service) of the only service stage, and <c>--servers 1,2,3</c> is
 /// a sweep of server counts — one M/M/c run per count, which validates against
 /// the M/M/c formulas in one command.
@@ -174,7 +174,7 @@ internal static class SimulateDataCommand
 
         if (orderedNames.Count == 1)
         {
-            // M2 byte-for-byte: single-stage sweep of the requested server counts.
+            // M2 metric-identical: single-stage sweep of the requested server counts.
             bool anyRan = false;
             foreach (int servers in serverCounts)
             {

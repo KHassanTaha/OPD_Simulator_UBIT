@@ -11,7 +11,7 @@ using OpdSimulator.Core.Distributions;
 /// <list type="bullet">
 ///   <item><see cref="RandomIdleSelection"/> — production default; picks uniformly
 ///   among idle servers using one <see cref="IRandomSource.NextDouble"/> draw
-///   (only when ≥2 idle, so single-server byte-for-byte M1 regression is preserved).</item>
+///   (only when ≥2 idle, so the single-server M1 metrics are preserved).</item>
 ///   <item><see cref="LowestIdSelection"/> — reproduces the latent M1 bug so a
 ///   negative regression test can prove the balance threshold catches it.</item>
 /// </list>
