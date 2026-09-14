@@ -1,0 +1,265 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:vm="using:OpdSimulator.App.ViewModels"
+             x:DataType="vm:ConfigViewModel"
+             x:Class="OpdSimulator.App.Views.ConfigPanel">
+
+    <!-- Left configuration panel (M5-D/F): searchable presets on top, then
+         collapsible sections for data/parameters/servers/horizon/advanced.
+         Validation state lives on ConfigFieldViewModel; the pinned Start bar
+         is hosted by MainWindow (root view model). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="16">
+
+            <!-- Presets (AGENTS §17.2). -->
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <controls:SearchableDropdown x:Name="PresetDropdown"
+                                                 Items="{Binding PresetNames}"
+                                                 SelectedValue="{Binding SelectedPresetName, Mode=TwoWay}"
+                                                 Watermark="(none)"/>
+                    <Button Grid.Column="1" Content="Save"
+                            Click="OnSavePresetClicked"
+                            ToolTip.Tip="Save the current configuration as a preset"/>
+                    <Button Grid.Column="2" Content="Manage…"
+                            Click="OnManagePresetsClicked"
+                            ToolTip.Tip="Load, rename, duplicate or delete presets"/>
+                </Grid>
+                <TextBlock Text="Preset: loads a saved clinic configuration."
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           Foreground="{DynamicResource BrushTextMuted}"/>
+            </StackPanel>
+
+            <!-- Data file -->
+            <controls:CollapsibleSection Header="Data file"
+                                         SessionKey="data"
+                                         IsExpanded="{Binding DataSectionExpanded, Mode=TwoWay}">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button x:Name="UploadButton"
+                                Content="Upload CSV / Excel…"
+                                Command="{Binding PickDataFileCommand}"
+                                ToolTip.Tip="Load the patient arrival/service log (.csv or .xlsx)"/>
+                        <Button Grid.Column="1"
+                                Content="Clear"
+                                Click="OnClearDataClicked"
+                                IsVisible="{Binding HasDataFile}"
+                                ToolTip.Tip="Remove the loaded data file"/>
+                    </Grid>
+                    <TextBlock Text="{Binding FileSummary}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"
+                               TextWrapping="Wrap"/>
+                    <controls:DataPreviewTable x:Name="PreviewTable"
+                                               IsVisible="{Binding HasDataFile}"/>
+                </StackPanel>
+            </controls:CollapsibleSection>
+
+            <!-- Arrival & service -->
+            <controls:CollapsibleSection Header="Arrival &amp; service"
+                                         SessionKey="parameters"
+                                         IsExpanded="{Binding ParametersSectionExpanded, Mode=TwoWay}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Parameter interpretation"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:SearchableDropdown Items="{Binding ModeOptionsList}"
+                                                 SelectedValue="{Binding Mode, Mode=TwoWay}"
+                                                 Watermark="Rate-wise (λ, μ per minute)"/>
+
+                    <controls:ValidatedField Label="{Binding ArrivalLabel}"
+                                             HasError="{Binding Arrival.HasError}"
+                                             ErrorMessage="{Binding Arrival.ErrorMessage}"
+                                             HelpAnchor="arrival-rate"
+                                             HelpTip="Average number of patients arriving per minute (or mean minutes between arrivals)">
+                        <TextBox x:Name="ArrivalBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding Arrival}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 0.5"
+                                 AcceptsReturn="False"/>
+                    </controls:ValidatedField>
+
+                    <controls:ValidatedField Label="Inter-arrival distribution family"
+                                             HasError="False"
+                                             HelpAnchor="inter-arrival-distribution"
+                                             HelpTip="Family fitted to the uploaded inter-arrival times">
+                        <controls:SearchableDropdown Items="{Binding DistributionOptions}"
+                                                     SelectedValue="{Binding InterArrivalDistribution, Mode=TwoWay}"
+                                                     Watermark="Exponential"/>
+                    </controls:ValidatedField>
+
+                    <controls:ValidatedField Label="Service distribution family"
+                                             HasError="False"
+                                             HelpAnchor="service-distribution"
+                                             HelpTip="Family fitted to the uploaded service-time columns">
+                        <controls:SearchableDropdown Items="{Binding DistributionOptions}"
+                                                     SelectedValue="{Binding ServiceDistribution, Mode=TwoWay}"
+                                                     Watermark="Exponential"/>
+                    </controls:ValidatedField>
+
+                    <TextBlock Text="Service parameters"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:ValidatedField Label="Reception μ"
+                                             HasError="{Binding ReceptionRate.HasError}"
+                                             ErrorMessage="{Binding ReceptionRate.ErrorMessage}"
+                                             HelpAnchor="service-rate"
+                                             HelpTip="Reception service rate per server (or mean minutes)">
+                        <TextBox x:Name="ReceptionRateBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding ReceptionRate}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 10"/>
+                    </controls:ValidatedField>
+                    <controls:ValidatedField Label="Screening μ"
+                                             HasError="{Binding ScreeningRate.HasError}"
+                                             ErrorMessage="{Binding ScreeningRate.ErrorMessage}"
+                                             HelpAnchor="service-rate">
+                        <TextBox x:Name="ScreeningRateBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding ScreeningRate}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 4"/>
+                    </controls:ValidatedField>
+                    <controls:ValidatedField Label="Doctor μ"
+                                             HasError="{Binding DoctorRate.HasError}"
+                                             ErrorMessage="{Binding DoctorRate.ErrorMessage}"
+                                             HelpAnchor="service-rate">
+                        <TextBox x:Name="DoctorRateBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding DoctorRate}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 1.6"/>
+                    </controls:ValidatedField>
+                </StackPanel>
+            </controls:CollapsibleSection>
+
+            <!-- Servers -->
+            <controls:CollapsibleSection Header="Servers per stage"
+                                         SessionKey="servers"
+                                         IsExpanded="{Binding ServersSectionExpanded, Mode=TwoWay}">
+                <StackPanel Spacing="10">
+                    <controls:ValidatedField Label="Reception servers"
+                                             HasError="{Binding ReceptionServers.HasError}"
+                                             ErrorMessage="{Binding ReceptionServers.ErrorMessage}"
+                                             HelpAnchor="servers"
+                                             HelpTip="How many receptionists process arrivals">
+                        <TextBox x:Name="ReceptionServersBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding ReceptionServers}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 1"/>
+                    </controls:ValidatedField>
+                    <controls:ValidatedField Label="Screening servers"
+                                             HasError="{Binding ScreeningServers.HasError}"
+                                             ErrorMessage="{Binding ScreeningServers.ErrorMessage}"
+                                             HelpAnchor="servers">
+                        <TextBox x:Name="ScreeningServersBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding ScreeningServers}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 2"/>
+                    </controls:ValidatedField>
+                    <controls:ValidatedField Label="Doctor servers"
+                                             HasError="{Binding DoctorServers.HasError}"
+                                             ErrorMessage="{Binding DoctorServers.ErrorMessage}"
+                                             HelpAnchor="servers">
+                        <TextBox x:Name="DoctorServersBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding DoctorServers}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 3"/>
+                    </controls:ValidatedField>
+                </StackPanel>
+            </controls:CollapsibleSection>
+
+            <!-- Horizon -->
+            <controls:CollapsibleSection Header="Time horizon"
+                                         SessionKey="horizon"
+                                         IsExpanded="{Binding HorizonSectionExpanded, Mode=TwoWay}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Horizon interpretation"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:SearchableDropdown Items="{Binding HorizonOptionsList}"
+                                                 SelectedValue="{Binding HorizonMode, Mode=TwoWay}"
+                                                 Watermark="Days"/>
+
+                    <controls:ValidatedField Label="{Binding HorizonLabel}"
+                                             HasError="{Binding Horizon.HasError}"
+                                             ErrorMessage="{Binding Horizon.ErrorMessage}"
+                                             HelpAnchor="horizon"
+                                             HelpTip="How long to simulate (clinic days or a minute window)">
+                        <TextBox x:Name="HorizonBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding Horizon}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 3"/>
+                    </controls:ValidatedField>
+
+                    <controls:ValidatedField Label="Start day of week"
+                                             HasError="False"
+                                             IsVisible="{Binding IsDaysMode}"
+                                             HelpAnchor="horizon">
+                        <controls:SearchableDropdown Items="{Binding DayOptionsList}"
+                                                     SelectedValue="{Binding StartDay, Mode=TwoWay}"
+                                                     Watermark="Monday"
+                                                     IsVisible="{Binding IsDaysMode}"/>
+                    </controls:ValidatedField>
+
+                    <controls:ValidatedField Label="Daily admissions cap (optional)"
+                                             HasError="{Binding DailyCap.HasError}"
+                                             ErrorMessage="{Binding DailyCap.ErrorMessage}"
+                                             IsVisible="{Binding IsDaysMode}"
+                                             HelpAnchor="horizon"
+                                             HelpTip="Maximum patients admitted per clinic day; empty = unlimited">
+                        <TextBox x:Name="DailyCapBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding DailyCap}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="empty = unlimited"/>
+                    </controls:ValidatedField>
+                </StackPanel>
+            </controls:CollapsibleSection>
+
+            <!-- Advanced -->
+            <controls:CollapsibleSection Header="Advanced"
+                                         SessionKey="advanced"
+                                         IsExpanded="{Binding AdvancedSectionExpanded, Mode=TwoWay}">
+                <StackPanel Spacing="10">
+                    <controls:ValidatedField Label="Random seed"
+                                             HasError="{Binding Seed.HasError}"
+                                             ErrorMessage="{Binding Seed.ErrorMessage}"
+                                             HelpAnchor="seed"
+                                             HelpTip="Fixes the random stream so runs are reproducible">
+                        <TextBox x:Name="SeedBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding Seed}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="e.g., 42"/>
+                    </controls:ValidatedField>
+                    <controls:ValidatedField Label="Exit probability after Screening (optional)"
+                                             HasError="{Binding PExitOverride.HasError}"
+                                             ErrorMessage="{Binding PExitOverride.ErrorMessage}"
+                                             HelpAnchor="p-exit"
+                                             HelpTip="Probability a patient leaves after Screening; empty = fitted from data">
+                        <TextBox x:Name="PExitBox"
+                                 x:DataType="vm:ConfigFieldViewModel"
+                                 DataContext="{Binding PExitOverride}"
+                                 Text="{Binding Value, Mode=TwoWay}"
+                                 Watermark="0.0 – 1.0"/>
+                    </controls:ValidatedField>
+                    <TextBlock Text="Trace detail"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:SearchableDropdown Items="{Binding TraceLevelOptionsList}"
+                                                 SelectedValue="{Binding TraceLevel, Mode=TwoWay}"
+                                                 Watermark="State"/>
+                </StackPanel>
+            </controls:CollapsibleSection>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

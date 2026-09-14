@@ -31,4 +31,10 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\USER_MANUAL.md"
+                      LogicalName="OpdSimulator.App.Assets.UserManual.md"
+                      Link="Assets\UserManual.md" />
+  </ItemGroup>
+
 </Project>
