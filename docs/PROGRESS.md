@@ -2,6 +2,45 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M4 sub-tasks A–D: trace feature, golden regression, stdout purity — 2026-09-14 (feat/milestone-4-event-trace)
+
+M4 kicked off from `main` @51d6d92 (156 green). Branch pushed; then:
+
+- **A — Trace abstraction** (`src/OpdSimulator.Core/Trace/`, 9 files): `TraceLevel`,
+  `TraceEventType`, `TraceEvent`, `ITraceSink`, `TraceFormatter`, `TraceClock`,
+  `TraceRandomSource`, `TextWriterTraceSink`, `NullTraceSink`. Level filtering lives
+  only in `TraceFormatter` (engine is level-blind and emits the identical event
+  stream at every level); invariant culture + floor-truncated seconds keep output
+  byte-stable. (D-055, D-056)
+- **B — Engine instrumentation**: `_random` is now `TraceRandomSource` always
+  (D-057); per-run `_traceSink`; emission at arrival/start/end/route/exit plus RNG
+  rows (seed, inter-arrival, service, routing, server-pick-if-drawn); optional
+  `maxCompletedPatients` early break; `EngineConfig.TraceSink`. Committed `f6b95e7`;
+  **M1 regression green, full suite 156 green** — the sink is provably passive.
+- **C — `trace` CLI command** (`TraceCommand.cs` + `Program.cs` registration):
+  `--lambda --mu --servers --stages --p-exit --patients --seed --level --output
+  --real-start`; exit 0/1/2. Live smoke verified: 5 ARRIVE / 5 START / 5 END / 5
+  EXIT at state level; RNG level shows `draw#k U=…` rows; events level drops
+  state columns and RNG rows. **stdout-purity fix**: "CLI run requested" demoted
+  `Log.Information` → `Log.Debug`, engine is given the file-only logger — trace
+  stdout now carries only trace lines (D-059).
+- **D — Golden regression**: fixture `tests/OpdSimulator.Core.Tests/Fixtures/
+  trace-5-patients.txt` frozen from λ=3 μ=4 c=1 seed 42 and **hand-verified
+  draw-by-draw** against the reference `System.Random(42)` sequence (U values
+  0.6681→0.101, 0.1409→0.653, 0.1255→0.519, 0.5228→0.216, 0.1684→0.594,
+  0.2626→0.334, 0.7244→0.108, 0.5129→0.167, 0.1737→0.584, 0.7613→0.068).
+  `TraceRegressionTests` (6 facts): golden byte-lock (CRLF-normalised), tamper
+  detection, 5×5 event census, level-filter contract, draw-by-draw RNG parity,
+  exit-count = served, trace-wait = metric (9 dp), and sink-passivity. Committed
+  `94a2d8e`, pushed.
+- **Full suite: 163 green (83 Core + 58 Data + 22 Cli), 0 warnings.**
+- Docs: TODO rows updated (5-patient hand trace → [x], M4 trace row → [~] with
+  remaining list); DECISIONS D-055..D-059 logged.
+- Remaining for M4: docs pass (DEV_LAUNCH §6/§7 trace + changelog, USER_MANUAL
+  trace section, REQUIREMENTS FR-VAL-4 refresh + coverage recompute, VIVA_ANSWERS
+  trace Q&As), a CLI trace test, and final M4 acceptance (≥171-target noted in
+  kickoff; now 163 — the M4 CLI trace tests close the gap).
+
 ## Resume — 2026-09-14 05:20 — reconciled: 6 findings
 
 Findings (all non-blocking, fixed during M4):

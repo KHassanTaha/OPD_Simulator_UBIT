@@ -548,3 +548,129 @@ impact (positive and negative), alternatives considered.
 - **Implementation details:** Wording in DEV_LAUNCH, DECISIONS, PROGRESS, TODO and VIVA_ANSWERS tightened from "byte-for-byte" to "metric-identical"/"numerically identical"; the Core regression test renamed `Run_SingleStage_ByteForByteRegression` → `Run_M1Regression_SingleStage_GoldenValues` and the CLI test → `SimulateParams_Regression_M1GoldenValues`; both assert numbers, never string formats.
 - **Impact:** (+) Honest contract — metrics stable, text free to improve; (−) the earlier "byte-for-byte" phrasing in committed docs is now out of date (corrected by this entry).
 - **Alternatives considered:** Restore the old single-stage output exactly — rejected: canonical casing and the unified log line are improvements, and what the M2 demo depends on is the metrics, not the formatting.
+
+## D-055 The M4 viva trace is a first-class sink feature, not a Serilog side-effect
+
+- **Date:** 2026-09-14
+- **Decision:** Milestone 4 lands a new public feature: a deterministic, ordered
+  event trace (`OpdSimulator.Core.Trace` namespace) that the engine emits through
+  an `ITraceSink` per run, surfaced to the user by the new `trace` CLI command.
+  The trace is a compact flat-file story ("T=… wall  TYPE  P#  location  q=…")
+  that a patient-level simulation produces — distinct from the existing Serilog
+  channel, which logs with free text and structure for debugging (FR-VAL-4).
+- **Rationale:** The viva needs a human-readable walk-through that is independent
+  of log-file volumes (Debug events at 29892 patients are unreadable as a story).
+  A dedicated event stream also gives a byte-stable artefact that can be locked by
+  regression tests, which free-form Serilog output never can be.
+- **Implementation details:** Nine new files under `src/OpdSimulator.Core/Trace/`
+  (`TraceLevel`, `TraceEventType`, `TraceEvent`, `ITraceSink`, `TraceFormatter`,
+  `TraceClock`, `TraceRandomSource`, `TextWriterTraceSink`, `NullTraceSink`).
+  The engine emits a `TraceEvent` per occurrence only when a sink is attached.
+  The CLI command `dotnet run --project src/OpdSimulator.Cli -- trace …` renders
+  levels `events|state|rng`, writes to stdout or `--output`, and reports served
+  counts. Level filtering lives in `TraceFormatter`, never in the engine.
+- **Impact:** (+) Strong viva evidence and a testable contract; (+) a seam for the
+  M5 GUI event log reuse; (−) two "log" concepts in the codebase (Serilog + trace)
+  that must be kept clearly separate — the former is free-form diagnostics, the
+  latter is the deterministic record of simulation events.
+- **Alternatives considered:** (a) Emit the trace only from the CLI by re-running
+  events — rejected: the engine is the only trustworthy source of event ordering;
+  (b) extend Serilog with a compact template — rejected: Serilog output is not a
+  stable machine-readable contract and formatting is on the critical path.
+
+## D-056 TraceEvent schema: five patient rows + one RNG row, with queue semantics fixed column-by-column
+
+- **Date:** 2026-09-14
+- **Decision:** `TraceEvent` is a record with `Time, Type, PatientId, StageName,
+  ServerId, QueueLength, Details`. Types: `Arrival|StartService|EndService|Route|
+  Exit|Rng`. The `q=` column semantics are documented per row type:
+  Arrival = stage queue length + 1 (the arriving patient is present); StartService =
+  queue after any dequeue; EndService = queue before the freed server pulls the
+  next patient; Route = destination queue after placement; Exit = null (`q=-`).
+  Server ids are zero-based (`s0`) to match `Server.Id`; wall clock is anchored at
+  the arrival-window start (08:15) with seconds truncated (floor), never rounded.
+- **Rationale:** Each window must tell exactly one defensible number. A byte-stable
+  golden file requires deterministic formatting — invariant culture everywhere and
+  floor-truncated seconds so 0.999 of a minute cannot flip the seconds column.
+  Zero-based server ids avoid a 1-off explanation during the viva.
+- **Implementation details:** `TraceFormatter` uses `CultureInfo.InvariantCulture`
+  for all numbers; `TraceClock.Format` floors wall minutes and truncates the
+  fractional-minute seconds term. The engine owns the q values (it builds each
+  event knowing the live queue), so the numbers cannot drift from the metrics.
+- **Impact:** (+) A human can recompute every row by hand from the RNG line;
+  (+) byte-stable across OS/locale for the golden test; (−) the q= semantics must
+  be explained once in the viva (documented in `TraceEvent` XML remarks).
+- **Alternatives considered:** Report Arrival as queue-before (excluding the new
+  patient) — rejected: the patient is already present at the stage, so "+1" matches
+  the state the metric counters see at that instant.
+
+## D-057 TraceRandomSource is a passive wrapper: the trace observes, never changes the RNG stream
+
+- **Date:** 2026-09-14
+- **Decision:** The engine always runs its RNG through `TraceRandomSource`, which
+  counts draws and remembers the last uniform deviate, forwarding `NextDouble` and
+  `SetSeed` unchanged. The engine reads `DrawCount`/`LastDraw` right after each
+  draw to emit an `Rng` row. Attaching a sink must change no metric; a regression
+  test (`AttachingTraceSink_DoesNotChangeResults`) locks this.
+- **Rationale:** A trace that re-randomised the run would be corrupt — the numbers
+  in the story would never again match the metrics. Because the wrapper forwards
+  draws verbatim, seed-42 reproduces the Milestone-1 golden values (served 29892,
+  wait 0.724, ρ 0.75) with a sink attached or not.
+- **Implementation details:** `SetSeed` also resets the draw counter and last draw,
+  so each `Run` starts echoing from draw #1. Server selection consumes a draw only
+  when more than one server is idle (D-050), so Rng rows appear only for actual
+  draws; the `EmitRngDrawIfDrawn` helper emits nothing when no draw occurred.
+- **Impact:** (+) Trace fidelity is test-locked; (+) the M1 regression guarantee is
+  preserved by construction, not by luck; (−) one more indirection on the RNG hot
+  path (a single counter increment — negligible).
+- **Alternatives considered:** Pass the wrapper only at `--level rng` — rejected:
+  the event stream must be identical at every level (level only filters rendering),
+  so the wrapper is always present.
+
+## D-058 The trace and the statistics are cross-checked by test: they must tell the same story
+
+- **Date:** 2026-09-14
+- **Decision:** Regression tests prove the trace is faithful to the engine's own
+  bookkeeping: the number of `Exit` rows equals `TotalPatientsServed`, and the
+  per-patient average wait recomputed from trace rows (start − arrival per patient
+  id) equals `AverageWaitMinutes` to 9 decimal places. The golden file
+  (`tests/OpdSimulator.Core.Tests/Fixtures/trace-5-patients.txt`) is the frozen,
+  hand-verified 5-patient walk-through.
+- **Rationale:** A trace that contradicted the metrics table would embarrass the
+  viva ("your own two outputs disagree"). This cross-check turns that impossibility
+  into a test, and the golden file turns "the story" itself into a regression
+  target so any future engine change that alters a patient's journey fails.
+- **Implementation details:** `TraceRegressionTests` renders fresh runs against the
+  fixture with byte equality (CRLF normalised), asserts the tamper-detection works
+  (`GoldenLock_DetectsTamperedFixture`), and locks draw-by-draw parity with the
+  reference `System.Random(42)` sequence (`RngRows_TrackTheReferenceRandomSequence`).
+  Six new Core tests → 163 total.
+- **Impact:** (+) The viva's central artefact is guarded by CI; (+) any RNG change
+  (D-050-style) now ripples visibly instead of silently degrading the story;
+  (−) the fixture must be regenerated and hand-re-verified if the draw sequence or
+  a formatting rule intentionally changes.
+- **Alternatives considered:** Auto-update the golden file on mismatch — rejected:
+  an automated overwrite would let drift in silently ("no auto-overwrite" rule).
+
+## D-059 The `trace` command writes with a file-only logger so stdout is pure trace lines
+
+- **Date:** 2026-09-14
+- **Decision:** The CLI's `trace` command constructs the engine with the parsed
+  `fileLogger` (the `--file-only` Serilog logger with Debug-minimum sinks but NO
+  console sink), and "CLI run requested" was demoted from `Log.Information` to
+  `Log.Debug` so the demo-response console sink (Information-minimum) stays quiet.
+  Trace lines are the only content on stdout; diagnostics still go to file logs.
+- **Rationale:** A trace piped into `grep`/a file must contain only trace rows —
+  an INF prefix line ("CLI run requested") would corrupt downstream parsers and
+  look sloppy in the viva. The engine never writes Serilog narration to stdout
+  because it is given the file-only logger.
+- **Implementation details:** `TraceCommand.Run(rest, stdout, stderr, fileLogger)`;
+  the trace itself is rendered via `TextWriterTraceSink` bound to stdout or an
+  `--output` file. Exit codes: 0 success, 1 unstable-system refusal (single stderr
+  line), 2 usage or file-write error.
+- **Impact:** (+) Pipeline-friendly output; (+) engine noise isolated in file logs;
+  (−) the global "CLI run requested" line is now only in file logs (nothing lost —
+  everything is still logged, just at Debug).
+- **Alternatives considered:** Route stdout through the Serilog console sink and
+  filter — rejected: sinks filter by level, not content; a dedicated writer is the
+  only clean way to guarantee byte-pure trace output.
