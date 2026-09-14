@@ -2,6 +2,83 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-14 05:55
+Branch: feat/milestone-4-event-trace
+Status: Clean (7 commits pushed; awaiting owner review/merge of the branch)
+
+Done
+M4 sub-tasks A–D — trace abstraction, engine instrumentation, `trace` CLI, golden regression (f6b95e7, 94a2d8e)
+M4 docs pass — DEV_LAUNCH §6+§7.6, USER_MANUAL §7.6, REQUIREMENTS FR-VAL-4 + coverage 63.0%, VIVA_ANSWERS +5, DECISIONS D-055..D-059, TODO, PROGRESS (2b6c730)
+CLI trace tests end-to-end — golden stdout, levels, refusal, --output, usage (e40e1e3)
+stdout purity — "CLI run requested" → Debug; trace stdout carries only trace lines
+Golden fixture byte-identical to CLI stdout (trailing-newline commit a94ec7c)
+Dead-state verification — full bin/obj wipe → restore → Release build 0 errors → 176 green → documented commands re-run
+
+In Progress
+None
+
+What is complete: Milestone 4 (event trace) is implemented, tested and documented:
+`trace` CLI emits a deterministic ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT story (+ draw rows
+at --level rng) whose 5-patient golden trace was hand-verified draw-by-draw against the
+reference Random(42) sequence; regression tests lock byte identity, RNG parity, level
+filtering, stats agreement and sink passivity; engine stays level-blind and metric-neutral.
+176 tests (83+58+35), 0 warnings, dead-state verified on Ubuntu 24.04. M1 golden values
+re-verified live (served 29892, wait 0.724, ρ 0.75).
+
+What remains: owner review + merge of the branch into main (AGENTS §11.5 item 6). No
+open M4 work items.
+
+Next Session Should Start With
+Owner: review/merge feat/milestone-4-event-trace into main.
+Then M5 GUI (Avalonia; B-005 remains an open owner/OS blocker; M5_UI_SPEC.md to be
+written at kickoff). M2 sweep / FR-STAT-5 analytical validation remains a future M5/M7 item.
+
+Blocked
+None new (B-001..003, B-005, B-006 remain open owner/OS blockers, unrelated to M4).
+
+Git State
+Commits made this session: 3705830 (docs resume), f6b95e7 (trace abstraction + engine),
+94a2d8e (trace CLI + golden tests), e84d50d (docs D-055..D-059), e40e1e3 (CLI trace tests),
+2b6c730 (docs pass), a94ec7c (fixture newline).
+Pushed to origin: Yes (feat/milestone-4-event-trace).
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings)
+dotnet test: PASS — 176 passed, 0 failed (83 Core + 58 Data + 35 Cli), from dead state
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Trace/: added 9 files (TraceLevel, TraceEventType, TraceEvent,
+ITraceSink, TraceFormatter, TraceClock, TraceRandomSource, TextWriterTraceSink, NullTraceSink)
+src/OpdSimulator.Core/Engine/: Engine.cs, EngineConfig.cs modified (trace emission, maxCompletedPatients)
+src/OpdSimulator.Cli/Commands/TraceCommand.cs: added
+src/OpdSimulator.Cli/Program.cs: modified (trace dispatch + usage; CLI-run line at Debug)
+tests/OpdSimulator.Core.Tests/: TraceRegressionTests.cs added; Fixtures/trace-5-patients.txt added;
+csproj fixture-copy rule
+tests/OpdSimulator.Cli.Tests/: CliTraceTests.cs added; csproj links the golden fixture
+docs/: DEV_LAUNCH, USER_MANUAL, REQUIREMENTS, DECISIONS (D-055..D-059), TODO, PROGRESS; VIVA_ANSWERS.md (+5)
+
+Decisions Made
+D-055 — trace as a first-class sink feature (DECISIONS.md)
+D-056 — TraceEvent schema + fixed q= semantics
+D-057 — passive TraceRandomSource wrapper
+D-058 — trace/stats cross-check + golden lock + maxCompletedPatients early break
+D-059 — file-only logger for pure trace stdout
+
+Assumptions Added/Changed
+None new this session.
+
+Notes for Next Session
+Branch is ready for owner review/PR to main; do NOT merge yourself.
+The golden fixture is hand-verified and byte-locked; regenerate + hand-verify again
+(e.g. after any RNG change, D-050-style) — do not auto-update it.
+DEV_LAUNCH §7.6 documents the verified trace command; §6 now quotes 176 tests.
+The `dotnet test --project` MSBuild response-file quirk (MSB1001) appears on this box;
+run `dotnet test` from the project dir instead.
+
 ## M4 sub-task H: docs pass — DEV_LAUNCH/USER_MANUAL/REQUIREMENTS/VIVA_ANSWERS + TODO cleanup — 2026-09-14 (feat/milestone-4-event-trace)
 
 - **DEV_LAUNCH** §6 test count 97→176 with the M4 test breakdown; new §7.6
