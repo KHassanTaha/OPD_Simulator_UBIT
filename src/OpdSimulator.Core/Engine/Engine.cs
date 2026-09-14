@@ -1,11 +1,13 @@
 namespace OpdSimulator.Core.Engine;
 
+using System.Globalization;
 using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Events;
 using OpdSimulator.Core.Patients;
 using OpdSimulator.Core.Servers;
 using OpdSimulator.Core.Stages;
+using OpdSimulator.Core.Trace;
 using Serilog;
 
 /// <summary>
@@ -44,11 +46,12 @@ using Serilog;
 public sealed class Engine
 {
     private readonly EngineConfig? _config;
-    private readonly IRandomSource _random;
+    private readonly TraceRandomSource _random;
     private readonly ExponentialSampler _interarrivalSampler;
     private readonly ExponentialSampler _serviceSampler;
     private readonly IServerSelectionPolicy _serverSelection;
     private readonly ILogger _log;
+    private ITraceSink? _traceSink;
 
     /// <summary>
     /// Creates an engine for a network run (no single-stage <see cref="EngineConfig"/>).
@@ -59,12 +62,18 @@ public sealed class Engine
     /// <see cref="RandomIdleSelection"/> (D-017).</param>
     public Engine(IRandomSource random, ILogger log, IServerSelectionPolicy? serverSelection = null)
     {
-        _random = random ?? throw new ArgumentNullException(nameof(random));
+        if (random is null)
+            throw new ArgumentNullException(nameof(random));
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _serverSelection = serverSelection ?? new RandomIdleSelection();
 
-        _interarrivalSampler = new ExponentialSampler(random);
-        _serviceSampler = new ExponentialSampler(random);
+        // Every run draws through the transparent TraceRandomSource wrapper
+        // (D-057): it forwards every draw unchanged and merely counts them, so
+        // the engine can report what the RNG supplied without altering the
+        // draw sequence that the Milestone-1 regression is pinned to.
+        _random = new TraceRandomSource(random);
+        _interarrivalSampler = new ExponentialSampler(_random);
+        _serviceSampler = new ExponentialSampler(_random);
     }
 
     /// <summary>
@@ -103,7 +112,7 @@ public sealed class Engine
         var topology = NetworkTopology.CreateSingleStage(
             _config.ArrivalRate, _config.ServiceRate, _config.ServerCount, _config.StageName);
 
-        return Run(topology, _config.Seed, _config.HorizonMinutes);
+        return Run(topology, _config.Seed, _config.HorizonMinutes, _config.TraceSink);
     }
 
     /// <summary>
@@ -113,18 +122,27 @@ public sealed class Engine
     /// <param name="topology">The ordered stage configuration to simulate.</param>
     /// <param name="seed">Random seed for reproducibility (FR-VAL-3, default 42).</param>
     /// <param name="horizonMinutes">Length of the arrival-generation window in minutes (arrivals stop beyond it).</param>
+    /// <param name="traceSink">Optional sink that receives the human-readable
+    /// event trace (<see cref="ITraceSink"/>); null disables tracing.</param>
+    /// <param name="maxCompletedPatients">Optional early stop: the run ends once
+    /// this many patients have fully exited the system (used by the <c>trace</c>
+    /// CLI to cap a trace at a fixed number of completions).</param>
     /// <returns>The collected statistics of the run.</returns>
     /// <exception cref="ArgumentNullException">If <paramref name="topology"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">If the horizon is not strictly positive.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">If the horizon is not strictly positive or
+    /// <paramref name="maxCompletedPatients"/> is less than 1.</exception>
     /// <exception cref="UnstableSystemException">If any stage has ρ ≥ 1 (FR-VAL-1).</exception>
-    public SimulationResult Run(NetworkTopology topology, int seed = SeededRandomSource.DefaultSeed, double horizonMinutes = 10000)
+    public SimulationResult Run(NetworkTopology topology, int seed = SeededRandomSource.DefaultSeed, double horizonMinutes = 10000,
+        ITraceSink? traceSink = null, int? maxCompletedPatients = null)
     {
         if (topology is null)
             throw new ArgumentNullException(nameof(topology));
         if (horizonMinutes <= 0)
             throw new ArgumentOutOfRangeException(nameof(horizonMinutes), horizonMinutes, "Horizon must be strictly positive.");
+        if (maxCompletedPatients is < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxCompletedPatients), maxCompletedPatients, "The completion cap must be at least 1.");
 
-        return RunCore(topology, seed, horizonMinutes, null, generatorDays: 0, dailyCap: null);
+        return RunCore(topology, seed, horizonMinutes, null, generatorDays: 0, dailyCap: null, traceSink, maxCompletedPatients);
     }
 
     /// <summary>
@@ -169,7 +187,9 @@ public sealed class Engine
         if (dailyCap is < 1)
             throw new ArgumentOutOfRangeException(nameof(dailyCap), dailyCap, "The daily cap must be at least 1.");
 
-        return RunCore(topology, seed, horizonMinutes: 0, calendar, generatorDays, dailyCap);
+        // The calendar run has no trace output: the trace feature targets the
+        // plain horizon run so its file is a single continuous story.
+        return RunCore(topology, seed, horizonMinutes: 0, calendar, generatorDays, dailyCap, traceSink: null, maxCompletedPatients: null);
     }
 
     private SimulationResult RunCore(
@@ -178,7 +198,9 @@ public sealed class Engine
         double horizonMinutes,
         ClinicCalendar? calendar,
         int generatorDays,
-        int? dailyCap)
+        int? dailyCap,
+        ITraceSink? traceSink,
+        int? maxCompletedPatients)
     {
         // Stability check first: refuses with every unstable stage listed
         // (FR-VAL-1). The RNG is seeded only after the check, so a refusal
@@ -187,7 +209,12 @@ public sealed class Engine
 
         var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap);
 
+        // Per-run trace target; null means no tracing for this run. Seeding the
+        // wrapper resets its draw counter, so draw numbers always start at #1.
+        _traceSink = traceSink;
         _random.SetSeed(seed);
+        if (_traceSink is not null)
+            EmitTrace(TraceEventType.Rng, 0, patientId: null, stageName: null, serverId: null, queueLength: null, details: $"seed={seed}");
         if (calendar is null)
         {
             _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} horizon={Horizon} ρs=[{Rhos}]",
@@ -267,6 +294,12 @@ public sealed class Engine
                     // schedule; anything else indicates an internal bug.
                     throw new InvalidOperationException($"Event type {evt.Type} is not supported by the engine.");
             }
+
+            // Optional early stop (trace runs): once the requested number of
+            // patients have fully left the system, stop exactly at the next
+            // event boundary so the partial metric state stays consistent.
+            if (maxCompletedPatients is { } cap && completed >= cap)
+                break;
         }
 
         // Operating time = time from first arrival (t=0) to last service end
@@ -341,9 +374,15 @@ public sealed class Engine
         {
             var patient = new Patient(evt.PatientId, clock, stageIndex: 0);
 
+            // Arrival row: the arriving patient is present in the stage whether
+            // they are queued or served at once, so q = queue + 1.
+            EmitTrace(TraceEventType.Arrival, clock, patient.Id, stage.Name, serverId: null, stage.Queue.Count + 1, details: null);
+
             if (stage.HasIdleServer)
             {
+                int drawsBefore = _random.DrawCount;
                 var server = _serverSelection.SelectIdleServer(stage.Servers, _random);
+                EmitRngDrawIfDrawn(clock, drawsBefore, $"select idle server at {stage.Name} → server {server.Id}");
                 StartService(patient, server, stage, clock, fel, inService, patientServer, stageWaitMinutes);
             }
             else
@@ -365,6 +404,8 @@ public sealed class Engine
         double nextArrivalTime = clock + interArrival;
         _log.Debug("    -> inter-arrival draw={Draw:0.####} min, next arrival t={Time:0.###}",
             interArrival, nextArrivalTime);
+        EmitRngDraw(clock, FormattableString.Invariant(
+            $"inter-arrival {interArrival:0.000} min (next arrival at t={nextArrivalTime:0.000})"));
 
         double stopTime = gate is not null ? gate.StopTime : horizonMinutes;
         if (nextArrivalTime < stopTime)
@@ -391,7 +432,13 @@ public sealed class Engine
 
         stageWaitMinutes[patient.StageIndex] += clock - patient.ArrivalTime; // wait = start - stage arrival
 
+        // Start row: q is the stage queue after any dequeue (the caller already
+        // dequeued the patient that starts here), i.e. how many are left behind.
+        EmitTrace(TraceEventType.StartService, clock, patient.Id, stage.Name, server.Id, stage.Queue.Count, details: null);
+
         double serviceTime = _serviceSampler.Sample(stage.ServiceRate);
+        EmitRngDraw(clock, FormattableString.Invariant(
+            $"service time {serviceTime:0.000} min at {stage.Name} s{server.Id} (end at t={clock + serviceTime:0.000})"));
         _log.Debug("    -> service start server={ServerId}, service-time draw={Draw:0.####} min, end t={Time:0.###}",
             server.Id, serviceTime, clock + serviceTime);
 
@@ -419,21 +466,30 @@ public sealed class Engine
         inService.Remove(evt.PatientId);
         patientServer.Remove(evt.PatientId);
 
-        // Does the finished patient continue to the next stage or leave?
+        // End row before the routing decision: q is the queue the freed server
+        // is about to draw from, and the destination says what happens next.
         int nextIndex = patient.StageIndex + 1;
         bool exits = nextIndex >= stages.Length;
+        EmitTrace(TraceEventType.EndService, clock, patient.Id, stage.Name, serverId: null,
+            stage.Queue.Count, exits ? "→ exit" : $"→ {stages[nextIndex].Name}");
+
         if (!exits && patient.StageIndex == topology.ExitStageIndex)
         {
             // Probabilistic exit after the exit stage (FR-SIM-3): draw U against p_exit.
             double u = _random.NextDouble();
+            bool leaves = u < topology.ExitProbability;
+            EmitRngDraw(clock, FormattableString.Invariant(
+                $"routing draw U={u:0.####} vs p_exit={topology.ExitProbability:0.####} → {(leaves ? "exit" : "continue to " + stages[nextIndex].Name)}"));
             _log.Debug("    -> routing draw={Draw:0.####} p_exit={PExit:0.####}", u, topology.ExitProbability);
-            exits = u < topology.ExitProbability;
+            exits = leaves;
         }
 
         if (exits)
         {
             totalSystemMinutes += clock - patient.SystemArrivalTime;
             completed++;
+            // Exit row: the patient has left the system, so no stage queue applies.
+            EmitTrace(TraceEventType.Exit, clock, patient.Id, stageName: null, serverId: null, queueLength: null, details: null);
             _log.Debug("    -> patient done at stage='{Stage}', served={Served}", stage.Name, completed);
         }
         else
@@ -464,15 +520,23 @@ public sealed class Engine
         patient.AdvanceToStage(nextStageIndex, clock);
         _log.Debug("    -> routed patient={PatientId} to stage='{Stage}'", patient.Id, nextStage.Name);
 
+        int queueAfter;
         if (nextStage.HasIdleServer)
         {
+            int drawsBefore = _random.DrawCount;
             var server = _serverSelection.SelectIdleServer(nextStage.Servers, _random);
+            EmitRngDrawIfDrawn(clock, drawsBefore, $"select idle server at {nextStage.Name} → server {server.Id}");
             StartService(patient, server, nextStage, clock, fel, inService, patientServer, stageWaitMinutes);
+            queueAfter = nextStage.Queue.Count;
         }
         else
         {
             nextStage.Queue.Enqueue(patient);
+            queueAfter = nextStage.Queue.Count;
         }
+
+        // Route row: q is the destination queue length after the patient was placed.
+        EmitTrace(TraceEventType.Route, clock, patient.Id, nextStage.Name, serverId: null, queueAfter, details: null);
     }
 
     private static EventType EndEventTypeForStage(int stageIndex)
@@ -483,6 +547,38 @@ public sealed class Engine
 
     private static string ServerStateString(IEnumerable<Stage> stages)
         => string.Join("|", stages.Select(s => string.Join(",", s.Servers.Select(srv => srv.IsBusy ? "busy" : "idle"))));
+
+    /// <summary>
+    /// Appends one row to the per-run trace, if a sink is configured.
+    /// </summary>
+    private void EmitTrace(TraceEventType type, double time, int? patientId, string? stageName, int? serverId, int? queueLength, string? details)
+        => _traceSink?.Write(new TraceEvent(time, type, patientId, stageName, serverId, queueLength, details));
+
+    /// <summary>
+    /// Appends an RNG row naming the uniform deviate just drawn and what the
+    /// engine did with it. Called immediately after the draw, so
+    /// <see cref="TraceRandomSource.LastDraw"/>/<see cref="TraceRandomSource.DrawCount"/>
+    /// still describe exactly that draw.
+    /// </summary>
+    /// <param name="clock">Simulation time of the draw.</param>
+    /// <param name="description">What the draw produced, e.g. <c>inter-arrival 0.369 min</c>.</param>
+    private void EmitRngDraw(double clock, string description)
+        => EmitTrace(TraceEventType.Rng, clock, patientId: null, stageName: null, serverId: null, queueLength: null,
+            $"draw#{_random.DrawCount} U={_random.LastDraw.ToString("0.####", CultureInfo.InvariantCulture)} → {description}");
+
+    /// <summary>
+    /// Appends an RNG row only when a draw was actually consumed, since the
+    /// server-selection policy draws just once when several servers are idle and
+    /// not at all for the single-idle case (D-017).
+    /// </summary>
+    /// <param name="clock">Simulation time of the draw.</param>
+    /// <param name="drawsBefore">The wrapper's draw counter before the selection call.</param>
+    /// <param name="description">What the draw produced, e.g. <c>select idle server at Reception → server 1</c>.</param>
+    private void EmitRngDrawIfDrawn(double clock, int drawsBefore, string description)
+    {
+        if (_traceSink is not null && _random.DrawCount > drawsBefore)
+            EmitRngDraw(clock, description);
+    }
 
     /// <summary>
     /// Per-run bookkeeping for a calendar-aware simulation (see
