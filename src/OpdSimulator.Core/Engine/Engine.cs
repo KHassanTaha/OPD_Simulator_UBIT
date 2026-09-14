@@ -37,7 +37,8 @@ using Serilog;
 /// probability <c>p_exit</c>, records the patient as done (FR-SIM-3). Idle
 /// servers are picked <see cref="RandomIdleSelection">at random</see> (D-017).
 /// The legacy single-stage <see cref="Run()"/> is exactly a one-stage topology,
-/// so Milestone-1 output stays byte-for-byte reproducible.
+/// so Milestone-1 metrics stay numerically identical (output text excluded —
+/// D-054).
 /// </para>
 /// </remarks>
 public sealed class Engine
@@ -86,8 +87,8 @@ public sealed class Engine
     /// Delegates to <see cref="Run(NetworkTopology, int, double)"/> with a
     /// one-stage topology built from the configuration. The event sequence and
     /// arithmetic are identical to the original Milestone-1 loop, so the known
-    /// regression (seed 42: served = 29892, wait = 0.724) is a byte-for-byte
-    /// guard on this path.
+    /// regression (seed 42: served = 29892, wait = 0.724) is a metric-level
+    /// guard on this path (output text excluded — D-054).
     /// </remarks>
     /// <returns>The collected statistics of the run.</returns>
     public SimulationResult Run()

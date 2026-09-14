@@ -238,7 +238,7 @@ dotnet run --project src/OpdSimulator.Cli -- simulate-data --file samples/sample
 `screening`); ρ/avg-wait = 0.82/6.058 min (c=1), 0.41/0.315 min (c=2), 0.27/0.030 min
 (c=3). The c=2/c=3 waits were refreshed on 2026-09-13 after D-050 changed server assignment
 to random-among-idle (Milestone-1's lowest-ID bias only affected c>1 runs; the c=1 path is
-byte-for-byte, 6.058 min unchanged). `fit` accepts the exponential for both quantities
+metric-identical, 6.058 min unchanged). `fit` accepts the exponential for both quantities
 (p = 0.103 inter-arrival, p = 0.258 service — the second-precision storage lets the
 chi-square no longer see the minute-rounded data as discrete). The mean inter-arrival is
 ~1.78 min vs the generator's 2.0 — sampling variation of the deterministic seed 42 (SE ≈ 0.26).

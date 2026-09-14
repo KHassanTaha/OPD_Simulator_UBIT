@@ -8,8 +8,8 @@ using OpdSimulator.Core.Distributions;
 /// <remarks>
 /// <para>
 /// When exactly one server is idle the deterministic pick avoids a wasted RNG
-/// draw, which keeps the single-server M/M/1 byte-for-byte regression stable
-/// (seed 42 produces served = 29892, wait = 0.724). When ≥2 are idle the next
+/// draw, which keeps the single-server M/M/1 regression numerically identical
+/// (seed 42 produces served = 29892, wait = 0.724; output text excluded — D-054). When ≥2 are idle the next
 /// <see cref="IRandomSource.NextDouble"/> is consumed to compute a uniform
 /// index in [0, idleCount).
 /// </para>
@@ -28,7 +28,7 @@ public sealed class RandomIdleSelection : IServerSelectionPolicy
             throw new InvalidOperationException("No idle server available to select.");
 
         // Deterministic pick for the common single-idle case — no RNG draw,
-        // so the single-server M1 regression stays byte-for-byte identical.
+        // so the single-server M1 regression stays numerically identical.
         if (idleCount == 1)
             return servers.First(s => !s.IsBusy);
 

@@ -2,6 +2,22 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-14 05:11 — reconciled: 6 findings
+
+### fix/metric-identical-wording — M3 post-merge wording pass — 2026-09-14
+Merge verification (against pre-merge tip `b5f6a7d`) proved the single-stage
+output is **metric**-identical, not byte-for-byte: stage-name casing is
+normalised to canonical form and the INF start line uses the network form
+(D-054). All "byte-for-byte"/"byte-by-byte" claims tightened to
+"metric-identical"/"numerically identical" across DEV_LAUNCH, DECISIONS
+(D-049/050/051/052), PROGRESS, TODO, VIVA_ANSWERS and the src XML/code
+comments; regression tests renamed to assert numbers, not strings:
+`Run_SingleStage_ByteForByteRegression` →
+`Run_M1Regression_SingleStage_GoldenValues`,
+`SimulateParams_Regression_ByteForByteKnownOutput` →
+`SimulateParams_Regression_M1GoldenValues`. D-054 logged. Output text is no
+longer claimed as a contract.
+
 ### Session Handoff — 2026-09-13 16:30
 Branch: feat/milestone-3-multi-stage-network
 Status: Clean
@@ -12,13 +28,13 @@ M3 sub-block B — engine-level per-stage refusal listing ALL unstable stages (B
 M3 sub-block C — ClinicCalendar + engine arrival gating (D-051)
 M3 sub-block E — stage-aware simulate-data (D-052)
 M3 sub-block F — simulate-network command + day-model flags + --verbose ρᵢ (D-053)
-M3 sub-block G — acceptance: 156 tests, 0 warnings; M1 byte-for-byte; refusals; day-repeatability; c=2/3 sweep refreshed
+M3 sub-block G — acceptance: 156 tests, 0 warnings; M1 numerically identical; refusals; day-repeatability; c=2/3 sweep refreshed
 M3 sub-block H — docs pass: DEV_LAUNCH, USER_MANUAL, REQUIREMENTS (63.0%), VIVA_ANSWERS +5 Q&As, dead-state verified
 
 In Progress
 None
 
-What is complete: M1–M3 end-to-end. Single-stage M1 byte-for-byte intact (served 29892,
+What is complete: M1–M3 end-to-end. Single-stage M1 metrics intact (served 29892,
 wait 0.724, ρ 0.75). M2 data layer intact. M3 network: stage-aware simulate-data,
 parameter-driven simulate-network with clinic calendar (--days/--start-day/--cap),
 per-stage ρᵢ + refusal listing every unstable stage, p_exit routing. 156 tests (76 Core +
@@ -94,14 +110,14 @@ DONE.**
 ### M3 sub-block G: acceptance pass — 2026-09-13 (feat/milestone-3-multi-stage-network)
 Every kickoff acceptance item verified, live where a live check exists:
 **≥128 tests / 0 warnings** → 156 tests (76 Core + 58 Data + 22 Cli), 0 warnings.
-**M1 byte-for-byte** → live `simulate-params --lambda 3 --mu 4 --servers 1 --horizon
+**M1 metrics numerically identical** → live `simulate-params --lambda 3 --mu 4 --servers 1 --horizon
 10000 --seed 42` prints served 29892, wait 0.724, ρ 0.75 (both EngineTests +
 CliSimulateParamsTests guard it). **simulate-network per-stage** → 3 metric blocks
 + network totals; `--verbose` pre-run ρᵢ (0.4/0.4/0.1). **Unstable refusal via
 CLI** → both commands exit 1 with one stderr line listing every unstable stage
 (live: Reception ρ = 6.06 + Screening ρ = 4.00). **simulate-data 3-stage** →
 fit λ0 + per-stage μᵢ + p_exit, 3 blocks, network totals. **Day-repeatability** →
-same-seed `--days` runs byte-identical stdout. **M2 sweep c=2/3 refreshed**
+same-seed `--days` runs reproduce identical stdout. **M2 sweep c=2/3 refreshed**
 → D-050 changed assignment to random-among-idle; c=1 path unchanged
 (6.058 min); `simulate-data samples/sample_patients.csv --servers 1,2,3 --seed
 42` now reports 0.82/6.058, 0.41/0.315, 0.27/0.030 — DEV_LAUNCH §7.4 updated
@@ -142,8 +158,9 @@ inter-arrival; per-stage μᵢ = 1/mean(service) over the stage's usable rows
 (refusal if a stage has none); p_exit via `PExitCalculator` with the exit stage
 bound to Screening **only when Doctor exists** (else all exit at the last stage
 and no p_exit — routing λ_doctor = λ₀·(1−p_exit) only applies with Doctor).
-Single-stage files keep the M2 `--servers 1,2,3` sweep byte-for-byte (the same
-`Fitted from data: λ = 0.2 … stage 'Screening').` line and PrintMetrics);
+Single-stage files keep the M2 `--servers 1,2,3` sweep numerically identical (the
+`Fitted from data` line and PrintMetrics metrics — output text is normalised to
+canonical stage names and the network log form, D-054);
 stage-aware files require exactly one `--servers` count per detected stage in
 flow order (mismatch = usage exit 2) and run one network. New
 `Program.PrintNetworkMetrics` emits a per-stage block (patients served, avg
@@ -166,7 +183,7 @@ block. Arrivals are ONE continuous Poisson stream that the engine gates at fire
 time — the demand exists, the calendar is the admission gate — so no per-day
 draw resets and no first-arrival-after-the-weekend special case. New `Engine.Run
 (topology, calendar, generatorDays, seed, dailyCap)` (+`CalendarGate` nested
-class) shares `RunCore` with the horizon path; the byte-for-byte M1 loop is
+class) shares `RunCore` with the horizon path; the M1 loop is
 untouched (calendar == null branch). Operating time per open day = first admitted
 arrival → last service end, summed (D-018, not diluted by nights/weekends);
 services drain past 11:00 (FR-SIM-6). 22 new tests (11 ClinicCalendar + 7 engine
@@ -201,8 +218,8 @@ completion event i+1, D-006), and draws a uniform against p_exit only at the exi
 stage (FR-SIM-3). Latent M1 bug fixed (D-017 vs actual FirstOrDefault code):
 idle assignment is now `IServerSelectionPolicy` — `RandomIdleSelection` (default;
 no draw when a single server is idle → single-server stream untouched) and test-only
-`LowestIdSelection`. Byte-for-byte M1 guarded two ways: Core test
-(`Run_SingleStage_ByteForByteRegression`) and a CLI test asserting the exact
+`LowestIdSelection`. M1 golden values guarded two ways: Core test
+(`Run_M1Regression_SingleStage_GoldenValues`) and a CLI test asserting the exact
 simulate-params output lines (served 29892, wait 0.724, ρ 0.75). Balance regression
 uses a low-load 2-server stage (λ=2, μ=4, c=2): random-diff < 0.10, lowest-ID-diff
 ≥ 0.10. Test infra fix: CLI tests share the static Serilog global, so the assembly
