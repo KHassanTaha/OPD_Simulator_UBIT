@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpdSimulator.App.ViewModels"
+        x:Class="OpdSimulator.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Width="1120"
+        Height="720"
+        MinWidth="900"
+        MinHeight="600"
+        Title="{Binding Title}"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- Temporary scaffold: left (config) and right (results) placeholder
+         panels. Replaced by the real layout in sub-block D. -->
+    <Grid ColumnDefinitions="360,*,2,480" Margin="12">
+        <Border Grid.Column="0" Background="White" BorderBrush="LightGray" BorderThickness="1" CornerRadius="8">
+            <TextBlock Text="Config panel (M5-D)" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Border>
+        <GridSplitter Grid.Column="2" Width="4" Background="LightGray"/>
+        <Border Grid.Column="3" Background="White" BorderBrush="LightGray" BorderThickness="1" CornerRadius="8">
+            <TextBlock Text="Results panel (M5-D)" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Border>
+    </Grid>
+</Window>
