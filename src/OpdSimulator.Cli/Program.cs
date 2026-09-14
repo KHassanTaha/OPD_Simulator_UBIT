@@ -35,6 +35,7 @@ public static class Program
         "  fit              fit a distribution + chi-square; writes logs/fit-*.json\n" +
         "  simulate-data    simulation from fitted rates (single stage: --servers sweep; stage-aware data: per-stage counts)\n" +
         "  simulate-network parameter-driven multi-stage run; --days for the clinic calendar, --verbose for pre-run ρᵢ\n" +
+        "  trace          deterministic line-by-line event trace of a run (Milestone 4)\n" +
         "  export           write a validated file to a clean analysis-ready CSV\n" +
         "\n" +
         "Run 'dotnet run --project src/OpdSimulator.Cli -- <command> --help' for command options.";
@@ -87,7 +88,9 @@ public static class Program
         string command = args[0];
         string[] rest = args.Skip(1).ToArray();
 
-        Log.Information("CLI run requested: {Args}", string.Join(' ', args));
+        // Debug, not Information, so the trace command's stdout carries only the
+        // trace lines (the console sink is restricted to Information).
+        Log.Debug("CLI run requested: {Args}", string.Join(' ', args));
 
         return command switch
         {
@@ -96,6 +99,7 @@ public static class Program
             "fit" => FitCommand.Run(rest, stdout, stderr, fileLogger),
             "simulate-data" => SimulateDataCommand.Run(rest, stdout, stderr, fileLogger),
             "simulate-network" => SimulateNetworkCommand.Run(rest, stdout, stderr, fileLogger),
+            "trace" => TraceCommand.Run(rest, stdout, stderr, fileLogger),
             "export" => ExportCommand.Run(rest, stdout, stderr, fileLogger),
             _ => UnknownCommand(command, stderr),
         };

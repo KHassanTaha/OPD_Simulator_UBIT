@@ -101,3 +101,54 @@ A: t = 0 anchors the day-0 arrival window; a "day block" is 24 hours from that a
 
 **Q: Why did the c=2/c=3 sweep waits change for the same seed, while c=1 did not?**
 A: Milestone-1 assigned patients to the lowest-numbered idle server, biasing server 0 at multi-server stages. D-050 changed assignment to random-among-idle for fairness. A single-server stage always has the same idle server, so the random selection never draws an RNG value there and the M1 c=1 numbers hold exactly (served 29892 / wait 0.724 / ρ 0.75, locked by `Run_M1Regression_SingleStage_GoldenValues` and the CLI golden test). Caveat: the simulation metrics are numerically identical, but the OUTPUT TEXT is not byte-for-byte — M3 normalised the stage-name casing to canonical form and unified the single-stage log line to the network form (D-054). Output text is documentation, not a contract. The sample sweep's c=2/c=3 waits refreshed from 0.25/0.04 to 0.315/0.030 under seed 42 (DEV_LAUNCH §7.4).
+
+## Milestone 4 — deterministic event trace
+
+**Q: Why a separate trace alongside Serilog logging? (D-055)**
+A: The two channels answer different questions. Serilog records the whole run
+as free-form, structured diagnostics for debugging — useful but not a contract,
+and unusable as a story when 29892 patients pass through. The M4 trace is a
+compact, ordered, deterministic record: one row per state-changing point
+(ARRIVAL / START_SVC / END_SVC / ROUTE / EXIT), rendered as
+`T=… wall TYPE P# location q=…`. Because it is byte-stable (invariant culture,
+floor-truncated seconds), it is the viva's walk-through artefact AND a regression
+target — the golden file can't drift silently the way log prose can.
+
+**Q: How do I defend that the trace numbers are exactly what the simulation did? (D-058)**
+A: There are three independent checks, all in `TraceRegressionTests`. (1) The
+engine emits the trace from the same state bookkeeping that feeds the metrics,
+and tests assert the trace and stats agree: the number of EXIT rows equals
+`TotalPatientsServed`, and the per-patient average wait recomputed from trace
+rows equals `AverageWaitMinutes` to 9 decimal places. (2) The RNG is wrapped in
+a passive observer (`TraceRandomSource`, D-057) that forwards draws unchanged,
+so attaching a sink changes no metric — locked by
+`AttachingTraceSink_DoesNotChangeResults`. (3) The golden fixture was
+hand-verified: every time in it is −ln(U)/λ or −ln(U)/μ for the corresponding
+`draw#k U=…` of the reference `Random(42)` sequence.
+
+**Q: Why is the trace byte-identical for the same seed across machines?**
+A: Every number is formatted with the invariant culture (never the OS locale),
+the wall-clock column truncates fractional minutes to whole seconds (a floor,
+never a round), and the level-filtering lives only in the renderer — the engine
+emits the same event stream at every level, so rerunning at a different
+`--level` shows the same story with more or fewer columns. The test even
+normalises CRLF so the fixture matches identically on Windows and Linux.
+
+**Q: What does `--level rng` add, and how is the draw order defensible?**
+A: One row per actual random draw: the seed, then `draw#k U=0.6681 → service
+time 0.101 min at Reception s0 (end at t=0.101)`. Each draw's row closes the
+loop: the reader can recompute the next event time by hand from U. The order is
+whatever the engine's event handling demands — e.g. a service-time draw happens
+when the server starts, an inter-arrival draw at each admission — and it never
+skips a draw: `RngRows_TrackTheReferenceRandomSequence` asserts row k carries
+exactly the k-th deviate of `new Random(42)`, so the trace cannot silently drop
+a draw. Server selection at a single-idle server consumes no draw (D-050
+behaviour), so no RNG row appears for a decision that used no randomness.
+
+**Q: Why does the trace stop after `--patients` exits?**
+A: A 5-patient trace is long enough to demonstrate every event and every draw
+but short enough to hand-verify in the viva. Internally this is the engine's
+optional `maxCompletedPatients` early break (D-058), which fires after a
+patient's EXIT event and leaves the FEL consistent — the run is simply a
+prefix of the full run, so the metrics of the stopped run still satisfy the
+trace/stats agreement tests.

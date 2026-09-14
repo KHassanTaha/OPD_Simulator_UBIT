@@ -1,6 +1,7 @@
 namespace OpdSimulator.Core.Engine;
 
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Core.Trace;
 
 /// <summary>
 /// Immutable configuration for a single-stage M/M/c run.
@@ -21,13 +22,16 @@ public sealed class EngineConfig
     /// <param name="horizonMinutes">Length of the arrival-generation window in minutes (arrivals stop beyond it).</param>
     /// <param name="seed">Random seed for reproducibility (FR-VAL-3, default 42).</param>
     /// <param name="stageName">Human-readable stage name used in logs and stability messages.</param>
+    /// <param name="traceSink">Optional sink receiving the human-readable trace
+    /// (<see cref="ITraceSink"/>); null disables tracing.</param>
     public EngineConfig(
         double arrivalRate,
         double serviceRate,
         int serverCount = 1,
         double horizonMinutes = 10000,
         int seed = SeededRandomSource.DefaultSeed,
-        string stageName = "Stage 0 (single-stage)")
+        string stageName = "Stage 0 (single-stage)",
+        ITraceSink? traceSink = null)
     {
         ArrivalRate = arrivalRate;
         ServiceRate = serviceRate;
@@ -35,6 +39,7 @@ public sealed class EngineConfig
         HorizonMinutes = horizonMinutes;
         Seed = seed;
         StageName = stageName;
+        TraceSink = traceSink;
     }
 
     /// <summary>Arrival rate λ (patients per minute).</summary>
@@ -54,6 +59,9 @@ public sealed class EngineConfig
 
     /// <summary>Human-readable stage name for logs and stability messages.</summary>
     public string StageName { get; }
+
+    /// <summary>Optional sink for the human-readable trace; null disables tracing.</summary>
+    public ITraceSink? TraceSink { get; }
 
     /// <summary>
     /// Traffic intensity ρ = λ / (c·μ). The M/M/c system is only stable when ρ &lt; 1.

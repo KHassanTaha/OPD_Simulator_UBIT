@@ -266,7 +266,20 @@ two modes are mutually exclusive). `--verbose` prints each stage's ρᵢ before 
 run. If any stage has ρ ≥ 1 the program refuses with one line naming every
 unstable stage.
 
-### 7.6 Regenerating the sample files
+### 7.6 Trace a short run line-by-line (M4)
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- trace --lambda 3 --mu 4 --servers 1 --patients 5 --seed 42
+```
+
+Reruns the network you configure and prints one line per event — arrival, service
+start/end, route, exit — stopping after `--patients` have fully left the system.
+Use `--level rng` to also print every random-number draw with its sampled value
+(`draw#1 U=0.6681 → service time 0.101 min`); same seed → same bytes (FR-VAL-3).
+By default the trace prints to the terminal; add `--output trace.txt` to save it
+to a file instead. The full flag list is in **DEV_LAUNCH §7.6**.
+
+### 7.7 Regenerating the sample files
 
 The committed samples were generated deterministically (seed 42). To regenerate
 them and the validation fixture: `bash scripts/make-sample-data.sh`.
@@ -319,6 +332,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | M4 CLI: new `trace` command (§7.6) prints a deterministic line-by-line event trace (ARRIVAL/START_SVC/END_SVC/EXIT, plus RNG draw rows with `--level rng`); use it to walk through any simulation by hand before the viva |
 | 2026-09-13 | M3 CLI: `simulate-data` now runs multi-stage files (per-stage μᵢ, p_exit, one network run — §7.4) and a new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (§7.5); blank doctor cells for Screening exits are accepted; multi-stage runs print a per-stage block and network totals |
 | 2026-09-13 | Added "Loading Real Data" (§7) — the M2 CLI path: `verify`, `fit`, `simulate-data`, required file format, error messages; renamed the headless command to `simulate-params` (§3) |
 | 2026-09-13 | Added "Running without a GUI" section (§3) — the M1 CLI path with the metrics explained, the ρ < 1 rule, and the event trace location |

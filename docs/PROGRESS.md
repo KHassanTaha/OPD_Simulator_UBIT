@@ -2,6 +2,166 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-14 05:55
+Branch: feat/milestone-4-event-trace
+Status: Clean (7 commits pushed; awaiting owner review/merge of the branch)
+
+Done
+M4 sub-tasks A–D — trace abstraction, engine instrumentation, `trace` CLI, golden regression (f6b95e7, 94a2d8e)
+M4 docs pass — DEV_LAUNCH §6+§7.6, USER_MANUAL §7.6, REQUIREMENTS FR-VAL-4 + coverage 63.0%, VIVA_ANSWERS +5, DECISIONS D-055..D-059, TODO, PROGRESS (2b6c730)
+CLI trace tests end-to-end — golden stdout, levels, refusal, --output, usage (e40e1e3)
+stdout purity — "CLI run requested" → Debug; trace stdout carries only trace lines
+Golden fixture byte-identical to CLI stdout (trailing-newline commit a94ec7c)
+Dead-state verification — full bin/obj wipe → restore → Release build 0 errors → 176 green → documented commands re-run
+
+In Progress
+None
+
+What is complete: Milestone 4 (event trace) is implemented, tested and documented:
+`trace` CLI emits a deterministic ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT story (+ draw rows
+at --level rng) whose 5-patient golden trace was hand-verified draw-by-draw against the
+reference Random(42) sequence; regression tests lock byte identity, RNG parity, level
+filtering, stats agreement and sink passivity; engine stays level-blind and metric-neutral.
+176 tests (83+58+35), 0 warnings, dead-state verified on Ubuntu 24.04. M1 golden values
+re-verified live (served 29892, wait 0.724, ρ 0.75).
+
+What remains: owner review + merge of the branch into main (AGENTS §11.5 item 6). No
+open M4 work items.
+
+Next Session Should Start With
+Owner: review/merge feat/milestone-4-event-trace into main.
+Then M5 GUI (Avalonia; B-005 remains an open owner/OS blocker; M5_UI_SPEC.md to be
+written at kickoff). M2 sweep / FR-STAT-5 analytical validation remains a future M5/M7 item.
+
+Blocked
+None new (B-001..003, B-005, B-006 remain open owner/OS blockers, unrelated to M4).
+
+Git State
+Commits made this session: 3705830 (docs resume), f6b95e7 (trace abstraction + engine),
+94a2d8e (trace CLI + golden tests), e84d50d (docs D-055..D-059), e40e1e3 (CLI trace tests),
+2b6c730 (docs pass), a94ec7c (fixture newline).
+Pushed to origin: Yes (feat/milestone-4-event-trace).
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings)
+dotnet test: PASS — 176 passed, 0 failed (83 Core + 58 Data + 35 Cli), from dead state
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Trace/: added 9 files (TraceLevel, TraceEventType, TraceEvent,
+ITraceSink, TraceFormatter, TraceClock, TraceRandomSource, TextWriterTraceSink, NullTraceSink)
+src/OpdSimulator.Core/Engine/: Engine.cs, EngineConfig.cs modified (trace emission, maxCompletedPatients)
+src/OpdSimulator.Cli/Commands/TraceCommand.cs: added
+src/OpdSimulator.Cli/Program.cs: modified (trace dispatch + usage; CLI-run line at Debug)
+tests/OpdSimulator.Core.Tests/: TraceRegressionTests.cs added; Fixtures/trace-5-patients.txt added;
+csproj fixture-copy rule
+tests/OpdSimulator.Cli.Tests/: CliTraceTests.cs added; csproj links the golden fixture
+docs/: DEV_LAUNCH, USER_MANUAL, REQUIREMENTS, DECISIONS (D-055..D-059), TODO, PROGRESS; VIVA_ANSWERS.md (+5)
+
+Decisions Made
+D-055 — trace as a first-class sink feature (DECISIONS.md)
+D-056 — TraceEvent schema + fixed q= semantics
+D-057 — passive TraceRandomSource wrapper
+D-058 — trace/stats cross-check + golden lock + maxCompletedPatients early break
+D-059 — file-only logger for pure trace stdout
+
+Assumptions Added/Changed
+None new this session.
+
+Notes for Next Session
+Branch is ready for owner review/PR to main; do NOT merge yourself.
+The golden fixture is hand-verified and byte-locked; regenerate + hand-verify again
+(e.g. after any RNG change, D-050-style) — do not auto-update it.
+DEV_LAUNCH §7.6 documents the verified trace command; §6 now quotes 176 tests.
+The `dotnet test --project` MSBuild response-file quirk (MSB1001) appears on this box;
+run `dotnet test` from the project dir instead.
+
+## M4 sub-task H: docs pass — DEV_LAUNCH/USER_MANUAL/REQUIREMENTS/VIVA_ANSWERS + TODO cleanup — 2026-09-14 (feat/milestone-4-event-trace)
+
+- **DEV_LAUNCH** §6 test count 97→176 with the M4 test breakdown; new §7.6
+  `trace` command section (flags, level contract, verified command + output);
+  changelog row (M4; M3 row preserved beneath it); "Last verified" refreshed to
+  2026-09-14 incl. the trace live-run; §8 layout note for `Trace/`.
+- **USER_MANUAL** new §7.6 `trace` section (pointer to DEV_LAUNCH
+  for the full flag list — no instruction duplication, §10.7); regenerating
+  section renumbered to §7.7; changelog row added.
+- **REQUIREMENTS** FR-VAL-4 Source/Test/Decision refreshed — first-class trace
+  (Trace/ namespace, `trace` CLI) supersedes the Serilog Debug channel as the
+  FR-VAL-4 implementation; tests now TraceRegressionTests + CliTraceTests +
+  EventTraceTests; D-036 + D-055. Coverage summary block recomputed from stale
+  50.0%/23 to actual 63.0%/29 (recon finding #3 resolved). Changelog row + note.
+- **VIVA_ANSWERS** +5 Milestone-4 Q&As (two channels D-055; defending trace
+  numbers via stats/RNG checks D-057/D-058; byte-stability; `--level rng` draw
+  order; `--patients` early break).
+- **TODO.md** M4 trace row → `[x]` (pending owner merge); reconcile finding #4:
+  the rate-wise/mean-wise toggle row reclassified `[~]` → `[ ]` so exactly one
+  task is IN PROGRESS at once.
+- Full suite 176 green (83+58+35), 0 warnings. Branch has 5 commits pushed
+  (3705830, f6b95e7, 94a2d8e, e84d50d, e40e1e3 + docs pass commit pending).
+
+## M4 sub-tasks A–D: trace feature, golden regression, stdout purity — 2026-09-14 (feat/milestone-4-event-trace)
+
+M4 kicked off from `main` @51d6d92 (156 green). Branch pushed; then:
+
+- **A — Trace abstraction** (`src/OpdSimulator.Core/Trace/`, 9 files): `TraceLevel`,
+  `TraceEventType`, `TraceEvent`, `ITraceSink`, `TraceFormatter`, `TraceClock`,
+  `TraceRandomSource`, `TextWriterTraceSink`, `NullTraceSink`. Level filtering lives
+  only in `TraceFormatter` (engine is level-blind and emits the identical event
+  stream at every level); invariant culture + floor-truncated seconds keep output
+  byte-stable. (D-055, D-056)
+- **B — Engine instrumentation**: `_random` is now `TraceRandomSource` always
+  (D-057); per-run `_traceSink`; emission at arrival/start/end/route/exit plus RNG
+  rows (seed, inter-arrival, service, routing, server-pick-if-drawn); optional
+  `maxCompletedPatients` early break; `EngineConfig.TraceSink`. Committed `f6b95e7`;
+  **M1 regression green, full suite 156 green** — the sink is provably passive.
+- **C — `trace` CLI command** (`TraceCommand.cs` + `Program.cs` registration):
+  `--lambda --mu --servers --stages --p-exit --patients --seed --level --output
+  --real-start`; exit 0/1/2. Live smoke verified: 5 ARRIVE / 5 START / 5 END / 5
+  EXIT at state level; RNG level shows `draw#k U=…` rows; events level drops
+  state columns and RNG rows. **stdout-purity fix**: "CLI run requested" demoted
+  `Log.Information` → `Log.Debug`, engine is given the file-only logger — trace
+  stdout now carries only trace lines (D-059).
+- **D — Golden regression**: fixture `tests/OpdSimulator.Core.Tests/Fixtures/
+  trace-5-patients.txt` frozen from λ=3 μ=4 c=1 seed 42 and **hand-verified
+  draw-by-draw** against the reference `System.Random(42)` sequence (U values
+  0.6681→0.101, 0.1409→0.653, 0.1255→0.519, 0.5228→0.216, 0.1684→0.594,
+  0.2626→0.334, 0.7244→0.108, 0.5129→0.167, 0.1737→0.584, 0.7613→0.068).
+  `TraceRegressionTests` (6 facts): golden byte-lock (CRLF-normalised), tamper
+  detection, 5×5 event census, level-filter contract, draw-by-draw RNG parity,
+  exit-count = served, trace-wait = metric (9 dp), and sink-passivity. Committed
+  `94a2d8e`, pushed.
+- **Full suite: 163 green (83 Core + 58 Data + 22 Cli), 0 warnings.**
+- Docs: TODO rows updated (5-patient hand trace → [x], M4 trace row → [~] with
+  remaining list); DECISIONS D-055..D-059 logged.
+- Remaining for M4: docs pass (DEV_LAUNCH §6/§7 trace + changelog, USER_MANUAL
+  trace section, REQUIREMENTS FR-VAL-4 refresh + coverage recompute, VIVA_ANSWERS
+  trace Q&As), a CLI trace test, and final M4 acceptance (≥171-target noted in
+  kickoff; now 163 — the M4 CLI trace tests close the gap).
+
+## Resume — 2026-09-14 05:20 — reconciled: 6 findings
+
+Findings (all non-blocking, fixed during M4):
+1. DEAD-STATE BASELINE VERIFIED: `git status` clean on `main`, up-to-date with
+   origin, HEAD = merge 51d6d92 (metric-identical wording). `dotnet build` 0
+   warnings; `dotnet test` 156 green (76 Core + 58 Data + 22 Cli) — matches the
+   handoff claim. M4 branch can start from this green baseline.
+2. DEV_LAUNCH §6 test count is stale: still reads "As of 2026-09-13 97 tests
+   pass" (M2 count); reality is 156. §6 must be refreshed during M4's docs pass.
+3. REQUIREMENTS.md Coverage Summary block is stale: top block reads 23 `[x]` /
+   2 `[~]` / 50.0%, but the M3 changelog row and the rows themselves say 29 `[x]`
+   / 3 `[~]` / 63.0%. The summary block must be recomputed during M4.
+4. TODO.md carries two `[~]` IN PROGRESS rows simultaneously — the rate-wise /
+   mean-wise toggle row (its data layer is done; the M5 GUI toggle remains) and
+   the event-log/trace row (M4's natural home). Reclassify the toggle row to `[ ]`
+   (or leave `[~]` with M5 note) at the M4 TODO pass so one-at-a-time holds.
+5. M5_UI_SPEC.md is absent — the kickoff said "if present"; nothing to reconcile.
+6. FR-VAL-4 is already `[x]` in REQUIREMENTS.md backed by EventTraceTests
+   (Serilog Debug events). M4's first-class trace supersedes it as the stronger
+   implementation; the row's Source/Test will be refreshed rather than promoted.
+
 ## Resume — 2026-09-14 05:11 — reconciled: 6 findings
 
 ### fix/metric-identical-wording — M3 post-merge wording pass — 2026-09-14

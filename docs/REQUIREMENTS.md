@@ -67,7 +67,7 @@ PRD.md wins.
 | FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (Validate — lists ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ), Engine/{EngineConfig,UnstableSystemException}.cs, Cli/Program.cs (clean stderr, D-037) | StabilityTests, EngineTests.Run_Network_*, CliSimulateDataNetworkTests, CliSimulateNetworkTests.UnstableStage_RefusedListingAllUnstable | D-034, D-015, D-049 |
 | FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [x] | src/OpdSimulator.Core/Servers/Server.cs, Engine/Engine.cs | ServerTests (Utilisation_StaysWithinUnitInterval), EngineTests | — |
 | FR-VAL-3 | Random seed (default 42, logged) | [x] | src/OpdSimulator.Core/Distributions/SeededRandomSource.cs, Engine/Engine.cs | SeededRandomSourceTests, EngineTests.Run_SameSeed | D-035 |
-| FR-VAL-4 | Event log with all state + RNG draws | [x] | src/OpdSimulator.Core/Engine/Engine.cs (Debug trace) | EventTraceTests (in-memory Serilog sink) | D-036 |
+| FR-VAL-4 | Event log with all state + RNG draws | [x] | src/OpdSimulator.Core/Engine/Engine.cs (ITraceSink emission) + Trace/ namespace (TraceEvent/TraceFormatter/TraceRandomSource) + Cli/Commands/TraceCommand.cs (`trace`, `--level rng`). The M4 first-class trace supersedes the Serilog Debug channel as the stronger implementation | TraceRegressionTests (golden fixture, draw-by-draw RNG parity), CliTraceTests (end-to-end stdout lock, levels), EventTraceTests (Serilog channel) | D-036, D-055 |
 | FR-VAL-5 | (Stretch) N replications + CI | [ ] | — | — | — |
 
 ## Functional Requirements — Token Generator
@@ -94,20 +94,23 @@ PRD.md wins.
 ## Coverage Summary
 
 - Total requirements: 46
-- `[x]` DONE: 23
-- `[~]` IN PROGRESS: 2
-- `[ ]` TODO: 21
+- `[x]` DONE: 29
+- `[~]` IN PROGRESS: 3
+- `[ ]` TODO: 14
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 50.0% (23/46)
+**Coverage:** 63.0% (29/46)
 
 > M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
 > NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
 > now `[x]` backed by EventTraceTests (in-memory Serilog sink asserting event-line
-> state + RNG draws). The human-readable viva trace file and 5-patient hand trace
-> are separate TODO rows, not FR-VAL-4's scope (PRD: "event log records every
-> event with time, type, patient ID, queue lengths, server status, and RNG draws").
+> state + RNG draws). M4 (D-055) lands a first-class deterministic trace
+> (`OpdSimulator.Core.Trace` + the `trace` CLI) that supersedes the Serilog Debug
+> channel as the stronger FR-VAL-4 implementation — the line-by-line story now
+> has a golden regression (draw-by-draw RNG parity, stats cross-check) and the
+> hand-verified 5-patient story is frozen at
+> `tests/OpdSimulator.Core.Tests/Fixtures/trace-5-patients.txt`.
 > FR-SIM-5's clinic-calendar hours (8:15→11:00, closed Fri/Sun) are M3/M4; M1
 > implements the arrival-generation gate.
 >
@@ -139,6 +142,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | M4: FR-VAL-4 Source/Test/Decision refreshed — the first-class deterministic trace (Trace/ namespace + `trace` CLI, D-055) supersedes the Serilog Debug channel as the implementation; tests now TraceRegressionTests (golden fixture, draw-by-draw RNG parity, stats cross-check) + CliTraceTests + EventTraceTests; coverage summary block recomputed from 50.0% to the actual 63.0% (constituting stale from M3) |
 | 2026-09-13 | M3: FR-SIM-1/4/7/8/9, FR-STAT-6/7 → `[x]` with network source/tests/decisions (D-049→D-053); FR-SIM-10 → `[~]` (FormatClock lands the real-clock piece, UI binding M5); FR-VAL-1 + FR-SIM-1 source refreshed for `NetworkTopology.Validate`/CLI; coverage now 63.0% (29/46 `[x]`, +3 `[~]`) |
 | 2026-09-13 | Initial matrix created from PRD v1.3.0 |
 | 2026-09-13 | Bidirectional rule (AGENTS §9.7) applied — matrix audited against PRD v1.3.0; zero orphan rows; D-025 logged |

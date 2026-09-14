@@ -1,0 +1,20 @@
+T=0.000  08:15:00  ARRIVAL       P1      Reception  q=1
+T=0.000  08:15:00  START_SVC     P1      Reception s0  q=0
+T=0.101  08:15:06  END_SVC       P1      Reception → exit  q=0
+T=0.101  08:15:06  EXIT          P1      -  q=-
+T=0.653  08:15:39  ARRIVAL       P2      Reception  q=1
+T=0.653  08:15:39  START_SVC     P2      Reception s0  q=0
+T=0.869  08:15:52  ARRIVAL       P3      Reception  q=1
+T=1.172  08:16:10  END_SVC       P2      Reception → exit  q=1
+T=1.172  08:16:10  EXIT          P2      -  q=-
+T=1.172  08:16:10  START_SVC     P3      Reception s0  q=0
+T=1.463  08:16:27  ARRIVAL       P4      Reception  q=1
+T=1.506  08:16:30  END_SVC       P3      Reception → exit  q=1
+T=1.506  08:16:30  EXIT          P3      -  q=-
+T=1.506  08:16:30  START_SVC     P4      Reception s0  q=0
+T=1.571  08:16:34  ARRIVAL       P5      Reception  q=1
+T=1.673  08:16:40  END_SVC       P4      Reception → exit  q=1
+T=1.673  08:16:40  EXIT          P4      -  q=-
+T=1.673  08:16:40  START_SVC     P5      Reception s0  q=0
+T=1.741  08:16:44  END_SVC       P5      Reception → exit  q=0
+T=1.741  08:16:44  EXIT          P5      -  q=-
