@@ -1,6 +1,6 @@
 # TODO.md
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 > **Completion rule:** A task that adds/removes a feature is not `[x] DONE`
 > until `DEV_LAUNCH.md` reflects the change (if build/launch affected) and
@@ -12,6 +12,8 @@ Last updated: 2026-09-13
 > updated with Source + Test.
 
 ## Active
+
+- [x] Capture M5 UI/UX requirements batch — 2026-09-14 (docs-only on fix/ui-requirements-capture: PRD v1.4.0 FR-UI-5..21 + NFR-7..10; AGENTS §16–17; DECISIONS D-060..D-076; TODO M5 block; VIVA_ANSWERS M5-1..15 + glossary; M5_UI_SPEC.md; REQUIREMENTS 21 new rows all `[ ]`, coverage 43.3%)
 - [x] M3 sub-block C: `ClinicCalendar` (Mon–Thu + Sat, 08:15–11:00 window, DailyCap, start-day anchor) + engine calendar gating (`Run(topology, calendar, days, cap)`, continuous Poisson stream with fire-time gate, per-open-day operating time D-018, drain past 11:00 FR-SIM-6) + real-clock formatter — 2026-09-13 (D-051; ClinicCalendarTests + 7 Run_Calendar_* engine tests; 139 tests green, 0 warnings; M1 metrics intact)
 - [x] M3 sub-block B: per-stage ρᵢ refusal lists ALL unstable stages (λᵢ, cᵢ, μᵢ, ρᵢ) at engine level — 2026-09-13 (Run_Network_DoctorOnlyUnstable_ListsStageRho / MultipleStagesUnstable_ListsEveryStage / AllStable_RunsAndReportsRhoPerStage; 117 tests green, 0 warnings; the CLI `--verbose` pre-run ρᵢ print — B3 — is folded into E/F where the network commands land)
 - [x] M3 sub-block A: engine N-stage generalisation (StageSpec/Stage/NetworkTopology, `Run(topology, seed, horizon)`, StageMetrics, p_exit routing via existing EventType mapping) + latent server-assignment fix (random-among-idle, D-050) + M1 metric regression (served 29892 / wait 0.724 / ρ 0.75) — 2026-09-13 (D-049/D-050; 114 tests green, 0 warnings; on feat/milestone-3-multi-stage-network)
@@ -22,8 +24,118 @@ Last updated: 2026-09-13
 - [x] M2 sub-block I (Ubuntu half): dead-state build + full suite + live `verify`/`fit`/`simulate-data`/`export` and M1 `simulate-params` regression — 2026-09-13 (97 tests green, 0 warnings; ρ 0.75 / wait 0.724; sweep 0.81/0.41/0.27)
 - [x] M2 sub-block J: docs pass (DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7; REQUIREMENTS 50% coverage; DECISIONS D-045..D-047; VIVA_ANSWERS; PROGRESS; BLOCKERS B-004 Resolved; this TODO) — 2026-09-13 (commit 384c2be; M2 branch pushed and later merged into main via 01ea9a7/b5f6a7d)
 - [x] M2.5 fix: sample data at HH:MM:SS precision (chi-square rejected a true exponential at p ≈ 0 due to minute-rounded storage) — 2026-09-13 (generator format only, RNG stream unchanged; TimeParser `H:mm:ss` test added — HH:MM untouched; samples + fixture regenerated; `fit` accepts p = 0.103 / 0.258; D-048; VIVA line; 98 tests green — on fix/sample-data-precision)
-
 ## Upcoming
+
+## M5 — GUI (see PRD §5.1, AGENTS §16–17)
+
+### Assets & Foundation
+- [ ] Asset inventory: receive official UoK green logo + UBIT CS logo
+- [ ] Create `CourseInfo.cs` constants (names, course, professor, logo paths)
+- [ ] Create `Theme.axaml` resource dictionary (all colours, fonts, spacing)
+- [ ] Set up App project for MVVM (CommunityToolkit.Mvvm or equivalent)
+
+### Reusable Controls (build once, use everywhere)
+- [ ] `SearchableDropdown.axaml` (FR-UI-6)
+- [ ] `ThemedToast.axaml` (FR-UI-10)
+- [ ] `ThemedDialog.axaml` (FR-UI-10)
+- [ ] `CollapsibleSection.axaml` (FR-UI-12)
+- [ ] `InfoIcon.axaml` (FR-UI-8)
+- [ ] `PinnedFooterBar.axaml` (FR-UI-11)
+- [ ] `ValidatedField.axaml` (FR-UI-16 + FR-UI-17)
+- [ ] `DataPreviewTable.axaml` (FR-UI-20, virtualised)
+
+### Welcome Panel (FR-UI-5)
+- [ ] `WelcomeCard.axaml` view
+- [ ] `WelcomeCardViewModel.cs`
+- [ ] Fade-out on "Start Calculation" click (≤ 300 ms)
+- [ ] Keyboard dismissal (Tab + Enter)
+
+### Layout (FR-UI-11, FR-UI-12, FR-UI-13)
+- [ ] Left config panel with scroll when overflow
+- [ ] Pinned "Start Calculation" footer
+- [ ] Collapsible sections with persisted state
+- [ ] "Clear All" with confirmation dialog + Undo toast
+
+### Results Panel (FR-UI-14)
+- [ ] Customisable widget selector
+- [ ] Widgets: metrics table, chi-square results, trace (M4), data preview, charts (M6), token
+- [ ] Persist widget selection across sessions
+
+### Validation (FR-UI-9, FR-UI-17)
+- [ ] Wire ValidatedField to view-model error state
+- [ ] Red border + icon + message on invalid fields
+- [ ] Summary banner near "Start Calculation"
+- [ ] Focus moves to first invalid field on submit
+- [ ] Screen reader live-region announcements
+- [ ] Test cases: empty required, out-of-range, malformed file, missing dropdown selection
+
+### Accessibility (FR-UI-15, NFR-7)
+- [ ] Tab order audit across entire window
+- [ ] Shift+Tab reverses correctly
+- [ ] Focus indicator visible with ≥ 3:1 contrast
+- [ ] Escape closes every modal/dropdown and returns focus
+- [ ] Reduced-motion respected
+
+### Data Preview (FR-UI-20, NFR-10)
+- [ ] Column header population from loaded file
+- [ ] Column sort cycle: ascending → descending → original
+- [ ] Row numbering matches source file (1-based; header = row 0)
+- [ ] Fixed header while scrolling
+- [ ] Cell selection + Ctrl+C copy
+- [ ] Empty-cell rendering (dimmed em-dash)
+- [ ] Invalid-row highlighting per FR-UI-17 (red + icon + tooltip)
+- [ ] Error state: replace table with validation summary (FR-UI-9)
+- [ ] Empty state: widget not shown before a file is loaded
+- [ ] Performance test: 10,000-row synthetic file renders in < 1 s
+- [ ] Sort performance: 10,000 rows in < 200 ms
+- [ ] Test: extra columns render cleanly
+- [ ] Test: invalid row highlights with correct tooltip
+- [ ] Wire preview into results panel as a selectable widget (FR-UI-14)
+
+### Startup Behaviour (FR-UI-21)
+- [ ] Ensure all fields start empty/default on launch
+- [ ] Presets dropdown default state = `(none)`
+- [ ] Welcome card visible on launch, dismissed only on "Start Calculation"
+- [ ] No `_lastSession.json` auto-restore
+- [ ] Test: fresh launch → empty fields, welcome card, no preset
+- [ ] Test: launch after prior session → same as fresh
+- [ ] Test: load preset → fields populate, dropdown shows name
+- [ ] Test: load preset with missing data file → fields populate, data field shows inline error
+
+### In-Program Guide (FR-UI-18, AGENTS §17.1)
+- [ ] Add Markdig package to App project
+- [ ] Embed `docs/USER_MANUAL.md` as App resource
+- [ ] `GuideView` (side panel: section list + rendered markdown)
+- [ ] Guide search + filter
+- [ ] F1 hotkey opens; Escape closes; focus returns
+- [ ] Contextual "?" icons on every config field with `HelpAnchor`
+- [ ] CI test: embedded markdown == repository markdown
+
+### Preset System (FR-UI-19, AGENTS §17.2)
+- [ ] `Preset` model + `PresetStore` (save/load/list/delete/import/export)
+- [ ] Preset JSON schema v1 + validator
+- [ ] Presets dropdown + Save + Manage… dialog
+- [ ] File name sanitisation
+- [ ] Path resolution under ApplicationData
+
+### Tests
+- [ ] Preset round-trip: save → reload → every field matches
+- [ ] Schema mismatch (v99) → clear error
+- [ ] Missing data file on preset load → inline error
+- [ ] Sanitisation of preset names
+- [ ] Collision prompts (or deterministic error headless)
+- [ ] Path resolution under ApplicationData (not CWD)
+- [ ] Export → import cycle loads cleanly
+- [ ] Guide: embedded markdown matches repository file
+- [ ] Guide: renderer produces non-empty output
+- [ ] Guide: search filter returns expected sections
+
+### Docs
+- [ ] Add "Verifying Your Uploaded Data" section to `USER_MANUAL.md`
+- [ ] Add "Starting from Empty" section to `USER_MANUAL.md`
+- [ ] Add "Presets" section to `USER_MANUAL.md`
+- [ ] Add "In-Program Guide" section to `USER_MANUAL.md`
+
 - [ ] Create `scripts/verify-traceability.sh` (orphan check: `[x]` matrix rows without Source/Test; referenced by REQUIREMENTS.md Update Protocol)
 - [x] Obtain `samples/sample_patients.xlsx` (owner; 1-stage demo data) — see BLOCKERS B-004 — 2026-09-13 (no real file provided → **stand-in** generated deterministically by `scripts/sample-data-generator`, seed 42: 60 rows, single Screening stage, Exp(λ=0.5)/Exp(μ=0.666…), p_exit=1.0 (CONTEXT §5.5); BLOCKERS B-004 Resolved; real clinic data remains substitutable at the same path)
 - [x] Add headless CLI mode to `OpdSimulator.Cli` (DEV_LAUNCH §7; demo path 2026-09-16) — 2026-09-13 (M1 CLI: `--lambda/--mu/--servers/--horizon/--seed`, ρ table, exit 0/1; F2/F3 verified on feat/milestone-1-single-stage-engine)

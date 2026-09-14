@@ -619,3 +619,423 @@ If the previous session ended cleanly (PROGRESS.md top entry is a
 skip the reconciliation warnings — but still run the reconciliation
 commands (they cost 5 seconds) and still produce the state summary.
 Consistency beats assumption.
+
+## 16. UI/UX Standards (Applies from M5 Onward)
+
+### 16.1 Design Principles
+
+Every UI decision serves one of these four goals:
+
+1. The user always knows what the current state is.
+2. The user always knows what they can do next.
+3. The user always knows why something is disabled or failing.
+4. The user can always undo or reset.
+
+If a UI element does not serve one of these, it does not ship.
+
+### 16.2 Mandatory UI Patterns
+
+| Pattern | Where | Rule |
+|---------|-------|------|
+| Searchable dropdown | All dropdowns | Type-to-filter + "×" clear + keyboard nav |
+| Tooltip on hover | All interactive controls | ≤ 120 chars, 500 ms delay |
+| Info icon "?" | Complex/technical controls | Longer rationale, links to CONTEXT.md |
+| Dimmed disabled state | All disabled inputs | Muted colour + reason tooltip |
+| Inline error | Fields with validation | Near the field, actionable text |
+| Themed toast | All notifications | Consistent colours, icons, position |
+| Themed dialog | All confirmations and errors | Never OS-native |
+| Collapsible section | Config panel if > 4 sections | Chevron + persistence |
+| Pinned primary action | Config panel footer | Always visible |
+| Customisable results | Right panel | User chooses widgets |
+| Persistent labels | All inputs | Label + placeholder + tooltip + accessible name |
+
+### 16.3 Theming
+
+Define every colour, font, spacing, and radius in a single
+`Theme.axaml` resource dictionary. Never hardcode. Common controls
+inherit theme via `DynamicResource`. Reviewers must be able to change
+one file to restyle the entire app.
+
+### 16.4 Accessibility Checklist
+
+Before marking any M5+ task `[x] DONE`, verify:
+
+- [ ] Every control reachable by Tab
+- [ ] Shift+Tab reverses focus order correctly
+- [ ] Focus order matches visual layout
+- [ ] Focus indicator visible and ≥ 3:1 contrast
+- [ ] Escape closes every modal/popup
+- [ ] Enter/Space activates every button
+- [ ] After closing a modal, focus returns to the opener
+- [ ] Contrast ratio ≥ 4.5:1 (normal text), ≥ 3:1 (large text)
+- [ ] Every icon has an accessible name
+- [ ] Every disabled control has a tooltip explaining why
+- [ ] Every error message states cause + remedy
+- [ ] Respects OS reduced-motion setting
+- [ ] Every input has a persistent visible label (not just placeholder)
+- [ ] Every input has format-demonstrating placeholder text
+- [ ] Required fields marked visibly and to screen readers
+- [ ] Optional fields explicitly marked "(optional)"
+- [ ] Default values shown in the label or as a suffix
+- [ ] Units shown on every numeric field
+- [ ] No mouse-only functionality anywhere
+
+### 16.5 Reusable Components
+
+Build these once as `controls/` in the App project:
+
+- `SearchableDropdown.axaml`
+- `ThemedToast.axaml`
+- `ThemedDialog.axaml`
+- `CollapsibleSection.axaml`
+- `InfoIcon.axaml`
+- `PinnedFooterBar.axaml`
+- `ValidatedField.axaml`
+- `DataPreviewTable.axaml`
+
+Use them everywhere. Duplicating UI logic is a defect.
+
+### 16.6 Welcome Panel
+
+On app launch, the right-hand panel shows a welcome card (see
+FR-UI-5). The card uses theme resources for its background, text
+colours, and spacing. It disappears on "Start Calculation" click.
+The card is defined in `Views/WelcomeCard.axaml` with its view model
+in `ViewModels/WelcomeCardViewModel.cs`, holding the member names,
+course details, and professor name. These values come from a single
+`CourseInfo.cs` constants file so they can be updated in one place.
+
+### 16.7 Keyboard Contract (Non-Negotiable)
+
+Tab order is part of the UI contract, not an afterthought. When
+building any new view:
+
+1. Sketch the intended tab order on paper before writing XAML.
+2. Set `TabIndex` explicitly on every focusable control if the
+   visual order does not match the declaration order.
+3. Test with keyboard only — unplug the mouse — before marking
+   the task `[x] DONE`.
+4. Never use `IsTabStop="False"` to hide a control's focusability
+   unless the control is genuinely decorative.
+
+Every modal and popup must:
+
+- Trap focus inside while open
+- Close on Escape
+- Return focus to the opener on close
+
+Every form field must have:
+
+- `Label` bound to the field (not floating placeholder)
+- `Watermark` (Avalonia) or `PlaceholderText` with a format example
+- An accessible name for screen readers
+- A tooltip (FR-UI-8) explaining its purpose
+- A unit shown on numeric inputs
+
+Example pair (correct):
+```
+Label:      "Arrival rate λ (per minute)"
+Placeholder: "e.g., 0.5"
+Tooltip:     "Average number of patients arriving per minute"
+```
+
+Example pair (wrong — placeholder only):
+```
+Label:      (none)
+Placeholder: "Enter lambda"
+```
+
+### 16.8 Pre-Commit UI Checklist
+
+Before any commit that touches the App project, run through this
+list in the running app with only a keyboard:
+
+- [ ] Tab through the entire window. Every control is reachable.
+- [ ] Focus indicator is visible on every focused control.
+- [ ] Shift+Tab reverses correctly.
+- [ ] Enter/Space activates every button.
+- [ ] Escape closes every dropdown and modal.
+- [ ] After closing a modal, focus returns to the opener.
+- [ ] Every input has a visible label and a format-example placeholder.
+- [ ] Every numeric input shows its unit.
+- [ ] Every disabled field explains why it is disabled.
+- [ ] Every control has a hover tooltip.
+- [ ] Submit with empty required fields → all offenders red + errors
+- [ ] Focus moves to first invalid field on submit
+- [ ] Fixing an invalid field clears its red border immediately
+- [ ] Red is never the only cue — icon and message always present
+- [ ] Screen reader announces each error when it appears
+
+If any line fails, the commit is not ready. Fix and re-test.
+
+### 16.9 Field Validation & Error Highlighting (FR-UI-17)
+
+Every validated control follows this pattern:
+
+Visual:
+- Normal state: default border (theme colour)
+- Error state: red border (≥ 2 px) + error icon
+- Focused + error: red border + thicker focus ring
+- Valid after error: error clears immediately on fix
+
+Textual:
+- Inline error message below the field, red text
+- Message states what is wrong AND what is expected
+  ("Arrival rate must be greater than 0. You entered 0.")
+- Not a generic "Invalid input"
+
+Behaviour:
+- Validate on blur, not on keystroke
+- On submit failure, focus moves to the first invalid field
+- Screen reader announces each error via live region
+- Error clears the moment the field becomes valid
+
+Anti-patterns (do NOT do these):
+- Red border with no message
+- Red text with no icon or accessible name change
+- Validating on every keystroke for numeric fields
+- Blocking submission silently
+- Styling the field red without removing the red when fixed
+
+Reusable component:
+Build `ValidatedField.axaml` once and use it for every input.
+It wraps the label, the input, the placeholder, the tooltip,
+and the error message in a single styled unit, driven by a
+`HasError` + `ErrorMessage` binding from the view model.
+
+### 16.10 Data Preview Table (FR-UI-20)
+
+The preview table is a verification surface, not an editor. Build
+it once as `DataPreviewTable.axaml` and use it anywhere a data file
+is loaded.
+
+Requirements:
+
+- Virtualised rows (Avalonia `ItemsRepeater` or equivalent).
+  Do not render 10,000 rows eagerly.
+- Column headers come from the file, not a hardcoded list — a file
+  with extra columns still previews cleanly.
+- Sortable columns: click header cycles ascending → descending →
+  original. Show a sort indicator on the active column.
+- Invalid rows inherit the FR-UI-17 error treatment — red border,
+  icon, tooltip. The tooltip states the specific validator reason.
+- Cell text selectable; Ctrl+C copies the visible text.
+- No editing, no formulas, no row/column add or delete.
+- Only the first sheet is previewed.
+- Empty state: when no file is loaded, the widget is not shown.
+- Error state: when validation fails, the widget shows the error
+  summary instead of the table (FR-UI-9).
+
+Performance contract (NFR-10):
+
+- 10,000 rows render in < 1 s.
+- Sorting 10,000 rows completes in < 200 ms.
+- Scrolling never blocks the UI thread for > 100 ms.
+
+Testing:
+
+- Load a 10,000-row synthetic file; measure render time.
+- Sort by each column; assert original-order toggle works.
+- Load a file with an invalid row; assert that row is highlighted
+  and its tooltip names the specific failure.
+- Load a file with extra columns; assert the extra columns render
+  without crashing.
+
+Anti-patterns:
+
+- Do NOT render all rows into a StackPanel.
+- Do NOT make the preview editable "just in case."
+- Do NOT re-validate on every scroll event.
+- Do NOT show the preview before a file is loaded.
+
+### 16.11 Startup Behaviour (FR-UI-21)
+
+On launch:
+
+- All configuration fields are empty or at factory defaults.
+- No preset is auto-loaded.
+- The results panel shows the welcome card.
+- No `_lastSession.json` is read for auto-restore.
+
+The Presets dropdown shows `(none)` until the user loads a preset
+explicitly via the dropdown, Manage dialog, or Ctrl+O.
+
+What to persist and what not to persist:
+
+- Persist: the list of saved preset files (they live on disk).
+- Persist: UI widget visibility preferences (FR-UI-14).
+- Persist: theme choice (if user-selectable in future).
+- Do NOT persist: last-used configuration, last-loaded data file,
+  last simulation results. The user starts clean each session.
+
+When a preset is loaded, apply all config fields. If the preset
+references a data file that is missing, populate every other field
+and show the inline "reselect data" message (FR-UI-9 + FR-UI-17).
+
+Testing:
+
+- Launch a fresh install: all fields empty, welcome card visible.
+- Launch after a previous session: same — no auto-restore.
+- Load a preset: fields populate; dropdown shows the preset name.
+- Load a preset with a missing data file: fields populate; data
+  field shows the inline error.
+
+Anti-patterns:
+
+- Do NOT auto-load the last preset.
+- Do NOT persist session state across launches "for convenience."
+- Do NOT hide the welcome card just because a preset exists on disk.
+
+## 17. In-Program Guide & Preset System (M5)
+
+### 17.1 In-Program Guide
+
+Embed `docs/USER_MANUAL.md` as a resource in the App project.
+Render it at runtime with a lightweight markdown renderer
+(suggest `Markdig` — cross-platform, well-maintained, MIT-licensed).
+
+Guide layout:
+
+- Side panel or overlay (not a separate window)
+- Left: section list (searchable, collapsible)
+- Right: rendered markdown for the selected section
+- Top: search box (filters both section list and body matches)
+
+Contextual deep-link pattern:
+
+- Every config field with a `?` icon carries a `HelpAnchor`
+  property naming its guide section (e.g., "arrival-rate").
+- Clicking `?` opens the guide and navigates to that anchor.
+- The guide URL fragment (`#arrival-rate`) drives scroll/highlight.
+
+Guide is keyboard-accessible:
+
+- F1 opens; Escape closes; focus returns to opener.
+- Tab through section list; arrow keys move; Enter selects.
+- Search box at top is first focus target on open.
+
+Content source:
+
+- The guide's markdown lives in `docs/USER_MANUAL.md`.
+- A build step or source generator embeds it into the App as
+  `Assets/UserManual.md` (linked resource or embedded resource).
+- A CI check (or a test) verifies the embedded copy matches
+  the repository file so they cannot drift.
+
+### 17.2 Preset System
+
+Storage path (cross-platform):
+
+```csharp
+var appData = Environment.GetFolderPath(
+    Environment.SpecialFolder.ApplicationData);
+var presetDir = Path.Combine(appData, "OpdSimulator", "presets");
+Directory.CreateDirectory(presetDir);   // idempotent
+```
+
+On Linux this resolves to `~/.config/OpdSimulator/presets/`.
+On Windows this resolves to `%APPDATA%\OpdSimulator\presets\`.
+Never hardcode paths. Never store presets next to the executable.
+
+Preset file format:
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Demo-3stage-UnstableDoctor",
+  "createdUtc": "2026-09-14T08:15:00Z",
+  "modifiedUtc": "2026-09-14T09:00:00Z",
+  "config": {
+    "parameterMode": "rate",
+    "interArrivalDistribution": "exponential",
+    "serviceDistribution": "exponential",
+    "servers": { "reception": 1, "screening": 2, "doctor": 3 },
+    "manualLambda": null,
+    "horizon": { "mode": "days", "value": 3 },
+    "startDay": "Monday",
+    "dailyCap": null,
+    "randomSeed": 42,
+    "pExitOverride": 0.4,
+    "traceLevel": "state"
+  },
+  "dataFile": "samples/sample_patients.xlsx",
+  "view": {
+    "visibleWidgets": ["metrics", "chiSquare", "trace"],
+    "collapsedSections": ["advanced"]
+  }
+}
+```
+
+Schema rules:
+
+- `schemaVersion` is mandatory and checked on load.
+- Unknown fields are ignored (forward-compatible).
+- Missing required fields default; missing optional fields are null.
+- Validation reuses the same DataValidator logic where possible.
+
+File naming:
+
+- Sanitise user-supplied names: strip `/\:*?"<>|` and control chars.
+- Collision: prompt to overwrite or choose another name.
+- Case-insensitive comparison on Windows, case-sensitive on Linux
+  — always compare case-insensitively to avoid confusion.
+
+Operations to build:
+
+- `PresetStore.Save(preset)` — writes JSON to disk.
+- `PresetStore.Load(name)` — reads and validates.
+- `PresetStore.List()` — returns all presets, sorted by name.
+- `PresetStore.Delete(name)` — removes file.
+- `PresetStore.Import(path)` — validates external JSON, saves.
+- `PresetStore.Export(name, path)` — copies out.
+
+Startup:
+
+- No auto-restore. All fields empty per FR-UI-21.
+- `_lastSession.json` is NOT written or read.
+
+UI surface:
+
+- A "Presets" dropdown at the top of the config panel:
+  `[ Preset: (none) ▼ ]  [ Save ]  [ Manage… ]`
+- "Manage…" opens a ThemedDialog with the preset list and
+  buttons: Load, Rename, Duplicate, Delete, Import, Export.
+- Searchable per FR-UI-6.
+
+### 17.3 Testing Requirements
+
+Minimum tests for the preset system:
+
+- Round-trip: save a preset, reload, assert every field matches.
+- Schema mismatch: loading a v99 preset produces a clear error.
+- Missing data file: loading a preset whose file is gone loads
+  the preset but shows the inline "reselect data" error.
+- Sanitisation: names with invalid characters are sanitised.
+- Collision: saving over an existing name prompts (or fails
+  with a deterministic error in headless mode).
+- Cross-platform path resolution: a test asserts the preset
+  directory is under ApplicationData, not the CWD.
+- Export/import cycle: exported preset loads cleanly on reload.
+- No auto-restore: launch with a `_lastSession.json` present
+  (if one exists from an older build) does NOT load it.
+
+Minimum tests for the in-program guide:
+
+- Embedded markdown resource exists.
+- Embedded markdown matches the repository file (drift guard).
+- Renderer produces non-empty output for a known input.
+- Search filter returns expected sections.
+
+### 17.4 Anti-Patterns
+
+- Do NOT store presets next to the `.exe` — Program Files is
+  read-only on Windows.
+- Do NOT store presets in the current working directory — it
+  changes with how the app is launched.
+- Do NOT silently ignore a preset load failure.
+- Do NOT rebuild the guide UI from scratch; use theme resources
+  and existing reusable controls.
+- Do NOT duplicate USER_MANUAL content in XAML — embed the
+  markdown and render it.
+- Do NOT auto-load the last preset. Startup is empty by design
+  (FR-UI-21).

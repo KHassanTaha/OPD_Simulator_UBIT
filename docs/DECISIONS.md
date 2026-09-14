@@ -674,3 +674,231 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** Route stdout through the Serilog console sink and
   filter — rejected: sinks filter by level, not content; a dedicated writer is the
   only clean way to guarantee byte-pure trace output.
+
+## D-060 Welcome Panel Content Source
+
+- **Date:** 2026-09-14
+- **Decision:** Course info, member names, professor name, and logo paths live in
+  `CourseInfo.cs` constants, not hardcoded in XAML.
+- **Rationale:** a single source of truth makes updating for the next cohort a
+  one-file change; branding cannot drift from the view.
+- **Implementation details:** `Views/WelcomeCard.axaml` + `ViewModels/WelcomeCardViewModel.cs`
+  bind to `CourseInfo.cs` (PRD FR-UI-5, AGENTS §16.6).
+- **Impact:** (+) one file to edit for any branding change; (+) view model stays a
+  pure projection of constants.
+- **Alternatives considered:** hardcode in XAML — rejected: drift, harder to localise.
+
+## D-061 Searchable Dropdown as Reusable Control
+
+- **Date:** 2026-09-14
+- **Decision:** A custom `SearchableDropdown` control, not a styled `ComboBox`.
+  Built once, used for every dropdown in the app.
+- **Rationale:** consistent behaviour, a single place to fix bugs, and one
+  implementation that guarantees FR-UI-6 across the UI.
+- **Implementation details:** `controls/SearchableDropdown.axaml` — type-to-filter,
+  "×" clear, Up/Down/Enter/Escape, "no matches" empty state (FR-UI-6, AGENTS §16.5).
+- **Impact:** (+) one component to test and document; (+) uniform UX.
+- **Alternatives considered:** style ComboBox per instance — rejected: drift and
+  duplication.
+
+## D-062 Theming via Single Resource Dictionary
+
+- **Date:** 2026-09-14
+- **Decision:** All colours, fonts, and spacing in `Theme.axaml`, referenced via
+  `DynamicResource`. No inline style values anywhere.
+- **Rationale:** consistency, an accessibility audit that can inspect one file, and
+  a trivial future rebrand.
+- **Implementation details:** `Theme.axaml` resource dictionary; common controls
+  inherit via `DynamicResource` (NFR-8, AGENTS §16.3).
+- **Impact:** (+) reviewers can restyle the whole app by editing one file; (+)
+  Accessibility-relevant values are auditable in one place.
+- **Alternatives considered:** per-view styles — rejected: inconsistency risk.
+
+## D-063 Welcome Card Dismissal
+
+- **Date:** 2026-09-14
+- **Decision:** Welcome card fades out on "Start Calculation" and does not return
+  within the session.
+- **Rationale:** the user has seen it; blocking the results view again wastes
+  screen space.
+- **Implementation details:** fade ≤ 300 ms on click; not shown again for the rest
+  of the session (FR-UI-5, AGENTS §16.6).
+- **Impact:** (+) one-time onboarding; (+) no session-flag persistence needed.
+- **Alternatives considered:** persist dismissed state — rejected: over-engineered
+  for a session-scoped card.
+
+## D-064 Results Panel Customisation
+
+- **Date:** 2026-09-14
+- **Decision:** The user selects which widgets appear in the results panel; the
+  choice persists to local app settings.
+- **Rationale:** different users care about different outputs — the professor may
+  want chi-square, a developer may want the trace.
+- **Implementation details:** settings icon / "Customise View" button; defaults =
+  metrics + chi-square + trace; persisted across sessions (FR-UI-14, AGENTS §16.11).
+- **Impact:** (+) settings schema and first-run defaults; (+) per-user storage.
+- **Alternatives considered:** fixed layout — rejected: does not map to different
+  stakeholder priorities.
+
+## D-065 Keyboard-Only Navigation as a Contract
+
+- **Date:** 2026-09-14
+- **Decision:** Every UI workflow must be completable with keyboard alone, tested
+  by unplugging the mouse before commit.
+- **Rationale:** accessibility baseline; the keyboard-only test also catches
+  tab-order bugs that a mouse naturally hides.
+- **Implementation details:** AGENTS §16.7 keyboard contract + §16.8 pre-commit
+  checklist; Tab/Shift+Tab/Escape/Enter/Space/F1 semantics (FR-UI-15, NFR-7).
+- **Impact:** (+) accessibility baseline met; (+) tab-order bugs surface early.
+- **Alternatives considered:** keyboard as afterthought — rejected: retrofits are
+  expensive and fragile.
+
+## D-066 Label + Placeholder + Tooltip + Accessible Name Pattern
+
+- **Date:** 2026-09-14
+- **Decision:** Every input carries four sources of clarity: a persistent visible
+  label, format-example placeholder text, a hover tooltip, and a screen-reader
+  accessible name.
+- **Rationale:** different users access meaning differently; placeholder-only
+  labels fail screen readers and low-vision users.
+- **Implementation details:** AGENTS §16.7 example pairs; the pattern is enforced
+  through the `ValidatedField` control (FR-UI-8, FR-UI-16).
+- **Impact:** (+) all inputs built via `ValidatedField`; (+) WCAG AA labels.
+- **Alternatives considered:** placeholder-only — rejected: WCAG failure.
+
+## D-067 ValidatedField Reusable Control
+
+- **Date:** 2026-09-14
+- **Decision:** Build one `ValidatedField.axaml` control for every input — wraps
+  label, input, placeholder, tooltip, and error message in a styled unit driven
+  by `HasError` + `ErrorMessage`.
+- **Rationale:** one place to enforce FR-UI-16, FR-UI-17, and the accessibility
+  checklist.
+- **Implementation details:** `controls/ValidatedField.axaml`; error state switching
+  per AGENTS §16.9.
+- **Impact:** (+) one control to test; (+) error UX is uniform everywhere.
+- **Alternatives considered:** per-field validation markup — rejected: duplication
+  and drift.
+
+## D-068 Validate-on-Blur for Numeric Fields
+
+- **Date:** 2026-09-14
+- **Decision:** Numeric fields validate on blur (focus leaving), not on every
+  keystroke. Dropdowns and file pickers validate on selection.
+- **Rationale:** keystroke validation flashes false errors while typing
+  (0 → 0. → 0.5).
+- **Implementation details:** AGENTS §16.9 behaviour rules; validation timing is
+  part of the field contract (FR-UI-17).
+- **Impact:** (+) calm UX; (−) slightly delayed feedback is accepted.
+- **Alternatives considered:** keystroke validation — rejected: noisy UX.
+
+## D-069 Red + Icon + Message (Never Colour Alone)
+
+- **Date:** 2026-09-14
+- **Decision:** Error highlighting pairs a red border with an icon and an inline
+  message; the accessible name updates to include "invalid".
+- **Rationale:** ~8% of men and ~0.5% of women have red-green colour blindness;
+  colour-only cues are invisible to them (WCAG 1.4.1).
+- **Implementation details:** red border ≥ 2 px + icon + inline text + live-region
+  announcement; colour is redundant, never sole (FR-UI-17, AGENTS §16.9).
+- **Impact:** (+) three independent error channels; (+) WCAG 1.4.1 satisfied.
+- **Alternatives considered:** colour-only — rejected: accessibility failure.
+
+## D-070 Data Preview Is Read-Only by Design
+
+- **Date:** 2026-09-14
+- **Decision:** The selected-data preview is a verification surface, not an editor.
+  It supports sort, scroll, copy, and row-level validation highlighting — not
+  editing, formulas, row/column manipulation, or export.
+- **Rationale:** (a) the preview answers "did my file load correctly?"; (b) editing
+  inside the app would require save-back semantics that contradict the
+  immutable-input contract; (c) a smaller feature set is faster to build, test,
+  and defend.
+- **Implementation details:** `controls/DataPreviewTable.axaml`, virtualised and
+  read-only; `DataPreviewTable.axaml` (FR-UI-20, AGENTS §16.10).
+- **Impact:** (+) focused scope; (−) editing workflows out of scope — answered with
+  "export to Excel."
+- **Alternatives considered:** (a) full editable grid — rejected: scope creep; (b)
+  no preview at all — rejected: users can't verify load.
+
+## D-071 Data Preview Virtualisation
+
+- **Date:** 2026-09-14
+- **Decision:** The preview uses row virtualisation (Avalonia `ItemsRepeater`) and
+  does not materialise all rows into the visual tree.
+- **Rationale:** 10,000+ rows would freeze the UI if rendered eagerly.
+- **Implementation details:** only visible rows materialised; sort under 200 ms
+  (NFR-10, AGENTS §16.10); tests include a 10k-row synthetic file.
+- **Impact:** (+) NFR-10 performance target achievable; (+) smooth scroll at
+  full-year scale.
+- **Alternatives considered:** (a) pagination — rejected: extra clicks, worse UX;
+  (b) hard row cap — rejected: hides real data.
+
+## D-072 In-Program Guide Renders Embedded Markdown
+
+- **Date:** 2026-09-14
+- **Decision:** The in-program guide renders `docs/USER_MANUAL.md` (embedded as a
+  resource) using Markdig, rather than hand-coded XAML help pages.
+- **Rationale:** a single source of truth; updates propagate; contributors write
+  markdown, not XAML.
+- **Implementation details:** Markdig dependency; embedded resource + CI drift guard
+  (FR-UI-18, AGENTS §17.1).
+- **Impact:** (+) adds Markdig dependency; (+) content cannot drift; (−) guide is
+  tied to the embedded copy's build timing.
+- **Alternatives considered:** (a) hand-coded XAML help — rejected: content drifts;
+  (b) external .chm — rejected: Windows-oriented.
+
+## D-073 Presets Stored Under ApplicationData
+
+- **Date:** 2026-09-14
+- **Decision:** Presets live under
+  `Environment.GetFolderPath(SpecialFolder.ApplicationData)/OpdSimulator/presets/`.
+- **Rationale:** cross-platform, user-writable, survives app updates.
+- **Implementation details:** AGENTS §17.2 storage path; `.gitignore` does NOT cover
+  this path (outside the repo); `.gitignore` DOES cover `presets/` at repo root in
+  case a developer creates one during testing (FR-UI-19, NFR-9).
+- **Impact:** (+) install location is never written; (+) CWD changes cannot lose
+  presets.
+- **Alternatives considered:** (a) next to the .exe — rejected: Program Files is
+  read-only on Windows; (b) CWD — rejected: changes with launch method; (c)
+  registry — rejected: not cross-platform.
+
+## D-074 Preset Schema Versioned
+
+- **Date:** 2026-09-14
+- **Decision:** Every preset carries `schemaVersion`. Loader refuses unknown future
+  versions with a clear error; older versions are migrated forward.
+- **Rationale:** prevents silent misinterpretation if the config schema changes in
+  a later milestone.
+- **Implementation details:** `schemaVersion` mandatory on load (AGENTS §17.2);
+  NFR-9 backward compatibility; migration tests.
+- **Impact:** (+) explicit versioning policy; (−) migration code cost for future
+  schema changes.
+- **Alternatives considered:** no version — rejected: silent breakage.
+
+## D-075 Startup Starts Empty (No Auto-Restore)
+
+- **Date:** 2026-09-14
+- **Decision:** On launch, the application starts with empty fields. No preset is
+  auto-loaded. No `_lastSession.json` is read for auto-restore. The user selects a
+  preset explicitly.
+- **Rationale:** (a) an empty start is predictable — the user sees the same screen
+  every time; (b) auto-restore hides state the user may have forgotten (e.g., a
+  stale data file path from weeks ago); (c) it forces a deliberate choice before
+  running a calculation.
+- **Implementation details:** FR-UI-21 + AGENTS §§16.11/17.2; `_lastSession.json`
+  handling is NOT implemented; preset tests include a "startup is empty" test.
+- **Impact:** (+) predictable startup; (−) slight friction each launch is accepted.
+- **Alternatives considered:** (a) auto-load last session — rejected per above; (b)
+  ask "Load last session?" on launch — rejected: extra prompt friction.
+
+## D-076 Preset Dropdown Default State
+
+- **Date:** 2026-09-14
+- **Decision:** The Presets dropdown shows `(none)` until the user loads a preset.
+- **Rationale:** reflects the true state — no preset is loaded at startup.
+- **Implementation details:** dropdown and Manage dialog both show `(none)` as a
+  valid state (FR-UI-19/FR-UI-21, AGENTS §17.2).
+- **Impact:** (+) honest UI state.
+- **Alternatives considered:** pre-select the most recently created preset —
+  rejected: implies a state the user didn't choose.

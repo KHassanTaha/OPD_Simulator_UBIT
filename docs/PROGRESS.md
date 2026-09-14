@@ -2,6 +2,19 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M5 UI/UX requirements capture — 2026-09-14 (fix/ui-requirements-capture)
+
+Applied the six-file M5 documentation batch as a single docs-only change:
+- PRD.md → v1.4.0: FR-UI-5..21 in §5.1 (after FR-UI-4), NFR-7..10 in §6 (after NFR-6), changelog row.
+- AGENTS.md → Sections 16 (UI/UX standards, incl. §16.8 pre-commit checklist, §16.9 ValidatedField, §16.10 DataPreviewTable, §16.11 startup) and 17 (in-program guide via Markdig + presets). Note: file previously ended at §14.3 — no §15 existed; §16/17 appended as authored, preserving the cross-file numbering the whole batch references.
+- DECISIONS.md → D-060..D-076 (17 M5 entries; IDs assigned by scanning for the next free number, D-059 was the last).
+- TODO.md → "M5 — GUI (see PRD §5.1, AGENTS §16–17)" planned block under Upcoming, + the capture task as the only `[x]` in Active.
+- VIVA_ANSWERS.md → M5-1..M5-15 + glossary additions.
+- docs/M5_UI_SPEC.md → new quick-reference spec (feature map, assets, controls, keyboard map, error contract, preset paths, startup sequence, preview contract, accessibility acceptance).
+- REQUIREMENTS.md → 21 new rows (FR-UI-5..21, NFR-7..10) all `[ ]` (no source/test yet); coverage summary recomputed 29/67 = 43.3% (35 `[ ]`); "Last synced" → v1.4.0; changelog row.
+
+Verification: no `D-XXX` placeholders remain; D-060..D-076 present; FR-UI count 21 in both PRD and matrix; NFR-7..10 present; AGENTS §16/§17 present. Docs-only — no UI code was written.
+
 ### Session Handoff — 2026-09-14 05:55
 Branch: feat/milestone-4-event-trace
 Status: Clean (7 commits pushed; awaiting owner review/merge of the branch)
