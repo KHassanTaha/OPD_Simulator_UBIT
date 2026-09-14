@@ -20,11 +20,15 @@ Anything preventing progress, with owner and needed action. A task in
   - Impact: UI labeling (maps to PRD OQ-3)
   - Status: Pending
 
-- **B-005:** Avalonia MVVM template not installed (`dotnet new install Avalonia.Templates` not run).
+- **B-005:** Avalonia MVVM template not installed — **RESOLVED** 2026-09-14 (hand-build, D-078). [Kept out of Active; see Resolved]
+
+- **B-007:** M5 GUI requires a keyboard-only acceptance run to find bugs and defects.
   - Owner: Taha
-  - Impact: `OpdSimulator.App` created as an empty classlib placeholder this session (per scaffold instructions); Avalonia packages referenced but App not runnable until M5. DEV_LAUNCH §5 already documents running against `OpdSimulator.Cli` until then.
-  - Needed action: Approve `dotnet new install Avalonia.Templates` at M5 (or OK to hand-build the Avalonia project without the template).
-  - Status: Pending
+  - Impact: The M6 kickoff defers the M5 keyboard pass ("owner will run manually"). AGENTS §16.8's pre-commit UI checklist (Tab through every control, Shift+Tab reversal, Exit/Escape/Enter contracts, focus restore, disabled-field reasons, invalid-submit flow) can only be exercised on the **running app with the mouse unplugged** — it cannot be emulated headlessly. Until this pass is done, the M5 UI quality claim and the related TODO rows stay open/blocked.
+  - Needed action: Run the AGENTS §16.8 keyboard checklist in the running app (launch per DEV_LAUNCH §5) and the §16.7 welcome-card keyboard dismissal; report defects in `BLOCKERS.md`/`TODO.md` so they can be fixed.
+  - Linked tasks: TODO rows "UI acceptance of the 8 controls at M5-D screens" and "Tab order audit across entire window" (both marked `[?] BLOCKED`).
+  - Target: Before the final demo (planned 2026-09-16).
+  - Status: Blocked on owner running the manual pass
 
 - **B-006:** Verify dead-state build on Windows.
   - Owner: Taha

@@ -2,6 +2,17 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-14 — reconciled: 6 findings
+
+Findings (all non-blocking for M6) + B-007 blocker recorded for the M5 keyboard pass:
+1. **Git clean on `main`** @ `71a816a` (merge: milestone 5 — GUI view layer), up-to-date with origin, working tree clean. DEV_LAUNCH "Last verified" claims 243 green (Core 85 / Data 58 / Cli 35 / App 65) — to be re-verified at M6-G, not trusted blindly.
+2. **A1 is already done as a package add:** `LiveChartsCore.SkiaSharpView.Avalonia` **2.0.5** + Avalonia **11.3.3** + SkiaSharp are already pinned in `OpdSimulator.App.csproj`. M6-A1 becomes a version-compatibility confirmation + D-086 decision, not a NuGet install. SkiaSharp native libs: none required on Linux beyond the existing Avalonia X11 libs (verify at G1).
+3. **M5 already landed charts infrastructure:** `Services/ChartsBuilder.cs`, `ViewModels/ChartViewModels.cs` (ChartViewModel + ChartsPanelViewModel), `Views/ChartsPanel.axaml` with Input analysis / Simulation run tabs, LiveCharts2 2.0.5, `ChartsPanelViewModel.ForResources()` theme-colour resolution (D-084). FR-UI-4 is already `[x]` in REQUIREMENTS.md. M6 gaps versus the M5 chart shell: `ChartTheme.axaml` (A3), `ChartWidgetBase` abstraction (A4), per-server utilisation **imbalance flag + red outline** (B3), reduced-motion handling, empty/error states (D4/D5), and **token generator is entirely absent** (E — ResultsPanel shows only a placeholder readout; FR-TOKEN-1..3 all `[ ]`).
+4. **DEV_LAUNCH §5 stale text:** lines 99–103 still say "the window opens but shows placeholder config/results panels … until then the CLI stays the primary path", contradicted by the same §5's later bullet ("The full M5 GUI landed 2026-09-14: left config panel …"). Fix during M6-H1.
+5. **`ChartsBuilder` uses `HistogramBinCount = 16`** (hardcoded), independent of the chi-square `BinSelector` k — M6 F1 requires histogram bin count == chi-square bin count for strict FR-STAT-8 consistency; also a **dead `fit.Label.Contains("P2")` branch** (~lines 48–51) that does nothing (pre-existing — mention, do not delete). Downsample cap `MaxQueuePoints = 2_000` already exists (NFR-6 half-ready).
+6. **Token widget is a placeholder** (ResultsPanel.axaml lines 220–244 show issued-count + avg-wait summary only). No `TokenGeneratorViewModel`, no Little's-Law estimate, no ticket card. FR-TOKEN-1/2/3 rows all `[ ]`.
+Also: **B-007 added** — M5 keyboard-only acceptance run on the running GUI (AGENTS §16.8/§16.7) is an owner manual task; the "8 controls UI acceptance" and "Tab order audit" TODO rows are marked `[?] BLOCKED` and linked to it.
+
 ## M5-C/D/E/F/L VIEW LAYER + TESTS — 2026-09-14 (feat/milestone-5-gui)
 
 View/view-model layer for the whole M5 GUI landed and is verified. Build:

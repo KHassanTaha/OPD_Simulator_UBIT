@@ -44,7 +44,7 @@ Last updated: 2026-09-14
 - [x] `PinnedFooterBar.axaml` (FR-UI-11) — 2026-09-14 (ContentControl + ControlTheme)
 - [x] `ValidatedField.axaml` (FR-UI-16 + FR-UI-17) — 2026-09-14 (persistent label + '?' + themed border + inline cause/remedy error; error clears on fix)
 - [x] `DataPreviewTable.axaml` (FR-UI-20, virtualised) — 2026-09-14 (virtualizing ListBox body, file-driven headers, asc→desc→original `DataPreviewStore` sort, invalid-row badge + reason tooltip, read-only selectable cells; D-081)
-- [ ] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land (2026-09-14 note)
+- [?] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land (2026-09-14 note) — **BLOCKED B-007** (owner must run the keyboard pass in the app; cannot be emulated here)
 
 ### Welcome Panel (FR-UI-5)
 - [x] `WelcomeCard.axaml` view — 2026-09-14 (styled card with logo Images bound to CourseInfo avares URIs, member list, course/professor)
@@ -72,7 +72,7 @@ Last updated: 2026-09-14
 - [ ] Test cases: empty required, out-of-range, malformed file, missing dropdown selection
 
 ### Accessibility (FR-UI-15, NFR-7)
-- [ ] Tab order audit across entire window — keyboard pass must be done in the running app by the owner (no mouse emulation here)
+- [?] Tab order audit across entire window — keyboard pass must be done in the running app by the owner (no mouse emulation here) — **BLOCKED B-007**
 - [ ] Shift+Tab reverses correctly
 - [ ] Focus indicator visible with ≥ 3:1 contrast
 - [x] Escape closes every modal/dropdown and returns focus — 2026-09-14 (ThemedDialog Escape=cancel + focus restore; guide overlay Escape=close + focus restore via MainWindow _focusBeforeGuide; dropdown Escape)
@@ -196,7 +196,7 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [ ] Apply log-level discipline (Verbose = RNG draws, Debug = event scheduling, Information = run summaries, Warning/Error/Fatal per §12.2)
 
 ## Blocked
-- (none — B-006 (Windows dead-state) is pending, nothing blocks current work; B-005 resolved 2026-09-14 via hand-build, D-078)
+- M5 keyboard acceptance rows above (2 rows) — owner manual run required (B-007). B-006 (Windows dead-state) remains pending; nothing blocks current M6 work.
 
 ## Done
 - [x] FIX (feat/milestone-1-single-stage-engine): average-wait/system-time bug — `totalWaitMinutes`/`totalSystemMinutes` were `long`, truncating every sub-minute wait to 0 (mean wait read 0.41 vs analytical 0.75). Switched to `double` accumulators; EngineTests.Run_MatchesAnalyticalMM1 now green (0.724 within 15% of 0.75) — 2026-09-13
