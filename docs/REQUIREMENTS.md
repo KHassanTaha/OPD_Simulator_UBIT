@@ -22,21 +22,21 @@ PRD.md wins.
 | FR-UI-3 | Background thread + progress indicator | [ ] | — | — | — |
 | FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [ ] | — | — | — |
 | FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [ ] | — | — | — |
-| FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [ ] | — | — | — |
+| FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [~] | Controls/SearchableDropdown.axaml + Services/SearchFilter.cs | SearchFilterTests (App.Tests) | D-080 |
 | FR-UI-7 | Disabled field treatment (dimmed + reason tooltip) | [ ] | — | — | — |
-| FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [ ] | — | — | — |
+| FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [~] | Controls/InfoIcon.axaml | — | D-080 |
 | FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [ ] | — | — | — |
-| FR-UI-10 | Themed dialogs and toasts | [ ] | — | — | — |
-| FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [ ] | — | — | — |
-| FR-UI-12 | Collapsible config sections (>4 sections) | [ ] | — | — | — |
+| FR-UI-10 | Themed dialogs and toasts | [~] | Controls/ThemedDialog.axaml, ThemedToast.axaml, Services/ToastService.cs + ToastLifecycle.cs, ViewModels/ToastItem.cs | ToastServiceTests (App.Tests) | D-080 |
+| FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [~] | Controls/PinnedFooterBar.axaml.cs + ControlStyles.axaml (chrome only; panel lands M5-C) | — | D-080 |
+| FR-UI-12 | Collapsible config sections (>4 sections) | [~] | Controls/CollapsibleSection.axaml.cs + ControlStyles.axaml | — | D-080 |
 | FR-UI-13 | Clear All with confirmation + undo | [ ] | — | — | — |
 | FR-UI-14 | User-selectable results panel widgets (persisted) | [ ] | — | — | — |
 | FR-UI-15 | Full Tab navigation (focus order, Escape, focus return) | [ ] | — | — | — |
-| FR-UI-16 | Persistent labels + format placeholders + units | [ ] | — | — | — |
-| FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [ ] | — | — | — |
+| FR-UI-16 | Persistent labels + format placeholders + units | [~] | Controls/ValidatedField.axaml | — | D-080 |
+| FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [~] | Controls/ValidatedField.axaml | — | D-080 |
 | FR-UI-18 | In-program guide (F1, searchable, deep links, embedded markdown) | [ ] | — | — | — |
 | FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [ ] | — | — | — |
-| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [ ] | — | — | — |
+| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [~] | Controls/DataPreviewTable.axaml + Services/DataPreviewStore.cs | DataPreviewStoreTests (App.Tests) | D-080, D-081 |
 | FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [ ] | — | — | — |
 
 ## Functional Requirements — Data
