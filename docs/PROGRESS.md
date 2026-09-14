@@ -2,6 +2,29 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## M4 sub-task H: docs pass — DEV_LAUNCH/USER_MANUAL/REQUIREMENTS/VIVA_ANSWERS + TODO cleanup — 2026-09-14 (feat/milestone-4-event-trace)
+
+- **DEV_LAUNCH** §6 test count 97→176 with the M4 test breakdown; new §7.6
+  `trace` command section (flags, level contract, verified command + output);
+  changelog row (M4; M3 row preserved beneath it); "Last verified" refreshed to
+  2026-09-14 incl. the trace live-run; §8 layout note for `Trace/`.
+- **USER_MANUAL** new §7.6 `trace` section (pointer to DEV_LAUNCH
+  for the full flag list — no instruction duplication, §10.7); regenerating
+  section renumbered to §7.7; changelog row added.
+- **REQUIREMENTS** FR-VAL-4 Source/Test/Decision refreshed — first-class trace
+  (Trace/ namespace, `trace` CLI) supersedes the Serilog Debug channel as the
+  FR-VAL-4 implementation; tests now TraceRegressionTests + CliTraceTests +
+  EventTraceTests; D-036 + D-055. Coverage summary block recomputed from stale
+  50.0%/23 to actual 63.0%/29 (recon finding #3 resolved). Changelog row + note.
+- **VIVA_ANSWERS** +5 Milestone-4 Q&As (two channels D-055; defending trace
+  numbers via stats/RNG checks D-057/D-058; byte-stability; `--level rng` draw
+  order; `--patients` early break).
+- **TODO.md** M4 trace row → `[x]` (pending owner merge); reconcile finding #4:
+  the rate-wise/mean-wise toggle row reclassified `[~]` → `[ ]` so exactly one
+  task is IN PROGRESS at once.
+- Full suite 176 green (83+58+35), 0 warnings. Branch has 5 commits pushed
+  (3705830, f6b95e7, 94a2d8e, e84d50d, e40e1e3 + docs pass commit pending).
+
 ## M4 sub-tasks A–D: trace feature, golden regression, stdout purity — 2026-09-14 (feat/milestone-4-event-trace)
 
 M4 kicked off from `main` @51d6d92 (156 green). Branch pushed; then:

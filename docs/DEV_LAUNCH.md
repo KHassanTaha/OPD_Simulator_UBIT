@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-13 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. [Windows: TBD]
+**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite 176 green, 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -164,15 +164,17 @@ does not, see **Troubleshooting** below.
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-13 **97 tests pass**:
-- `OpdSimulator.Core.Tests` (36) — queue, event/FEL ordering, RNG determinism, exponential
-  sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace.
-- `OpdSimulator.Data.Tests` (55) — Excel/CSV loaders, TimeParser, validator (per-row issues),
+Expected: `Passed! - Failed: 0`. As of 2026-09-14 **176 tests pass**:
+- `OpdSimulator.Core.Tests` (83) — queue, event/FEL ordering, RNG determinism, exponential
+  sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
+  **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
+- `OpdSimulator.Data.Tests` (58) — Excel/CSV loaders, TimeParser, validator (per-row issues),
   preprocessing (inter-arrival/service/p_exit), all 5 fitters, chi-square (accept/reject/k
   bounds), parameter-mode warnings, export, committed fixtures (samples + dirty file).
-- `OpdSimulator.Cli.Tests` (6) — `simulate-params` refusal (clean stderr, no stack, exit 1,
+- `OpdSimulator.Cli.Tests` (35) — `simulate-params` refusal (clean stderr, no stack, exit 1,
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
-  `simulate-data` multi-server sweep; non-exponential refusal, exit 2.
+  `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
+  (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -263,6 +265,33 @@ header, pre-run ρᵢ (0.4/0.4/0.1), three per-stage blocks and network totals
 (124 served); `--days 5 --cap 80 --seed 42` reproduced identical stdout on a
 second run (FR-VAL-3).
 
+### 7.6 `trace --lambda λ --mu μ --servers c [--stages …] [--p-exit p] --patients n [--seed s] [--level events|state|rng] [--output f] [--real-start HH:mm[:ss]]` — deterministic event trace (M4)
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- trace --lambda 3 --mu 4 --servers 1 --patients 5 --seed 42
+```
+
+Reruns the configured network and prints one line per state-changing point —
+ARRIVAL / START_SVC / END_SVC / ROUTE / EXIT — stopping after `--patients` have
+fully left the system, so a trace stays short and reviewable. Level control:
+`events` (core columns), `state` (default; adds the server id and the
+`→ exit`/`→ next stage` destination), `rng` (adds one RNG row per draw —
+`seed=42`, `draw#k U=0.6681 → service time 0.101 min …`). The wall-clock column is
+hours into the real anchor (default 08:15:00 via `--real-start`). Every number is
+invariant-culture and the RNG stream is untouched (D-057), so the same seed
+reproduces the same bytes and every row can be hand-checked against `−ln(U)/λ`.
+Engine narration goes to the file logs only — stdout carries trace lines alone
+(D-059). Exit 1 with a single stderr line for an unstable configuration
+(ρ ≥ 1 at any stage); exit 2 for usage or file-write errors.
+
+**Verified 2026-09-14 (Ubuntu 24.04):** the example command printed and matched
+the frozen golden fixture `tests/OpdSimulator.Core.Tests/Fixtures/trace-5-patients.txt`
+(draw-by-draw hand-verified against the reference `Random(42)` sequence);
+`--level rng` showed `draw#1 U=0.6681` … and `draw#10 U=0.7613`; `--level events`
+dropped the state columns and RNG rows; `--output /tmp/t.txt` wrote the trace and
+printed the confirmation line; an unstable config (`--lambda 5 --mu 1`) refused
+with exit 1.
+
 ---
 
 ## 8. Project Layout
@@ -287,7 +316,7 @@ opd-simulator/
 │   ├── sample_patients.csv          # committed twin for terminal workflows
 │   └── sample_3stage_clinic.csv     # committed 3-stage fixture (Reception→Screening→Doctor, p_exit 0.7)
 ├── src/
-│   ├── OpdSimulator.Core/      # simulation engine (no UI)
+│   ├── OpdSimulator.Core/      # simulation engine (no UI); Trace/ = M4 event trace (D-055)
 │   ├── OpdSimulator.Data/      # Excel/CSV loader, fitting
 │   ├── OpdSimulator.App/       # Avalonia UI — empty classlib placeholder until M5 (B-005)
 │   └── OpdSimulator.Cli/       # headless runner
@@ -409,6 +438,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |
 | 2026-09-13 | M3: `simulate-data` is stage-aware (per-stage μᵢ, p_exit, per-stage blocks, D-052), new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (D-053) and `--p-exit` routing; `samples/sample_3stage_clinic.csv` tracked; §7.4/§7.5 + §8 updated; M2 sweep c=2/3 waits refreshed (§7.4); 156 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 156 green, 0 warnings; `simulate-network` (incl. `--days 5 --cap 80 --verbose`) and stage-aware `simulate-data` live-run verified; M1 regression live (29892/0.724/0.75); §7.4 c=2/3 refresh command run |
 | 2026-09-13 | M2: CLI is a subcommand dispatcher — `simulate-params` (renamed M1 form), `verify`, `fit`, `simulate-data` (server sweep), `export` (§5/§7); Data layer lands (loaders, validator, preprocessing, fitters, chi-square); sample files committed + regenerable via `scripts/make-sample-data.sh` (§8); 97 tests green (§6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test pass, 0 warnings; verify/fit/simulate-data/export live-run verified, exit codes observed |
 | 2026-09-13 | M1: CLI takes `--lambda/--mu/--servers/--horizon/--seed`, prints metrics + ρ, exits 0/1/2 (§5); tests exist (34 green, §6); headless mode updated to the rate-driven form, M2 data form noted (§7); Serilog.Sinks.File 7.0.0 + Core Serilog 4.4.0 + ProjectReferences noted (§3) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state restore/build/test + M1 CLI F2/F3 all pass, 0 warnings |
