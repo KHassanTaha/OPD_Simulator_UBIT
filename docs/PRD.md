@@ -1,7 +1,7 @@
 # Product Requirements Document – OPD Clinic Queue Simulator
 
-**Version:** v1.3.0
-**Date:** 2026-09-13
+**Version:** v1.4.0
+**Date:** 2026-09-14
 **Author:** Taha Hassan
 **Course:** Simulation & Modelling
 **Master document:** Yes. `REQUIREMENTS.md` is derived from this file.
