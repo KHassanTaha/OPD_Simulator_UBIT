@@ -6,7 +6,7 @@ spec → code → test → decision.
 **Source of truth:** `PRD.md` (master). If this file disagrees with PRD.md,
 PRD.md wins.
 
-**Last synced with PRD.md:** 2026-09-13 (v1.3.0)
+**Last synced with PRD.md:** 2026-09-14 (v1.4.0)
 
 **Status vocabulary:** `[ ]` TODO · `[~]` IN PROGRESS · `[x]` DONE ·
 `[?]` BLOCKED · `[-]` CANCELLED
@@ -21,6 +21,23 @@ PRD.md wins.
 | FR-UI-2 | Input validation (numeric, file type, mode mismatch) | [ ] | — | — | — |
 | FR-UI-3 | Background thread + progress indicator | [ ] | — | — | — |
 | FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [ ] | — | — | — |
+| FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [ ] | — | — | — |
+| FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [ ] | — | — | — |
+| FR-UI-7 | Disabled field treatment (dimmed + reason tooltip) | [ ] | — | — | — |
+| FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [ ] | — | — | — |
+| FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [ ] | — | — | — |
+| FR-UI-10 | Themed dialogs and toasts | [ ] | — | — | — |
+| FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [ ] | — | — | — |
+| FR-UI-12 | Collapsible config sections (>4 sections) | [ ] | — | — | — |
+| FR-UI-13 | Clear All with confirmation + undo | [ ] | — | — | — |
+| FR-UI-14 | User-selectable results panel widgets (persisted) | [ ] | — | — | — |
+| FR-UI-15 | Full Tab navigation (focus order, Escape, focus return) | [ ] | — | — | — |
+| FR-UI-16 | Persistent labels + format placeholders + units | [ ] | — | — | — |
+| FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [ ] | — | — | — |
+| FR-UI-18 | In-program guide (F1, searchable, deep links, embedded markdown) | [ ] | — | — | — |
+| FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [ ] | — | — | — |
+| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [ ] | — | — | — |
+| FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [ ] | — | — | — |
 
 ## Functional Requirements — Data
 
@@ -88,19 +105,23 @@ PRD.md wins.
 | NFR-4 | Deterministic given seed | [x] | src/OpdSimulator.Core/Engine/Engine.cs, Distributions/SeededRandomSource.cs | EngineTests.Run_SameSeed_TwoRuns_ProduceIdenticalResults, SeededRandomSourceTests | D-035 |
 | NFR-5 | C# .NET 8, Avalonia, MathNet, ClosedXML, CsvHelper | [ ] | .gitignore, DEV_LAUNCH.md §3, appsettings.template.json | — | D-027 |
 | NFR-6 | Charts <500ms, non-blocking UI | [ ] | — | — | — |
+| NFR-7 | Accessibility baseline (keyboard, contrast, reduced-motion) | [ ] | — | — | — |
+| NFR-8 | Consistency (single theme file, reusable controls) | [ ] | — | — | — |
+| NFR-9 | Preset portability across installs/platforms | [ ] | — | — | — |
+| NFR-10 | Data preview performance (10k rows virtualised, sort <200ms) | [ ] | — | — | — |
 
 ---
 
 ## Coverage Summary
 
-- Total requirements: 46
+- Total requirements: 67
 - `[x]` DONE: 29
 - `[~]` IN PROGRESS: 3
-- `[ ]` TODO: 14
+- `[ ]` TODO: 35
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 63.0% (29/46)
+**Coverage:** 43.3% (29/67)
 
 > M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
 > NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
@@ -142,6 +163,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | M5: 21 new rows registered for the M5 UI/UX batch — FR-UI-5..21 and NFR-7..10, all `[ ]` (captured, no source/test yet). PRD bumped to v1.4.0; decisions D-060..D-076; M5_UI_SPEC.md added. Coverage recomputed: 29/67 = 43.3% (35 `[ ]` now open because M5 work is not started) |
 | 2026-09-14 | M4: FR-VAL-4 Source/Test/Decision refreshed — the first-class deterministic trace (Trace/ namespace + `trace` CLI, D-055) supersedes the Serilog Debug channel as the implementation; tests now TraceRegressionTests (golden fixture, draw-by-draw RNG parity, stats cross-check) + CliTraceTests + EventTraceTests; coverage summary block recomputed from 50.0% to the actual 63.0% (constituting stale from M3) |
 | 2026-09-13 | M3: FR-SIM-1/4/7/8/9, FR-STAT-6/7 → `[x]` with network source/tests/decisions (D-049→D-053); FR-SIM-10 → `[~]` (FormatClock lands the real-clock piece, UI binding M5); FR-VAL-1 + FR-SIM-1 source refreshed for `NetworkTopology.Validate`/CLI; coverage now 63.0% (29/46 `[x]`, +3 `[~]`) |
 | 2026-09-13 | Initial matrix created from PRD v1.3.0 |

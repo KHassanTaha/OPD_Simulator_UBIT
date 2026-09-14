@@ -152,3 +152,181 @@ optional `maxCompletedPatients` early break (D-058), which fires after a
 patient's EXIT event and leaves the FEL consistent — the run is simply a
 prefix of the full run, so the metrics of the stopped run still satisfy the
 trace/stats agreement tests.
+
+## Milestone 5 — UI/UX, presets, in-program guide
+
+## M5-1. The Usability Contract
+
+> "Every UI surface follows the same usability contract: searchable
+> dropdowns with a '×' clear, disabled-field explanations via
+> tooltips, hover tooltips on every control, themed dialogs and
+> toasts, scrollable and collapsible configuration sections, clear-
+> all with undo, user-selectable results widgets, full keyboard
+> navigation with Tab and Shift+Tab, labels plus format-demonstrating
+> placeholders on every input, and red error highlighting paired
+> with icons and text so it never relies on colour alone. One theme
+> file drives all styling."
+
+## M5-2. Why Colour Alone Is Not Enough
+
+> "Approximately 8% of men and 0.5% of women have red-green colour
+> blindness. A red-only error indicator is invisible to them. We
+> pair every red border with an error icon, an inline text message,
+> and an updated screen-reader accessible name — three independent
+> channels that any user can perceive. This satisfies WCAG 1.4.1
+> (Use of Colour), and it means our error states work for everyone."
+
+## M5-3. Why Keyboard Navigation Is a Contract, Not a Nice-to-Have
+
+> "If a workflow cannot be completed with keyboard alone, it fails
+> accessibility. We test by unplugging the mouse before every
+> commit that touches the UI. The keyboard-only test is also the
+> fastest way to catch tab-order bugs — the mouse hides them because
+> you naturally click what you want. Removing the mouse forces the
+> UI to declare its focus order, and that declaration is the
+> contract."
+
+## M5-4. Why Labels Are Not Placeholders
+
+> "The single most common accessibility failure in desktop apps is
+> using placeholder text as the only label. When the user types, the
+> placeholder disappears and the field's purpose is lost. Worse,
+> screen readers often skip placeholders entirely, so a user who
+> can't see the screen has no idea what the field is for. We use
+> both: a persistent visible label for identity, and placeholder
+> text that demonstrates the format. The label never disappears."
+
+## M5-5. Validate-on-Blur vs Validate-on-Keystroke
+
+> "As a user types '0.5', they pass through '0', '.', '0.' on the
+> way. Keystroke validation flashes red at '0' — a false error for
+> something the user was about to fix. We validate on blur instead:
+> the field validates when focus leaves, not on every keystroke.
+> Dropdowns and file pickers don't have this problem, so they
+> validate on selection. The trade-off is slightly delayed feedback
+> in exchange for a calm interface."
+
+## M5-6. The In-Program Guide Uses Embedded Markdown
+
+> "The in-program guide renders the same markdown as USER_MANUAL.md
+> — one source of truth, embedded as an app resource. A CI test
+> compares the embedded copy against the repository file and fails
+> on drift. This means documentation updates propagate to the guide
+> automatically, and contributors write markdown rather than XAML.
+> F1 opens it; Escape closes it; focus returns to wherever the user
+> was. Every config field has a '?' icon that deep-links to its
+> section."
+
+## M5-7. Presets Are JSON Under ApplicationData
+
+> "Presets are JSON files stored under the OS-standard application
+> data directory — `%APPDATA%\OpdSimulator\presets\` on Windows,
+> `~/.config/OpdSimulator/presets/` on Linux. We use .NET's
+> `SpecialFolder.ApplicationData`, which resolves correctly on
+> both platforms. Each preset carries a schema version so future
+> changes remain backward-compatible, and a preset exported from
+> one machine loads cleanly on another. If the referenced data
+> file is missing on the target machine, the preset loads but
+> shows a clear inline message asking the user to reselect the
+> data."
+
+## M5-8. Why Presets Are Not Stored Next to the Executable
+
+> "On Windows, `Program Files` is read-only for non-admin users.
+> On Linux, the install directory may be on a read-only mount.
+> Any app that writes user config next to itself fails on half
+> the machines it's installed on. ApplicationData is the standard
+> cross-platform location and it survives app updates. We also
+> avoid the current working directory because it changes with
+> how the app is launched — a shortcut, a shell, or a debugger
+> all see different CWDs."
+
+## M5-9. Why Startup Is Empty by Design
+
+> "On launch, every field is empty and no preset is auto-loaded.
+> This is deliberate. An empty start is predictable — the user
+> sees the same screen every time. Auto-restore hides state that
+> the user may have forgotten, like a stale data file path from
+> weeks ago. The empty start also forces a deliberate choice
+> before running a calculation: the user must either fill the
+> fields or explicitly select a preset. That deliberate step is
+> worth the small extra friction."
+
+## M5-10. Preset Loading Is Explicit
+
+> "The Presets dropdown shows '(none)' until the user selects a
+> preset via the dropdown, the Manage dialog, or Ctrl+O. Once
+> loaded, the fields populate and the dropdown reflects the
+> loaded name. If the preset references a data file that no
+> longer exists on disk, every other field still populates — only
+> the data field is emptied and shows an inline message asking
+> the user to reselect the file. We never silently fail, and we
+> never overwrite the user's other choices just because one file
+> is missing."
+
+## M5-11. What Persists Across Sessions
+
+> "Three things persist across sessions: the list of saved preset
+> files (they live on disk), the user's UI widget preferences from
+> FR-UI-14, and the theme choice. Nothing else. The configuration
+> itself, the last data file, the last simulation results — those
+> all start clean each session. This is a deliberate boundary
+> between 'user preferences' (persistent) and 'session state'
+> (ephemeral)."
+
+## M5-12. Why the Data Preview Is Read-Only
+
+> "The preview exists to answer one question: 'did my file load
+> correctly?' It is a verification surface, not an editor. It
+> supports sort, scroll, copy, and row-level validation highlight,
+> and that's it. Editing inside the app would require save-back
+> semantics that contradict our immutable-input contract — the
+> validator expects the file to be the source of truth. A smaller
+> feature set is faster to build, easier to test, and easier to
+> defend. If a user wants to edit, they export to Excel, fix, and
+> re-upload."
+
+## M5-13. Preview Performance — Virtualisation
+
+> "The preview virtualises rows. With 10,000 rows, only the visible
+> ~30 are materialised in the visual tree. Rendering happens in
+> under a second; sorting completes in under 200 milliseconds. If
+> we rendered all rows eagerly, the UI would freeze on load. The
+> virtualisation is why the preview remains responsive at the scale
+> of a full clinic year."
+
+## M5-14. Invalid Rows in the Preview
+
+> "Rows that fail validation are highlighted with the same red
+> border, icon, and tooltip treatment as invalid form fields —
+> FR-UI-17. The tooltip states the specific validator reason, so
+> the user can fix that row in Excel and re-upload. The preview
+> becomes a debugging aid: instead of 'validation failed, 3 rows
+> wrong', the user sees exactly which rows and why."
+
+## M5-15. Pre-Commit Accessibility Audit
+
+> "Before any UI commit, we run a fixed audit: Tab through the
+> entire window with the mouse unplugged, verify every control is
+> reachable, confirm Escape closes every modal and returns focus
+> to the opener, check that every input has a label and a
+> placeholder, and submit with empty fields to confirm the error
+> highlighting works end-to-end. If any line fails, the commit is
+> not ready. This checklist is in AGENTS.md §16.8 so every session
+> follows it."
+
+---
+
+## Glossary Additions
+
+| Term | Definition |
+|------|------------|
+| WCAG 1.4.1 | Use of Colour — colour must not be the only means of conveying information |
+| Focus trap | A state where Tab cannot leave a modal or control |
+| Focus indicator | Visible highlight on the currently focused control |
+| Live region | Screen-reader announcement channel for dynamic content |
+| ApplicationData | OS-standard directory for user-scoped app data |
+| Embedded resource | File compiled into the app binary, readable at runtime |
+| Deep link | URL fragment that navigates directly to a specific section |
+| Schema version | Field in persisted data declaring its format version |
+| Virtualisation | Rendering only visible items in a long list |
