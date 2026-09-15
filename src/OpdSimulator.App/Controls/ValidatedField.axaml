@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.ValidatedField"
+             x:DataType="controls:ValidatedField">
+
+    <!-- ValidatedField — FR-UI-17 / AGENTS §16.7 / §16.9: one validated input.
+         Persistent Label + format-example Watermark + unit + tooltip + InfoIcon
+         + inline error (≥2px red border, icon, message that states cause and
+         remedy, cleared the moment the field is valid). Validation fires on
+         blur (FieldLostFocus), not per keystroke. -->
+    <StackPanel Spacing="{DynamicResource SpaceXxs}">
+
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding $parent[controls:ValidatedField].Label}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       VerticalAlignment="Center"/>
+            <controls:InfoIcon Grid.Column="1"
+                      Margin="6,0,0,0"
+                      HelpText="{Binding $parent[controls:ValidatedField].Tooltip}"
+                      HelpAnchor="{Binding $parent[controls:ValidatedField].HelpAnchor}"/>
+            <TextBlock Grid.Column="2"
+                       Text="{Binding $parent[controls:ValidatedField].UnitLabel}"
+                       Classes="Caption"
+                       VerticalAlignment="Center"
+                       Margin="4,0,0,0"/>
+        </Grid>
+
+        <Border x:Name="FieldBorder"
+                BorderThickness="1,1,1,1"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                CornerRadius="{DynamicResource CornerRadiusS}"
+                Background="{DynamicResource BrushBackgroundPanel}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox x:Name="InputBox"
+                         Grid.Column="0"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         CornerRadius="0"
+                         Padding="{DynamicResource ThicknessFieldPadding}"
+                         Watermark="{Binding $parent[controls:ValidatedField].Watermark}"
+                         ToolTip.Tip="{Binding $parent[controls:ValidatedField].Tooltip}"
+                         Text="{Binding $parent[controls:ValidatedField].Value, Mode=TwoWay}"
+                         LostFocus="OnInputLostFocus"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding $parent[controls:ValidatedField].Unit}"
+                           Classes="Caption"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+            </Grid>
+        </Border>
+
+        <Grid x:Name="ErrorRow"
+              ColumnDefinitions="Auto,*"
+              IsVisible="False">
+            <TextBlock Grid.Column="0"
+                       x:Name="ErrorGlyph"
+                       Text="&#x26A0;"
+                       Foreground="{DynamicResource BrushError}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       VerticalAlignment="Center"
+                       Margin="2,0,4,0"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="ErrorText"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource BrushError}"
+                       FontSize="{DynamicResource FontSizeCaption}"
+                       VerticalAlignment="Center"/>
+        </Grid>
+
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,159 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             x:Class="OpdSimulator.App.Views.ControlsDemo"
+             x:DataType="viewModels:ControlsDemoViewModel">
+
+    <!-- ControlsDemo — Phase 2 live showroom: one working instance of each
+         reusable control so the owner can click/tab through every behaviour
+         before the real config/results panels consume them (Phase 4/5). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Border Padding="{DynamicResource ThicknessWindowPadding}">
+            <StackPanel Spacing="{DynamicResource SpaceM}"
+                        MaxWidth="900"
+                        HorizontalAlignment="Stretch">
+
+            <TextBlock Text="Reusable Controls — click every one"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"/>
+            <TextBlock Text="Phase 2 build: tab through with Tab/Shift+Tab; type to filter the dropdown; Escape closes it; hover the ? icons."
+                       Classes="Caption"
+                       TextWrapping="Wrap"/>
+
+            <!-- 1. InfoIcon -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="InfoIcon — hover the ? for a short tooltip" Classes="Caption"/>
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                        <controls:InfoIcon HelpText="Preset files are stored in your app-data folder."/>
+                        <TextBlock Text="Stored in application data, not next to the program." TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 2. ValidatedField -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}" Width="360" HorizontalAlignment="Left">
+                    <TextBlock Text="ValidatedField — Tab out with “0” or text to see the inline error" Classes="Caption"/>
+                    <controls:ValidatedField x:Name="ArrivalField"
+                                             Label="Arrival rate λ"
+                                             Watermark="e.g., 0.5"
+                                             Tooltip="Average number of patients arriving per minute"
+                                             Unit="/ min"
+                                             HelpAnchor="arrival-rate"
+                                             Value="{Binding ArrivalRate, Mode=TwoWay}"
+                                             HasError="{Binding ArrivalRateHasError}"
+                                             ErrorMessage="{Binding ArrivalRateError}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 3. SearchableDropdown -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}" Width="360" HorizontalAlignment="Left">
+                    <TextBlock Text="SearchableDropdown — click, type “e”, arrows, Enter, ×" Classes="Caption"/>
+                    <controls:SearchableDropdown Label="Service-time distribution"
+                                                 Placeholder="Choose a distribution…"
+                                                 Tooltip="Which theoretical distribution the per-patient service times are drawn from"
+                                                 Items="{Binding Distributions}"
+                                                 SelectedItem="{Binding SelectedDistribution, Mode=TwoWay}"/>
+                    <TextBlock Text="{Binding SelectedDistribution, StringFormat='Selected: {0}'}"
+                               Classes="Caption"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 4. CollapsibleSection -->
+            <Border Classes="DemoCard">
+                <controls:CollapsibleSection Title="CollapsibleSection — click the header"
+                                             IsExpanded="{Binding SectionOpen, Mode=TwoWay}"
+                                             HelpText="Advanced settings live under collapsed sections.">
+                    <TextBlock Text="This content hides when the header is collapsed."
+                               Foreground="{DynamicResource BrushTextSecondary}"
+                               TextWrapping="Wrap"
+                               Margin="24,4,0,4"/>
+                </controls:CollapsibleSection>
+            </Border>
+
+            <!-- 5. ErrorBanner -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="ErrorBanner — FR-UI-9 inline refusal reason" Classes="Caption"/>
+                    <controls:ErrorBanner Message="{Binding BannerMessage}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                        <Button Content="Show error"
+                                Command="{Binding ShowBannerCommand}"
+                                Classes="GhostButton"/>
+                        <Button Content="Clear"
+                                Command="{Binding ClearBannerCommand}"
+                                Classes="GhostButton"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 6. ThemedToast -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="ThemedToast — add one; it self-dismisses after 6 s" Classes="Caption"/>
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                        <Button Content="Info"  Click="OnAddInfoToast"/>
+                        <Button Content="Success" Click="OnAddSuccessToast"/>
+                        <Button Content="Warning" Click="OnAddWarningToast"/>
+                        <Button Content="Error" Click="OnAddErrorToast"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Toasts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="viewModels:ToastItem">
+                                <controls:ThemedToast Margin="0,4,0,0"
+                                                      Item="{Binding}"
+                                                      CloseCommand="{ReflectionBinding DismissToastCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=ItemsControl}}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- 7. PinnedFooterBar -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="PinnedFooterBar — the primary action never scrolls away" Classes="Caption"/>
+                    <controls:PinnedFooterBar PrimaryText="Start Calculation"
+                                              PrimaryCommand="{Binding PrimaryActionCommand}"
+                                              PrimaryIsEnabled="{Binding PrimaryEnabled}"
+                                              ToolTip.Tip="Runs the queue simulation with the configured parameters">
+                        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="{Binding FooterStatus}" Classes="Caption" VerticalAlignment="Center"/>
+                            <Button Content="Disable / enable primary"
+                                    Command="{Binding TogglePrimaryCommand}"
+                                    Classes="GhostButton"/>
+                        </StackPanel>
+                    </controls:PinnedFooterBar>
+                </StackPanel>
+            </Border>
+
+            <!-- 8. ThemedDialog -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="ThemedDialog — themed modal, Escape cancels, focus returns after close" Classes="Caption"/>
+                    <Button Content="Open themed dialog"
+                            Click="OnOpenDialogClick"
+                            x:Name="DialogOpener"
+                            Classes="GhostButton"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 9. DataPreviewTable -->
+            <Border Classes="DemoCard">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="DataPreviewTable — 1,000 rows, sort headers, row 43 (index 42) is invalid" Classes="Caption"/>
+                    <controls:DataPreviewTable Height="280"
+                                               ColumnTitles="{Binding PreviewHeaders}"
+                                               Rows="{Binding PreviewRows}"
+                                               InvalidRows="{Binding PreviewInvalidRows}"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+        </Border>
+    </ScrollViewer>
+</UserControl>

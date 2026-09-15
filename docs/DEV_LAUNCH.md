@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **243 green** (Core 85, Data 58, Cli 35, App 65), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5 GUI verified: `dotnet run --project src/OpdSimulator.App` opens the full panel window and stays alive (≥ 10 s smoke run, no crash log, welcome logos load via AssetLoader).** [Windows: TBD]
+**Last verified:** 2026-09-15 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **197 green** (Core 85, Data 58, Cli 35, App 19), 0 warnings (2026-09-15: dead-state clean of all `bin`/`obj`, Release build 0/0, full suite + GUI-rebuild Phase 1 & 2 headless tests). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -169,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-15 **197 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,18 +180,15 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (65, M5-B..L) — pure logic only, no Avalonia session needed:
-  SearchFilter prefix>substring ranking + empty/no-match cases (FR-UI-6); DataPreviewStore
-  asc→desc→original sort cycle, invalid-row preservation, out-of-range column (FR-UI-20);
-  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10);
-  **ResultsViewModel** (run lifecycle, error banner, widget toggles persist, reset);
-  **MainViewModel** (widget prefs apply on construction, run-summary line, ResetAll toast);
-  **ChartViewModel/ChartsPanelViewModel** (empty state, line/histogram projections,
-  SetCharts/Clear, theme-resource fallback); **GuideViewModel** (embedded-vs-repo drift guard,
-  section parse, search ranking, anchor deep-link); **PresetStore** (round-trip, schema
-  mismatch v99, missing data file, sanitisation, collisions, ApplicationData path resolution,
-  export→import, case-insensitive names); **WelcomeCardViewModel** (course constants, logo
-  null-safety headless).
+- `OpdSimulator.App.Tests` (19, headless Avalonia, GUI rebuild Phase 1 + 2) — Avalonia.Headless
+  session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
+  motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
+  cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
+  commit), ThemedDialog (Escape→Cancel, primary/secondary), ThemedToast (severity render,
+  close-with-item), CollapsibleSection (toggle), InfoIcon (tooltip + automation name),
+  PinnedFooterBar (real pointer click drives command), DataPreviewTable (asc→desc→original
+  sort cycle, invalid-row banner), ErrorBanner (visible on message, hidden on dismiss);
+  ControlsDemo screenshot render.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -457,7 +454,8 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
-| 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §6 refreshed to 185 tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |
+| 2026-09-15 | **GUI rebuild Phase 2 — reusable controls** (`feat/gui-rebuild`): 9 controls in `src/OpdSimulator.App/Controls/` (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) + `Views/ControlsDemo` showroom inside MainWindow; template wiring moved to `OnApplyTemplate`+`INameScope.Find` (D-091); DataPreviewTable virtualises via ListBox, `Avalonia.Controls.ItemsRepeater` package dropped (D-090); PinnedFooterBar is a ContentControl template (fixes self-recursive content, D-092); ErrorBanner `IsVisible` mirrors Message (D-093); §6 refreshed to 197 tests | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 197 green (Core 85 / Data 58 / Cli 35 / App 19); per-control headless tests + `logs/screenshots/controls-demo.png` render; two real bugs caught by the tests (ErrorBanner dead-control, PinnedFooterBar recursion) |
+| 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |
 | 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |
 | 2026-09-14 | M5-A: §1 prerequisites add Linux system libs row (libx11-6 libice6 libsm6 libfontconfig1, D-079 — installed by owner, not the agent); §9 blank-window row replaced with cross-ref to §1 (one canonical apt command, AGENTS §10.7); §5/§8 status updated: App is now a real Avalonia shell (D-078), placeholder panels until M5-D | docs-only (owner installed libs; App launch smoke-tested 2026-09-14) |
 | 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |

@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.ThemedToast"
+             x:DataType="controls:ThemedToast">
+
+    <!-- ThemedToast — AGENTS §16.2 themed notifications: severity colours + icon
+         + message + close, in a consistent card. Severity glyph/text mapping is
+         enforced in code-behind so every toast looks identical. -->
+    <Border x:Name="ToastCard"
+            Background="{DynamicResource BrushBackgroundPanel}"
+            BorderBrush="{DynamicResource BrushBorderDefault}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CornerRadiusM}"
+            BoxShadow="{DynamicResource ShadowCard}"
+            Padding="{DynamicResource ThicknessSpaceM}">
+
+        <Grid ColumnDefinitions="3,Auto,*,Auto">
+            <Rectangle Grid.Column="0"
+                       x:Name="AccentBar"
+                       RadiusX="2"
+                       RadiusY="2"
+                       Width="3"
+                       MinHeight="24"
+                       HorizontalAlignment="Left"
+                       Fill="{DynamicResource BrushAccentInfo}"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="SeverityGlyph"
+                       Text="&#x2139;"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       VerticalAlignment="Center"
+                       Margin="8,0,8,0"/>
+            <StackPanel Grid.Column="2"
+                        VerticalAlignment="Center">
+                <TextBlock x:Name="SeverityLabel"
+                           Classes="Caption"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,2"/>
+                <TextBlock x:Name="MessageText"
+                           Foreground="{DynamicResource BrushTextPrimary}"
+                           FontSize="{DynamicResource FontSizeBody}"
+                           TextWrapping="Wrap"
+                           MaxWidth="420"/>
+            </StackPanel>
+            <Button Grid.Column="3"
+                    x:Name="CloseButton"
+                    Content="&#x2715;"
+                    Classes="GhostButton"
+                    Click="OnCloseClick"
+                    VerticalAlignment="Top"
+                    Margin="8,0,0,0"/>
+        </Grid>
+    </Border>
+</UserControl>

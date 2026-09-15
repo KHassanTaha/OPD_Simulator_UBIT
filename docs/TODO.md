@@ -33,7 +33,7 @@ Last updated: 2026-09-14
 > every phase gate.
 
 - [x] **Phase 1 — Foundation** — 2026-09-15 (§18 entry in PROGRESS.md; screenshot `logs/screenshots/phase-1-window.png`; gates: Release build 0/0, full suite 185 green, real Linux launch maximized >10 s, 0 crash-log entries; old view layer deleted, M6 files untouched; Theme.axaml token contract + Motion.axaml + empty Maximized MainWindow + §12.1 3-sink Serilog + §12.3 CrashReporter in Services/; packages: App −LiveCharts2/−Serilog.Extensions.Logging, App.Tests +Avalonia.Headless(.XUnit))
-- [ ] Phase 2 — Reusable controls (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) with per-control demo + headless test + §18 manual pass
+- [ ] Phase 2 — Reusable controls (_gate: Release build 0/0 ✅, full suite 197 green ✅, per-control headless tests 15 ✅, screenshot `logs/screenshots/controls-demo.png` ✅ — REAL-DISPLAY keyboard walk of the 9 controls (§16.8) is **owner-required**; Wayland box cannot run a real display → headless evidence accepted per D-089, manual walk pending_)
 - [ ] Phase 3 — MainWindow shell: TabControl [Simulation | Input Analysis | Token Generator | Help], 380px config / fill results, min 1100×700, tab-first focus cycle
 - [ ] Phase 4 — ConfigPanel (Data/Model/Parameters/Stages 1–5/Horizon/Advanced + pinned footer; p_exit [0,1) only for 2+ stages; single/multi-day via calendar path)
 - [ ] Phase 5 — ResultsPanel + run flow (welcome card FR-UI-5, widget selector, refused-run ErrorBanner with exact Core message; G3/G4 re-implemented)
@@ -60,7 +60,9 @@ Last updated: 2026-09-14
 - [x] `InfoIcon.axaml` (FR-UI-8) — 2026-09-14 (hover tooltip + `HelpAnchor`/`HelpRequested` click)
 - [x] `PinnedFooterBar.axaml` (FR-UI-11) — 2026-09-14 (ContentControl + ControlTheme)
 - [x] `ValidatedField.axaml` (FR-UI-16 + FR-UI-17) — 2026-09-14 (persistent label + '?' + themed border + inline cause/remedy error; error clears on fix)
-- [x] `DataPreviewTable.axaml` (FR-UI-20, virtualised) — 2026-09-14 (virtualizing ListBox body, file-driven headers, asc→desc→original `DataPreviewStore` sort, invalid-row badge + reason tooltip, read-only selectable cells; D-081)
+- [x] `DataPreviewTable.axaml` (FR-UI-20, virtualised) — 2026-09-14 (virtualizing ListBox body, file-driven headers, asc→desc→original `DataPreviewStore` sort, invalid-row badge + reason tooltip, read-only selectable cells; D-081) — 2026-09-15 Phase-2 rebuild: `ItemsRepeater` dropped (Avalonia core has none; 11.1.5 package lacks `VirtualizingStackLayout`) → virtualising `ListBox` + code-built header buttons (D-090; sort cycle + invalid-row banner covered by App.Tests)
+- [x] `ErrorBanner.axaml` (FR-UI-9) — 2026-09-15 (inline dismissible error summary; icon + cause-and-remedy message + dismiss; **headless test caught a real bug**: control bound visibility never escaped → `IsVisible` now mirrors `Message`, D-093)
+- [x] Phase-2 controls regression: 9 headless `AvaloniaFact`s + MainWindow showroom (`ControlsDemo`) + screenshot `logs/screenshots/controls-demo.png` — 2026-09-15 (build 0/0, suite 197 green; GUI rebuild branch `feat/gui-rebuild`)
 - [?] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land (2026-09-14 note) — **BLOCKED B-007** (owner must run the keyboard pass in the app; cannot be emulated here)
 
 ### Welcome Panel (FR-UI-5)

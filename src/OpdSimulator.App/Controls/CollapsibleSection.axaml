@@ -1,0 +1,71 @@
+<TemplatedControl xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:controls="using:OpdSimulator.App.Controls"
+                  x:Class="OpdSimulator.App.Controls.CollapsibleSection"
+                  x:DataType="controls:CollapsibleSection">
+
+    <!-- CollapsibleSection — AGENTS §16.2: config sections collapse behind a
+         chevron header. The chevron rotates on toggle (MotionDurationFast);
+         reduced-motion collapses to zero via MotionDurationReduced. -->
+    <TemplatedControl.Template>
+        <ControlTemplate>
+            <Border Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+
+                    <ToggleButton x:Name="PART_HeaderToggle"
+                                  IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Left"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  Focusable="True"
+                                  Padding="0">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                            <Path x:Name="PART_Chevron"
+                                  Grid.Column="0"
+                                  Data="M 6 9 L 12 15 L 18 9"
+                                  Stroke="{DynamicResource BrushTextSecondary}"
+                                  StrokeThickness="2"
+                                  StrokeLineCap="Round"
+                                  StrokeJoin="Round"
+                                  VerticalAlignment="Center"
+                                  Margin="0,2,8,0">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="90">
+                                        <RotateTransform.Transitions>
+                                            <Transitions>
+                                                <DoubleTransition Property="Angle"
+                                                                  Duration="{DynamicResource MotionDurationFast}"/>
+                                            </Transitions>
+                                        </RotateTransform.Transitions>
+                                    </RotateTransform>
+                                </Path.RenderTransform>
+                            </Path>
+                            <TextBlock Grid.Column="1"
+                                       Text="{TemplateBinding Title}"
+                                       FontSize="{DynamicResource FontSizeBody}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,2,0,0"/>
+                            <ContentPresenter Grid.Column="2"/>
+                            <controls:InfoIcon Grid.Column="3"
+                                      HelpText="{TemplateBinding HelpText}"
+                                      HelpAnchor="collapsible-section"/>
+                        </Grid>
+                    </ToggleButton>
+
+                    <ContentPresenter x:Name="PART_Body"
+                                      Content="{TemplateBinding Content}"
+                                      IsVisible="{TemplateBinding IsExpanded}"/>
+
+                </StackPanel>
+            </Border>
+        </ControlTemplate>
+    </TemplatedControl.Template>
+</TemplatedControl>

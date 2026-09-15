@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:OpdSimulator.App.Views"
         x:Class="OpdSimulator.App.Views.MainWindow"
         Title="OPD Clinic Queue Simulator"
         Width="1200"
@@ -10,6 +11,32 @@
         WindowState="Maximized"
         Background="{DynamicResource BrushBackgroundWindow}">
 
-    <!-- Phase 1: empty application shell. Tabs land in Phase 3.
-         The dynamic background proves theme resources resolve at startup. -->
+    <!-- Phase 2: the window hosts the reusable-controls showroom so the owner
+         can exercise every control before the config/results panels land.
+         Phase 3 replaces this with the collapsible header + TabControl. -->
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                Background="{DynamicResource BrushBackgroundWindow}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="0,0,0,1"
+                Padding="{DynamicResource ThicknessWindowPadding}">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceM}">
+                <TextBlock Text="&#x1F3E5;"
+                           FontSize="28"
+                           VerticalAlignment="Center"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="OPD Clinic Queue Simulator"
+                               FontSize="{DynamicResource FontSizeTitle}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="Simulation &amp; Modelling — Weekday Clinic · Controls Showroom (Phase 2)"
+                               Classes="Caption"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <views:ControlsDemo Grid.Row="1"/>
+
+    </Grid>
 </Window>

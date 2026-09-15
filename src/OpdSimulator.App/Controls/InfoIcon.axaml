@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpdSimulator.App.Controls.InfoIcon">
+
+    <!-- InfoIcon — AGENTS §16.2: a "?" affordance with a ≤120-char tooltip on
+         hover (500 ms delay set globally in App.axaml). Complex/technical
+         inputs carry HelpText so the user can ask "why". -->
+    <Border MinWidth="20"
+            Height="20"
+            Background="{DynamicResource BrushBackgroundAlt}"
+            BorderBrush="{DynamicResource BrushTextMuted}"
+            BorderThickness="1"
+            CornerRadius="10">
+        <TextBlock Text="?"
+                   Foreground="{DynamicResource BrushTextSecondary}"
+                   FontSize="{DynamicResource FontSizeCaption}"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+    </Border>
+</UserControl>

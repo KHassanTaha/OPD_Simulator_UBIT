@@ -1195,3 +1195,90 @@ impact (positive and negative), alternatives considered.
   theme-faithful renders on any machine.
 - **Alternatives considered:** (a) gnome-screenshot/scrot/grim — none installed;
   (b) XWayland window capture — blocked by the compositor.
+
+## D-090 DataPreviewTable Virtualisation — ListBox Over ItemsRepeater
+
+- **Date:** 2026-09-15
+- **Decision:** NFR-10's virtualised preview table is a virtualising `ListBox`
+  (`VirtualizingStackPanel` ItemsPanel, `ScrollViewer.VerticalScrollBarVisibility="Auto"`,
+  `MaxHeight`-capped, non-virtualising `ItemsRepeater` explicitly rejected) with
+  file-driven header `Button`s built in code and a code-behind `ApplySort`
+  (asc → desc → original, ordinal-ignore-case via `CellOf`).
+- **Rationale:** `ItemsRepeater` is a separate NuGet (`Avalonia.Controls.ItemsRepeater`)
+  NOT in Avalonia core; the only 11.x version is **11.1.5** and it ships
+  `StackLayout`/`UniformGridLayout`/`WrapLayout` only — **no `VirtualizingStackLayout`
+  (12.x+)** — so it cannot meet the NFR-10 performance contract (10k rows < 1 s,
+  scroll never blocks > 100 ms). `ListBox` provides built-in container recycling
+  today. Doesn't help D-081's component-count goal but meets the hard NFR.
+- **Impact:** (+) NFR-10 achievable on 11.3.3 with zero extra packages; (+) sort + *▲/▼*
+  indicator + invalid-row banner (`LoadErrorSummary`) verified by headless tests. (−)
+  header row is not pixel-scrolled with the body (declaration-order column alignment
+  preserved; scrolls below the header) — documented as acceptable for a preview-only
+  surface.
+- **Alternatives considered:** (a) keep `Avalonia.Controls.ItemsRepeater` 11.1.5 —
+  non-virtualising, re-checked against nuget flat-container metadata; (b) drop the
+  header into the ListBox template — defeats the fixed-header goal; (c) upgrade to
+  Avalonia 12 — out of scope (M5 pinned 11.3.3, D-086).
+
+## D-091 Template Wiring Pattern — `OnApplyTemplate` + `INameScope.Find`
+
+- **Date:** 2026-09-15
+- **Decision:** Any control that needs a named part inside its `ControlTemplate`
+  resolves it via `protected override void OnApplyTemplate(TemplateAppliedEventArgs e)`
+  + `e.NameScope.Find("PART_…") as T` into a private field (used by CollapsibleSection,
+  DataPreviewTable, PinnedFooterBar). No WPF-style `GetTemplateChild`, no template
+  `Loaded`/`TemplateApplied` event wiring.
+- **Rationale:** verified against the 11.3.3 XML docs: `TemplatedControl.OnApplyTemplate`
+  takes `TemplateAppliedEventArgs` whose `NameScope` is an `INameScope`;
+  `NameScopeExtensions.Find<T>` exists. XAML-name generator fields are NOT emitted
+  for elements inside a `ControlTemplate` (the CS0103/CS0102 confusion in early Phase 2),
+  so named parts must be located at runtime.
+- **Impact:** (+) one canonical, framework-idiomatic wiring path for all template-based
+  controls; (+) parts are null-safe (only wired when the template supplies them). (−)
+  devs must remember to null-guard before use and to re-fetch on template re-apply.
+- **Alternatives considered:** (a) `Loaded` handler + `GetTemplateChild` — nonexistent
+  API, rejected; (b) `TemplateApplied` routed event — works, but scatters wiring across
+  handlers.
+
+## D-092 Compiled-Binding `$parent` Rule, ContentControl Templates, and Test-Input API on 11.3
+
+- **Date:** 2026-09-15
+- **Decision:** Three 11.3-compatible conventions the whole App follows:
+  1. `$parent[<ConcreteControl>]` (e.g. `$parent[controls:ValidatedField]`, never
+     `$parent[UserControl]`) — compiled bindings resolve the concrete named base the
+     declaring type expects, whereas `$parent[UserControl]` resolves the *framework's*
+     base UserControl and binds nothing.
+  2. Composite controls that host caller content (PinnedFooterBar) are
+     `ContentControl` + `ControlTemplate`; `TemplateBinding` targets all DP bindings
+     inside the template (no `$parent` needed there). A plain UserControl whose inner
+     `ContentPresenter` re-binds `$parent.Content` is **self-recursive** — it crashed
+     under Measure ("Border already has a visual parent ContentPresenter"); the tests
+     caught it, and rule 2 kills the class of bug.
+  3. Headless tests use real input where the pipeline matters: buttons that execute
+     `ICommand` (PinnedFooterBar primary) need a real `window.MouseDown/MouseUp` — a
+     manually `RaiseEvent`d routed Click bypasses Button's command pipeline; dialogs are
+     driven with `KeyPressQwerty(PhysicalKey.Escape, …)` (the bare `KeyPress(Key,…)`
+     overload is CS0618-obsolete on 11.3).
+- **Rationale:** each sub-decision is a correction to an assumption that failed
+  against the 11.3.3 implementation (verified by build errors + headless test output).
+- **Impact:** (+) App-wide rules that prevent the recurring failure trios; (+) tests now
+  exercise real input paths. (−) caller content in footer arrows must go through
+  `Content` (the intended slot).
+- **Alternatives considered:** templating every composite as a UserControl with slotted
+  panels — rejected for recursion/ordering hazards.
+
+## D-093 ErrorBanner Visibility — Self-Hidden Control Is a Dead Control
+
+- **Date:** 2026-09-15
+- **Decision:** `ErrorBanner` flips BOTH the root `Border` and its own `IsVisible` from
+  `UpdateVisibility()`; the XAML chrome keeps `IsVisible="False"` only as a transient
+  default. Previously the code toggled only `Root.IsVisible`, so the UserControl instance
+  carried `IsVisible=false` from the constructor forever (§16.4: a hidden error surface
+  is worse than none).
+- **Rationale:** the FR-UI-9 headless check (`Message set → visible`, `dismiss → hidden`)
+  failed at assert time — it encoded the product intent (an ErrorBanner must actually
+  appear) and exposed the dead-control bug before any screen could.
+- **Impact:** (+) errors are definitely visible; (+) automation name now reflects
+  `"Error: ⟨message⟩"` / `"No error"` for screen readers. (−) none identified.
+- **Alternatives considered:** collapsing via DataTriggers — indirect, harder to test;
+  keep binding-only — the bug we just fixed.

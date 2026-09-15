@@ -4,6 +4,13 @@
              RequestedThemeVariant="Light">
     <Application.Styles>
         <FluentTheme/>
+        <!-- Button/text stock styles for reusable controls (no raw colours —
+             every token comes from Theme.axaml). -->
+        <StyleInclude Source="avares://OpdSimulator.App/Assets/ControlStyles.axaml"/>
+        <!-- Global tooltip delay: 500 ms hover delay (AGENTS §16.2). -->
+        <Style Selector="ToolTip">
+            <Setter Property="ShowDelay" Value="500"/>
+        </Style>
     </Application.Styles>
 
     <!-- Theme.axaml is the single source of colours/fonts/spacing/shadows

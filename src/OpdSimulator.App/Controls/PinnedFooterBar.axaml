@@ -1,0 +1,35 @@
+<ContentControl xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                x:Class="OpdSimulator.App.Controls.PinnedFooterBar">
+
+    <!-- PinnedFooterBar — AGENTS §16.2 "Pinned primary action": the primary
+         action stays visible at the bottom of the config panel. The left slot
+         is Content so the caller can host extra actions; the right button is
+         primary-themed. Caller content is presented inside the template exactly
+         once (a plain UserControl binding Content to itself is self-recursive). -->
+    <ContentControl.Template>
+        <ControlTemplate>
+            <Border Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <ContentPresenter Grid.Column="0"
+                                      Content="{TemplateBinding Content}"
+                                      VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="{TemplateBinding PrimaryText}"
+                            IsEnabled="{TemplateBinding PrimaryIsEnabled}"
+                            Command="{TemplateBinding PrimaryCommand}"
+                            Classes="PrimaryButton"
+                            x:Name="PART_PrimaryButton"
+                            MinWidth="140"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Center"
+                            Margin="12,0,0,0"/>
+                </Grid>
+            </Border>
+        </ControlTemplate>
+    </ContentControl.Template>
+</ContentControl>

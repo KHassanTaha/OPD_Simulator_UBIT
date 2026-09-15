@@ -1,0 +1,81 @@
+<TemplatedControl xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:controls="using:OpdSimulator.App.Controls"
+                  xmlns:models="using:OpdSimulator.App.Controls"
+                  x:Class="OpdSimulator.App.Controls.DataPreviewTable"
+                  x:DataType="controls:DataPreviewTable">
+
+    <!-- DataPreviewTable — FR-UI-20 read-only preview. Rows render in a
+         virtualising ListBox (10k rows scroll smoothly); column headers come
+         from the loaded file and cycle asc -> desc -> original on click; cells
+         are SelectableTextBlock so values can be Ctrl+C'd; invalid rows are
+         red-flagged with a reason tooltip; load failures swap the table for an
+         ErrorBanner. -->
+    <TemplatedControl.Template>
+        <ControlTemplate>
+            <Grid x:Name="TableArea"
+                  RowDefinitions="Auto,*"
+                  IsVisible="False">
+
+                <controls:ErrorBanner x:Name="LoadErrorBanner"
+                                      IsVisible="False"/>
+                <TextBlock x:Name="NoRowsText"
+                           Text="No valid rows in the loaded file."
+                           Classes="Caption"
+                           Foreground="{DynamicResource BrushTextMuted}"
+                           Padding="{DynamicResource ThicknessSpaceM}"/>
+
+                <ScrollViewer Grid.Row="0"
+                              x:Name="HeaderScroller"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="HeaderPanel"
+                                Orientation="Horizontal"
+                                Margin="0,0,0,4"/>
+                </ScrollViewer>
+
+                <Border Grid.Row="1"
+                        BorderBrush="{DynamicResource BrushBorderDefault}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource CornerRadiusS}"
+                        Background="{DynamicResource BrushBackgroundPanel}">
+                    <ListBox x:Name="RowRepeater"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:PreviewRow">
+                                <ItemsControl ItemsSource="{Binding Cells}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:PreviewCell">
+                                            <SelectableTextBlock Text="{Binding Text}"
+                                                                 Width="{Binding Width}"
+                                                                 TextTrimming="CharacterEllipsis"
+                                                                 FontFamily="{DynamicResource FontMono}"
+                                                                 FontSize="{DynamicResource FontSizeCaption}"
+                                                                 Padding="4,2"
+                                                                 Foreground="{DynamicResource BrushTextPrimary}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+
+            </Grid>
+        </ControlTemplate>
+    </TemplatedControl.Template>
+</TemplatedControl>

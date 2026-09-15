@@ -2,9 +2,69 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## GUI REBUILD — Phase 2 Reusable Controls — 2026-09-15 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 3.**
+(Owner also owes the real-display §16.8 keyboard walk of the 9 controls —
+this box is Wayland, so headless evidence was used per D-089.)
+
+What shipped:
+- All nine reusable controls rebuilt/tested: ValidatedField, SearchableDropdown,
+  ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar,
+  DataPreviewTable, ErrorBanner.
+- `Views/ControlsDemo.axaml(.cs)` + `ViewModels/ControlsDemoViewModel.cs` —
+  showroom hosting every control live inside MainWindow for visual/keyboard review.
+- `tests/OpdSimulator.App.Tests/ControlsSmokeTests.cs` — 9 per-control `[AvaloniaFact]`
+  headless tests (tooltips/a11y names, error cause+remedy + clear-on-fix, type-to-filter
+  + Enter commit, toggle/collapse, dismiss, toast close-with-item, footer command via
+  real pointer click, dialog Escape→Cancel / primary→Primary via `KeyPressQwerty`,
+  sort cycle asc→desc→original + invalid-row banner).
+- `tests/OpdSimulator.App.Tests/ControlsDemoScreenshot.cs` — renders MainWindow →
+  `logs/screenshots/controls-demo.png` (69 KB frame; both png files identical render
+  because MainWindow is now the showroom).
+
+**Avalonia 11.3 API corrections surfaced during Phase 2 (see DECISIONS D-090..D-093):**
+- No WPF-style `GetTemplateChild`: `OnApplyTemplate(TemplateAppliedEventArgs)` +
+  `e.NameScope.Find("PART_…")`. XAML-name generator does not emit fields for
+  elements inside `ControlTemplate`.
+- `TemplatedControl` has no `Content`; `Shape` uses `StrokeJoin`; `StackPanel` has
+  no `Padding`; `Popup` uses `IsLightDismissEnabled`.
+- `ItemsRepeater` is NOT in Avalonia core; `Avalonia.Controls.ItemsRepeater` 11.x
+  stops at 11.1.5 with no `VirtualizingStackLayout` → replaced with virtualising
+  `ListBox` + code-built header buttons (D-090).
+- Compiled bindings reject `$parent[UserControl]` (resolves base) → must use
+  `$parent[controls:ConcreteType]`.
+
+**Real bugs caught by the tests (Rule 9 — tests encode intent):**
+- ErrorBanner: binding to inner `Root.IsVisible` meant the control could never
+  escape its hidden state → `IsVisible` now mirrors `Message` (D-093).
+- PinnedFooterBar: inner `ContentPresenter` bound to the UserControl's own `Content`
+  was self-recursive under Measure (`Border already has a visual parent`) →
+  control is now a `ContentControl` with a ControlTemplate (the chrome lives in the
+  template; caller content presents exactly once).
+
+**§18 verification — Phase 2 verified on 2026-09-15 by agent (feat/gui-rebuild):**
+| Control | Headless test | Evidence |
+|---|---|---|
+| ValidatedField | error shows cause+remedy, clears on fix, FieldLostFocus on blur | Pass |
+| SearchableDropdown | filter reduces 4→1, Enter commits SelectedItem | Pass |
+| ThemedDialog | Escape→Cancel, primary→Primary, buttons = 2 | Pass |
+| ThemedToast | severity text renders, Close runs with item | Pass |
+| CollapsibleSection | toggle flips IsExpanded | Pass |
+| InfoIcon | tooltip + automation name, help event | Pass |
+| PinnedFooterBar | enabled/disabled reflects PrimaryIsEnabled; command via real click | Pass |
+| DataPreviewTable | asc→desc→original cycle, invalid-row banner | Pass |
+| ErrorBanner | message visible on set, hidden on dismiss | Pass |
+- Screenshot `logs/screenshots/controls-demo.png` (headless, D-089; owner to eyeball).
+- **Not performed on this box (Wayland):** real-display keyboard walk (§16.8). Owner task.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings (clean `bin`/`obj`).
+- `dotnet test -c Release` → **197 green** (Core 85 / Data 58 / Cli 35 / App 19), 0 failed.
+
 ## GUI REBUILD — Phase 1 Foundation — 2026-09-15 (feat/gui-rebuild)
 
-**Phase gate: STOPPED — awaiting owner "go" before Phase 2.**
+**Phase gate: STOPPED — awaiting owner "go" before Phase 2.** (Phase 2 work proceeded per owner instruction 2026-09-15.)
 
 What shipped:
 - Old M5 view layer deleted on this branch (Views/Controls/ViewModels/Services/

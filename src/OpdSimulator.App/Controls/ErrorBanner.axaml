@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpdSimulator.App.Controls.ErrorBanner">
+
+    <!-- ErrorBanner — FR-UI-9: an inline, dismissible error summary. Red is
+         never the only cue: icon + message + dismiss, and the message states
+         the cause and the remedy (AGENTS §16.4/§16.9). -->
+    <Border x:Name="Root"
+            IsVisible="False"
+            Background="{DynamicResource BrushErrorBackground}"
+            BorderBrush="{DynamicResource BrushError}"
+            BorderThickness="{DynamicResource ThicknessFocusRing}"
+            CornerRadius="{DynamicResource CornerRadiusM}"
+            Padding="{DynamicResource ThicknessSpaceS}">
+        <Grid ColumnDefinitions="Auto,* ,Auto"
+              VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="&#x26A0;"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       Foreground="{DynamicResource BrushError}"
+                       VerticalAlignment="Top"
+                       Margin="0,2,8,0"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="SummaryText"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource BrushErrorDark}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="2"
+                    Content="&#x2715;"
+                    ToolTip.Tip="Dismiss this message"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnDismissClick"
+                    Margin="8,0,0,0"/>
+        </Grid>
+    </Border>
+</UserControl>
