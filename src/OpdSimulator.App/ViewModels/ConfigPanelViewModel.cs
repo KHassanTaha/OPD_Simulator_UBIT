@@ -197,6 +197,48 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private string? _traceLevel = "State";
 
+    // ── Optional-section toggles (Phase 4b, D-101) ──────────────────────
+
+    /// <summary>
+    /// Enable switch for the optional Parameters section. When off (default),
+    /// the manual λ / μ / p_exit overrides are treated as not supplied (the
+    /// same as empty strings) and ρ shows "—"; the run then always uses the
+    /// fitted values (Phase 5).
+    /// </summary>
+    [ObservableProperty]
+    private bool _parametersIsOptionalEnabled;
+
+    /// <summary>
+    /// Enable switch for the optional Advanced section. When off (default),
+    /// the random seed defaults to 42 and the trace level to State.
+    /// </summary>
+    [ObservableProperty]
+    private bool _advancedIsOptionalEnabled;
+
+    partial void OnParametersIsOptionalEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ParametersSupplied));
+        RecomputeRho();
+        RecomputeBlockingState();
+    }
+
+    partial void OnAdvancedIsOptionalEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EffectiveSeed));
+        OnPropertyChanged(nameof(EffectiveTraceLevel));
+        RecomputeBlockingState();
+    }
+
+    /// <summary>True only when the manual parameter overrides are switched on.</summary>
+    public bool ParametersSupplied => ParametersIsOptionalEnabled;
+
+    /// <summary>Random seed the run will use (42 while the Advanced section is off).</summary>
+    public int EffectiveSeed =>
+        AdvancedIsOptionalEnabled && int.TryParse(Seed.Value, out var seed) ? seed : 42;
+
+    /// <summary>Trace level the run will use (State while the Advanced section is off).</summary>
+    public string EffectiveTraceLevel => AdvancedIsOptionalEnabled ? TraceLevel ?? "State" : "State";
+
     // ── Footer ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -371,6 +413,8 @@ public partial class ConfigPanelViewModel : ObservableObject
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
         PExit.Value = "";
+        ParametersIsOptionalEnabled = false;
+        AdvancedIsOptionalEnabled = false;
         Seed.Value = "42";
         TraceLevel = "State";
         IsMultiDay = false;
@@ -456,7 +500,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private void RecomputeRho()
     {
-        var lambdaKnown = double.TryParse(ManualLambda.Value, out var lambda) && lambda > 0;
+        // λ is only known while the optional Parameters section is switched on.
+        bool lambdaKnown = false;
+        double lambda = double.NaN;
+        if (ParametersIsOptionalEnabled && double.TryParse(ManualLambda.Value, out lambda) && lambda > 0)
+        {
+            lambdaKnown = true;
+        }
         var parts = StageRows.Select(row =>
         {
             if (lambdaKnown
@@ -476,6 +526,12 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>
     /// Re-derives <see cref="StartIsEnabled"/> from every field's error state.
     /// The Start button stays enabled only while the configuration is runnable.
+    /// The equation is intentionally unchanged from Phase 4: an error in any
+    /// field — optional section on or off — blocks Start (the 213-test baseline
+    /// asserts p_exit = 1 blocks with the Parameters toggle at factory ground).
+    /// The Phase-4b "off = not supplied" rule governs the *effective* run
+    /// parameters (ParametersSupplied / EffectiveSeed / EffectiveTraceLevel)
+    /// and the ρ preview instead (D-101).
     /// </summary>
     private void RecomputeBlockingState()
     {

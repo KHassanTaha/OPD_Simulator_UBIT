@@ -1435,3 +1435,68 @@ impact (positive and negative), alternatives considered.
   blocks Start out of the box and needs an invented default rate; default
   each row to "0.5"/"1.0" — manufactures a made-up clinical rate the owner
   never specified.
+
+## D-101 CollapsibleSection Header Redesign — Brand Bar, 12/10 Padding, Right-Anchored Help Icon
+
+- **Date:** 2026-09-16
+- **Decision:** The `CollapsibleSection` header is a **brand-green bar**
+  (`BrushBrandGreen`) with the title in `BrushTextOnBrand` (white). The bar
+  uses the new theme thickness resource **`ThicknessSectionHeader = "12,10"`**
+  (left/right 12 px, top/bottom 10 px; 4b.2). The header layout is a
+  `Grid ColumnDefinitions="Auto,*,Auto,Auto"`: column 0 = the collapse
+  ToggleButton (chevron + title, spanning the Auto and `*` columns so a click
+  anywhere left of the toggle/icon still collapses), column 2 = the
+  optional-section toggle (hidden unless set), column 3 = the InfoIcon pinned
+  to the **extreme right** (4b.3). The chevron stroke also becomes white.
+- **Rationale:** readability on the coloured bar (dark text on brand blue
+  failed AGENTS §16.4 contrast), and a taller touch/click target. Moving the
+  InfoIcon outside the ToggleButton also stops a tooltip hover from toggling
+  the section, and gives the icon a stable far-right anchor regardless of
+  title length. The existing header ContentPresenter (col 2) was never bound
+  to anything and is removed.
+- **Impact:** (+) consistent branding and contrast across all six sections;
+  (+) icon position predictable. (−) slightly taller headers reduce the
+  visible config area; the collapse ToggleButton no longer covers the
+  toggle/icon area — collapse is via chevron + title only.
+- **Alternatives considered:** keep the light header (fails the "brand bar"
+  requirement); shrink padding to keep compactness (worse touch target).
+
+## D-102 Optional-Section Enable Toggle Pattern (Parameters / Advanced)
+
+- **Date:** 2026-09-16
+- **Decision:** Sections whose **entire contents are optional** (Phase 4b:
+  "3 · Parameters" = manual λ/μ/p_exit overrides; "6 · Advanced" = random
+  seed/trace level) get a `ToggleSwitch` in the header, right-aligned before
+  the InfoIcon. `CollapsibleSection` exposes `IsOptional` (hides the toggle
+  when false) and two-way `IsEnabledToggle`. The toggle **defaults to OFF**;
+  while OFF the section content presenter is `IsEnabled=false` and dimmed to
+  `Opacity 0.5`, and every descendant field receives an injected FR-UI-7
+  tooltip "Enable '<SectionName>' above to edit this field." (only where no
+  hand-authored tooltip exists). The state is persisted in the **view model**
+  (`ParametersIsOptionalEnabled`, `AdvancedIsOptionalEnabled`) so Clear All
+  resets both to OFF.
+- **Behaviour semantics:** when Parameters is OFF, the run sees **no manual
+  overrides** (`ParametersSupplied == false`) and the ρ preview reads "—"
+  (λ unknown); when Advanced is OFF the effective seed is **42** and trace
+  level **State** (`EffectiveSeed` / `EffectiveTraceLevel`). The Start
+  **blocking** equation is deliberately left unchanged from Phase 4 — an
+  error in any field, optional section on or off, still blocks Start, because
+  the 213-test baseline asserts `p_exit = 1` blocks with Parameters at
+  factory ground (error-state blocking is orthogonal to run-value semantics).
+- **Rationale:** a first-time user faces two sections of scary blanks they
+  must never fill (λ/μ/p_exit override the fitted values; seed/trace are
+  power-user knobs). A visible OFF switch explains that these fields are
+  optional, dims them so they do not read as "unfilled required fields", and
+  still lets the run proceed with fitted defaults. Keeping the blocking
+  equation intact preserves the Phase-4 gate guarantee that Start never runs
+  with a visibly red field.
+- **Impact:** (+) honest optionality, cleaner launch state, keyboard-reachable
+  toggle (Tab order col 0 → toggle → InfoIcon); (+) tooltip satisfies FR-UI-7
+  for disabled fields. (−) two more interactions before manually overriding
+  parameters; tooltip injection walks the body subtree on toggle (cheap for
+  this panel's size).
+- **Alternatives considered:** grey-out placeholders instead of a switch
+  (unexplained, and a disabled field must *say why*); a global "advanced
+  mode" checkbox (coarse — hides p_exit as well); making the sections
+  always-editable and only visually muted (accidental input into clearly
+  optional fields).

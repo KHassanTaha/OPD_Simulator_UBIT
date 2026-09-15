@@ -2,6 +2,43 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 01:35
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4b shipped, awaiting owner "go" for Phase 5)
+
+Done
+- Phase 4b — ConfigPanel UI corrections (feat/gui-rebuild): white section headers on brand-green bars with 12,10 padding (`ThicknessSectionHeader`), InfoIcon right-anchored in a new `Auto,*,Auto,Auto` header grid, and optional-section enable toggles (Parameters + Advanced) that disable/dim descendant fields with FR-UI-7 tooltips while OFF and persist in the VM (D-101/D-102).
+
+In Progress
+- None (STOPPED at the Phase 4b gate; Phase 5 not started)
+
+What is complete:
+- Phase 4b gate: Release build 0/0; 218 green (Core 85/Data 58/Cli 35/App 40, +5 tests); real launch 15s alive "Main window created." 0 new crash logs; screenshot `logs/screenshots/phase-4-config.png` regenerated (43 KB); DECISIONS D-101/D-102, TODO 4b [x], DEV_LAUNCH §6 + Changelog row.
+
+What remains:
+- Phase 5 ResultsPanel + run flow — awaiting owner "go".
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 40)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: (Phase 4b commit lands with this entry)
+- Pushed to origin: No — pushed after this block (feat/gui-rebuild)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 218 green (Core 85 / Data 58 / Cli 35 / App 40), 0 failed
+
+Decisions Made
+- D-101 — CollapsibleSection header redesign (see DECISIONS.md)
+- D-102 — Optional-section enable-toggle pattern (see DECISIONS.md)
+
+Assumptions Added/Changed
+- Start-blocking stays independent of the optional toggles (any field error blocks Start) — required to keep the Phase-4 baseline (p_exit = 1 blocks at factory ground) green; the "off = not supplied" rule governs run parameters + ρ preview. Flagged in DECISIONS D-102 for owner awareness.
+
 ### Session Handoff — 2026-09-16 01:10
 Branch: feat/gui-rebuild
 Status: Clean (Phase 4 shipped, awaiting review)
@@ -49,6 +86,59 @@ Assumptions Added/Changed
 
 Notes for Next Session
 - Phase 4 verified live on 2026-09-16: real launch 15 s "Application started. Main window created.", 0 new crash entries; screenshot `logs/screenshots/phase-4-config.png`.
+
+## GUI REBUILD — Phase 4b — ConfigPanel UI Corrections — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 5.**
+
+What shipped:
+- **4b.1** `CollapsibleSection` header title now renders **white** on a
+  **brand-green bar** (`Foreground BrushTextOnBrand`, background
+  `BrushBrandGreen`); chevron stroke matches (D-101).
+- **4b.2** New theme resource **`ThicknessSectionHeader = "12,10"`** — the blue
+  bar's vertical padding grows to 10 px top/bottom, left/right stay 12 px.
+- **4b.3** Header layout re-built as `Grid ColumnDefinitions="Auto,*,Auto,Auto"`:
+  collapse ToggleButton (chevron + title) spans the first two columns so a
+  click still collapses; the **InfoIcon is anchored to the far right** and the
+  unused header ContentPresenter is removed (D-101).
+- **4b.4** **Optional-section toggle pattern** (D-102): `CollapsibleSection`
+  gains `IsOptional` + two-way `IsEnabledToggle` and a header `ToggleSwitch`.
+  **Parameters** and **Advanced** are flagged optional and default **OFF**;
+  while OFF the section content is `IsEnabled=false` + `Opacity 0.5` and every
+  descendant field gets the injected FR-UI-7 tooltip "Enable '\<Section\>'
+  above to edit this field." (hand-authored tooltips win). State lives in the
+  VM — Clear All resets both toggles to OFF.
+- Semantics when OFF: Parameters → run sees no manual λ/μ/p_exit
+  (`ParametersSupplied == false`), ρ preview reads "—" (`RecomputeRho` needs
+  the toggle on); Advanced → `EffectiveSeed` **42**, `EffectiveTraceLevel`
+  **State**. Start-blocking equation deliberately unchanged from Phase 4
+  (field errors block regardless of toggle — required by the 213-test
+  baseline, D-102).
+
+**§18 verification — Phase 4b verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests (5 new, `tests/OpdSimulator.App.Tests/Phase4bConfigTests.cs`):
+  `OptionalSection_ToggleOff_DisablesFields` (3 fields present, effectively
+  disabled, dimmed body, FR-UI-7 tooltip text), `OptionalSection_ToggleOn_
+  EnablesFields` (switch → section → VM chain, fields re-enabled, opacity
+  restored), `ClearAll_ResetsOptionalTogglesToOff`, plus two VM-behaviour tests
+  (Parameters off ⇒ `ParametersSupplied == false` + ρ "—"; Advanced off ⇒
+  seed 42 / trace State).
+- Real launch (Wayland box, capture blocked per D-089): `timeout 15 dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → **"Application
+  started. Main window created."**, killed by timeout, **0 new crash log
+  entries** (only stale `crash-20260915.log`).
+- Screenshot `logs/screenshots/phase-4-config.png` **regenerated** (43 KB) by
+  the existing Phase-4 screenshot test — owner to eyeball the new headers.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **218 green** (Core 85 / Data 58 / Cli 35 /
+  App 40), 0 failed.
+- Real launch 15 s alive, "Main window created." logged, 0 new crash logs.
+- Docs: DECISIONS D-101 + D-102; TODO Phase 4b [x]; DEV_LAUNCH §6 refreshed
+  (218 tests) + Changelog row.
+- Dev-notes: (`IsEnabled` reports the local value; effective inheritance is
+  `IsEffectivelyEnabled` — the disable assertions use the effective value.)
 
 ## GUI REBUILD — Phase 4 — ConfigPanel — 2026-09-16 (feat/gui-rebuild)
 

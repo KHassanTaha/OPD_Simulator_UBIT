@@ -112,6 +112,7 @@
     <Thickness x:Key="ThicknessWindowPadding">16</Thickness>
     <Thickness x:Key="ThicknessControlPadding">10,6</Thickness>
     <Thickness x:Key="ThicknessFieldPadding">10,8</Thickness>
+    <Thickness x:Key="ThicknessSectionHeader">12,10</Thickness>
     <Thickness x:Key="ThicknessFieldBorder">1</Thickness>
     <Thickness x:Key="ThicknessCardPadding">16</Thickness>
 
