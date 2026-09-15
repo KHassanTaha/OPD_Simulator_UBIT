@@ -665,15 +665,22 @@ public partial class ConfigPanelViewModel : ObservableObject
                 ? null
                 : v;
 
+        // Manual μ has two typed sources: the per-stage row is authoritative;
+        // the Parameters comma list fills any row left blank (in order).
+        double?[] commaRates = !ParametersSupplied || string.IsNullOrWhiteSpace(ManualMuPerStage.Value)
+            ? Array.Empty<double?>()
+            : ManualMuPerStage.Value.Split(',')
+                .Select(part => part.Trim())
+                .Where(part => part.Length > 0)
+                .Select(part => double.TryParse(part, out var rate) && rate > 0 ? Convert(rate) : null)
+                .ToArray()!;
+
         double? manualLambda = Convert(ParsePositive(ManualLambda));
-        if (!int.TryParse(Seed.Value, out var _))
-        {
-            return null;
-        }
 
         var names = new List<string>(stageCount);
         var serverCounts = new List<int>(stageCount);
         var manualRates = new List<double?>(stageCount);
+        int rowIndex = 0;
         foreach (var row in StageRows)
         {
             names.Add(row.StageName);
@@ -683,7 +690,9 @@ public partial class ConfigPanelViewModel : ObservableObject
             }
 
             serverCounts.Add(servers);
-            manualRates.Add(Convert(ParsePositive(row.ServiceRate)));
+            double? rowRate = Convert(ParsePositive(row.ServiceRate));
+            manualRates.Add(rowRate ?? (rowIndex < commaRates.Length ? commaRates[rowIndex] : null));
+            rowIndex++;
         }
 
         double? pExitOverride = ParametersSupplied && !string.IsNullOrWhiteSpace(PExit.Value)
