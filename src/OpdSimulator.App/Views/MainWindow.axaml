@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:views="using:OpdSimulator.App.Views"
+        xmlns:controls="using:OpdSimulator.App.Controls"
         x:Class="OpdSimulator.App.Views.MainWindow"
         Title="OPD Clinic Queue Simulator"
         Width="1200"
@@ -11,9 +11,15 @@
         WindowState="Maximized"
         Background="{DynamicResource BrushBackgroundWindow}">
 
-    <!-- Phase 2: the window hosts the reusable-controls showroom so the owner
-         can exercise every control before the config/results panels land.
-         Phase 3 replaces this with the collapsible header + TabControl. -->
+    <!-- MainWindow shell (Phase 3). Layout contract (AGENTS §16.7 — tab order
+         sketched before authoring):
+           Tab order on launch:  TabControl header (Simulation) first → tab
+           headers left→right → the active tab's content (config fields first,
+           results second) → window chrome.   Only the TabControl has focusable
+           content in the shell; placeholder cards are non-interactive.
+         Structure: header bar + TabControl [Simulation | Input Analysis |
+         Token Generator | Help]. Simulation carries the 380px-config / fill-
+         results split (GridSplitter, mirrors M5 "400,6,*" design). -->
     <Grid RowDefinitions="Auto,*">
 
         <Border Grid.Row="0"
@@ -30,13 +36,68 @@
                                FontSize="{DynamicResource FontSizeTitle}"
                                FontWeight="Bold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="Simulation &amp; Modelling — Weekday Clinic · Controls Showroom (Phase 2)"
+                    <TextBlock Text="Simulation &amp; Modelling — Weekday Clinic"
                                Classes="Caption"/>
                 </StackPanel>
             </StackPanel>
         </Border>
 
-        <views:ControlsDemo Grid.Row="1"/>
+        <TabControl Grid.Row="1"
+                    Background="{DynamicResource BrushBackgroundWindow}"
+                    TabIndex="0">
+
+            <!-- Simulation: 380px config column / fill results column. -->
+            <TabItem Header="Simulation" TabIndex="0">
+                <Grid ColumnDefinitions="380,6,*">
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource BrushBackgroundPanel}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1"
+                            Padding="{DynamicResource ThicknessWindowPadding}">
+                        <controls:PlaceholderContent Title="Configuration panel"
+                                                     Hint="Simulation parameters, data upload, distribution choices and run controls — Phase 4."/>
+                    </Border>
+                    <GridSplitter Grid.Column="1"
+                                  Width="6"
+                                  Background="{DynamicResource BrushBorderDefault}"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"/>
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource BrushBackgroundWindow}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1,1,0,0"
+                            Padding="{DynamicResource ThicknessWindowPadding}">
+                        <controls:PlaceholderContent Title="Results panel"
+                                                     Hint="Metrics table, chi-square results, event log and token display — Phase 5."/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Input Analysis" TabIndex="1">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Input analysis"
+                                                 Hint="Uploaded data preview, distribution fitting (MLE), chi-square goodness-of-fit and parameter comparison — Phase 4/5."/>
+                </Border>
+            </TabItem>
+
+            <TabItem Header="Token Generator" TabIndex="2">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Token generator"
+                                                 Hint="Token queue card with estimated waiting times, updated live as the simulation progresses — Phase 6."/>
+                </Border>
+            </TabItem>
+
+            <TabItem Header="Help" TabIndex="3">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Help &amp; user manual"
+                                                 Hint="In-program guide rendered from the embedded user manual with a searchable section list — Phase 6."/>
+                </Border>
+            </TabItem>
+
+        </TabControl>
 
     </Grid>
 </Window>

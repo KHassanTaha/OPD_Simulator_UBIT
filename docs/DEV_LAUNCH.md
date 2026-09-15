@@ -169,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-15 **197 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **203 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,15 +180,18 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-15 **197 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (19, headless Avalonia, GUI rebuild Phase 1 + 2) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (25, headless Avalonia, GUI rebuild Phase 1–3) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
   commit), ThemedDialog (Escape→Cancel, primary/secondary), ThemedToast (severity render,
   close-with-item), CollapsibleSection (toggle), InfoIcon (tooltip + automation name),
   PinnedFooterBar (real pointer click drives command), DataPreviewTable (asc→desc→original
-  sort cycle, invalid-row banner), ErrorBanner (visible on message, hidden on dismiss);
-  ControlsDemo screenshot render.
+  sort cycle, invalid-row banner), ErrorBanner (visible on message, hidden on dismiss),
+  ControlsDemo screenshot render; Phase-3 shell tests: four tab headers in order, Simulation
+  default-selected, 380px config / fill-results split (searched from the window — tab content
+  lives in the TabControl content presenter, D-095), min size 1100×700, arrow-key tab
+  navigation; shell screenshot render.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -454,6 +457,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **GUI rebuild Phase 3 — MainWindow shell** (`feat/gui-rebuild`): header bar + TabControl [Simulation | Input Analysis | Token Generator | Help]; Simulation tab = 380px config / GridSplitter / fill results; new reusable `Controls/PlaceholderContent` + `Border.PanelCard`; ControlsDemo no longer hosted in MainWindow (screenshot test hosts it in its own window); §6 refreshed to 203 tests; §5 status updated (shell tabs, real panels pending P4–P6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 203 green (Core 85 / Data 58 / Cli 35 / App 25); real Linux launch 15 s alive with "Main window created." and 0 crash-log entries; headless evidence `logs/screenshots/phase-3-shell.png` |
 | 2026-09-15 | **GUI rebuild Phase 2 — reusable controls** (`feat/gui-rebuild`): 9 controls in `src/OpdSimulator.App/Controls/` (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) + `Views/ControlsDemo` showroom inside MainWindow; template wiring moved to `OnApplyTemplate`+`INameScope.Find` (D-091); DataPreviewTable virtualises via ListBox, `Avalonia.Controls.ItemsRepeater` package dropped (D-090); PinnedFooterBar is a ContentControl template (fixes self-recursive content, D-092); ErrorBanner `IsVisible` mirrors Message (D-093); §6 refreshed to 197 tests | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 197 green (Core 85 / Data 58 / Cli 35 / App 19); per-control headless tests + `logs/screenshots/controls-demo.png` render; two real bugs caught by the tests (ErrorBanner dead-control, PinnedFooterBar recursion) |
 | 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |
 | 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |

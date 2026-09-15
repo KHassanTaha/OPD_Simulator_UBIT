@@ -1282,3 +1282,43 @@ impact (positive and negative), alternatives considered.
   `"Error: ⟨message⟩"` / `"No error"` for screen readers. (−) none identified.
 - **Alternatives considered:** collapsing via DataTriggers — indirect, harder to test;
   keep binding-only — the bug we just fixed.
+
+## D-094 MainWindow Shell — Four-Tab TabControl + 380 px Config / Fill Results
+
+- **Date:** 2026-09-16
+- **Decision:** `MainWindow` is a header bar + top `TabControl` with exactly four
+  tabs in order — **Simulation | Input Analysis | Token Generator | Help**. The
+  Simulation tab is a `380,6,*` grid (380 px config column, 6 px `GridSplitter`,
+  fill results column), mirroring the M5 design's `400,6,*` split. All four tabs
+  use the new reusable `Controls/PlaceholderContent` (Title + Hint) until the real
+  panels land (ConfigPanel P4, ResultsPanel P5, Help P6).
+- **Rationale:** the phase contract names the tabs, the sizes and the min window
+  (1100×700) explicitly; one reusable placeholder avoids four copies of the same
+  centered-empty-state layout (§16.5). Placeholders are non-focusable so the
+  keyboard contract is "tab headers are the first focusable element", matching
+  the "tab-first focus cycle" requirement.
+- **Impact:** (+) shell is evaluable standalone; (+) both screenshots
+  (`phase-3-shell.png`, `controls-demo.png`) stay reproducible because the demo is
+  captured from its own host window rather than MainWindow. (−) ConfigPanel and
+  ResultsPanel are not yet wired — placeholders will be swapped in P4/P5.
+- **Alternatives considered:** stacking panels in one page without tabs — rejected,
+  the PRD/AGENTS prescribe tabs; hosting ControlsDemo inside the shell — rejected,
+  it would leak a dev surface into the product shell.
+
+## D-095 Avalonia Realisation Note — Tab Content Lives in the TabControl ContentPresenter
+
+- **Date:** 2026-09-16
+- **Decision:** When testing TabControl-backed layouts headlessly, locate the tab's
+  root grid by walking **visual descendants of the window** and filtering for the
+  specific column count/units — NOT descendants of the `TabItem`. The tab content
+  element is hosted in the TabControl's selected-item content presenter and is not
+  a descendant of the `TabItem` node itself.
+- **Rationale:** discovered when `SimulationTab_LaysOut380pxConfigAndFillResults`
+  threw "Sequence contains no matching element" while searching inside the TabItem.
+  The assertion intent stayed the same (380 px pixel column + star results column);
+  only the traversal root changed.
+- **Impact:** (+) a reusable test recipe for any future tab-scoped assertions;
+  (+) prevents a whole class of "content doesn't exist inside the TabItem" cargo
+  culting. (−) none.
+- **Alternatives considered:** asserting only counts/sizes on the window without
+  narrowing — weaker (masks wrong-config regressions).

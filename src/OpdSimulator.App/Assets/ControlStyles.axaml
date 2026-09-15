@@ -54,4 +54,13 @@
         <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
     </Style>
 
+    <!-- Interim shell placeholder card (Phase 3). -->
+    <Style Selector="Border.PanelCard">
+        <Setter Property="Background" Value="{DynamicResource BrushBackgroundWindow}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusM}"/>
+        <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceL}"/>
+    </Style>
+
 </Styles>

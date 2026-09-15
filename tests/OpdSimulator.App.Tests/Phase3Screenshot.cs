@@ -2,39 +2,34 @@ using System;
 using System.IO;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Controls;
 using OpdSimulator.App.Views;
 
 namespace OpdSimulator.App.Tests;
 
 /// <summary>
-/// Phase 2 evidence: renders the live ControlsDemo showroom (all nine reusable
-/// controls) inside a host window and saves it to
-/// logs/screenshots/controls-demo.png for the §18 manual-verification entry
-/// (AGENTS §18 — screenshots alongside the written pass record). Hosted in its
-/// own window since Phase 3 (MainWindow became the TabControl shell).
+/// Phase 3 evidence: renders the shell MainWindow (header + TabControl with
+/// Simulation / Input Analysis / Token Generator / Help) through Avalonia's
+/// headless pipeline and saves the frame to logs/screenshots/phase-3-shell.png
+/// (AGENTS §18 screenshot evidence).
 /// </summary>
-public class ControlsDemoScreenshot
+public class Phase3Screenshot
 {
     [AvaloniaFact]
-    public void Render_ControlsDemo_SavesControlsDemoScreenshot()
+    public void Render_MainWindow_SavesPhase3ShellScreenshot()
     {
-        var host = new Avalonia.Controls.Window
-        {
-            Width = 1000,
-            Height = 760,
-            Content = new ControlsDemo(),
-        };
-        host.Show();
+        var window = new MainWindow();
+        window.Show();
 
         try
         {
-            var frame = host.CaptureRenderedFrame()
+            var frame = window.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("headless pipeline produced no frame");
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
-            var path = Path.Combine(shotDir, "controls-demo.png");
+            var path = Path.Combine(shotDir, "phase-3-shell.png");
             frame.Save(path);
 
             const int minBytes = 256;
@@ -44,7 +39,7 @@ public class ControlsDemoScreenshot
         }
         finally
         {
-            host.Close();
+            window.Close();
         }
     }
 

@@ -2,6 +2,43 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## GUI REBUILD — Phase 3 MainWindow Shell — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 4.**
+
+What shipped:
+- `MainWindow` is now the shell: header bar + TabControl with four tabs —
+  **Simulation | Input Analysis | Token Generator | Help**.
+- Simulation tab: **380px config column / GridSplitter / fill results column**
+  (mirrors M5's 400,6,* split). Config/Results placeholders carry themed
+  "Phase 4/5" hints.
+- New reusable `Controls/PlaceholderContent` (Title + Hint) fills all four
+  tabs and will back the pre-build empty states until each real panel lands —
+  built once, reused in all tabs (§16.5). New `Border.PanelCard` style in
+  ControlStyles.axaml (theme tokens only).
+- ControlsDemo (Phase-2 showroom) is no longer hosted in MainWindow; its
+  screenshot test now hosts the demo in its own test window so the
+  `controls-demo.png` evidence path is preserved.
+
+**Keyboard contract (§16.7):** tab headers are the first focusable element;
+arrow-key selection between tabs is implemented natively by the TabControl and
+exercised headlessly (Right×2 → Input Analysis, Token Generator; Left → back).
+
+**§18 verification — Phase 3 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests: 4 tab headers in order; Simulation default-selected; 380px
+  pixel column + star results column (found via TabControl content presenter —
+  the data grid is NOT a descendant of the TabItem, an Avalonia realisation
+  quirk); MinWidth/MinHeight 1100×700 + Maximized; arrow-key tab navigation.
+- Real launch (Wayland box, capture blocked per D-089): `dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → "Application started.
+  Main window created." in `logs/app-20260916.log`, killed by 15 s timeout,
+  **0 new crash-log entries** (`crash-20260915.log` untouched).
+- Screenshot `logs/screenshots/phase-3-shell.png` (headless; owner to eyeball).
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **203 green** (Core 85 / Data 58 / Cli 35 / App 25), 0 failed.
+
 ## GUI REBUILD — Phase 2 Reusable Controls — 2026-09-15 (feat/gui-rebuild)
 
 **Phase gate: STOPPED — awaiting owner "go" before Phase 3.**
