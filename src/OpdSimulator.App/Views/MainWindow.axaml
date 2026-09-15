@@ -73,8 +73,7 @@
                             BorderBrush="{DynamicResource BrushBorderDefault}"
                             BorderThickness="1,1,0,0"
                             Padding="{DynamicResource ThicknessWindowPadding}">
-                        <controls:PlaceholderContent Title="Results panel"
-                                                     Hint="Metrics table, chi-square results, event log and token display — Phase 5."/>
+                        <views:ResultsPanel DataContext="{Binding Results}"/>
                     </Border>
                 </Grid>
             </TabItem>

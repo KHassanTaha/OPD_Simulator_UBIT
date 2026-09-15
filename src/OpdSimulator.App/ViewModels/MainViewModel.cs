@@ -1,10 +1,66 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using OpdSimulator.App.Services;
+using Serilog;
 
 namespace OpdSimulator.App.ViewModels;
 
-/// <summary>Window-level view model for MainWindow: exposes the panel view models.</summary>
+/// <summary>
+/// Window-level view model: owns the config and results panels and bridges the
+/// user's Start click to a background simulation run (Phase 5). The engine
+/// runs on a worker thread; every UI update is marshalled back through
+/// <see cref="Dispatcher.UIThread"/>. Refusals and errors surface as clean
+/// banners on the results panel — never as exceptions in the UI.
+/// </summary>
 public partial class MainViewModel : ObservableObject
 {
     /// <summary>Configuration panel state (Simulation tab, left column).</summary>
     public ConfigPanelViewModel Config { get; } = new();
+
+    /// <summary>Results panel state (Simulation tab, right column).</summary>
+    public ResultsPanelViewModel Results { get; } = new(new WidgetPreferences());
+
+    public MainViewModel()
+    {
+        Config.RunRequested += OnRunRequested;
+    }
+
+    private void OnRunRequested(object? sender, EventArgs e)
+    {
+        if (Config.TryBuildRunParameters() is not { } parameters)
+        {
+            // Defence in depth: Start is gated on the config, so this should be
+            // unreachable; still surface a clean banner rather than crash.
+            Results.StartRun();
+            Results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
+                Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                "The run could not be built from the current configuration. Check the fields marked in red."));
+            return;
+        }
+
+        Results.StartRun();
+        Results.SetPreview(Config.Binding);
+
+        Task.Run(() =>
+        {
+            RunOutcome outcome;
+            try
+            {
+                outcome = SimulationCoordinator.Run(parameters, Config.Binding,
+                    status => Dispatcher.UIThread.Post(() => Results.StatusText = status));
+            }
+            catch (Exception ex)
+            {
+                // The coordinator already converts known refusals into an
+                // outcome; anything that fell through is a defect — log it and
+                // still refuse cleanly (AGENTS §12.4: never swallow).
+                Log.Error(ex, "Unexpected simulator failure");
+                outcome = new RunOutcome(null, Array.Empty<Models.FitReport>(),
+                    Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                    "The simulator stopped unexpectedly. See logs/errors-*.log for details.");
+            }
+
+            Dispatcher.UIThread.Post(() => Results.CompleteRun(outcome));
+        });
+    }
 }
