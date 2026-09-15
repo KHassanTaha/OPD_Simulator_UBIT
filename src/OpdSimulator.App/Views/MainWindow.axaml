@@ -1,7 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:OpdSimulator.App.Controls"
+        xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+        xmlns:views="using:OpdSimulator.App.Views"
         x:Class="OpdSimulator.App.Views.MainWindow"
+        x:DataType="viewModels:MainViewModel"
         Title="OPD Clinic Queue Simulator"
         Width="1200"
         Height="760"
@@ -10,6 +13,10 @@
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="{DynamicResource BrushBackgroundWindow}">
+
+    <Window.DataContext>
+        <viewModels:MainViewModel/>
+    </Window.DataContext>
 
     <!-- MainWindow shell (Phase 3). Layout contract (AGENTS §16.7 — tab order
          sketched before authoring):
@@ -54,8 +61,7 @@
                             BorderBrush="{DynamicResource BrushBorderDefault}"
                             BorderThickness="1"
                             Padding="{DynamicResource ThicknessWindowPadding}">
-                        <controls:PlaceholderContent Title="Configuration panel"
-                                                     Hint="Simulation parameters, data upload, distribution choices and run controls — Phase 4."/>
+                        <views:ConfigPanel DataContext="{Binding Config}"/>
                     </Border>
                     <GridSplitter Grid.Column="1"
                                   Width="6"

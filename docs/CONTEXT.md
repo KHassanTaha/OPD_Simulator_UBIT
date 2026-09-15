@@ -250,6 +250,13 @@ max(util_server) − min(util_server) > 0.15.
 > that stage (e.g., exited at Screening → no `doctor_server`), the blank is
 > **expected** and excluded silently.
 
+> **[UNVERIFIED — assumption, 2026-09-16 — D-100]** A blank per-stage
+> "Service rate μ (per server)" field means *use the fitted value* (Phase 5),
+> exactly like the Section-3 manual λ/μ overrides, so a factory-default
+> config is Start-enabled on launch. Non-empty values must be positive
+> doubles. Needs owner sign-off against the PRD wording "double > 0" (which
+> the GUI reads as required-only-when-non-empty).
+
 ---
 
 ## 6. Visual Output Analysis

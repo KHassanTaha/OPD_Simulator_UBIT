@@ -1,0 +1,266 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             xmlns:views="using:OpdSimulator.App.Views"
+             x:Class="OpdSimulator.App.Views.ConfigPanel"
+             x:DataType="viewModels:ConfigPanelViewModel">
+
+    <!-- ConfigPanel (Phase 4) — left column of the Simulation tab. One
+         ScrollViewer hosting six CollapsibleSection groups, then a
+         PinnedFooterBar pinned under the scroll area (D-XXX, DECISIONS.md).
+         Tab order per section follows visual order; each ValidatedField is a
+         single tab stop (its inner TextBox) and validates on blur (FR-UI-17). -->
+    <Grid RowDefinitions="*,Auto">
+
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="{DynamicResource ThicknessWindowPadding}">
+
+            <StackPanel Spacing="{DynamicResource SpaceM}">
+
+                <!-- ───── 1 · Data ─────────────────────────────────────── -->
+                <controls:CollapsibleSection Title="1 · Data"
+                                             IsExpanded="True"
+                                             HelpText="Upload the patient data file. The row preview lives in the Results panel (Phase 5) — it is deliberately not duplicated here.">
+                    <StackPanel Spacing="{DynamicResource SpaceXs}">
+                        <Button Content="Upload Data"
+                                Command="{Binding UploadDataCommand}"
+                                Classes="PrimaryButton"
+                                HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Opens a file picker for an .xlsx or .csv patient data file"/>
+                        <TextBlock Text="{Binding DataStatus}"
+                                   Classes="Caption"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 2 · Model ────────────────────────────────────── -->
+                <controls:CollapsibleSection Title="2 · Model"
+                                             IsExpanded="True"
+                                             HelpText="Distribution shapes and how the entered numbers are interpreted (rate-wise vs mean-wise, CONTEXT §5.6).">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:SearchableDropdown Label="Inter-arrival distribution"
+                                                     Placeholder="Choose a distribution…"
+                                                     Tooltip="Theoretical distribution for the time between patient arrivals"
+                                                     Items="{Binding Distributions}"
+                                                     SelectedItem="{Binding InterArrivalDistribution, Mode=TwoWay}"
+                                                     HelpAnchor="inter-arrival-distribution"/>
+                        <controls:SearchableDropdown Label="Service distribution"
+                                                     Placeholder="Choose a distribution…"
+                                                     Tooltip="Theoretical distribution for per-patient service times"
+                                                     Items="{Binding Distributions}"
+                                                     SelectedItem="{Binding ServiceDistribution, Mode=TwoWay}"
+                                                     HelpAnchor="service-distribution"/>
+                        <StackPanel Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="Parameter mode"
+                                       FontSize="{DynamicResource FontSizeBody}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="{DynamicResource SpaceM}">
+                                <RadioButton GroupName="ParamMode"
+                                             Content="Rate-wise"
+                                             ToolTip.Tip="Enter λ and μ as events per minute (default)"
+                                             IsChecked="{Binding IsRateWise, Mode=TwoWay}"/>
+                                <RadioButton GroupName="ParamMode"
+                                             Content="Mean-wise"
+                                             ToolTip.Tip="Enter 1/λ and 1/μ as minutes per event"
+                                             IsChecked="{Binding IsMeanWise, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 3 · Parameters ───────────────────────────────── -->
+                <controls:CollapsibleSection Title="3 · Parameters"
+                                             IsExpanded="True"
+                                             HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:ValidatedField x:Name="ManualLambdaField"
+                                                 Label="Manual λ (per minute)"
+                                                 Watermark="e.g., 0.5"
+                                                 Tooltip="Override the fitted arrival rate. Blank uses the fitted value."
+                                                 Unit="/ min"
+                                                 Value="{Binding ManualLambda.Value, Mode=TwoWay}"
+                                                 HasError="{Binding ManualLambda.HasError}"
+                                                 ErrorMessage="{Binding ManualLambda.ErrorMessage}"
+                                                 HelpAnchor="manual-lambda"
+                                                 views:ConfigPanelValidation.ValidationKey="manual-lambda"/>
+                        <controls:ValidatedField x:Name="ManualMuField"
+                                                 Label="Manual μ per stage (per minute)"
+                                                 Watermark="e.g., 0.8, 0.6, 0.4"
+                                                 Tooltip="Comma-separated per-stage service rates. Blank uses the fitted values."
+                                                 Unit="/ min"
+                                                 Value="{Binding ManualMuPerStage.Value, Mode=TwoWay}"
+                                                 HasError="{Binding ManualMuPerStage.HasError}"
+                                                 ErrorMessage="{Binding ManualMuPerStage.ErrorMessage}"
+                                                 HelpAnchor="manual-mu"
+                                                 views:ConfigPanelValidation.ValidationKey="manual-mu"/>
+                        <StackPanel Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="Utilisation ρ per stage"
+                                       FontSize="{DynamicResource FontSizeBody}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
+                                       ToolTip.Tip="ρ = λ / (c·μ) per stage. Values below 1 are required for a stable queue (CONTEXT §2.3)."/>
+                            <TextBlock Text="{Binding RhoSummary}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding PExitVisible}"
+                                    Spacing="{DynamicResource SpaceXs}">
+                            <controls:ValidatedField x:Name="PExitField"
+                                                     Label="p_exit override"
+                                                     Watermark="e.g., 0.4"
+                                                     Tooltip="Probability a patient exits after screening. Boundary [0,1) exclusive of 1."
+                                                     Value="{Binding PExit.Value, Mode=TwoWay}"
+                                                     HasError="{Binding PExit.HasError}"
+                                                     ErrorMessage="{Binding PExit.ErrorMessage}"
+                                                     HelpAnchor="p-exit"
+                                                     views:ConfigPanelValidation.ValidationKey="p-exit"/>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 4 · Stages (1–5) ─────────────────────────────── -->
+                <controls:CollapsibleSection Title="4 · Stages"
+                                             IsExpanded="True"
+                                             HelpText="Named stages through which every patient flows. Each stage has its own server count and per-server service rate.">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:ValidatedField x:Name="StageCountField"
+                                                 Label="Number of stages"
+                                                 Watermark="1–5"
+                                                 Tooltip="How many sequential stages to simulate (Reception → Screening → Doctor by default)"
+                                                 Value="{Binding StageCount.Value, Mode=TwoWay}"
+                                                 HasError="{Binding StageCount.HasError}"
+                                                 ErrorMessage="{Binding StageCount.ErrorMessage}"
+                                                 HelpAnchor="stage-count"
+                                                 views:ConfigPanelValidation.ValidationKey="stage-count"/>
+                        <ItemsControl x:Name="StagesList"
+                                      ItemsSource="{Binding StageRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:StageRow">
+                                    <Border Classes="PanelCard"
+                                            Margin="0,0,0,8"
+                                            Padding="{DynamicResource ThicknessSpaceS}">
+                                        <StackPanel Spacing="{DynamicResource SpaceS}">
+                                            <TextBlock Text="Stage name"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       Foreground="{DynamicResource BrushTextSecondary}"/>
+                                            <TextBox Text="{Binding StageName, Mode=TwoWay}"
+                                                     Watermark="e.g., Reception"
+                                                     ToolTip.Tip="Display name for this stage"/>
+                                            <controls:ValidatedField Label="Servers"
+                                                                     Watermark="e.g., 2"
+                                                                     Tooltip="Number of parallel servers at this stage (≥ 1)"
+                                                                     Value="{Binding Servers.Value, Mode=TwoWay}"
+                                                                     HasError="{Binding Servers.HasError}"
+                                                                     ErrorMessage="{Binding Servers.ErrorMessage}"
+                                                                     HelpAnchor="servers"
+                                                                     views:ConfigPanelValidation.ValidationKey="servers"/>
+                                            <controls:ValidatedField Label="Service rate μ (per server)"
+                                                                     Watermark="e.g., 0.5"
+                                                                     Tooltip="Per-server service rate. Blank uses the fitted value."
+                                                                     Unit="/ min"
+                                                                     Value="{Binding ServiceRate.Value, Mode=TwoWay}"
+                                                                     HasError="{Binding ServiceRate.HasError}"
+                                                                     ErrorMessage="{Binding ServiceRate.ErrorMessage}"
+                                                                     HelpAnchor="service-rate"
+                                                                     views:ConfigPanelValidation.ValidationKey="service-rate"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 5 · Horizon ──────────────────────────────────── -->
+                <controls:CollapsibleSection Title="5 · Horizon"
+                                             IsExpanded="True"
+                                             HelpText="Simulation length and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1).">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="{DynamicResource SpaceM}">
+                            <RadioButton GroupName="RunMode"
+                                         Content="Single day"
+                                         ToolTip.Tip="Simulate one clinic day (default)"
+                                         IsChecked="{Binding IsSingleDay, Mode=TwoWay}"/>
+                            <RadioButton GroupName="RunMode"
+                                         Content="Multi-day"
+                                         ToolTip.Tip="Simulate several consecutive clinic days"
+                                         IsChecked="{Binding IsMultiDay, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding IsMultiDay}"
+                                    Spacing="{DynamicResource SpaceM}">
+                            <controls:ValidatedField x:Name="DaysField"
+                                                     Label="Days"
+                                                     Watermark="e.g., 5"
+                                                     Tooltip="Number of consecutive clinic days to simulate"
+                                                     Value="{Binding Days.Value, Mode=TwoWay}"
+                                                     HasError="{Binding Days.HasError}"
+                                                     ErrorMessage="{Binding Days.ErrorMessage}"
+                                                     HelpAnchor="days"
+                                                     views:ConfigPanelValidation.ValidationKey="days"/>
+                            <controls:SearchableDropdown Label="Start day"
+                                                         Placeholder="Choose a day…"
+                                                         Tooltip="First day of the clinic week"
+                                                         Items="{Binding StartDays}"
+                                                         SelectedItem="{Binding StartDay, Mode=TwoWay}"
+                                                         HelpAnchor="start-day"/>
+                        </StackPanel>
+                        <controls:ValidatedField x:Name="DailyCapField"
+                                                 Label="Daily patient cap (optional)"
+                                                 Watermark="blank = unlimited"
+                                                 Tooltip="Maximum patients per day. Blank means unlimited."
+                                                 Value="{Binding DailyCap.Value, Mode=TwoWay}"
+                                                 HasError="{Binding DailyCap.HasError}"
+                                                 ErrorMessage="{Binding DailyCap.ErrorMessage}"
+                                                 HelpAnchor="daily-cap"
+                                                 views:ConfigPanelValidation.ValidationKey="daily-cap"/>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 6 · Advanced ─────────────────────────────────── -->
+                <controls:CollapsibleSection Title="6 · Advanced"
+                                             IsExpanded="True"
+                                             HelpText="Reproducibility and the per-event trace detail written by the run.">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:ValidatedField x:Name="SeedField"
+                                                 Label="Random seed"
+                                                 Watermark="e.g., 42"
+                                                 Tooltip="Fixed random seed so the same configuration always reproduces the same run"
+                                                 Value="{Binding Seed.Value, Mode=TwoWay}"
+                                                 HasError="{Binding Seed.HasError}"
+                                                 ErrorMessage="{Binding Seed.ErrorMessage}"
+                                                 HelpAnchor="random-seed"
+                                                 views:ConfigPanelValidation.ValidationKey="seed"/>
+                        <controls:SearchableDropdown Label="Trace level"
+                                                     Placeholder="Choose a level…"
+                                                     Tooltip="How much per-event detail the run logs (None / Events / State / Rng)"
+                                                     Items="{Binding TraceLevels}"
+                                                     SelectedItem="{Binding TraceLevel, Mode=TwoWay}"
+                                                     HelpAnchor="trace-level"/>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Pinned primary action: stays visible while the config scrolls. -->
+        <controls:PinnedFooterBar Grid.Row="1"
+                                  PrimaryText="Start Calculation"
+                                  PrimaryCommand="{Binding StartCalculationCommand}"
+                                  PrimaryIsEnabled="{Binding StartIsEnabled}"
+                                  ToolTip.Tip="Runs the queue simulation with the configured parameters (engine wiring lands in Phase 5)">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{DynamicResource SpaceXs}">
+                <Button Content="Clear All"
+                        Command="{Binding ClearAllCommand}"
+                        Classes="GhostButton"
+                        ToolTip.Tip="Resets every configuration field to its default value"/>
+            </StackPanel>
+        </controls:PinnedFooterBar>
+
+    </Grid>
+</UserControl>

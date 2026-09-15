@@ -169,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-16 **203 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **213 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,7 +180,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **203 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (25, headless Avalonia, GUI rebuild Phase 1–3) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (35, headless Avalonia, GUI rebuild Phase 1–4) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -191,7 +191,11 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **203 tests pass**:
   ControlsDemo screenshot render; Phase-3 shell tests: four tab headers in order, Simulation
   default-selected, 380px config / fill-results split (searched from the window — tab content
   lives in the TabControl content presenter, D-095), min size 1100×700, arrow-key tab
-  navigation; shell screenshot render.
+  navigation; shell screenshot render. Phase-4 ConfigPanel tests (10): six CollapsibleSections +
+  pinned footer, stage-count live resize (3→5→1 with default names), p_exit visible ⇔ stages ≥ 2,
+  p_exit = 1 → inline error + Start blocked (Core boundary [0,1), D-098), p_exit = 0.4 accepted,
+  stage-name/Servers two-way binding, Clear All factory reset (FR-UI-21), Clear All confirmation
+  gate, Upload request event, config screenshot render.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -457,6 +461,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **GUI rebuild Phase 4 — ConfigPanel** (`feat/gui-rebuild`): real config panel replaces the Simulation-tab placeholder — six CollapsibleSections (Data upload / Model / Parameters / Stages 1–5 / Horizon / Advanced) in one ScrollViewer + pinned PinnedFooterBar (Start Calculation, Clear All with ThemedDialog confirm); p_exit override shown only for 2+ stages with Core [0,1) boundary blocking Start; stage rows resize live; `MainWindow` DataContext moved to a new `MainViewModel`; new `ConfigFieldViewModel` + `StageRow` VMs; blur-validation routed via `ConfigPanelValidation.ValidationKey` attached property; §6 refreshed to 213 tests; D-096..D-100 | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 213 green (Core 85 / Data 58 / Cli 35 / App 35); real Linux launch 15 s alive with "Main window created." and 0 new crash-log entries; headless evidence `logs/screenshots/phase-4-config.png` |
 | 2026-09-16 | **GUI rebuild Phase 3 — MainWindow shell** (`feat/gui-rebuild`): header bar + TabControl [Simulation | Input Analysis | Token Generator | Help]; Simulation tab = 380px config / GridSplitter / fill results; new reusable `Controls/PlaceholderContent` + `Border.PanelCard`; ControlsDemo no longer hosted in MainWindow (screenshot test hosts it in its own window); §6 refreshed to 203 tests; §5 status updated (shell tabs, real panels pending P4–P6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 203 green (Core 85 / Data 58 / Cli 35 / App 25); real Linux launch 15 s alive with "Main window created." and 0 crash-log entries; headless evidence `logs/screenshots/phase-3-shell.png` |
 | 2026-09-15 | **GUI rebuild Phase 2 — reusable controls** (`feat/gui-rebuild`): 9 controls in `src/OpdSimulator.App/Controls/` (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) + `Views/ControlsDemo` showroom inside MainWindow; template wiring moved to `OnApplyTemplate`+`INameScope.Find` (D-091); DataPreviewTable virtualises via ListBox, `Avalonia.Controls.ItemsRepeater` package dropped (D-090); PinnedFooterBar is a ContentControl template (fixes self-recursive content, D-092); ErrorBanner `IsVisible` mirrors Message (D-093); §6 refreshed to 197 tests | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 197 green (Core 85 / Data 58 / Cli 35 / App 19); per-control headless tests + `logs/screenshots/controls-demo.png` render; two real bugs caught by the tests (ErrorBanner dead-control, PinnedFooterBar recursion) |
 | 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |

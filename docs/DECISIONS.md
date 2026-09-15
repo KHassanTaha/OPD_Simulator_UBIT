@@ -1322,3 +1322,116 @@ impact (positive and negative), alternatives considered.
   culting. (−) none.
 - **Alternatives considered:** asserting only counts/sizes on the window without
   narrowing — weaker (masks wrong-config regressions).
+
+## D-096 ConfigPanel Layout — One ScrollViewer + PinnedFooterBar
+
+- **Date:** 2026-09-16
+- **Decision:** The Phase-4 config panel is a single `ScrollViewer`
+  (`VerticalScrollBarVisibility="Auto"`) hosting six `CollapsibleSection`
+  groups (1 · Data, 2 · Model, 3 · Parameters, 4 · Stages, 5 · Horizon,
+  6 · Advanced), with the `PinnedFooterBar` placed **outside** the
+  ScrollViewer in a second grid row — so Start Calculation / Clear All
+  never scroll away with the configuration (AGENTS §16.2 "Pinned primary
+  action").
+- **Rationale:** the config column can outgrow the 760 px window (stage rows
+  grow 1→5); a pinned footer keeps the run action reachable at every scroll
+  position without a sticky-position hack. Six sections, not one tall form,
+  so related fields collapse behind chevrons when a user is focused on a
+  single concern.
+- **Impact:** (+) primary action always visible; (+) grouping maps 1:1 to the
+  specification's six sections. (−) the footer consumes vertical space even
+  when collapsed sections minimise the form (acceptable — it is the
+  contract's primary action).
+- **Alternatives considered:** footer inside the ScrollViewer — scrolls out of
+  view (rejected); sticky header/footer via a custom layout — reinvents what
+  a two-row grid provides; a single ungrouped form — no collapse affordance.
+
+## D-097 p_exit Hidden for 1-Stage Configurations
+
+- **Date:** 2026-09-16
+- **Decision:** The `p_exit override` field is only rendered when the stage
+  count is 2 or more (`PExitVisible => StageCount >= 2`). At 1 stage no
+  early-exit route exists after screening, so the field (and its validation)
+  is hidden entirely rather than disabled-showing-an-error.
+- **Rationale:** an exit-after-screening route requires a downstream stage to
+  exit from; a hidden field avoids confusing an "orphan" parameter and
+  matches the PRD's 3-stage framing where p_exit routes Screening → Doctor.
+  Hiding (not disabling) also keeps the p_exit state out of the Start gate:
+  a stale 1-stage value cannot silently block a run.
+- **Impact:** (+) the panel self-explains for 1-stage experiments; (+) no
+  dead "why is this disabled" tooltips needed. (−) resizing 2+ → 1 hides the
+  field but preserves its entered value (restored on resize back) — intended.
+- **Alternatives considered:** disable + reason tooltip — more noise in the
+  exact axis-case the field is meaningless; always show — violates the spec
+  ("VISIBLE ONLY WHEN 2+ STAGES CONFIGURED").
+
+## D-098 p_exit Boundary [0, 1) Matches the Core Contract
+
+- **Date:** 2026-09-16
+- **Decision:** The p_exit field accepts only values in **[0, 1)**: empty is
+  valid (fitted value is used later), a parse failure or a negative value
+  yields the inline error *"Enter a number between 0 and 1 (exclusive)."*,
+  and `1 ≤ v` yields *"Exit probability must be less than 1. You entered
+  ⟨v⟩."* — matching the Core engine's stability contract exactly. A p_exit
+  of exactly 1 is an inline error **and** blocks `Start Calculation`
+  (`StartCalculationCommand.CanExecute == false`).
+- **Rationale:** p_exit = 1 means *every* patient exits at Screening, which
+  is the degenerate "no doctor flow" case the core refuses (see p_exit
+  estimation in CONTEXT §5.4). The GUI must not let a run be configured that
+  the engine itself would reject — encode the boundary at the input, not at
+  the engine worker.
+- **Impact:** (+) the refusal reason is inline (FR-UI-9/FR-UI-17) instead of
+  a late worker error; (+) the boundary is single-sourced in one guard so a
+  future Core change is a one-line edit. (−) the field cannot express "every
+  patient exits" — this is a model decision, not a UI restriction.
+- **Alternatives considered:** allow `p_exit == 1` and let the run refuse —
+  worse UX (start fails after the user believes they configured a valid
+  model); allow `p_exit > 1` — clearly invalid analytically.
+
+## D-099 Stage Row Is a Dedicated View-Model Class (Not a Tuple)
+
+- **Date:** 2026-09-16
+- **Decision:** A simulated stage row is represented by a dedicated
+  `StageRow` view-model class (declared alongside `ConfigPanelViewModel` in
+  `ConfigPanelViewModel.cs`), owning its `StageName` string plus two
+  validated `ConfigFieldViewModel`s (`Servers`, `ServiceRate`) — not a C#
+  tuple or an anonymous record.
+- **Rationale:** each row needs (a) a validated string field with inline
+  error state, (b) per-row blur validation rules, and (c) an observable
+  display name — exactly what a class exposes. Tuples cannot carry
+  `INotifyPropertyChanged` state cleanly and would force the ItemsControl
+  DataTemplate to reach through indexer syntax. A class also gives the
+  pattern a name for the viva: "each stage row is a mini view-model".
+- **Impact:** (+) blur validation has a natural home (`ValidateServers`,
+  `ValidateServiceRate`); (+) `HasErrors => Servers.HasError ||
+  ServiceRate.HasError` feeds the Start gate; (−) slightly more files… none
+  — the class lives in the same file. No downside identified beyond
+  boilerplate.
+- **Alternatives considered:** `(string Name, string Servers, string Rate)`
+  tuples — no change notifications/validation; a `record` — immutable,
+  wrong for two-way input fields; three parallel arrays in the panel VM —
+  loses the row encapsulation.
+
+## D-100 Stage Service-Rate Blank = Use the Fitted Value (Start enabled by default)
+
+- **Date:** 2026-09-16
+- **Decision:** A stage's *Service rate μ (per server)* field treats an
+  **empty value as valid** (the run will fall back to the fitted value in
+  Phase 5), mirroring the Section-3 manual λ/μ overrides. A non-empty value
+  must parse as a positive double or the field errors inline. This keeps the
+  factory-default config (3 empty stage rates) fully **Start-enabled**.
+- **Rationale:** the whole app premise is "fit parameters from the uploaded
+  data" (Milestone 2); per-stage rates are overrides of the fitted
+  per-stage μ, exactly like manual λ. Forcing a number by default would also
+  make the very first launch red-flag three required fields, contradicting
+  FR-UI-21's clean-start principle and the spec's intent that Start is
+  blocked only by genuinely invalid input (p_exit out of range, bad numbers).
+- **Impact:** (+) fresh window is runnable; (+) blank rate renders "—" in
+  the ρ summary rather than a dead state. (−) a blank rate is silently
+  "unset" — the ρ preview and Phase 5 will make the fitted substitution
+  visible. Tagged `[UNVERIFIED]` in CONTEXT.md — needs owner sign-off
+  against the PRD wording "double > 0".
+- **Alternatives considered:** require a number per row (empty = error) —
+  blocks Start out of the box and needs an invented default rate; default
+  each row to "0.5"/"1.0" — manufactures a made-up clinical rate the owner
+  never specified.

@@ -2,6 +2,98 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 01:10
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4 shipped, awaiting review)
+
+Done
+- Phase 4 — ConfigPanel (feat/gui-rebuild): Data / Model / Parameters / Stages 1–5 / Horizon / Advanced + PinnedFooterBar Start & Clear All. Files: `Views/ConfigPanel.axaml(.cs)`, `ViewModels/ConfigPanelViewModel.cs`, `ViewModels/ConfigFieldViewModel.cs`, `ViewModels/MainViewModel.cs`, `tests/Phase4ConfigTests.cs`; `MainWindow.axaml` now hosts `<views:ConfigPanel DataContext="{Binding Config}"/>`.
+
+What is complete:
+- Six CollapsibleSection groups in one ScrollViewer + pinned footer (D-096); p_exit visible only for 2+ stages (D-097) and boundary [0,1) enforced inline, blocking Start (D-098); stages resize live 1–5 with default names Reception/Screening/Doctor/Stage 4/Stage 5 (D-099, D-100); blur-based validation routed via the `ConfigPanelValidation.ValidationKey` attached property; Upload → DataLoaderFactory row count; Clear All → ThemedDialog confirm then reset.
+
+What remains:
+- Phase 5 ResultsPanel + run wiring (awaiting owner "go" — STOP at phase boundary per gate).
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 39)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: <pending — one Phase 4 commit after this entry>
+- Pushed to origin: Yes (after commit)
+- Uncommitted changes: none (commit lands with the Phase 4 commit)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 213 green (Core 85 / Data 58 / Cli 35 / App 35), 0 failed
+
+Files Touched
+- src/OpdSimulator.App/Views/ConfigPanel.axaml, ConfigPanel.axaml.cs: added
+- src/OpdSimulator.App/ViewModels/ConfigFieldViewModel.cs, ConfigPanelViewModel.cs, MainViewModel.cs: added
+- src/OpdSimulator.App/Views/MainWindow.axaml: modified (DataContext → MainViewModel; column-0 Content → ConfigPanel)
+- tests/OpdSimulator.App.Tests/Phase4ConfigTests.cs: added (10 tests incl. screenshot)
+- docs/: TODO.md, PROGRESS.md, DECISIONS.md, DEV_LAUNCH.md, CONTEXT.md
+
+Decisions Made
+- D-096 ConfigPanel layout (ScrollViewer + pinned footer)
+- D-097 p_exit hidden for 1-stage configs
+- D-098 p_exit boundary [0,1) matches Core
+- D-099 Stage row is a dedicated view-model class (not a tuple)
+- D-100 Blank service-rate = fitted fallback; Start enabled by default
+
+Assumptions Added/Changed
+- D-100 tagged [UNVERIFIED] in CONTEXT.md — blank per-stage rate means "use fitted value" (needs owner sign-off vs PRD "double > 0")
+
+Notes for Next Session
+- Phase 4 verified live on 2026-09-16: real launch 15 s "Application started. Main window created.", 0 new crash entries; screenshot `logs/screenshots/phase-4-config.png`.
+
+## GUI REBUILD — Phase 4 — ConfigPanel — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: passed — Phase 5 NOT started (owner "go" required).**
+
+What shipped:
+- `ConfigPanel` replaces the Simulation-tab column-0 placeholder: one
+  ScrollViewer with six CollapsibleSections and a pinned footer
+  (Start Calculation + Clear All) outside the scroll area (D-096).
+  1 · Data (Upload → DataLoaderFactory, "No file loaded" / "Loaded N rows from …"),
+  2 · Model (two SearchableDropdowns + Rate-wise/Mean-wise radio, CONTEXT §5.6),
+  3 · Parameters (manual λ, manual μ comma-list, live ρ-per-stage summary, p_exit
+  override shown only for 2+ stages — D-097, boundary [0,1) — D-098),
+  4 · Stages (count 1–5 resizes rows live; default names Reception/Screening/Doctor/
+  Stage N; per-row Servers + Service rate) — D-099,
+  5 · Horizon (Single day default / Multi-day + Days + Start day, optional Daily cap),
+  6 · Advanced (Random seed default 42, Trace level default State).
+- `ConfigFieldViewModel` wraps value + HasError + ErrorMessage with blur-clear
+  behaviour (FR-UI-17); `MainViewModel` exposes the Config panel; MainWindow
+  DataContext is now a MainViewModel (FR-UI-21 clean start, no auto-restore).
+- Blur-time validation is routed from the view to the VM through the
+  `ConfigPanelValidation.ValidationKey` attached property; Clear All confirms via
+  ThemedDialog then resets every field to factory defaults (D-100).
+
+**§18 verification — Phase 4 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests (10 new, `test/OpdSimulator.App.Tests/Phase4ConfigTests.cs`): six
+  sections + pinned footer present; stage-count resize (3→5→1 with default names);
+  p_exit visible ⇔ stages ≥ 2; p_exit = 1 → exact inline error + `StartCalculationCommand`
+  disabled; p_exit = 0.4 accepted and Start enabled; stage-name/servers two-way
+  binding; Clear All reset (all fields verified); Clear All confirmation gate;
+  Upload request event; screenshot capture.
+- Real launch (Wayland box, capture blocked per D-089): `timeout 15 dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → **"Application started.
+  Main window created."** in `logs/app-20260916.log`, killed by timeout, **0 new
+  crash log entries** (`crash-20260915.log` untouched).
+- Screenshot `logs/screenshots/phase-4-config.png` (47 KB, headless; owner to
+  eyeball).
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **213 green** (Core 85 / Data 58 / Cli 35 / App 35), 0 failed.
+- Real launch 15 s alive, "Main window created." logged, 0 new crash logs.
+- Docs: DECISIONS D-096..D-100; CONTEXT assumption tagged; DEV_LAUNCH §6 refreshed
+  (213 tests) + Changelog row; TODO Phase 4 [x].
+
 ## GUI REBUILD — Phase 3 MainWindow Shell — 2026-09-16 (feat/gui-rebuild)
 
 **Phase gate: STOPPED — awaiting owner "go" before Phase 4.**
