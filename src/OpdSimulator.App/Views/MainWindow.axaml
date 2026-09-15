@@ -1,90 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:OpdSimulator.App.ViewModels"
-        xmlns:views="using:OpdSimulator.App.Views"
-        xmlns:controls="using:OpdSimulator.App.Controls"
         x:Class="OpdSimulator.App.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
+        Title="OPD Clinic Queue Simulator"
         Width="1200"
         Height="760"
-        MinWidth="960"
-        MinHeight="640"
-        Title="{Binding Title}"
-        WindowStartupLocation="CenterScreen">
+        MinWidth="1100"
+        MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Background="{DynamicResource BrushBackgroundWindow}">
 
-    <Panel>
-        <Grid RowDefinitions="*,Auto">
-
-            <!-- Left configuration + right results, split by a draggable splitter. -->
-            <Grid Margin="12,12,12,0">
-                <Grid ColumnDefinitions="400,6,*">
-                    <views:ConfigPanel Grid.Column="0"
-                                       DataContext="{Binding Config}"/>
-                    <GridSplitter Grid.Column="1" Width="6"
-                                  Background="{DynamicResource BrushBackgroundAlt}"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Stretch"/>
-                    <views:ResultsPanel Grid.Column="2"
-                                        DataContext="{Binding Results}"/>
-                </Grid>
-            </Grid>
-
-            <!-- Pinned footer bar: primary action always visible (FR-UI-2). -->
-            <controls:PinnedFooterBar Grid.Row="1" Padding="14,8">
-                <Grid ColumnDefinitions="Auto,10,*,Auto">
-                    <Button Content="Start calculation"
-                            Command="{Binding RunCommand}"
-                            Classes="primaryDialogButton"
-                            MinWidth="150"/>
-                    <Button Grid.Column="2"
-                            Content="Reset"
-                            Command="{Binding ResetAllCommand}"
-                            Classes="dialogButton"
-                            Margin="0,0,10,0"
-                            HorizontalAlignment="Right"/>
-                    <Button Grid.Column="3"
-                            Content="Guide (F1)"
-                            Command="{Binding OpenGuideCommand}"
-                            Classes="dialogButton"/>
-                </Grid>
-            </controls:PinnedFooterBar>
-        </Grid>
-
-        <!-- Guide overlay (§17.1): trap focus, close on Escape, return focus. -->
-        <Border x:Name="GuideOverlay"
-                Background="{DynamicResource BrushOverlayDim}"
-                IsVisible="{Binding IsGuideOpen}">
-            <Border Background="{DynamicResource BrushBackgroundPanel}"
-                    BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
-                    Margin="80,40"
-                    Padding="20">
-                <Grid RowDefinitions="Auto,*" RowSpacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="User manual"
-                                   FontSize="{DynamicResource FontSizeHeading4}"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <Button Grid.Column="1"
-                                Content="&#xE711;"
-                                Classes="fieldIconButton"
-                                ToolTip.Tip="Close the guide (Esc)"
-                                Command="{Binding CloseGuideCommand}"/>
-                    </Grid>
-                    <views:GuidePanel x:Name="GuidePanelHost"
-                                      Grid.Row="1"
-                                      DataContext="{Binding Guide}"/>
-                </Grid>
-            </Border>
-        </Border>
-
-        <!-- Toast stack (FR-UI-10) — hosted items are added in code-behind. -->
-        <ItemsControl x:Name="ToastHost"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Bottom"
-                      Margin="0,0,16,16"
-                      MaxWidth="420"
-                      IsHitTestVisible="True"/>
-    </Panel>
+    <!-- Phase 1: empty application shell. Tabs land in Phase 3.
+         The dynamic background proves theme resources resolve at startup. -->
 </Window>

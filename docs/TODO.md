@@ -24,6 +24,23 @@ Last updated: 2026-09-14
 - [x] M2 sub-block I (Ubuntu half): dead-state build + full suite + live `verify`/`fit`/`simulate-data`/`export` and M1 `simulate-params` regression — 2026-09-13 (97 tests green, 0 warnings; ρ 0.75 / wait 0.724; sweep 0.81/0.41/0.27)
 - [x] M2 sub-block J: docs pass (DEV_LAUNCH §5/§6/§7/§8/§10/changelog; USER_MANUAL §7; REQUIREMENTS 50% coverage; DECISIONS D-045..D-047; VIVA_ANSWERS; PROGRESS; BLOCKERS B-004 Resolved; this TODO) — 2026-09-13 (commit 384c2be; M2 branch pushed and later merged into main via 01ea9a7/b5f6a7d)
 - [x] M2.5 fix: sample data at HH:MM:SS precision (chi-square rejected a true exponential at p ≈ 0 due to minute-rounded storage) — 2026-09-13 (generator format only, RNG stream unchanged; TimeParser `H:mm:ss` test added — HH:MM untouched; samples + fixture regenerated; `fit` accepts p = 0.103 / 0.258; D-048; VIVA line; 98 tests green — on fix/sample-data-precision)
+## GUI REBUILD — (feat/gui-rebuild, owner mandate 2026-09-15)
+
+> Replaces the M5 view layer (justification: `docs/M5_FAILURES.md`). Core/Data/Cli
+> and their tests are frozen. M6 chart/token work stays on
+> `feat/milestone-6-charts-and-token`. Phases are gated: STOP + owner "go" at
+> each phase boundary. §18 manual-verification entry + screenshot required for
+> every phase gate.
+
+- [x] **Phase 1 — Foundation** — 2026-09-15 (§18 entry in PROGRESS.md; screenshot `logs/screenshots/phase-1-window.png`; gates: Release build 0/0, full suite 185 green, real Linux launch maximized >10 s, 0 crash-log entries; old view layer deleted, M6 files untouched; Theme.axaml token contract + Motion.axaml + empty Maximized MainWindow + §12.1 3-sink Serilog + §12.3 CrashReporter in Services/; packages: App −LiveCharts2/−Serilog.Extensions.Logging, App.Tests +Avalonia.Headless(.XUnit))
+- [ ] Phase 2 — Reusable controls (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) with per-control demo + headless test + §18 manual pass
+- [ ] Phase 3 — MainWindow shell: TabControl [Simulation | Input Analysis | Token Generator | Help], 380px config / fill results, min 1100×700, tab-first focus cycle
+- [ ] Phase 4 — ConfigPanel (Data/Model/Parameters/Stages 1–5/Horizon/Advanced + pinned footer; p_exit [0,1) only for 2+ stages; single/multi-day via calendar path)
+- [ ] Phase 5 — ResultsPanel + run flow (welcome card FR-UI-5, widget selector, refused-run ErrorBanner with exact Core message; G3/G4 re-implemented)
+- [ ] Phase 6 — Help tab (Markdig) + preset system (schemaVersion JSON, shipped Demo-3stage, no auto-restore)
+- [ ] Phase 7 — Acceptance: AGENTS §16.8 keyboard-only walk + FR-UI-5..21 manual pass (B-007 supersedes)
+- [ ] Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
 ## Upcoming
 
 ## M5 — GUI (see PRD §5.1, AGENTS §16–17)

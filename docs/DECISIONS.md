@@ -1126,3 +1126,72 @@ impact (positive and negative), alternatives considered.
   files for trivial negation); (b) bind `IsVisible` with a data-trigger
   Style — rejected (Avalonia style triggers over a dynamic container are
   fiddly and hard to eyeball; a VM predicate is simpler).
+
+## D-086 GUI Rebuild Mandate — View Layer Disposed, Rebuilt on feat/gui-rebuild
+
+- **Date:** 2026-09-15
+- **Decision:** The M5 view layer (`src/OpdSimulator.App` Views/Controls/
+  ViewModels/Services/Logging/Models/ViewLocator/app.manifest) is deleted on
+  `feat/gui-rebuild` and rebuilt phase-by-phase to the owner-approved layout.
+  M6 chart/token files remain on `feat/milestone-6-charts-and-token`;
+  Core/Data/Cli and their tests are untouched.
+- **Rationale:** M5_FAILURES.md documents 2 crash root causes (Preview NRE;
+  p_exit=1 boundary), FR-UI rows marked [x] without in-app verification, and
+  27 owner-reported defects. Owner ruled patching insufficient.
+- **Impact:** (+) clean slate under the §18 "verified in the running app"
+  definition of [x]; (0) M6 restores chart infra later; (−) M5 tests that
+  referenced old shapes deleted (rebuilt per phase).
+- **Alternatives considered:** (a) patch M5 iteratively — rejected by owner.
+
+## D-087 Phase 1 Token Contract — Theme.axaml + Motion.axaml
+
+- **Date:** 2026-09-15
+- **Decision:** `Theme.axaml` owns every non-animation visual token: palette +
+  brushes, exactly 3 font families (Default/Heading/Mono), font sizes 18/14/12
+  (Title/Body/Caption), spacing 4/8/12/16/24 (SpaceXxs..SpaceL + Thickness
+  twins), radii 4/8/12 (CornerRadiusS/M/L), 2 shadows (ShadowCard,
+  ShadowOverlay), focus ring (BrushFocusRing + Thickness 2 + offset 1).
+  `Motion.axaml` owns the 4 durations 150/200/250/600 ms
+  (Fast/Medium/Normal/Slow) plus MotionDurationReduced (0 ms) for
+  reduced-motion collapse (G8). Hex values appear in exactly this one file
+  (AGENTS §16.3).
+- **Rationale:** An owner-specified layout spec drives the values; separating
+  motion from visuals lets a single Motion.axaml host the reduced-motion
+  behaviour later (Phase 2 controls consume these tokens).
+- **Impact:** (+) single restyle point; (+) token values asserted by 6
+  headless smoke tests; (−) moving more tokens later = small churn.
+- **Alternatives considered:** (a) keep M5's richer scale (11px..24px) —
+  rejected, rebuild spec fixed 18/14/12.
+
+## D-088 Phase 1 Kept Proven M5 Infra — Serilog 3 Sinks + CrashReporter
+
+- **Date:** 2026-09-15
+- **Decision:** Program.cs's §12.1 pipeline (console + rolling app log,
+  7-day retention + separate errors-only file) and the §12.3 CrashReporter
+  (AppDomain/TaskScheduler/Dispatcher → crash-YYYYMMDD.log + dialog) survive
+  the rebuild. CrashReporter moves from `Logging/` to `Services/` per the new
+  layout; namespace becomes `OpdSimulator.App.Services`.
+- **Rationale:** The audit (M5_FAILURES §5-F-20) faulted exceptions reaching
+  the process, not the handlers themselves; the plumbing was already §12
+  conformant. Rewriting it would be churn with no fix.
+- **Impact:** (+) less code to re-verify; (−) namespace move touched
+  App.axaml.cs.
+- **Alternatives considered:** (a) rewrite handlers — rejected (no defect);
+  (b) keep `Logging/` namespace — rejected by the rebuild layout.
+
+## D-089 Phase 1 Screenshot Method — Headless Frame Capture (Wayland Constraint)
+
+- **Date:** 2026-09-15
+- **Decision:** §18 screenshots are produced by rendering the real window
+  through Avalonia.Headless (`.UseSkia()` + `UseHeadlessDrawing=false`) into
+  `logs/screenshots/<name>.png`. Reason: this host session is Wayland-only,
+  and ImageMagick `import` against XWayland root returned "Resource temporarily
+  unavailable"; xdotool cannot enumerate Wayland windows, so no real-display
+  X capture is possible here. The real maximized app IS launched and kept alive
+  (>10 s, 0 crash-log entries) per the gate; the pixel evidence is the
+  headless render of the identical XAML + theme.
+- **Impact:** (−) screenshots lack window chrome/OS decorations; disclosed —
+  owner eyeballs `phase-1-window.png` before Phase 2. (+) deterministic,
+  theme-faithful renders on any machine.
+- **Alternatives considered:** (a) gnome-screenshot/scrot/grim — none installed;
+  (b) XWayland window capture — blocked by the compositor.

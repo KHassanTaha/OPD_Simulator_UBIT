@@ -1,20 +1,18 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using OpdSimulator.App.Logging;
-using OpdSimulator.App.ViewModels;
+using OpdSimulator.App.Services;
 using OpdSimulator.App.Views;
 using Serilog;
 
 namespace OpdSimulator.App;
 
 /// <summary>
-/// Avalonia application root: owns the global exception handlers (§12.3) and
-/// the top-level navigation shell (the main window).
+/// Avalonia application root: owns the global exception handlers (AGENTS
+/// §12.3) and creates the main window.
 /// </summary>
 public partial class App : Application
 {
@@ -55,10 +53,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel(),
-            };
+            desktop.MainWindow = new MainWindow();
             desktop.Exit += (_, _) => Log.Information("Application exiting.");
             Log.Information("Application started. Main window created.");
         }

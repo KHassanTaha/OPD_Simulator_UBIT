@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="using:System">
+
+    <!--
+        MOTION.AXAML — every animation duration used by the app, measured in
+        milliseconds (AGENTS §16 / §18 layout spec). Controls consume these
+        tokens; reduced-motion users get MotionDurationReduced (0 ms) so all
+        motion collapses instantly.
+
+        Fast   = 150 ms (visibility toggles, icon hover)
+        Medium = 200 ms (dropdown/popup slide-fade)
+        Normal = 250 ms (window/panel transitions)
+        Slow   = 600 ms (toast linger, slow emphasis)
+    -->
+
+    <sys:TimeSpan x:Key="MotionDurationFast">0:0:0.150</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MotionDurationMedium">0:0:0.200</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MotionDurationNormal">0:0:0.250</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MotionDurationSlow">0:0:0.600</sys:TimeSpan>
+
+    <!-- Reduced motion: every duration collapses to zero. -->
+    <sys:TimeSpan x:Key="MotionDurationReduced">0:0:0</sys:TimeSpan>
+
+</ResourceDictionary>

@@ -96,11 +96,13 @@ If warnings appear, treat them as errors — this project enforces zero-warning 
 
 ## 5. Run the Simulator (Single Command)
 
-> **Status as of 2026-09-14:** the Avalonia GUI shell is up (Program.cs + App.axaml +
-> ViewLocator + CrashReporter, foundry hand-built — no template installed, see
-> DECISIONS.md D-078). The window opens but shows placeholder config/results panels;
-> the real layout lands in M5-D. Until then the CLI stays the primary path for
-> verified command-line runs.
+> **Status as of 2026-09-15:** the view layer is being **rebuilt from scratch**
+> on `feat/gui-rebuild` (feat/gui-rebuild Phases 1–8; the M5 GUI was disposed —
+> see `docs/M5_FAILURES.md`). Phase 1 shipped: empty maximized window
+> "OPD Clinic Queue Simulator" with the new Token Theme/Motion dictionaries,
+> Serilog 3 sinks (§12.1) and the 3 crash handlers (§12.3). The config/results
+> panels land in Phases 2–5. Until the GUI is functional again the CLI remains
+> the primary path for verified command-line runs.
 
 **Linux / macOS:**
 ```bash
@@ -455,6 +457,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §6 refreshed to 185 tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |
 | 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |
 | 2026-09-14 | M5-A: §1 prerequisites add Linux system libs row (libx11-6 libice6 libsm6 libfontconfig1, D-079 — installed by owner, not the agent); §9 blank-window row replaced with cross-ref to §1 (one canonical apt command, AGENTS §10.7); §5/§8 status updated: App is now a real Avalonia shell (D-078), placeholder panels until M5-D | docs-only (owner installed libs; App launch smoke-tested 2026-09-14) |
 | 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |

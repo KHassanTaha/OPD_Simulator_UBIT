@@ -6,7 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 
-namespace OpdSimulator.App.Logging;
+namespace OpdSimulator.App.Services;
 
 /// <summary>
 /// Writes crash details to <c>logs/crash-YYYYMMDD.log</c> and surfaces a
@@ -22,7 +22,7 @@ internal static class CrashReporter
     /// <param name="source">Where the exception escaped from (AppDomain, TaskScheduler, Dispatcher).</param>
     /// <param name="simulationState">
     /// Snapshot of the simulation at crash time (last event, clock, patient ID).
-    /// Populated by the run view model in sub-block E; "N/A" before any run.
+    /// "N/A" before any run; populated by the run coordinator from Phase 5.
     /// </param>
     public static void Report(Exception exception, string source, string simulationState = "N/A (no active simulation)")
     {

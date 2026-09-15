@@ -2,6 +2,40 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## GUI REBUILD — Phase 1 Foundation — 2026-09-15 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 2.**
+
+What shipped:
+- Old M5 view layer deleted on this branch (Views/Controls/ViewModels/Services/
+  Logging/Models/ViewLocator/app.manifest; LiveCharts2 + Serilog.Extensions.Logging
+  dropped from the csproj). M6 chart files untouched on
+  `feat/milestone-6-charts-and-token`.
+- New `Assets/Theme.axaml` token contract (palette+brushes, 3 font families,
+  sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, ShadowCard/ShadowOverlay,
+  focus ring 2/1 px) + `Assets/Motion.axaml` (150/200/250/600 ms,
+  MotionDurationReduced = 0) merged in App.axaml.
+- `Views/MainWindow` — "OPD Clinic Queue Simulator", Maximized, min 1100×700,
+  theme background; `Services/CrashReporter.cs` relocated (namespace → Services);
+  §12.1 3-sink Serilog + §12.3 handlers carry over (D-088).
+- Test project rebuilt around Avalonia.Headless(.XUnit): 6 smoke tests
+  (title/state, theme/motion token resolution) + 1 render-capture test.
+
+**§18 verification — Phase 1 verified on 2026-09-15 by agent (feat/gui-rebuild):**
+launched `dotnet run --project src/OpdSimulator.App -c Release` on Linux
+(Ubuntu 24.04, dotnet SDK 8.0.131); observed the maximized window
+("Application started. Main window created." in `logs/app-20260915.log`),
+WindowState=Maximized + Title asserted headless, app stayed alive >10 s,
+**0 new crash-log entries** (`logs/crash-20260915.log` unchanged, 12 lines /
+mtime 05:01). Screenshot `logs/screenshots/phase-1-window.png` — rendered via
+Avalonia.Headless Skia frame capture because the Wayland compositor blocks X
+frame capture here (D-089); owner to eyeball the PNG.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **185 green** (Core 85 / Data 58 / Cli 35 / App 7), 0 failed.
+- Real launch → maximized, alive, no crash.
+
 ## Resume — 2026-09-14 — reconciled: 6 findings
 
 Findings (all non-blocking for M6) + B-007 blocker recorded for the M5 keyboard pass:
