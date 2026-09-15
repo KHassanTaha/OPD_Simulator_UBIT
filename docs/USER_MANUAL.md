@@ -199,25 +199,47 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    If the file has problems (missing values, wrong columns), the app will
    list them and ask you to clean the data.
 
-7. **Choose a time horizon.**
-   Options: 15 min, 1 hour, 1 day, 1 week, 1 month, or a custom number of days.
+7. **Choose a run mode.**
+   The **Horizon** section is a run-mode picker with three options:
+   - **Clinic day** — one operating session (Monday–Thursday or Saturday,
+     08:15 start, services continue past 11:00 until they finish). *Default.*
+   - **Multi-day** — N consecutive operating days (Friday/Sunday are skipped).
+     Shows the fields **Days**, **Start day**, and **Daily patient cap**.
+   - **Diagnostic trace** — a fixed-length run in minutes, used to walk
+     DES correctness line by line. Shows **Horizon (minutes)** (default
+     `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
+     Only this mode produces an event trace (clinic-day runs have none).
 
-8. **Choose a run mode.**
-   - **Single day** — one clinic session.
-   - **Multi-day** — consecutive operating days (Mon–Thu, Sat).
+8. **(Diagnostic trace only) Set the trace level.**
+   "State" records arrivals, service start/end, routes and queue changes;
+   "RNG" also prints every random-number draw, so you can replay any run
+   by hand. Same seed → same bytes.
 
-9. **Set the random seed** (default `42`).
-   Same seed = same results. Change it to explore variability.
+9. **(Multi-day only) Set the horizon and cap.**
+   Days, start day, and an optional daily patient cap (blank = no cap).
 
-10. **(Optional) Set a daily patient cap.**
-    Leave blank for no cap.
+10. **Set the random seed** (default `42`, under the **Advanced** section).
+    Same seed = same results. Change it to explore variability.
 
-11. **Click "Run Simulation".**
-    The right panel fills in within a few seconds.
+11. **Click "Start Calculation".**
+    The right panel fills in a few seconds later.
+
+The run is refused — with an explanation banner, never silently — if no
+arrival rate is available (you entered no λ in **Parameters** and loaded no
+data), if the fitted `p_exit` is 1.0 (every patient exits after Screening, so
+no one reaches the Doctor stage — override `p_exit` in **Parameters**), or if
+any stage has ρ ≥ 1 (unstable: arrivals outpace service).
 
 ---
 
 ## 6. Reading the Results
+
+Before the first run, the right panel shows a **welcome card** (project, course,
+members, professor). It is replaced by the results the moment you start a
+calculation. If the run was refused, an error banner explains exactly why.
+
+The widget selector (a "Customise results" toggle at the top of the right
+panel) shows or hides the individual widgets below it.
 
 ### 6.1 Metrics Table
 For each stage:
@@ -238,16 +260,18 @@ Shows how well the chosen distribution fits the data:
 - **Decision** — "Accept" or "Reject".
 
 ### 6.3 Event Log
-Chronological trace of every event. Useful for understanding the simulation
-step by step.
+Chronological trace of every event, rendered only by a **Diagnostic trace**
+run (§5 step 7). Choose the trace level in the Horizon section to include
+queue-state snapshots and (at `RNG`) random-number draws.
 
 ---
 
 ## 7. Loading Real Data (from an Excel or CSV file)
 
-The graphical interface is not ready (Milestone 5), but you can already upload a
-real data file and have the program validate it, fit distributions, run
-goodness-of-fit, and simulate — all from the terminal.
+The graphical interface can upload a data file in the **Data** section and fit
+it from there. The same operations are available from the terminal — validated,
+distribution-fitted, goodness-of-fit checked, and simulated — without opening
+the GUI, which is useful for testing and for the viva.
 
 ### 7.1 Required File Format
 
@@ -368,6 +392,8 @@ Shows a visual token for the next arriving patient:
 | Message | Meaning | What to do |
 |---------|---------|------------|
 | `ρ ≥ 1 at stage X` | The system is unstable — arrivals outpace service | Lower the arrival rate, add servers, or use different data |
+| `Nothing to run yet: enter an arrival rate λ…or load a valid data file.` | No λ is available from Parameters or the loaded data | Enter a manual λ (§5 step 5) or upload data |
+| `p_exit = 1.0: every row…exits after Screening…` | Fitted `p_exit` is 1.0, so no patient reaches the Doctor stage | Load different data, or override `p_exit` below 1 in Parameters |
 | `File is missing required columns` | Excel file does not match expected format | Check column names; see §7.1 |
 | `Row N: missing value` | Dirty data | Clean the row in Excel and re-upload |
 | `Departure stage 'X' must be 'Screening' or 'Doctor'` | Invalid exit stage (ui) | Fix the `departure_stage` cell to `Screening` or `Doctor` |
@@ -398,6 +424,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | GUI run flow live (rebuild Phase 5): three run modes — Clinic day / Multi-day / **Diagnostic trace** — in the Horizon section; welcome card on first launch; results widgets (metrics, chi-square, trace, data preview) with a "Customise results" toggle; refused runs show an explanation banner instead of failing silently |
 | 2026-09-14 | M4 CLI: new `trace` command (§7.6) prints a deterministic line-by-line event trace (ARRIVAL/START_SVC/END_SVC/EXIT, plus RNG draw rows with `--level rng`); use it to walk through any simulation by hand before the viva |
 | 2026-09-13 | M3 CLI: `simulate-data` now runs multi-stage files (per-stage μᵢ, p_exit, one network run — §7.4) and a new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (§7.5); blank doctor cells for Screening exits are accepted; multi-stage runs print a per-stage block and network totals |
 | 2026-09-13 | Added "Loading Real Data" (§7) — the M2 CLI path: `verify`, `fit`, `simulate-data`, required file format, error messages; renamed the headless command to `simulate-params` (§3) |

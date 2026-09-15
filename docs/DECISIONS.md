@@ -1611,3 +1611,31 @@ impact (positive and negative), alternatives considered.
   the trace widget from Phase 5 (owner rejected — it is a Phase-5 deliverable).
 - **Viva note (owner-supplied, lands in VIVA_ANSWERS.md):** see §13 wrap-up for
   the exact framings.
+
+### D-106 — Manual-μ source resolution and seed-gating fix (Phase 5, 5-G) — 2026-09-16
+- **Decision:** Manual service rates come from **two sources**: each stage row's
+  `ServiceRate` field is authoritative; the Parameters list `ManualMuPerStage`
+  fills in the blanks in stage order, both after mode conversion (Mean-wise
+  divides 1 by the value). Raw `Seed.Value` **never gates Start** — the Advanced
+  seed is optional and `EffectiveSeed` falls back to the default `42` when
+  Parameters are OFF.
+- **Rationale:** adding a second manual-μ path beside the per-stage rows was a
+  Phase-5 decision inherited from the M5 seam; two inputs feeding one rate is
+  confusing, so the per-stage row wins and the list only backfills blanks (a
+  Phase-5 polish item already captured in TODO §5-A1). The seed-gating bug
+  surfaced when Phase-5 tests failed: `TryBuildRunParameters` refused to start
+  unless `Seed.Value` parsed, but the Advanced section is optional and OFF by
+  default, so the whole factory-default config was un-startable — a flat
+  contradiction of factory-defaults-Start-enabled (D-100).
+- **Implementation details:** `SimulationParameters.ManualServiceRates` holds
+  the resolved rates; `ConfigPanelViewModel.TryBuildRunParameters` merges
+  `ManualMuPerStage` into blank rows and gates only on the parameters actually
+  visible in the active RunMode (D-105). Unstable ρ ≥ 1 still surfaces the
+  exact `UnstableSystemException` message (G3/G4).
+- **Impact:** (+) factory-default config Start-enabled; (+) single resolved
+  rate per stage; (−) two input paths still visible to the user until the
+  polish phase consolidates them.
+- **Alternatives considered:** making the Advanced seed mandatory (rejected —
+  breaks D-100 and the optional-section semantics decided in 4-c.1); dropping
+  the ManualMuPerStage list (deferred — removal belongs to the consolidation
+  polish task, not 5-G).

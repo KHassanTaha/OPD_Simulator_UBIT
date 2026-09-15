@@ -2,6 +2,54 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 02:32
+Branch: feat/gui-rebuild (Phase 5 — STOPPED at the 5-H gate for owner review)
+Status: Clean (all changes below are committed/queued; Phase-5 code complete and gate-verified, awaiting owner review + merge per AGENTS §11.5)
+
+Done
+- Phase 5 (5-A..5-H) — ResultsPanel + run flow on feat/gui-rebuild: coordinator seam (D-104), three-valued RunMode with DiagnosticTrace (D-105), welcome card, widget selector, refusal banners, 8 run-flow tests + gate screenshot.
+
+In Progress
+- None (STOPPED at the Phase 5 gate; owner must review + merge into main before Phase 6 — TODO row for Phase 5 flips `[x]` only after merge)
+
+What is complete:
+- 5-B — `Models/{RunMode,SimulationParameters,DataBindingResult,FitReport}.cs`, `Services/{DataAnalyzer,FitsService,CollectionTraceSink,WidgetPreferences,SimulationCoordinator}.cs`; DECISIONS D-104 + D-105. Commit `3901016`.
+- 5-Config — `ConfigPanelViewModel` run modes + per-mode gating + `TryBuildRunParameters` + `Binding` analysis on load; ConfigPanel 3rd radio + Horizon(minutes) field. Commit `c3d4bcd`.
+- 5-C/5-D/5-A — `CourseInfo.cs` (App), `WelcomeCardViewModel`, `WelcomeCard.axaml(.cs)`, `ResultsPanelViewModel`, `ResultsPanel.axaml(.cs)` (metrics / chi-square / trace / preview widgets, customise toggle, ErrorBanner), MainViewModel wiring (Task.Run + Dispatcher.UIThread.Post), MainWindow col-2 → ResultsPanel. Commit `61755ad`.
+- 5-G — `Phase5RunFlowTests.cs` (8 tests: trace detail by level, diagnostic run records arrivals, ClinicDay = single-session no-trace, MultiDay exact day count, missing-λ and p_exit=1.0 and unstable-refusal banners, welcome-card swap). Fixed `TryBuildRunParameters` seed gating (Advanced seed must not gate Start — D-106) and comma-list μ backfill. Commit `e59729b`.
+- 5-H gate — Release build **0 errors / 0 warnings**; full suite **230 green** (Core 85 / Data 58 / Cli 35 / App 52), 0 failed; gate screenshot `logs/screenshots/phase-5-results.png` rendered from a completed diagnostic run (λ 0.1; μ 0.8/0.5/0.4; TraceLevel State; horizon 1500 min) via the new `Phase5Screenshot.cs` test. Docs updated for the gate: DECISIONS D-106, REQUIREMENTS rows FR-UI-3/5/9/14/20/21 re-pointed at rebuilt sources + Phase-5 tests, USER_MANUAL §5/§6/§7/§9/§12, TODO Phase 5 row + 2 polish items, PROGRESS (this entry), and new `docs/VIVA_ANSWERS.md`.
+
+What remains:
+- Owner review + merge of feat/gui-rebuild into main; then Phase 6 (Help tab + preset system).
+
+Next Session Should Start With
+- Owner review/merge gate for feat/gui-rebuild, then Phase 6 — Help tab (Markdig) + preset system (TODO line ≈43)
+- Post-Phase-5 polish items in TODO §5-A1 (manual-μ consolidation; trace-widget scroll performance)
+
+Blocked
+- None (B-007 keyboard-acceptance rows remain owner-blocked for a later manual pass per D-089)
+
+Git State
+- Commits made this session: b861ae8 (4c, prior entry) → 3901016 (5-B), c3d4bcd (5-Config), 61755ad (5-C/5-D/5-A), e59729b (5-G tests); Phase5Screenshot.cs + docs queued for the final gate commit
+- Pushed to origin: yes, history pushed with the Phase-5 row (feat/gui-rebuild); final gate commit pushes with this entry
+
+Build & Test
+- dotnet build: PASS (Release) — 0 errors, 0 warnings
+- dotnet test: PASS — 230 green (Core 85 / Data 58 / Cli 35 / App 52), 0 failed
+
+Decisions Made
+- D-104 — Coordinator seam for refused runs (topology built inside the try; G3/G4)
+- D-105 — Three-valued RunMode ClinicDay | MultiDay | DiagnosticTrace
+- D-106 — Manual-μ dual-source resolution (stage row wins, list backfills) + seed never gates Start
+- (full entries in DECISIONS.md, appended in real time)
+
+Assumptions Added/Changed
+- D-100 [UNVERIFIED] from 2026-09-16 carried forward unchanged (blank per-stage μ → use fitted value)
+
+Notes for Next Session
+- The guest/Owner-review gates are STOP points: nothing may begin without an explicit "go".
+- Phase 5 flips `[x]` in TODO.md only after the owner merges the branch into main.
+
 ### Session Handoff — 2026-09-16 02:05
 Branch: feat/gui-rebuild
 Status: Clean (Phase 4c shipped, awaiting owner eye-ball for Phase 5)
@@ -125,6 +173,77 @@ Assumptions Added/Changed
 
 Notes for Next Session
 - Phase 4 verified live on 2026-09-16: real launch 15 s "Application started. Main window created.", 0 new crash entries; screenshot `logs/screenshots/phase-4-config.png`.
+
+## GUI REBUILD — Phase 5 — ResultsPanel + Run Flow — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — Phase 5 code complete and gate-verified; awaiting owner
+review + merge of feat/gui-rebuild into main (AGENTS §11.5). Phase 6 not started.**
+
+What shipped (commits `3901016`, `c3d4bcd`, `61755ad`, `e59729b`):
+- **D-104 — Coordinator seam.** `Services/SimulationCoordinator.Run` owns the
+  whole run: the topology is built **inside** the try (a ρ ≥ 1 topology throws
+  `UnstableSystemException`; an out-of-range `exitProbability` throws
+  `ArgumentOutOfRangeException`), so the VM can never crash the UI thread and
+  the refusal banner shows the exact Core message. Returns a structured
+  `RunOutcome(Result?, Fits, TraceLines, EffectiveExitProbability, Error?)`.
+  Two dedicated banners: `MissingArrivalRateMessage` (no manual λ **and** no
+  valid loaded data) and `FittedPExitEqualsOneMessage` (every data row exits
+  at Screening so the Doctor stage is unreachable — recompute with an override,
+  G3/G4). `DataAnalyzer` is the single data-source path; fitted λ is null
+  only for < 2 arrivals.
+- **D-105 — Three-valued RunMode ClinicDay | MultiDay | DiagnosticTrace.**
+  Only DiagnosticTrace reveals Horizon (minutes) (int ≥ 1, default 10000) and
+  the Trace-level dropdown, and hides Days/Start day/Daily cap; the other modes
+  hide Horizon + Trace level. Start gating follows 4-c.1 (visible fields only);
+  leaving a mode clears its hidden field's stale error. Dispatching (frozen
+  Core untouched): DiagnosticTrace → `Engine.Run(topology, seed, horizonMinutes,
+  sink)`; ClinicDay/MultiDay → `Engine.Run(topology, ClinicCalendar(startDay),
+  generatorDays, seed, dailyCap)` (calendar overload hardcodes `traceSink: null`,
+  so only diagnostic runs produce a trace).
+- **D-106 — manual-μ resolution.** Per-stage `ServiceRate` row wins; the
+  Parameters `ManualMuPerStage` list backfills blanks, both after rate/mean
+  conversion. Raw `Seed.Value` never gates Start (Advanced is optional);
+  `EffectiveSeed` falls back to 42 — a bug found during 5-G where the factory-
+  default config was un-startable.
+- **5-C/5-D/5-A — welcome card + results panel.** `CourseInfo.cs` constants;
+  `WelcomeCardViewModel`/`WelcomeCard.axaml` (logo, members, CS-577, professor
+  — themed with rebuilt tokens); `ResultsPanelViewModel`/`ResultsPanel.axaml`
+  with the metrics table, per-stage ρ block, chi-square, trace, and data
+  preview widgets, a "Customise results" widget toggle persisted via
+  `WidgetPreferences`, and the ErrorBanner. `MainViewModel` subscribes to
+  `RunRequested`, runs the coordinator on a `Task.Run` worker and posts status
+  back with `Dispatcher.UIThread.Post`; `MainWindow` column-2 placeholder →
+  ResultsPanel.
+- **5-G — 8 run-flow tests** (`Phase5RunFlowTests.cs`): trace detail by level,
+  diagnostic run records arrivals, ClinicDay = one-session run with no trace,
+  MultiDay generates exactly the requested days, and the three refusal banners;
+  welcome card visible initially and replaced by the first run attempt.
+
+**§18 verification — Phase 5 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless run-flow tests: 8 in `Phase5RunFlowTests.cs` (see above) — all pass.
+- Screenshot `logs/screenshots/phase-5-results.png` (62 KB) rendered by the new
+  `Phase5Screenshot.cs` headless test: a full `MainWindow` after a *completed*
+  diagnostic run — λ 0.1, μ 0.8/0.5/0.4, TraceLevel State, horizon 1500 min —
+  showing metrics + chi-square + trace populated. (Agent cannot visually inspect
+  the image — owner to eyeball.)
+- This gate's launch smoke is the screenshot test itself (it constructs the real
+  `MainWindow` and dispatches a real run end-to-end). Real-display launch and
+  §16.8 keyboard walk remain owner-required (per D-089, captured in B-007).
+
+Gate evidence:
+- `dotnet build OpdSimulator.sln -c Release` → 0 errors, 0 warnings (the
+  README/DEV_LAUNCH release command in §4).
+- `dotnet test OpdSimulator.sln -c Release --no-build` → **230 green** (Core 85
+  / Data 58 / Cli 35 / App 52), 0 failed.
+- Docs updated at the gate: DECISIONS D-106 (D-104/D-105 were logged when the
+  decision was made, §9.3); REQUIREMENTS rows FR-UI-3/5/9/14/20/21 re-pointed at
+  rebuilt sources + Phase-5 tests; USER_MANUAL §5/§6/§7/§9/§12; TODO Phase 5 row
+  + §5-A1 polish items; new `docs/VIVA_ANSWERS.md` (`Phase 5` section). DEV_LAUNCH
+  unchanged — the build/launch commands did not change this phase (§10.2).
+- Dev-notes: `ValidateHorizonMinutes` is registered under the `horizon-minutes`
+  validation key in `ConfigPanel.axaml.cs`; the chi-square row maps validation
+  rows `RowNumber` (1-based) to preview index −1; the 5-G seed-gating bug above
+  was caught because the tests exercised a factory-default config.
 
 ## GUI REBUILD — Phase 4c — Owner Corrections to Phase 4b — 2026-09-16 (feat/gui-rebuild)
 

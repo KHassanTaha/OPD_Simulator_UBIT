@@ -19,25 +19,25 @@ PRD.md wins.
 |----|-------------|--------|--------|------|----------|
 | FR-UI-1 | Left config panel + right results panel | [x] | Views/MainWindow.axaml, Views/ConfigPanel.axaml, Views/ResultsPanel.axaml | — (visual acceptance §16.8 pending owner keyboard pass) | D-085 |
 | FR-UI-2 | Input validation (numeric, file type, mode mismatch) | [~] | Controls/ValidatedField.axaml + Views/ConfigPanel.axaml | — (edge-case test rows outstanding) | D-080 |
-| FR-UI-3 | Background thread + progress indicator | [x] | ViewModels/MainViewModel.cs (RunAsync → Task.Run), ResultsViewModel.IsRunning | ResultsViewModelTests.BeginRun (App.Tests) | D-078 |
+| FR-UI-3 | Background thread + progress indicator | [x] | ViewModels/MainViewModel.cs (Task.Run on RunRequested, Dispatcher.UIThread.Post updates) + ViewModels/ResultsPanelViewModel.cs (IsRunning) | Phase5RunFlowTests (coordinator outcome delivery) + ResultsPanelViewModel.IsRunning smoke | D-078, D-104 |
 | FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [x] | Views/ChartsPanel.axaml, ViewModels/ChartViewModels.cs, Services/ChartsBuilder.cs | ChartViewModelTests (App.Tests) | D-084 |
-| FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [x] | Views/WelcomeCard.axaml, ViewModels/WelcomeCardViewModel.cs, CourseInfo.cs | WelcomeCardViewModelTests (App.Tests) | D-077 |
+| FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [x] | Views/WelcomeCard.axaml, ViewModels/WelcomeCardViewModel.cs, CourseInfo.cs (src/OpdSimulator.App/CourseInfo.cs) | Phase5RunFlowTests.WelcomeCard_VisibleInitially_ReplacedByFirstRunAttempt (App.Tests) | D-077, D-104 |
 | FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [x] | Controls/SearchableDropdown.axaml + Services/SearchFilter.cs | SearchFilterTests (App.Tests) | D-080 |
 | FR-UI-7 | Disabled field treatment (dimmed + reason tooltip) | [ ] | — | — | — |
 | FR-UI-8 | Hover tooltips on every interactive control (≤120 chars) | [x] | Controls/InfoIcon.axaml (hover + HelpAnchor deep-link) | — (visual acceptance pending) | D-080 |
-| FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [~] | Views/ResultsPanel.axaml (HasError banner) + Controls/ValidatedField.axaml | ResultsViewModelTests.EndRun_WithError (App.Tests) | D-085 |
+| FR-UI-9 | Accessibility feedback on blocked actions (summary banner + inline errors) | [~] | Views/ResultsPanel.axaml (ErrorBanner message + HasError) + Services/SimulationCoordinator.cs (refusal banners) + Controls/ValidatedField.axaml | Phase5RunFlowTests.MissingArrivalRate*/FittedPExitOne*/Unstable*_RefusesWith* (App.Tests) | D-085, D-104 |
 | FR-UI-10 | Themed dialogs and toasts | [x] | Controls/ThemedDialog.axaml, ThemedToast.axaml, Services/ToastService.cs + ToastLifecycle.cs, ViewModels/ToastItem.cs | ToastServiceTests (App.Tests) | D-080 |
 | FR-UI-11 | Scrollable config panel + pinned "Start Calculation" | [x] | Views/MainWindow.axaml + Views/ConfigPanel.axaml + Controls/PinnedFooterBar.axaml.cs | — (visual acceptance pending) | D-080 |
 | FR-UI-12 | Collapsible config sections (>4 sections) | [x] | Controls/CollapsibleSection.axaml.cs + ControlStyles.axaml | — (visual acceptance pending) | D-080 |
 | FR-UI-13 | Clear All with confirmation + undo | [ ] | — | — | — |
-| FR-UI-14 | User-selectable results panel widgets (persisted) | [x] | Views/ResultsPanel.axaml (Customise toggle) + ViewModels/ResultsViewModel.cs + Services/WidgetPreferences.cs | ResultsViewModelTests.ToggleWidget*, MainViewModelTests (widget prefs apply on construction) | D-085 |
+| FR-UI-14 | User-selectable results panel widgets (persisted) | [x] | Views/ResultsPanel.axaml (Customise toggle) + ViewModels/ResultsPanelViewModel.cs + Services/WidgetPreferences.cs | ResultsPanelViewModel widget-visibility logic (smoke); persistence via WidgetPreferences (prefs apply on construction) | D-085, D-104 |
 | FR-UI-15 | Full Tab navigation (focus order, Escape, focus return) | [~] | Views/MainWindow.axaml.cs (guide overlay focus save/restore) + Controls/ThemedDialog.axaml | — (§16.8 keyboard pass required) | — |
 | FR-UI-16 | Persistent labels + format placeholders + units | [x] | Controls/ValidatedField.axaml + Views/ConfigPanel.axaml | — (visual acceptance pending) | D-080 |
 | FR-UI-17 | Invalid-field highlighting (red + icon + message, live region) | [~] | Controls/ValidatedField.axaml | — (red/border/icon wired; live-region announcements outstanding) | D-080 |
 | FR-UI-18 | In-program guide (F1, searchable, deep links, embedded markdown) | [x] | Views/GuidePanel.axaml, ViewModels/GuideViewModel.cs, Services/GuideMarkdown.cs, OpdSimulator.App.csproj (EmbeddedResource) | GuideTests (App.Tests) | D-082 |
 | FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [x] | Services/PresetStore.cs, Preset.cs, PresetConfig.cs, PresetNaming.cs, Views/PresetManagerDialog.cs | PresetStoreTests (App.Tests) | D-083 |
-| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [x] | Controls/DataPreviewTable.axaml + Services/DataPreviewStore.cs + Views/ResultsPanel.axaml (widget wiring) | DataPreviewStoreTests (App.Tests) | D-080, D-081 |
-| FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [x] | ConfigViewModel factory defaults, MainWindow (no _lastSession.json), PresetBar "(none)" default | MainViewModelTests (applies only persisted widget prefs at construction — config untouched) | D-083 |
+| FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [x] | Controls/DataPreviewTable.axaml + Services/DataPreviewStore.cs + Models/DataBindingResult.cs (src/OpdSimulator.App) + Views/ResultsPanel.axaml (preview widget) | DataPreviewStoreTests (App.Tests) | D-080, D-081, D-104 |
+| FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [x] | ConfigPanelViewModel factory defaults, ResultsPanelViewModel (welcome card shown until first run), MainWindow (no _lastSession.json read) | Phase5RunFlowTests.WelcomeCard_VisibleInitially_ReplacedByFirstRunAttempt (no auto-restore, no auto-load) | D-083, D-104 |
 
 ## Functional Requirements — Data
 
