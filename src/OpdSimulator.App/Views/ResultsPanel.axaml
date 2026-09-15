@@ -12,8 +12,10 @@
          → data preview → trace. -->
     <Grid>
 
-        <!-- Welcome card (FR-UI-5). -->
-        <ContentControl IsVisible="{Binding IsWelcomeVisible}">
+        <!-- Welcome card (FR-UI-5). Content must be bound or the template
+             never instantiates the card (5c welcome-card bug, part 3). -->
+        <ContentControl IsVisible="{Binding IsWelcomeVisible}"
+                        Content="{Binding Welcome}">
             <ContentControl.ContentTemplate>
                 <DataTemplate x:DataType="vm:WelcomeCardViewModel">
                     <views:WelcomeCard/>

@@ -22,6 +22,38 @@ namespace OpdSimulator.App.Tests;
 public class Phase5cFixesTests
 {
     [AvaloniaFact]
+    public void WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun()
+    {
+        var window = new MainWindow();
+        window.Show();
+
+        try
+        {
+            var vm = (MainViewModel)window.DataContext!;
+
+            // FR-UI-5: on a fresh launch the welcome card shows the course
+            // identity before any calculation is attempted. Guarded by the
+            // Content binding on ResultsPanel's ContentControl — a template
+            // without a Content element renders nothing.
+            var welcome = window.GetVisualDescendants().OfType<WelcomeCard>().SingleOrDefault();
+            Assert.NotNull(welcome);
+            Assert.True(welcome!.IsEffectivelyVisible, "FR-UI-5: welcome card must be visible on fresh launch");
+
+            window.UpdateLayout();
+            Assert.True(welcome.IsEffectivelyVisible);
+
+            // The moment a calculation starts it is replaced by the results.
+            vm.Results.StartRun();
+            window.UpdateLayout();
+            Assert.False(welcome.IsEffectivelyVisible, "welcome card must hide once a run starts");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void ResultsPanel_ScrollViewer_ContainsAllWidgets()
     {
         var window = new MainWindow();

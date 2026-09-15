@@ -1698,3 +1698,29 @@ impact (positive and negative), alternatives considered.
   "empty means all-on" (rejected — ambiguous with a user who explicitly hid
   everything, and drift-prone); deleting the stale file in code (rejected —
   never delete user config).
+
+### D-109 — Welcome card must be bound as Content, not just IsVisible (5c part 3) — 2026-09-16
+
+- **Decision:** `Views/ResultsPanel.axaml`'s welcome `ContentControl` gained
+  `Content="{Binding Welcome}"`. Before the fix it bound only
+  `IsVisible="{Binding IsWelcomeVisible}"`, so its `Content` stayed null and the
+  `ContentTemplate` **never instantiated `WelcomeCard`** — the FR-UI-5 card
+  rendered nothing on every launch even though `IsWelcomeVisible` defaults to
+  true and `ResultsPanelViewModel.Welcome` was already populated.
+- **Rationale:** in this layout an Avalonia `ContentControl` applies its
+  `ContentTemplate` only when `Content` is non-null; the missing binding was a
+  silent no-op, exactly the "welcome card absent" defect the owner spotted in
+  every screenshot/launch. The view and view model were both complete (AGENTS
+  §16.6: logos, CourseInfo-driven course/professor/members, instruction line) —
+  the only gap was the binding.
+- **Implementation:** one-line XAML addition;
+  `Phase5cFixesTests.WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun`
+  asserts the `WelcomeCard` is in the tree, is effectively visible on a fresh
+  launch, and hides once `StartRun()` replaces it.
+- **Impact:** (+) the required launch state now actually shows; (+) the test
+  pins the binding so a future refactor cannot silently drop it again. (−) none.
+- **Alternatives considered:** setting `Content` in code-behind on loaded
+  (rejected — XAML binding is the declarative, testable form).
+- **Note (ID reallocation):** 5c/5d decision IDs shifted — welcome card is
+  now D-109; the coming 5c.3 Core traceSink change takes D-110, and the 5d
+  entries (previously planned as D-109..D-112) become D-111..D-114 in order.
