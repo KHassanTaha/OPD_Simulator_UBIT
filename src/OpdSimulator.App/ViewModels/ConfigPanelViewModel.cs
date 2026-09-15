@@ -5,7 +5,9 @@ using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using OpdSimulator.Data.Loaders;
+using OpdSimulator.App.Models;
+using OpdSimulator.App.Services;
+using OpdSimulator.Data.Parameters;
 using Serilog;
 
 namespace OpdSimulator.App.ViewModels;
@@ -52,11 +54,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>Clear-All button: raises <see cref="ClearAllRequested"/> (the view confirms via ThemedDialog first).</summary>
     public event EventHandler? ClearAllRequested;
 
-    /// <summary>Runs the configured simulation (Phase 5 wires the engine).</summary>
+    /// <summary>
+    /// Raised when the user clicks Start Calculation. The parent view model
+    /// subscribes, snaps the parameters into a <see cref="SimulationParameters"/>
+    /// and runs them on a background thread (Phase 5).
+    /// </summary>
+    public event EventHandler? RunRequested;
+
+    /// <summary>Hosts the run: raises <see cref="RunRequested"/> (validation is blur-based on the config fields).</summary>
     [RelayCommand(CanExecute = nameof(CanStartCalculation))]
-    private void StartCalculation()
-    {
-    }
+    private void StartCalculation() => RunRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Uploads the patient data file (the view resolves the picker path).</summary>
     [RelayCommand]
@@ -154,21 +161,40 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private bool _isMultiDay;
 
+    /// <summary>Run-mode radio: true for the diagnostic trace run (D-105).</summary>
+    [ObservableProperty]
+    private bool _isDiagnosticTrace;
+
+    /// <summary>Accounts the three radios: exactly one is checked, from <see cref="RunMode"/>.</summary>
+    public RunMode ActiveRunMode => IsDiagnosticTrace ? RunMode.DiagnosticTrace
+        : IsMultiDay ? RunMode.MultiDay
+        : RunMode.ClinicDay;
+
+    /// <summary>Arrival-window minutes for a diagnostic run (int ≥ 1, default 10000; D-105).</summary>
+    public ConfigFieldViewModel HorizonMinutes { get; } = new() { Value = "10000" };
+
     /// <summary>Number of clinic days (visible only in multi-day mode).</summary>
     public ConfigFieldViewModel Days { get; } = new();
 
-    /// <summary>Optional daily patient cap; blank = unlimited.</summary>
+    /// <summary>Optional daily patient cap; blank = unlimited. Visible only in multi-day mode.</summary>
     public ConfigFieldViewModel DailyCap { get; } = new();
 
     /// <summary>First day of a multi-day run (clinic week, CONTEXT §1.1).</summary>
     [ObservableProperty]
     private string? _startDay = "Monday";
 
+    /// <summary>Whether the Days / Start-day / Daily-cap fields are shown (multi-day mode only).</summary>
+    public bool IsMultiDayViewVisible => IsMultiDay;
+
+    /// <summary>Whether the Trace-level dropdown is shown — only in diagnostic mode (D-105).</summary>
+    public bool TraceLevelVisible => IsDiagnosticTrace;
+
     partial void OnIsMultiDayChanged(bool value)
     {
         if (value)
         {
             IsSingleDay = false;
+            IsDiagnosticTrace = false;
             ValidateDays();
         }
         else
@@ -176,6 +202,9 @@ public partial class ConfigPanelViewModel : ObservableObject
             Days.ClearError();
         }
 
+        // Daily-cap participates only in multi-day mode: leaving the mode
+        // drops any stale inline error with the hidden field (D-105).
+        DailyCap.ClearError();
         RecomputeBlockingState();
     }
 
@@ -184,8 +213,24 @@ public partial class ConfigPanelViewModel : ObservableObject
         if (value)
         {
             IsMultiDay = false;
+            IsDiagnosticTrace = false;
             RecomputeBlockingState();
         }
+    }
+
+    partial void OnIsDiagnosticTraceChanged(bool value)
+    {
+        if (value)
+        {
+            IsSingleDay = false;
+            IsMultiDay = false;
+            ValidateHorizonMinutes();
+        }
+        else
+        {
+            HorizonMinutes.ClearError();
+        }
+        RecomputeBlockingState();
     }
 
     // ── Section 6 · Advanced ────────────────────────────────────────────
@@ -342,6 +387,22 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
+    /// <summary>Blur validation for the diagnostic-run horizon minutes field (integer ≥ 1; D-105).</summary>
+    public void ValidateHorizonMinutes()
+    {
+        var value = HorizonMinutes.Value;
+        if (int.TryParse(value, out var n) && n >= 1)
+        {
+            HorizonMinutes.ClearError();
+        }
+        else
+        {
+            HorizonMinutes.SetError($"Horizon must be a whole number of minutes above 0. You entered \"{value}\".");
+        }
+
+        RecomputeBlockingState();
+    }
+
     /// <summary>Blur validation for the horizon days field (integer ≥ 1).</summary>
     public void ValidateDays()
     {
@@ -391,23 +452,35 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The analysed binding for the last loaded file, or null. The run reads
+    /// its fitted λ / μ / p_exit from here when a manual value is absent
+    /// (D-104); the results panel previews the same dataset.
+    /// </summary>
+    public DataBindingResult? Binding { get; private set; }
+
+    /// <summary>
     /// Applies a loaded data file: the view resolves the picker path, this
-    /// method loads through the Data subsystem and reports the row count.
+    /// method analyses the file (load, validate, fit λ / μ / p_exit) and
+    /// reports the outcome.
     /// </summary>
     /// <param name="filePath">Absolute path to an .xlsx or .csv patient file.</param>
     public void ApplyLoadedFile(string filePath)
     {
-        try
+        Binding = DataAnalyzer.Analyze(filePath);
+        LoadedFileName = Path.GetFileName(filePath);
+        if (Binding.IsUsable)
         {
-            var data = new DataLoaderFactory().Create(filePath).Load(filePath);
-            LoadedFileName = Path.GetFileName(filePath);
-            DataStatus = $"Loaded {data.RowCount} rows from {LoadedFileName}";
+            DataStatus = $"Loaded {Binding.DataSet!.RowCount} rows from {LoadedFileName}";
         }
-        catch (Exception ex)
+        else if (Binding.ErrorMessage is not null)
         {
-            Log.Error(ex, "Failed to load uploaded data file {Path}", filePath);
+            Log.Warning("Data file could not be used: {Path}", filePath);
             LoadedFileName = null;
             DataStatus = $"Could not load file: {Path.GetFileName(filePath)}";
+        }
+        else
+        {
+            DataStatus = $"Loaded {Binding.DataSet!.RowCount} rows — {Binding.Issues.Count} issue(s) to review";
         }
     }
 
@@ -420,6 +493,7 @@ public partial class ConfigPanelViewModel : ObservableObject
     {
         DataStatus = "No file loaded";
         LoadedFileName = null;
+        Binding = null;
         InterArrivalDistribution = "Exponential";
         ServiceDistribution = "Exponential";
         IsRateWise = true;
@@ -432,8 +506,10 @@ public partial class ConfigPanelViewModel : ObservableObject
         Seed.Value = "42";
         TraceLevel = "State";
         IsMultiDay = false;
+        IsDiagnosticTrace = false;
         IsSingleDay = true;
         StartDay = "Monday";
+        HorizonMinutes.Value = "10000";
         Days.Value = "1";
         DailyCap.Value = "";
 
@@ -457,6 +533,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return StageCount;
         yield return Days;
         yield return DailyCap;
+        yield return HorizonMinutes;
         yield return Seed;
         foreach (var row in StageRows)
         {
@@ -541,8 +618,10 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// Re-derives <see cref="StartIsEnabled"/> from every field's error state.
     /// The Start button stays enabled only while the configuration is runnable.
     /// Fields of an optional section that is switched OFF do **not** participate
-    /// in this computation — OFF means "not supplied" (D-103). Turning a section
-    /// back ON does not pre-flag anything; fields re-validate on the next blur.
+    /// in this computation — OFF means "not supplied" (D-103). The same rule
+    /// applies to fields hidden by the current run mode: Days / Daily-cap only
+    /// count in multi-day mode, the horizon only in the diagnostic trace mode
+    /// (D-105, 4-c.1).
     /// </summary>
     private void RecomputeBlockingState()
     {
@@ -550,14 +629,97 @@ public partial class ConfigPanelViewModel : ObservableObject
         var advancedInUse = AdvancedIsOptionalEnabled;
 
         var blocked = StageCount.HasError
-            || (IsMultiDay && Days.HasError)
-            || DailyCap.HasError
+            || (IsMultiDay && (Days.HasError || DailyCap.HasError))
+            || (IsDiagnosticTrace && HorizonMinutes.HasError)
             || StageRows.Any(row => row.HasErrors)
             || (parametersInUse && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))
             || (advancedInUse && Seed.HasError);
 
         StartIsEnabled = !blocked;
         StartCalculationCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Snaps the current validated fields into a <see cref="SimulationParameters"/>
+    /// the coordinator can run. Manual values are mode-converted (rate vs
+    /// mean-wise); a blank manual value becomes null so the coordinator falls
+    /// back to the fitted values (D-104).
+    /// </summary>
+    /// <returns>The parameters, or null when a required field cannot be parsed (defence in depth — Start is already gated).</returns>
+    public SimulationParameters? TryBuildRunParameters()
+    {
+        if (!TryStageCount(out var stageCount) || stageCount is < 1 or > 5)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(HorizonMinutes.Value, out var horizonMinutes) || horizonMinutes < 1)
+        {
+            return null;
+        }
+
+        var mode = IsMeanWise ? ParameterMode.MeanWise : ParameterMode.RateWise;
+        double? Convert(double? value) => value is { } v ? mode == ParameterMode.RateWise ? v : 1.0 / v : null;
+        double? ParsePositive(ConfigFieldViewModel field) =>
+            !ParametersSupplied || string.IsNullOrWhiteSpace(field.Value) || !double.TryParse(field.Value, out var v) || !(v > 0)
+                ? null
+                : v;
+
+        double? manualLambda = Convert(ParsePositive(ManualLambda));
+        if (!int.TryParse(Seed.Value, out var _))
+        {
+            return null;
+        }
+
+        var names = new List<string>(stageCount);
+        var serverCounts = new List<int>(stageCount);
+        var manualRates = new List<double?>(stageCount);
+        foreach (var row in StageRows)
+        {
+            names.Add(row.StageName);
+            if (!int.TryParse(row.Servers.Value, out var servers) || servers < 1)
+            {
+                return null;
+            }
+
+            serverCounts.Add(servers);
+            manualRates.Add(Convert(ParsePositive(row.ServiceRate)));
+        }
+
+        double? pExitOverride = ParametersSupplied && !string.IsNullOrWhiteSpace(PExit.Value)
+            && double.TryParse(PExit.Value, out var pExit) && pExit >= 0 && pExit < 1
+                ? pExit
+                : null;
+
+        var runMode = ActiveRunMode;
+        int generatorDays = runMode == RunMode.MultiDay && int.TryParse(Days.Value, out var days)
+            ? days
+            : runMode == RunMode.MultiDay ? 0 : 1;
+        if (runMode == RunMode.MultiDay && generatorDays < 1)
+        {
+            return null;
+        }
+
+        int? dailyCap = int.TryParse(DailyCap.Value, out var cap) && cap >= 1 ? cap : null;
+
+        _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var startDay);
+
+        return new SimulationParameters(
+            mode,
+            InterArrivalDistribution ?? "Exponential",
+            ServiceDistribution ?? "Exponential",
+            manualLambda,
+            names,
+            serverCounts,
+            manualRates,
+            runMode,
+            horizonMinutes,
+            generatorDays,
+            startDay,
+            dailyCap,
+            EffectiveSeed,
+            pExitOverride,
+            EffectiveTraceLevel);
     }
 
     private static bool AllPartsPositive(string value) =>

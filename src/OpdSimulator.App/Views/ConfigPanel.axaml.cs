@@ -159,6 +159,9 @@ public partial class ConfigPanel : UserControl
             case "daily-cap":
                 _vm.ValidateDailyCap();
                 break;
+            case "horizon-minutes":
+                _vm.ValidateHorizonMinutes();
+                break;
             case "seed":
                 _vm.ValidateSeed();
                 break;

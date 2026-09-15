@@ -180,18 +180,22 @@
                 <!-- ───── 5 · Horizon ──────────────────────────────────── -->
                 <controls:CollapsibleSection Title="5 · Horizon"
                                              IsExpanded="True"
-                                             HelpText="Simulation length and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1).">
+                                             HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{DynamicResource SpaceM}">
                             <RadioButton GroupName="RunMode"
                                          Content="Single day"
-                                         ToolTip.Tip="Simulate one clinic day (default)"
+                                         ToolTip.Tip="Simulate one clinic operating session (default)"
                                          IsChecked="{Binding IsSingleDay, Mode=TwoWay}"/>
                             <RadioButton GroupName="RunMode"
                                          Content="Multi-day"
-                                         ToolTip.Tip="Simulate several consecutive clinic days"
+                                         ToolTip.Tip="Simulate several consecutive clinic operating days"
                                          IsChecked="{Binding IsMultiDay, Mode=TwoWay}"/>
+                            <RadioButton GroupName="RunMode"
+                                         Content="Diagnostic trace"
+                                         ToolTip.Tip="Run a bounded minutes-horizon simulation with the full per-event trace (for demonstrating DES correctness)"
+                                         IsChecked="{Binding IsDiagnosticTrace, Mode=TwoWay}"/>
                         </StackPanel>
                         <StackPanel IsVisible="{Binding IsMultiDay}"
                                     Spacing="{DynamicResource SpaceM}">
@@ -215,11 +219,22 @@
                                                  Label="Daily patient cap (optional)"
                                                  Watermark="blank = unlimited"
                                                  Tooltip="Maximum patients per day. Blank means unlimited."
+                                                 IsVisible="{Binding IsMultiDay}"
                                                  Value="{Binding DailyCap.Value, Mode=TwoWay}"
                                                  HasError="{Binding DailyCap.HasError}"
                                                  ErrorMessage="{Binding DailyCap.ErrorMessage}"
                                                  HelpAnchor="daily-cap"
                                                  views:ConfigPanelValidation.ValidationKey="daily-cap"/>
+                        <controls:ValidatedField x:Name="HorizonField"
+                                                 Label="Horizon (minutes)"
+                                                 Watermark="e.g., 10000"
+                                                 Tooltip="Length of the arrival window for the diagnostic trace run"
+                                                 IsVisible="{Binding IsDiagnosticTrace}"
+                                                 Value="{Binding HorizonMinutes.Value, Mode=TwoWay}"
+                                                 HasError="{Binding HorizonMinutes.HasError}"
+                                                 ErrorMessage="{Binding HorizonMinutes.ErrorMessage}"
+                                                 HelpAnchor="horizon-minutes"
+                                                 views:ConfigPanelValidation.ValidationKey="horizon-minutes"/>
                     </StackPanel>
                 </controls:CollapsibleSection>
 
@@ -228,7 +243,7 @@
                                              IsExpanded="True"
                                              IsOptional="True"
                                              IsEnabledToggle="{Binding AdvancedIsOptionalEnabled, Mode=TwoWay}"
-                                             HelpText="Reproducibility and the per-event trace detail written by the run.">
+                                             HelpText="Reproducibility and the per-event trace detail written by a diagnostic-trace run (only that run mode records a trace — D-105).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:ValidatedField x:Name="SeedField"
                                                  Label="Random seed"
@@ -241,7 +256,8 @@
                                                  views:ConfigPanelValidation.ValidationKey="seed"/>
                         <controls:SearchableDropdown Label="Trace level"
                                                      Placeholder="Choose a level…"
-                                                     Tooltip="How much per-event detail the run logs (None / Events / State / Rng)"
+                                                     Tooltip="How much per-event detail the diagnostic run logs (None / Events / State / Rng)"
+                                                     IsVisible="{Binding TraceLevelVisible}"
                                                      Items="{Binding TraceLevels}"
                                                      SelectedItem="{Binding TraceLevel, Mode=TwoWay}"
                                                      HelpAnchor="trace-level"/>
@@ -256,7 +272,7 @@
                                   PrimaryText="Start Calculation"
                                   PrimaryCommand="{Binding StartCalculationCommand}"
                                   PrimaryIsEnabled="{Binding StartIsEnabled}"
-                                  ToolTip.Tip="Runs the queue simulation with the configured parameters (engine wiring lands in Phase 5)">
+                                  ToolTip.Tip="Runs the queue simulation with the configured parameters">
             <StackPanel Orientation="Horizontal"
                         Spacing="{DynamicResource SpaceXs}">
                 <Button Content="Clear All"
