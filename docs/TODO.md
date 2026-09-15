@@ -1,6 +1,6 @@
 # TODO.md
 
-Last updated: 2026-09-14
+Last updated: 2026-09-16
 
 > **Completion rule:** A task that adds/removes a feature is not `[x] DONE`
 > until `DEV_LAUNCH.md` reflects the change (if build/launch affected) and
@@ -38,10 +38,16 @@ Last updated: 2026-09-14
 - [x] **Phase 4 — ConfigPanel** — 2026-09-16 (Data/Model/Parameters/Stages 1–5/Horizon/Advanced + PinnedFooterBar Start & Clear All; p_exit [0,1) only for 2+ stages — D-096..D-100; §18 entry in PROGRESS.md; screenshot `logs/screenshots/phase-4-config.png`; gates: Release build 0/0, full suite 213 green (App +10 tests), real Linux launch 15 s alive "Main window created." + 0 new crash-log entries; MainWindow DataContext → new MainViewModel)
 - [x] **Phase 4b — ConfigPanel UI corrections** — 2026-09-16 (white section titles on brand bars, `ThicknessSectionHeader` 12,10 header padding, InfoIcon anchored to far right, **optional-section toggles** for Parameters + Advanced defaulting OFF with disabled/dimmed fields + FR-UI-7 tooltip "Enable '…' above to edit this field.", toggle state persisted in the VM so Clear All resets it — D-101/D-102; §18 entry in PROGRESS.md; gates: Release build 0/0, full suite 218 green (App +5 = 40 tests), real Linux launch 15 s alive + 0 new crash-log entries; screenshot `logs/screenshots/phase-4-config.png` regenerated)
 - [x] **Phase 4c — Owner corrections to Phase 4b** — 2026-09-16 (4c.1 optional-OFF sections no longer block Start nor keep inline errors — fields skipped in `RecomputeBlockingState`, `ClearError()` on OFF, re-validate on next blur — D-103 supersedes the D-102 deviation note; 4c.2 custom white/light `HeaderToggleSwitch` theme in CollapsibleSection (`PART_MovingKnobs` Panel contract + `x:SetterTargetType` on part Styles, AVLN build lessons logged in D-103); 4c.3 single full-width brand-blue header bar, top corners only, content on white below the bar; Phase-4 tests harness: 3 new tests in Phase4ConfigTests.cs, `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables Parameters first; gates: Release build 0/0, full suite **221 green** (App +3 = 43), real Linux launch 15 s alive + 0 new crash logs, screenshot `logs/screenshots/phase-4-config.png` regenerated (45 KB); committed as `fix: optional-OFF sections no longer block Start; white toggle knob; single blue section header (Phase 4c)` pushed to feat/gui-rebuild, awaiting eye-ball review)
-- [ ] Phase 5 — ResultsPanel + run flow (welcome card FR-UI-5, widget selector, refused-run ErrorBanner with exact Core message; G3/G4 re-implemented)
+- [~] **Phase 5 — ResultsPanel + run flow** — 2026-09-16 (welcome card FR-UI-5, widget selector, refused-run ErrorBanner with exact Core message, G3/G4 re-implemented; **D-104** coordinator seam from M5 re-implemented inside the App with topology built inside the try; **D-105** owner decision: three-valued RunMode ClinicDay | MultiDay | DiagnosticTrace — the trace is a *diagnostic minutes-horizon run* (engine calendar runs emit no trace), Trace-level control hidden outside diagnostic mode; gating follows 4-c.1 visible-fields-only; VIVA_ANSWERS diagnostic-trace Q&A pending at the gate)
 - [ ] Phase 6 — Help tab (Markdig) + preset system (schemaVersion JSON, shipped Demo-3stage, no auto-restore)
 - [ ] Phase 7 — Acceptance: AGENTS §16.8 keyboard-only walk + FR-UI-5..21 manual pass (B-007 supersedes)
 - [ ] Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
+### Post-Phase-5 polish (capture-only — 5-A1, 2026-09-16)
+> Visual / UX nits noticed while building Phase 5 are **logged here, not fixed**
+> (owner instruction, "Post-Phase-5 polish"). Fixes are scheduled in a later
+> phase; a row here is never `[x] DONE` until the fix lands.
+- (none yet)
 
 ## Upcoming
 

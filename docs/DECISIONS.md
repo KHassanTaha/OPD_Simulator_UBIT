@@ -1541,3 +1541,73 @@ impact (positive and negative), alternatives considered.
   twice), which crashed `StandardAssetLoader` in the headless tests; a clean
   rebuild after the fix resolved it. No csproj change required (the
   tentative `Exclude="Assets\**\*.axaml"` was reverted).
+
+### D-104 — Phase 5 coordinator re-implements the M5 data/run seam inside the App — 2026-09-16
+- **Decision:** The rebuilt `feat/gui-rebuild` run flow re-introduces the M5
+  App-layer seam — `Models/{DataBindingResult,FitReport,SimulationParameters}`,
+  `Services/{DataAnalyzer,CollectionTraceSink,FitsService,WidgetPreferences,
+  SimulationCoordinator}` — because the Phase-1 rebuild intentionally deleted
+  the M5 view layer wholesale. The coordinator is **re-written**, not copied:
+  the M5 copy built `NetworkTopology` *outside* the `try` block, so a fitted
+  `p_exit = 1.0` surfaced as an unhandled `ArgumentOutOfRangeException` instead
+  of a clean refusal (owner gotchas G3/G4). The rebuild builds the topology
+  **inside** the `try`: `UnstableSystemException` → refused outcome carrying
+  the **exact Core message** (no prefix rewrite); `ArgumentOutOfRangeException`
+  for the `exitProbability` parameter → refused outcome; fitted `p_exit ≥ 1.0`
+  is detected before the topology is built and refused with the user-meaningful
+  "every row in the loaded data exits after Screening…" message (5-F).
+- **Rationale:** `Core`, `Data`, and `Cli` are frozen (GUI-rebuild mandate);
+  the fitting (λ = 1/mean inter-arrival, μ per stage, p_exit from
+  `departure_stage`) and refusal semantics already exist and are tested in the
+  Data/Core layers — duplicating them in the App contradicts "one canonical
+  location" (D-077 heritage) and forces a second, untested implementation.
+- **Implementation details:** `DataAnalyzer` (from M5) is the GUI twin of the
+  CLI `simulate-data` loading stage; `CollectionTraceSink` caps at 50,000
+  rendered lines so long runs cannot grow the trace unboundedly. Manual λ / μ /
+  p_exit overrides take precedence, then fitted, then default
+  `p_exit = 0.4` (M5 `DefaultExitProbability`). Sizes/G12: the refused-run
+  banner uses a content-sized strip (32 px minimum, 96 px cap) so a refusal
+  never claims the full results panel.
+- **Impact:** (+) One tested path for fitted values and one for refuse; (+)
+  exact Core wording preserved for the ρ ≥ 1 refusal (viva evidence); (−) the
+  App now carries Data-layer references (already transitively true).
+- **Alternatives considered:** duplicating fitting inside the App (rejected —
+  untested copy, violates canonical-location); letting the exitProbability
+  exception reach the UI (rejected — owner G4).
+
+### D-105 — "Diagnostic trace" run mode for the event trace — 2026-09-16
+- **Decision:** The GUI Horizon section becomes a three-valued run mode:
+  **ClinicDay** (one operating session, default) | **MultiDay** (N consecutive
+  operating days) | **DiagnosticTrace** (a minutes-horizon run with the full
+  event trace). Diagnosed during Phase-5 recon: the frozen Core `Engine` only
+  emits `ITraceSink` events on the plain horizon overload; the calendar
+  overload hardcodes `traceSink: null`. The rebuilt Phase-4 config had **no**
+  minutes horizon, so the trace viewer and TraceLevel dropdown could never
+  populate. Owner decision: expose the trace as a **diagnostic** mode, not a
+  co-equal clinic mode. Deliberately **not** named `HorizonMode.Minutes` — the
+  M5 semantic was a general minutes run; here the mode exists solely to walk
+  DES correctness on a bounded run.
+- **Rationale:** the viva needs a step-by-step trace (M4/M5 requirement), but a
+  clinic-day run spans dozens of days and tens of thousands of events — an
+  impractical hand-walk target. A bounded minutes-horizon run is the natural
+  trace surface. The frozen-Core rule is untouched: both `Engine.Run`
+  overloads already exist.
+- **Implementation details:** `RunMode { ClinicDay, MultiDay, DiagnosticTrace }`
+  on `ConfigPanelViewModel`; `IsSingleDay`/`IsMultiDay` become derived views
+  (existing bindings and Phase-4 tests intact). DiagnosticTrace reveals the
+  `Horizon (minutes)` `ValidatedField` (integer ≥ 1, default 10000) and the
+  Trace level dropdown and hides Days / Start day / Daily patient cap; the other
+  modes hide Horizon and Trace level entirely (hidden, not merely disabled).
+  Start gating follows 4-c.1: only the fields visible in the current mode
+  participate, and toggling a field out of view clears its stale error. The
+  coordinator dispatches DiagnosticTrace → `Engine.Run(topology, seed,
+  horizonMinutes, sink)`; ClinicDay / MultiDay → `Engine.Run(topology,
+  ClinicCalendar(startDay), generatorDays, seed, dailyCap)` with no sink.
+- **Impact:** (+) trace viewer + TraceLevel dropdown become functional; (+)
+  day-model default and semantics untouched; (−) one extra config field and
+  mode radio, slightly larger config panel.
+- **Alternatives considered:** keeping the trace widget as a "no trace for
+  calendar runs" note (owner rejected — trace feature visibly dead); dropping
+  the trace widget from Phase 5 (owner rejected — it is a Phase-5 deliverable).
+- **Viva note (owner-supplied, lands in VIVA_ANSWERS.md):** see §13 wrap-up for
+  the exact framings.
