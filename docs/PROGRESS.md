@@ -2,6 +2,46 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 5c — 2026-09-16 03:20 — post-review fixes (5c.1 + 5c.2 done, 5c.3 blocked, checkpoint reached)
+
+Implemented and (mostly) gate-evidenced the first two Phase-5c fixes plus a
+discovered FR-UI-14 defect, then STOPPED at the owner's mandatory checkpoint
+because 5c.3 needs a Core decision (B-008).
+
+- **5c.1 — results column scrolls.** `Views/ResultsPanel.axaml` restructured:
+  the `HasRun` grid is now `RowDefinitions="Auto,*"` — the header row + the
+  "Customise results" toggle + widget picker are PINNED at the top; the
+  metrics / chi-square / data-preview / event-trace widgets sit in a
+  `ScrollViewer` (Vertical=Auto, Horizontal=Disabled) so the event trace no
+  longer has to fit vertically. The results column stays readable via
+  `MinWidth="540"` on the results `Border` in `MainWindow.axaml` — Avalonia's
+  compact grid parser rejects `MinMax(540,*)` with AVLN2005, so the minimum
+  moves to the border. Verified by `ResultsPanel_ScrollViewer_ContainsAllWidgets`.
+- **5c.2 — Wayland DBus quirk no longer crashes.** `App.axaml.cs` filter +
+  `CrashReporter.IsIgnorableWaylandQuirk` (internal, exposed to tests via the
+  repo's first `InternalsVisibleTo`). The 02:49 crash log was the historical
+  reproduction inside Tmds.DBus; message-level matching was chosen over type
+  matching because the class is `DBusException`, not `ServiceUnknown`
+  (D-107). Verified by `CrashReporter_IgnoresAppMenuRegistrarDBusError`.
+- **D-108 bug found + fixed:** `MainViewModel` passed `new WidgetPreferences()`
+  — never `Load()` — so persisted widget visibility was never restored, and
+  the default seed was all-off despite the documented all-on. Now loads + seeds
+  all-on. The dev machine's stale `ui.json` (`VisibleWidgets: []`) is flagged,
+  not deleted. This made all window-based UI tests run with hidden widgets;
+  the screenshot test now hosts its own `ResultsPanelViewModel` with explicit
+  temp-file preferences to stay hermetic.
+- **5c.3 — BLOCKED (B-008):** trace in ALL run modes needs a minimal Core
+  change (calendar `Engine.Run` overload Engine.cs:184 has no
+  `traceSink` parameter, hardcodes null at 198) — frozen-Core rule forbids it
+  without owner sign-off. Options in BLOCKERS.md.
+- **Gate evidence collected:** Release build 0/0; full suite **233 green**
+  (App +3 = 55); real launch smoke (3:18) 15 s alive "Main window created." +
+  crash-*.log unchanged; `logs/screenshots/phase-5c-results.png` (65 KB,
+  metrics + chi-square + populated State trace, in-test overflow assertion).
+- **Next:** owner decision on 5c.3 → commit 5c.1/5c.2 (+ D-107/D-108; the
+  owner-specified commit message mentions 5c.3, so it must be confirmed) →
+  push → Phase 5d.
+
 ### Session Handoff — 2026-09-16 02:32
 Branch: feat/gui-rebuild (Phase 5 — STOPPED at the 5-H gate for owner review)
 Status: Clean (all changes below are committed/queued; Phase-5 code complete and gate-verified, awaiting owner review + merge per AGENTS §11.5)

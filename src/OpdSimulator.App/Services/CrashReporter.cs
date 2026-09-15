@@ -52,6 +52,35 @@ internal static class CrashReporter
         });
     }
 
+    /// <summary>
+    /// True for the known harmless Wayland/Ubuntu quirk where a background task
+    /// asks the (absent) <c>com.canonical.AppMenu.Registrar</c> DBus service and
+    /// raises <c>ServiceUnknown</c>. This is not a real crash (D-107): it must be
+    /// marked observed and logged at Information, never surfaced as a dialog or
+    /// written to the crash log.
+    /// </summary>
+    /// <param name="exception">The exception under inspection (inner chain walked).</param>
+    internal static bool IsIgnorableWaylandQuirk(Exception? exception)
+    {
+        for (Exception? ex = exception; ex is not null; ex = ex.InnerException)
+        {
+            if (ex.Message.Contains("com.canonical.AppMenu.Registrar", StringComparison.Ordinal))
+            {
+                // The CLR type of the unwrapped DBus error varies by Tmds.DBus
+                // version; the owner-observed class name is "ServiceUnknown",
+                // and the full error name also appears in the message. Either
+                // match means the missing global-menu service.
+                if (ex.GetType().Name == "ServiceUnknown"
+                    || ex.Message.Contains("org.freedesktop.DBus.Error.ServiceUnknown", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static string WriteCrashLog(Exception exception, string source, string simulationState)
     {
         var logDir = Path.Combine(Environment.CurrentDirectory, "logs");

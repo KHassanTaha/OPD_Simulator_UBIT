@@ -17,8 +17,8 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Configuration panel state (Simulation tab, left column).</summary>
     public ConfigPanelViewModel Config { get; } = new();
 
-    /// <summary>Results panel state (Simulation tab, right column).</summary>
-    public ResultsPanelViewModel Results { get; } = new(new WidgetPreferences());
+    /// <summary>Results panel state (Simulation tab, right column). Persisted widget visibility is restored (FR-UI-14).</summary>
+    public ResultsPanelViewModel Results { get; } = new(WidgetPreferences.Load());
 
     public MainViewModel()
     {

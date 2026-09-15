@@ -169,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-16 **221 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **233 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,7 +180,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **221 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (43, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (55, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -200,7 +200,12 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **221 tests pass**:
   50% with an FR-UI-7 "Enable '…' above to edit this field." tooltip while the
   optional toggle is OFF, re-enabled + full opacity when toggled ON, Clear All
   resets both optional toggles to OFF, Parameters-off ⇒ no manual overrides +
-  ρ "—", Advanced-off ⇒ seed 42 / trace State.
+  ρ "—", Advanced-off ⇒ seed 42 / trace State. **Phase-5c (3 more tests):**
+  results column scrolls with the customise toggle pinned and all widgets inside
+  the ScrollViewer (`ResultsPanel_ScrollViewer_ContainsAllWidgets`), the known
+  Wayland `AppMenu.Registrar` DBus quirk is ignored instead of crash-reported
+  (`CrashReporter_IgnoresAppMenuRegistrarDBusError`), and the Phase-5c results
+  screenshot renders with a populated trace (overflow asserted in-test).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -371,6 +376,7 @@ opd-simulator/
 | App crashes on start | Missing `samples/` file or config | Check console output; file a bug in `BLOCKERS.md` |
 | App crashes at runtime | Unhandled exception | Open `logs/crash-*.log` FIRST (full stack trace); see §9.1 |
 | No log files appear | App not run yet, or logging misconfigured | Run once; if still none, check `appsettings.json` Serilog sinks |
+| All results widgets hidden on launch | Stale per-user preferences file left by an older build | One-time reset: delete the preferences file below; the app re-seeds all widgets on |
 
 ### 9.1 Where to Find Logs
 
@@ -385,6 +391,14 @@ opd-simulator/
 
 If the app crashes and the dialog points to a crash log, open that file
 first — it contains the full stack trace.
+
+**Per-user preference file (FR-UI-14 widget visibility + collapsed sections; the ONLY persisted UI state — AGENTS §16.11):**
+- Linux: `~/.config/OpdSimulator/ui.json`
+- Windows: `%APPDATA%\OpdSimulator\ui.json`
+
+If widgets fail to appear on launch, delete this file as a one-time reset — the
+app re-seeds all widgets on (D-108). On Linux the folder also holds
+`presets/` — never delete presets; `ui.json` alone resets the view state.
 
 *(Add new rows here whenever a new failure mode is discovered and fixed.)*
 
@@ -466,6 +480,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **GUI rebuild Phase 5c part 1** (`feat/gui-rebuild`): results column scrolls — widget container in a ScrollViewer (Vertical=Auto, Horizontal=Disabled) with the "Customise results" toggle + widget picker pinned above (ResultsPanel `RowDefinitions="Auto,*"`), results column `380,6,*` + `MinWidth=540` on the Border (compares to the rejected `MinMax(540,*)` — AVLN2005); the known Wayland `AppMenu.Registrar` DBus quirk is ignored by the TaskScheduler handler instead of crash-reported (D-107); FR-UI-14 persistence actually restored — `MainViewModel` now `WidgetPreferences.Load()`s and the default seed is all-on instead of all-off (D-108); repo's first `InternalsVisibleTo` so App log/banner machinery is testable; §6 refreshed to 233 tests (App 55); §9.1 documents the per-user `ui.json` paths + one-time reset; stale `ui.json` deleted as the approved one-time reset | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 233 green (Core 85 / Data 58 / Cli 35 / App 55); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5c-results.png` (65 KB, metrics + chi-square + populated State trace, overflow asserted in-test) |
 | 2026-09-16 | **GUI rebuild Phase 4c — owner corrections to Phase 4b** (`feat/gui-rebuild`): optional-OFF sections no longer gate Start — `ClearError()` on OFF, `RecomputeBlockingState` skips their fields, re-validate on next blur (D-103 supersedes the D-102 deviation note; Phase-4 `PExit_ValueOne` test now enables Parameters first; +3 App tests); white/light header switch via custom `HeaderToggleSwitch` ControlTheme (`PART_MovingKnobs` Panel contract + `x:SetterTargetType`, build lessons in D-103); single full-width brand-blue section bar (top corners `8,8,0,0`, content on white beneath); §6 refreshed to 221 tests (App 43) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 221 green (Core 85 / Data 58 / Cli 35 / App 43); real Linux launch 15 s alive with "Main window created." and 0 new crash-log entries; headless evidence `logs/screenshots/phase-4-config.png` regenerated (45 KB) |
 | 2026-09-16 | **GUI rebuild Phase 4 — ConfigPanel** (`feat/gui-rebuild`): real config panel replaces the Simulation-tab placeholder — six CollapsibleSections (Data upload / Model / Parameters / Stages 1–5 / Horizon / Advanced) in one ScrollViewer + pinned PinnedFooterBar (Start Calculation, Clear All with ThemedDialog confirm); p_exit override shown only for 2+ stages with Core [0,1) boundary blocking Start; stage rows resize live; `MainWindow` DataContext moved to a new `MainViewModel`; new `ConfigFieldViewModel` + `StageRow` VMs; blur-validation routed via `ConfigPanelValidation.ValidationKey` attached property; §6 refreshed to 213 tests; D-096..D-100 | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 213 green (Core 85 / Data 58 / Cli 35 / App 35); real Linux launch 15 s alive with "Main window created." and 0 new crash-log entries; headless evidence `logs/screenshots/phase-4-config.png` |
 | 2026-09-16 | **GUI rebuild Phase 3 — MainWindow shell** (`feat/gui-rebuild`): header bar + TabControl [Simulation | Input Analysis | Token Generator | Help]; Simulation tab = 380px config / GridSplitter / fill results; new reusable `Controls/PlaceholderContent` + `Border.PanelCard`; ControlsDemo no longer hosted in MainWindow (screenshot test hosts it in its own window); §6 refreshed to 203 tests; §5 status updated (shell tabs, real panels pending P4–P6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 203 green (Core 85 / Data 58 / Cli 35 / App 25); real Linux launch 15 s alive with "Main window created." and 0 crash-log entries; headless evidence `logs/screenshots/phase-3-shell.png` |

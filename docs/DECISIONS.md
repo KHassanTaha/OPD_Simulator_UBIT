@@ -1639,3 +1639,62 @@ impact (positive and negative), alternatives considered.
   breaks D-100 and the optional-section semantics decided in 4-c.1); dropping
   the ManualMuPerStage list (deferred — removal belongs to the consolidation
   polish task, not 5-G).
+
+### D-107 — Wayland `AppMenu.Registrar` DBus quirk is ignored, not reported as a crash (5c.2) — 2026-09-16
+
+- **Decision:** The `TaskScheduler.UnobservedTaskException` handler ignores the
+  unobserved `org.freedesktop.DBus.Error.ServiceUnknown: The name
+  com.canonical.AppMenu.Registrar was not provided by any .service files`
+  error, but **only** that error. `CrashReporter.IsIgnorableWaylandQuirk`
+  walks the inner-exception chain and matches BOTH the `com.canonical.AppMenu.Registrar`
+  marker AND `ServiceUnknown`/`org.freedesktop.DBus.Error.ServiceUnknown`.
+  The matching quirk is `SetObserved()` + Information-logged; everything else
+  still routes to `CrashReporter.Report` unchanged.
+- **Rationale:** The marker query is a cosmetic probing of the global app-menu
+  DBus name, and on Wayland this box there is no registrar; the CLR raises it
+  as an UNOBSERVED task exception even though the query needs no result.
+  Crashing is wrong (ordering a quote), but swallowing arbitrary exceptions is
+  worse — hence the strict two-condition match. The real 2026-09-16 02:49
+  crash log (`logs/crash-20260916.log`) shows the inner type is
+  `Tmds.DBus.Protocol.DBusException` (class name "DBusException"), which is
+  why the filter matches the SERVICE-UNKNOWN TEXT, not the CLR type name
+  (that class name varies across Tmds.DBus versions).
+- **Implementation:** `Services/CrashReporter.cs::IsIgnorableWaylandQuirk`
+  (internal, visible to tests via the new `InternalsVisibleTo
+  Include="OpdSimulator.App.Tests"` in the App csproj — the repo's first
+  InternalsVisibleTo, needed so the App's own log/banner machinery is
+  unit-testable); wired in `App.axaml.cs` before `CrashReporter.Report`.
+  Test: `Phase5cFixesTests.CrashReporter_IgnoresAppMenuRegistrarDBusError`.
+- **Impact:** (+) 0 crash dialogs for a benign Wayland interaction; (+) real
+  crashes still surface with the full report. (−) none observed.
+- **Alternatives considered:** matching on the marker string alone (rejected —
+  would suppress real errors that merely mention the registrar); matching on
+  the type name alone (rejected — type name is not stable across Tmds.DBus
+  versions); filtering in `UnhandledException` (rejected — the quirk arrives
+  via the TaskScheduler path, is the one seen in production logs).
+
+### D-108 — Persisted widget visibility was never restored; default seed corrected to all-on (5c discovery) — 2026-09-16
+
+- **Decision:** `MainViewModel` now builds the results view model with
+  `WidgetPreferences.Load()` (it previously passed `new WidgetPreferences()`,
+  which never reads the per-user `ui.json` — FR-UI-14 restore was dead code),
+  and `WidgetPreferences.VisibleWidgets` now defaults to
+  `["metrics", "chiSquare", "trace"]` (all-on) instead of an empty list.
+- **Rationale:** The restore path is contractual (AGENTS §16.11 / FR-UI-14:
+  "Persist: UI widget visibility preferences"); a store that is never loaded
+  plus an empty default caused EVERY fresh launch to hide all four widgets,
+  contradicting `ResultsPanelViewModel`'s documented "seeded to all-on"
+  contract and its own all-on `VisibleWidgets` property default.
+- **Implementation:** `ViewModels/MainViewModel.cs:21` (`new(WidgetPreferences.Load())`);
+  `Services/WidgetPreferences.cs` default seed. Tests stay hermetic: the
+  Phase 5c screenshot test hosts `ResultsPanelViewModel` with an explicit
+  temp-file `WidgetPreferences` rather than the real machine file.
+- **Impact:** (+) the user's widget choices survive restarts; (+) fresh
+  installs show all widgets as documented. (−) the dev machine's stale
+  `~/.config/OpdSimulator/ui.json` (`VisibleWidgets: []`, written 03:08 by a
+  pre-fix test run) now gets honoured — flagged to the owner for a one-time
+  reset rather than silently deleted.
+- **Alternatives considered:** keeping the empty default and special-casing
+  "empty means all-on" (rejected — ambiguous with a user who explicitly hid
+  everything, and drift-prone); deleting the stale file in code (rejected —
+  never delete user config).

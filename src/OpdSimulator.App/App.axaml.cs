@@ -28,6 +28,17 @@ public partial class App : Application
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
+            // D-107: the missing Ubuntu global-menu service raises a benign
+            // "com.canonical.AppMenu.Registrar" DBus error on Wayland builds.
+            // It is ignored (never a dialog, never a crash-log row) and only
+            // logged as Information.
+            if (CrashReporter.IsIgnorableWaylandQuirk(e.Exception))
+            {
+                Log.Information("Ignoring known Wayland DBus quirk: {Message}", e.Exception.Message);
+                e.SetObserved();
+                return;
+            }
+
             CrashReporter.Report(e.Exception, "TaskScheduler");
             e.SetObserved();
         };

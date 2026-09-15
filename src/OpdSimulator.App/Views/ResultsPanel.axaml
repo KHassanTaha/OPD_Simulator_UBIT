@@ -21,10 +21,10 @@
             </ContentControl.ContentTemplate>
         </ContentControl>
 
-        <!-- Results once a run starts. -->
-        <StackPanel IsVisible="{Binding HasRun}"
-                    Spacing="{DynamicResource SpaceM}"
-                    Margin="16">
+        <!-- Results once a run starts. Header + widget picker stay pinned; the
+             widgets themselves scroll (5c.1). -->
+        <Grid IsVisible="{Binding HasRun}" RowDefinitions="Auto,*">
+            <StackPanel Margin="16,16,16,0" Spacing="{DynamicResource SpaceM}">
 
             <!-- Run header + customise toggle. -->
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -66,6 +66,14 @@
                     </UniformGrid>
                 </StackPanel>
             </Border>
+            </StackPanel>
+
+            <!-- Scrollable widget area (5c.1): metrics, chi-square, preview,
+                 trace scroll together; the selector row above stays pinned. -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
 
             <!-- Running progress. -->
             <StackPanel Spacing="4" IsVisible="{Binding IsBusy}">
@@ -225,5 +233,7 @@
             </Border>
 
         </StackPanel>
+        </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

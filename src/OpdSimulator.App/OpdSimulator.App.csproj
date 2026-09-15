@@ -29,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="OpdSimulator.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="..\..\docs\USER_MANUAL.md"
                       LogicalName="OpdSimulator.App.Assets.UserManual.md"
                       Link="Assets\UserManual.md" />

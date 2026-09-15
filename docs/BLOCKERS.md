@@ -5,6 +5,13 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
+- **B-008:** Phase 5c.3 (event trace in ClinicDay/MultiDay run modes) conflicts with the frozen-Core rule.
+  - Owner: Taha
+  - Impact: The App's engine seam (`SimulationCoordinator`) can only pass an `ITraceSink` via the **diagnostic** `Engine.Run` overload. The **calendar** overload (Engine.cs:184) has no `traceSink` parameter and hardcodes `traceSink: null` (line 198); `EmitTrace` writes only through `_traceSink` (line 222). The ear-headed "Debug log" rows are Serilog, not a collectable per-run sink. Making trace collection work for ClinicDay/MultiDay runs therefore requires a **minimal Core change** (recommended: optional `ITraceSink? traceSink = null` added to the calendar overload, forwarded to `RunCore` — all existing Core/CLI/tests callers stay byte-compatible), which the owner's "Do NOT touch Core/Data/Cli" freeze forbids without approval.
+  - Needed action: Owner chooses (a) allow the minimal Core change (recommended), or (b) reduce 5c.3 to removing the "Only the Diagnostic trace mode records events" placeholder only (test `TraceViewer_PopulatesAfterClinicDayRun` cannot pass under (b)).
+  - Linked: `docs/TODO.md` Phase 5c row; DECISIONS.md D-105 note it would supersede.
+  - Status: Blocked on owner decision at the 5c checkpoint (commit of 5c.1/5c.2 pending the same decision)
+
 - **B-001:** Confirm daily patient cap with clinic management.
   - Owner: Taha
   - Impact: Affects default config in UI (maps to PRD OQ-1)
