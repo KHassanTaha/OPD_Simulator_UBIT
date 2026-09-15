@@ -4,24 +4,81 @@
                   x:Class="OpdSimulator.App.Controls.CollapsibleSection"
                   x:DataType="controls:CollapsibleSection">
 
+    <TemplatedControl.Resources>
+
+        <!-- HeaderToggleSwitch (4c.2): the Fluent ToggleSwitch only exposes
+             KnobTransitions/OnContent/OffContent, not knob colours, so its
+             default dark knob is lost against the brand-green header. This
+             local theme draws an explicit white/light track + knob that reads
+             on the blue bar: dark-on-white when OFF, white-on-dark when ON.
+             ToggleSwitch requires PART_MovingKnobs to be a Panel (its knob
+             animation target), so the knob is a Panel wrapping a Border.
+             State styles (checked/focus colours and knob slide) are inline
+             children of the theme with x:SetterTargetType so the compiled
+             setters know each part's CLR type (Fluent uses VisualStateManager
+             for the same job; inline Styles on parts need this directive in
+             compiled XAML). -->
+        <ControlTheme x:Key="HeaderToggleSwitch"
+                      TargetType="ToggleSwitch">
+            <Setter Property="Focusable" Value="True"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border x:Name="PART_Track"
+                            Background="{DynamicResource BrushBackgroundPanel}"
+                            BorderBrush="{DynamicResource BrushTextOnBrand}"
+                            BorderThickness="1"
+                            CornerRadius="11"
+                            Width="40"
+                            Height="22"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <Panel x:Name="PART_MovingKnobs"
+                               Margin="2"
+                               HorizontalAlignment="Left">
+                            <Border x:Name="PART_KnobVisual"
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource BrushBrandGreenDark}"/>
+                        </Panel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:checked /template/ #PART_Track" x:SetterTargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource BrushBrandGreenDark}"/>
+            </Style>
+            <Style Selector="^:checked /template/ #PART_MovingKnobs" x:SetterTargetType="Panel">
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+            </Style>
+            <Style Selector="^:checked /template/ #PART_KnobVisual" x:SetterTargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource BrushTextOnBrand}"/>
+            </Style>
+            <Style Selector="^:focus-visible /template/ #PART_Track" x:SetterTargetType="Border">
+                <Setter Property="BorderThickness" Value="2"/>
+            </Style>
+        </ControlTheme>
+
+    </TemplatedControl.Resources>
+
     <!-- CollapsibleSection — AGENTS §16.2: config sections collapse behind a
          chevron header. The chevron rotates on toggle (MotionDurationFast);
          reduced-motion collapses to zero via MotionDurationReduced. The header
-         is a brand-blue bar (4b.1/4b.2); optional sections expose an enable
-         toggle at the right of the bar (4b.4) and the HelpText InfoIcon sits
-         at the far right (4b.3). -->
+         is a single brand-green bar spanning the full card width (4c.3 — no
+         second background behind it); optional sections expose a white/light
+         enable switch at the right of the bar (4c.2) and the HelpText InfoIcon
+         sits at the far right (4b.3). -->
     <TemplatedControl.Template>
         <ControlTemplate>
             <Border Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusM}"
-                    Padding="{DynamicResource ThicknessSpaceM}">
+                    CornerRadius="{DynamicResource CornerRadiusM}">
 
-                <StackPanel Spacing="{DynamicResource SpaceS}">
+                <StackPanel Spacing="0">
 
                     <Border Background="{DynamicResource BrushBrandGreen}"
-                            CornerRadius="{DynamicResource CornerRadiusS}"
+                            CornerRadius="8,8,0,0"
                             Padding="{DynamicResource ThicknessSectionHeader}">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
 
@@ -68,12 +125,13 @@
                                 </StackPanel>
                             </ToggleButton>
 
-                            <!-- Optional-section enable toggle: visible only when
+                            <!-- Optional-section enable switch: visible only when
                                  IsOptional is true; two-way bound to IsEnabledToggle. -->
                             <Grid Grid.Column="2"
                                   IsVisible="{TemplateBinding IsOptional}"
                                   VerticalAlignment="Center">
                                 <ToggleSwitch x:Name="PART_OptionalToggle"
+                                              Theme="{StaticResource HeaderToggleSwitch}"
                                               IsChecked="{TemplateBinding IsEnabledToggle, Mode=TwoWay}"
                                               OnContent=""
                                               OffContent=""
@@ -89,6 +147,7 @@
 
                     <ContentPresenter x:Name="PART_Body"
                                       Content="{TemplateBinding Content}"
+                                      Margin="{DynamicResource ThicknessSpaceM}"
                                       IsVisible="{TemplateBinding IsExpanded}"/>
 
                 </StackPanel>

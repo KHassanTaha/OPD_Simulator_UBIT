@@ -89,6 +89,10 @@ public class Phase4ConfigTests
         var vm = NewVm();
         Assert.True(vm.StartIsEnabled, "a default valid config must start enabled");
 
+        // Manual overrides must be in use for the inline error to gate Start;
+        // the Parameters section is OFF at factory ground, and an OFF section's
+        // fields do not participate in Start gating (D-103).
+        vm.ParametersIsOptionalEnabled = true;
         vm.PExit.Value = "1";
         vm.ValidatePExit();
 
@@ -208,6 +212,63 @@ public class Phase4ConfigTests
 
         Assert.Equal(1, requested);
         Assert.Equal("No file loaded", vm.DataStatus);
+    }
+
+    [AvaloniaFact]
+    public void OptionalSection_ToggledOff_ClearsFieldErrors()
+    {
+        var vm = NewVm();
+        vm.ParametersIsOptionalEnabled = true;
+
+        vm.PExit.Value = "1";
+        vm.ValidatePExit();
+        Assert.True(vm.PExit.HasError, "with Parameters on, p_exit = 1 must flag an inline error");
+        Assert.False(vm.StartIsEnabled);
+
+        vm.ParametersIsOptionalEnabled = false;
+
+        Assert.False(vm.PExit.HasError, "turning an optional section OFF must clear the errors of its fields");
+        Assert.Null(vm.PExit.ErrorMessage);
+        Assert.True(vm.StartIsEnabled, "with the section OFF its (now-cleared) fields must not block Start");
+    }
+
+    [AvaloniaFact]
+    public void OptionalSection_ToggledOff_DoesNotBlockStart()
+    {
+        var vm = NewVm();
+        vm.ParametersIsOptionalEnabled = true;
+
+        vm.ManualLambda.Value = "-5";
+        vm.ValidateManualLambda();
+        Assert.False(vm.StartIsEnabled, "with the section ON an invalid manual λ must block Start");
+
+        vm.ParametersIsOptionalEnabled = false;
+
+        Assert.True(vm.StartIsEnabled, "an OFF section's fields must be skipped in Start gating");
+        Assert.False(vm.ManualLambda.HasError, "the error must be cleared, not merely ignored");
+    }
+
+    [AvaloniaFact]
+    public void OptionalSection_ToggledOn_RevalidatesOnNextBlur()
+    {
+        var vm = NewVm();
+        vm.ParametersIsOptionalEnabled = true;
+
+        vm.PExit.Value = "1";
+        vm.ValidatePExit();
+        Assert.True(vm.PExit.HasError, "p_exit = 1 while the section is ON must flag an error");
+
+        vm.ParametersIsOptionalEnabled = false;
+        Assert.False(vm.PExit.HasError, "OFF clears the stale error (real true→false transition)");
+
+        vm.ParametersIsOptionalEnabled = true;
+
+        Assert.False(vm.PExit.HasError, "turning the section back ON must wait for the next blur, not re-flag old text");
+        Assert.True(vm.StartIsEnabled, "Start must re-evaluate with no pending errors");
+
+        vm.ValidatePExit();
+        Assert.True(vm.PExit.HasError, "blurring out of p_exit = 1 must re-flag and block again");
+        Assert.False(vm.StartIsEnabled);
     }
 
     [AvaloniaFact]

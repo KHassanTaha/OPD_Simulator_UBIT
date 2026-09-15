@@ -217,6 +217,15 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     partial void OnParametersIsOptionalEnabledChanged(bool value)
     {
+        if (!value)
+        {
+            // An OFF optional section means its values are "not supplied":
+            // any stale inline errors must go away too (D-103).
+            ManualLambda.ClearError();
+            ManualMuPerStage.ClearError();
+            PExit.ClearError();
+        }
+
         OnPropertyChanged(nameof(ParametersSupplied));
         RecomputeRho();
         RecomputeBlockingState();
@@ -224,6 +233,11 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     partial void OnAdvancedIsOptionalEnabledChanged(bool value)
     {
+        if (!value)
+        {
+            Seed.ClearError();
+        }
+
         OnPropertyChanged(nameof(EffectiveSeed));
         OnPropertyChanged(nameof(EffectiveTraceLevel));
         RecomputeBlockingState();
@@ -526,23 +540,21 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>
     /// Re-derives <see cref="StartIsEnabled"/> from every field's error state.
     /// The Start button stays enabled only while the configuration is runnable.
-    /// The equation is intentionally unchanged from Phase 4: an error in any
-    /// field — optional section on or off — blocks Start (the 213-test baseline
-    /// asserts p_exit = 1 blocks with the Parameters toggle at factory ground).
-    /// The Phase-4b "off = not supplied" rule governs the *effective* run
-    /// parameters (ParametersSupplied / EffectiveSeed / EffectiveTraceLevel)
-    /// and the ρ preview instead (D-101).
+    /// Fields of an optional section that is switched OFF do **not** participate
+    /// in this computation — OFF means "not supplied" (D-103). Turning a section
+    /// back ON does not pre-flag anything; fields re-validate on the next blur.
     /// </summary>
     private void RecomputeBlockingState()
     {
-        var blocked = ManualLambda.HasError
-            || ManualMuPerStage.HasError
-            || PExit.HasError
-            || StageCount.HasError
+        var parametersInUse = ParametersIsOptionalEnabled;
+        var advancedInUse = AdvancedIsOptionalEnabled;
+
+        var blocked = StageCount.HasError
             || (IsMultiDay && Days.HasError)
             || DailyCap.HasError
-            || Seed.HasError
-            || StageRows.Any(row => row.HasErrors);
+            || StageRows.Any(row => row.HasErrors)
+            || (parametersInUse && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))
+            || (advancedInUse && Seed.HasError);
 
         StartIsEnabled = !blocked;
         StartCalculationCommand.NotifyCanExecuteChanged();

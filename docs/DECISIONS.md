@@ -1500,3 +1500,44 @@ impact (positive and negative), alternatives considered.
   mode" checkbox (coarse — hides p_exit as well); making the sections
   always-editable and only visually muted (accidental input into clearly
   optional fields).
+
+### D-103 — Optional section OFF means its fields do not participate in Start gating — 2026-09-16
+- **Decision:** An optional section (Parameters / Advanced) whose enable
+  toggle is OFF contributes **nothing** to the Start button computation:
+  its fields' inline errors are cleared and the fields are skipped entirely
+  when deriving `IsStartEnabled`. Turning the section back ON re-evaluates
+  Start but does not re-flag any field — each field re-validates on its own
+  next blur (view-model `Validate*` call).
+- **Rationale:** "OFF = not supplied" was already the effective-value rule
+  (D-101); it is inconsistent to then let an OFF section's stale text block
+  Start. Owner review required this: the Phase-4b deviation note (keeping the
+  blocking equation unconditional to preserve the p_exit=1 baseline test) is
+  **superseded** by this decision.
+- **Implementation details:** `ConfigPanelViewModel.OnParametersIsOptional
+  EnabledChanged` / `OnAdvancedIsOptionalEnabledChanged` call `ClearError()`
+  on the section's fields when the value transitions to `false`
+  (CommunityToolkit setters suppress the callback when the value is
+  unchanged, so ground-false is a no-op). `RecomputeBlockingState()` gates
+  `ManualLambda`/`ManualMuPerStage`/`PExit` behind `ParametersIsOptional
+  Enabled` and `Seed` behind `AdvancedIsOptionalEnabled`. The Phase-4 test
+  `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables the Parameters
+  toggle first so its assertion still tests blocking. Three new tests cover
+  clear-on-OFF, skip-in-gating, and revalidate-on-next-blur.
+- **Impact:** (+) Start is disabled only by fields the user is actually
+  using; (+) toggling OFF visually and semantically removes a section's
+  values. (−) a user who types a bad p_exit while the section is OFF sees it
+  "disappear" when they toggle OFF — intended, and surfaced by the switch
+  label.
+- **Alternatives considered:** keeping the original unconditional equation
+  (owner rejected — contradicts "OFF"); pre-flagging on re-enable (spec
+  explicitly rejected — fields must not be marked before their next blur).
+- **Note (build, not a behaviour decision):** the temporary cascade of
+  `AVLN2000/AVLN2200/AVLN2207` compile errors came from the custom
+  `HeaderToggleSwitch` theme — `PART_MovingKnobs` must be a `Panel` subtype
+  (ToggleSwitch's knob-animation contract) and inline part Styles inside a
+  `ControlTheme` need `x:SetterTargetType="Border|Panel"` so compiled XAML
+  knows each part's CLR type. A failed partial compile also left a stale
+  duplicated `AvaloniaResources` manifest (`/Assets/ControlStyles.axaml`
+  twice), which crashed `StandardAssetLoader` in the headless tests; a clean
+  rebuild after the fix resolved it. No csproj change required (the
+  tentative `Exclude="Assets\**\*.axaml"` was reverted).

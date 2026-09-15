@@ -2,6 +2,45 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 02:05
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4c shipped, awaiting owner eye-ball for Phase 5)
+
+Done
+- Phase 4c — owner corrections to Phase 4b (feat/gui-rebuild): optional-OFF sections no longer gate Start (D-103 supersedes the D-102 deviation note); white/light header switch; single full-width blue section bar.
+
+In Progress
+- None (STOPPED at the Phase 4c gate; Phase 5 not started)
+
+What is complete:
+- 4c.1 — Toggled-OFF sections: `OnParametersIsOptionalEnabledChanged(false)` / `OnAdvancedIsOptionalEnabledChanged(false)` call `ClearError()` on their fields; `RecomputeBlockingState()` filters those fields out; toggling back ON re-evaluates Start without pre-flagging (re-validate on next blur). Phase-4 test `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables Parameters first; 3 new tests: `OptionalSection_ToggledOff_ClearsFieldErrors`, `OptionalSection_ToggledOff_DoesNotBlockStart`, `OptionalSection_ToggledOn_RevalidatesOnNextBlur` (note: CommunityToolkit setters skip the callback on an unchanged value, so ground-false is a no-op — tests use real true→false transitions).
+- 4c.2 — Custom `HeaderToggleSwitch` ControlTheme: white/light track+knob readable on the blue bar (dark knob on white track OFF; white knob on dark track ON). ToggleSwitch requires `PART_MovingKnobs` to be a `Panel` (AVLN2207); inline part Styles inside a ControlTheme need `x:SetterTargetType` (AVLN2200) — build lessons logged in D-103.
+- 4c.3 — Header is now ONE brand-green bar spanning the full card width (top corners `8,8,0,0`), padding `ThicknessSectionHeader`, title white, InfoIcon far-right, switch between; expanded content sits on the panel-white background below the bar (no second coloured frame).
+- A temp `Exclude="Assets\**\*.axaml"` csproj experiment was reverted (it stopped App.axaml compiling — explicit items suppress SDK defaults); the transient duplicated-`AvaloniaResources` manifest that crashed headless `StandardAssetLoader` was a stale partial compile and cleared on clean rebuild.
+
+What remains:
+- Phase 5 — ResultsPanel + run flow, awaiting the owner's second "go".
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 41)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: f7641b1 (Phase 4b, prior session block) → (Phase 4c commit lands with this entry)
+- Pushed to origin: pushed with this entry (feat/gui-rebuild)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 221 green (Core 85 / Data 58 / Cli 35 / App 43), 0 failed
+
+Decisions Made
+- D-103 — Optional section OFF means its fields do not participate in Start gating (supersedes the D-102 deviation note; also logs the HeaderToggleSwitch build lessons)
+
+Assumptions Added/Changed
+- None new (D-100 [UNVERIFIED] from 2026-09-16 carried forward unchanged)
+
 ### Session Handoff — 2026-09-16 01:35
 Branch: feat/gui-rebuild
 Status: Clean (Phase 4b shipped, awaiting owner "go" for Phase 5)
@@ -86,6 +125,62 @@ Assumptions Added/Changed
 
 Notes for Next Session
 - Phase 4 verified live on 2026-09-16: real launch 15 s "Application started. Main window created.", 0 new crash entries; screenshot `logs/screenshots/phase-4-config.png`.
+
+## GUI REBUILD — Phase 4c — Owner Corrections to Phase 4b — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner eye-ball of `logs/screenshots/phase-4-config.png` before Phase 5.**
+
+Three owner-reported defects in Phase 4b, fixed:
+
+- **4c.1 — Toggled-OFF fields must not block Start (D-103).**
+  Prior behaviour (D-102 deviation note): with the Parameters toggle OFF an
+  error in `p_exit` etc. still disabled the Start button. Now an OFF optional
+  section contributes nothing: `OnParametersIsOptionalEnabledChanged(false)` /
+  `OnAdvancedIsOptionalEnabledChanged(false)` call `ClearError()` on all of
+  the section's fields (so stale red borders disappear too), and
+  `RecomputeBlockingState()` only includes `ManualLambda`/`ManualMuPerStage`/
+  `PExit` when `ParametersIsOptionalEnabled` and `Seed` when
+  `AdvancedIsOptionalEnabled`. Flipping the toggle back ON re-runs
+  `RecomputeBlockingState()` but pre-flags nothing — each field re-validates
+  on its next blur. (Start gating therefore depends only on what the user is
+  actually using.) Tests in `Phase4ConfigTests.cs`: `OptionalSection_ToggledOff_
+  ClearsFieldErrors`, `OptionalSection_ToggledOff_DoesNotBlockStart`,
+  `OptionalSection_ToggledOn_RevalidatesOnNextBlur`; the Phase-4 baseline
+  `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables the Parameters
+  toggle first so its assertion still exercises blocking.
+- **4c.2 — White/light toggle on the blue header.** The Fluent `ToggleSwitch`
+  exposes no knob colour properties (only `KnobTransitions`/`OnContent`/
+  `OffContent`), so its dark knob vanished against the brand bar. A local
+  `HeaderToggleSwitch` ControlTheme draws an explicit track + knob: white
+  pill with a dark-green knob when OFF, dark-green pill with a white knob
+  when ON, 2 px focus ring on `:focus-visible`. Two compiled-XAML contracts
+  surfaced as build errors and are logged in D-103: the knob part must be
+  named `PART_MovingKnobs` and typed `Panel` (ToggleSwitch's knob-animation
+  contract, AVLN2207), and inline part Styles inside a `ControlTheme` need
+  `x:SetterTargetType="Border|Panel"` so compiled setters know each part's
+  CLR type (AVLN2200).
+- **4c.3 — Single blue bar, no blue-on-green.** The header bar previously
+  rendered as an inner blue box inset within the outer card Border (its
+  corner radius + padding showed the panel background around it). The whole
+  outer Border is now a plain rounded card; the brand-green bar spans the
+  full width (top corners `8,8,0,0` to match the card), carries the white
+  title, the right-anchored switch, and the InfoIcon, and the expanded body
+  sits on the panel-white background beneath with `ThicknessSpaceM` padding.
+  No background behind the bar; no ControlStyles/theme-token changes.
+
+Build & test notes (logged for the viva): a mid-fix partial compile left a
+stale `AvaloniaResources` manifest with `/Assets/ControlStyles.axaml` twice
+(crashed headless `StandardAssetLoader` with a duplicate-key ArgumentException
+— masked on incremental builds); a clean rebuild after the axaml errors were
+fixed resolved it. A tentative `Exclude="Assets\**\*.axaml"` on the
+`AvaloniaResource` glob was reverted: explicit AvaloniaResource items suppress
+the SDK's default axaml items, so excluding axaml silently dropped `App.axaml`
+("No precompiled XAML found").
+
+Verified live on 2026-09-16: Release build 0/0; full suite **221 green**
+(Core 85 / Data 58 / Cli 35 / App 43); 15 s real launch "Application started.
+Main window created."; 0 new crash logs (only stale `crash-20260915.log`);
+screenshot `logs/screenshots/phase-4-config.png` regenerated (45 KB, 01:56).
 
 ## GUI REBUILD — Phase 4b — ConfigPanel UI Corrections — 2026-09-16 (feat/gui-rebuild)
 
