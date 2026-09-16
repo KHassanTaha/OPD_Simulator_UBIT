@@ -2,6 +2,60 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-16 07:20 — reconciled: 0 findings (clean 6c.2 working tree on `feat/milestone-6c-input-analysis-charts`, HEAD `ec83231`, all 6c.2 src/tests/docs present uncommitted)
+
+### Phase 6c.2 — 2026-09-16 07:05 — Input Analysis histograms + fitted PDF overlay (`feat/milestone-6c-input-analysis-charts`)
+
+Exploration confirmed the contracts 6c.2 builds on: `FitsService.Fit` returns
+`FitReport(Label, Samples, Fitted, ChiSquare)`; `ChiSquareResult` carries
+`Statistic/df/PValue/Alpha/RejectFit/Observed(/* int */)/Expected/BinEdges`
+(equal-probability bins, Eᵢ ≥ 1 guard — widths vary per bin); `FittedDistribution`
+exposes `Name/Parameters/ParametersText()/Distribution(Density)/SampleSize`;
+`SimulationCoordinator.BuildFits` labels "Inter-arrival" + "<stage> service"
+with the distribution label passed straight to `FitsService` (no label→family
+mapping exists); sample CSV is a single Screening stage; M6 branch precedent
+(`feat/milestone-6-charts-and-token`) proved the `ColumnSeries`/`LineSeries`/
+`SolidColorPaint` construction; a LiveCharts probe showed the `LegendPosition`/
+`TooltipPosition` enums live in `LiveChartsCore.Measure`.
+
+Implemented:
+- `Services/InputAnalysisService.cs` — pure numbers: `FitAll` mirrors BuildFits;
+  `BuildHistogram` copies `chi.BinEdges`/`chi.Observed` verbatim (6c.2 owner
+  spec "bins from the chi-square result, never recomputed"), PDF per bin =
+  `Density(midpoint) × width × N`, categories `[low, high)`, caption
+  `Family (params) — χ²(df) = stat, p = p — verdict`; failed fit → seriesless
+  empty card (title kept, EmptyState "Fit unavailable for this series.").
+- `Services/ChartControlBuilder.cs` — builds the `CartesianChart` on the UI
+  thread (G5): observed `ColumnSeries` (BrushChartSeries1), fitted
+  `LineSeries` (BrushChartSeries2), axes/grid/legend/tooltip paints resolved
+  from ChartTheme brushes with hex fallbacks matching those theme colours
+  (headless).
+- `ViewModels/InputAnalysisChartViewModel.cs` — Title / Caption / HasSeries /
+  ShowEmptyState / ChartContent (bound to `ChartCard`).
+- `InputAnalysisViewModel` — `Charts` ObservableCollection,
+  `ApplyAsync` (Task.Run prep + Dispatcher.UIThread.Post + generation guard,
+  stale applies dropped with a Serilog warning) / `Apply` (sync, deterministic
+  tests) / `ApplyPrepared`.
+- `ConfigPanelViewModel` — new `DataBindingChanged` event raised at the end of
+  `ApplyLoadedFile` and `ResetToDefaults` (internal `RaiseDataBindingChanged`).
+- `MainViewModel` — subscribes to the event + `Config.PropertyChanged`
+  (distribution dropdowns) + `Config.SignificanceLevel.PropertyChanged` (α
+  feeds the captions) → `InputAnalysis.ApplyAsync(binding, iad, svd, α)`.
+- `Views/InputAnalysisView.axaml` — ItemsControl of `ChartCard`s bound to
+  `Charts` (show-empty via `!HasSeries`), card margin 0,0,0,16.
+
+Gate evidence: Release build 0 warnings/0 errors; **suite 272 green** (Core 85 /
+Data 58 / Cli 35 / App 94 — 261 baseline + 11 new: 6 pure-service, 2 Avalonia
+VM, 1 config-event, 1 async MainViewModel wiring, 1 screenshot); real Linux
+launch 18 s alive "Main window created." with crash logs unchanged (0 new);
+evidence `logs/screenshots/phase-6c2-histograms.png` (57 KB — Inter-arrival +
+Screening cards). Lesson: cannot visually confirm the PNG via the model (no
+image input) — size vs the 27 KB empty-tab frame plus the in-test `Series`
+assertions back the render. Docs: DECISIONS **D-118** (bin reuse + PDF scale)
++ **D-119** (refresh wiring + generation guard); TODO 6c.2 → [x];
+DEV_LAUNCH §1/§6/§12 + USER_MANUAL §4/§12 + changelogs updated. 6c.3 await:
+chi-square O/E bars (verdict text mirrors ResultsPanel rows).
+
 ### Phase 6c.1 — 2026-09-16 06:45 — chart infrastructure + Input Analysis scaffold (`feat/milestone-6c-input-analysis-charts`)
 
 Pre-flight (owner-approved) established: pin **LiveChartsCore.SkiaSharpView.Avalonia

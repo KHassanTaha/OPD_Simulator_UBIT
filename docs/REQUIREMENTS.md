@@ -20,7 +20,7 @@ PRD.md wins.
 | FR-UI-1 | Left config panel + right results panel | [x] | Views/MainWindow.axaml, Views/ConfigPanel.axaml, Views/ResultsPanel.axaml | — (visual acceptance §16.8 pending owner keyboard pass) | D-085 |
 | FR-UI-2 | Input validation (numeric, file type, mode mismatch) | [~] | Controls/ValidatedField.axaml + Views/ConfigPanel.axaml | — (edge-case test rows outstanding) | D-080 |
 | FR-UI-3 | Background thread + progress indicator | [x] | ViewModels/MainViewModel.cs (Task.Run on RunRequested, Dispatcher.UIThread.Post updates) + ViewModels/ResultsPanelViewModel.cs (IsRunning) | Phase5RunFlowTests (coordinator outcome delivery) + ResultsPanelViewModel.IsRunning smoke | D-078, D-104 |
-| FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [x] | Views/ChartsPanel.axaml, ViewModels/ChartViewModels.cs, Services/ChartsBuilder.cs | ChartViewModelTests (App.Tests) | D-084 |
+| FR-UI-4 | Charts via LiveCharts2 (P1 + P2) | [~] | Views/InputAnalysisView.axaml, ViewModels/InputAnalysisViewModel.cs, ViewModels/InputAnalysisChartViewModel.cs, Services/InputAnalysisService.cs, Services/ChartControlBuilder.cs (6c.2 = input histogram cards; chi-square + utilisation + P2 queue/wait charts follow in 6c.3–6c.5) | Phase6c2HistogramTests (App.Tests) | D-118, D-119 |
 | FR-UI-5 | Welcome/landing panel (logos, course, members, professor) | [x] | Views/WelcomeCard.axaml, ViewModels/WelcomeCardViewModel.cs, CourseInfo.cs (src/OpdSimulator.App/CourseInfo.cs) | Phase5RunFlowTests.WelcomeCard_VisibleInitially_ReplacedByFirstRunAttempt (App.Tests) | D-077, D-104 |
 | FR-UI-6 | Searchable dropdowns (type-to-filter, × clear, keyboard nav) | [x] | Controls/SearchableDropdown.axaml + Services/SearchFilter.cs | SearchFilterTests (App.Tests) | D-080 |
 | FR-UI-7 | Disabled field treatment (dimmed + reason tooltip) | [ ] | — | — | — |
@@ -80,7 +80,7 @@ PRD.md wins.
 | FR-STAT-5 | Auto compare vs analytical M/M/c | [ ] | — | — | — |
 | FR-STAT-6 | Display per-stage ρ (bottleneck) | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (RhoFor, routing λᵢ) + cli/Program.cs PrintNetworkMetrics (`ρ = λᵢ/(c·μ)`) + SimulateNetworkCommand --verbose | CliSimulateNetworkTests.Verbose_PrintsPreRunRho, CliSimulateDataNetworkTests | D-015, D-052, D-053 |
 | FR-STAT-7 | Per-server util + imbalance flag (>0.15) | [x] | src/OpdSimulator.Core/Servers/{IServerSelectionPolicy,RandomIdleSelection}.cs + cli/Program.cs PrintNetworkMetrics per-server lines | EngineTests (balance/utilisation), CliSimulateNetworkTests | D-016, D-050 |
-| FR-STAT-8 | Histogram + fitted PDF overlay | [ ] | — | — | — |
+| FR-STAT-8 | Histogram + fitted PDF overlay | [x] | Services/InputAnalysisService.cs (BuildHistogram — labels "Inter-arrival" + "<stage> service", bin edges/counts identical to ChiSquareResult), Services/ChartControlBuilder.cs, Views/InputAnalysisView.axaml | Phase6c2HistogramTests.BuildHistogram_ReusesTheChiSquareBins_NeverRecomputes, BuildHistogram_FittedPdfIsDensityTimesBinWidthTimesN (App.Tests) | D-118 |
 | FR-VAL-1 | Refuse run if any ρᵢ ≥ 1 | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (Validate — lists ALL unstable stages with λᵢ, cᵢ, μᵢ, ρᵢ), Engine/{EngineConfig,UnstableSystemException}.cs, Cli/Program.cs (clean stderr, D-037) | StabilityTests, EngineTests.Run_Network_*, CliSimulateDataNetworkTests, CliSimulateNetworkTests.UnstableStage_RefusedListingAllUnstable | D-034, D-015, D-049 |
 | FR-VAL-2 | Assert 0 ≤ utilisation ≤ 1 | [x] | src/OpdSimulator.Core/Servers/Server.cs, Engine/Engine.cs | ServerTests (Utilisation_StaysWithinUnitInterval), EngineTests | — |
 | FR-VAL-3 | Random seed (default 42, logged) | [x] | src/OpdSimulator.Core/Distributions/SeededRandomSource.cs, Engine/Engine.cs | SeededRandomSourceTests, EngineTests.Run_SameSeed | D-035 |
@@ -104,7 +104,7 @@ PRD.md wins.
 | NFR-3 | 4,000 patients / 30 days in <3s | [ ] | — | — | — |
 | NFR-4 | Deterministic given seed | [x] | src/OpdSimulator.Core/Engine/Engine.cs, Distributions/SeededRandomSource.cs | EngineTests.Run_SameSeed_TwoRuns_ProduceIdenticalResults, SeededRandomSourceTests | D-035 |
 | NFR-5 | C# .NET 8, Avalonia, MathNet, ClosedXML, CsvHelper | [ ] | .gitignore, DEV_LAUNCH.md §3, appsettings.template.json | — | D-027 |
-| NFR-6 | Charts <500ms, non-blocking UI | [ ] | — | — | — |
+| NFR-6 | Charts <500ms, non-blocking UI | [~] | InputAnalysisViewModel.ApplyAsync — fit/binning prepared on Task.Run, controls built on the UI thread, generation guard drops stale applies (G5); per-1s-cadence rendering + downsampling for P2 series pending 6c.5 | Phase6c2HistogramTests.MainViewModel_UploadResetAndDistributionChange_StayInSync (App.Tests) | D-119 |
 | NFR-7 | Accessibility baseline (keyboard, contrast, reduced-motion) | [ ] | — | — | — |
 | NFR-8 | Consistency (single theme file, reusable controls) | [ ] | — | — | — |
 | NFR-9 | Preset portability across installs/platforms | [ ] | — | — | — |

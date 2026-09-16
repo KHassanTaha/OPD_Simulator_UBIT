@@ -109,9 +109,27 @@ The window has two panels:
       [ Tab: Simulation ]   [ Tab: Input Analysis ]   [ Tab: Token Generator ]   [ Tab: Help ]
 ```
 
-The **Input Analysis** tab shows distribution-fit charts for the loaded data
-(added in Phase 6C). Until a data file is loaded it shows a hint instead:
+The **Input Analysis** tab shows distribution-fit charts for the loaded data.
+Until a data file is loaded it shows a hint instead:
 *"Load a data file to see fit analysis."*
+
+Once a data file is loaded, the tab shows one **chart card** per fitted
+series:
+
+- A **histogram** of the observed values (green columns) with the **fitted
+  distribution curve** (teal line) drawn over it. The curve is the fitted
+  PDF scaled to the histogram's bin sizes — same bins the chi-square verdict
+  used, so the chart and the "Chi-square goodness-of-fit" table in the
+  results always agree.
+- A **caption** under each chart title restating the fit: which family was
+  fitted, its parameters, the chi-square statistic (χ²), degrees of freedom,
+  the p-value, and the verdict ("Fail to reject" / "Reject").
+
+The cards update automatically whenever you load (or clear) a data file and
+whenever you change the Inter-arrival or Service distribution or the
+significance level in the **Model** section. If a fit could not be computed
+for a series, its card shows *"Fit unavailable for this series."* instead of
+a chart.
 
 ---
 
@@ -471,6 +489,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | Phase 6c.2: the **Input Analysis** tab now plots the loaded data — one histogram card per fitted series (observed columns + fitted-PDF overlay, bins shared with the chi-square verdict) with a fit/χ² caption, updating automatically on data load/clear and on distribution / significance-level changes (§4) |
 | 2026-09-16 | Phase 6c.1: the **Input Analysis** tab is no longer a placeholder — it now shows a themed hint ("Load a data file to see fit analysis.") until a data file is loaded; distribution-fit charts replace this hint in Phase 6C (see §4) |
 | 2026-09-16 | GUI run flow live (rebuild Phase 5): three run modes — Clinic day / Multi-day / **Diagnostic trace** — in the Horizon section; welcome card on first launch; results widgets (metrics, chi-square, trace, data preview) with a "Customise results" toggle; refused runs show an explanation banner instead of failing silently |
 | 2026-09-14 | M4 CLI: new `trace` command (§7.6) prints a deterministic line-by-line event trace (ARRIVAL/START_SVC/END_SVC/EXIT, plus RNG draw rows with `--level rng`); use it to walk through any simulation by hand before the viva |

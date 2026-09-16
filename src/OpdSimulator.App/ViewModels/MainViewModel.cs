@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Services;
@@ -26,7 +27,50 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         Config.RunRequested += OnRunRequested;
+        Config.PropertyChanged += OnConfigPropertyChanged;
+        Config.DataBindingChanged += OnConfigDataBindingChanged;
+        Config.SignificanceLevel.PropertyChanged += OnSignificanceLevelChanged;
     }
+
+    /// <summary>
+    /// Refreshes the Input Analysis charts whenever the config's distribution
+    /// choices change (user switches a dropdown).
+    /// </summary>
+    private void OnConfigPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ConfigPanelViewModel.InterArrivalDistribution)
+            or nameof(ConfigPanelViewModel.ServiceDistribution))
+        {
+            SyncInputAnalysis();
+        }
+    }
+
+    /// <summary>Refreshes the Input Analysis charts when a data file is loaded or cleared.</summary>
+    private void OnConfigDataBindingChanged(object? sender, EventArgs e) => SyncInputAnalysis();
+
+    /// <summary>
+    /// The significance level feeds the chi-square verdict captions on the
+    /// Input Analysis cards, so an α edit refreshes them too.
+    /// </summary>
+    private void OnSignificanceLevelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ConfigFieldViewModel.Value))
+        {
+            SyncInputAnalysis();
+        }
+    }
+
+    /// <summary>
+    /// Re-derives the Input Analysis charts from the current binding and the
+    /// same distribution choices the run will use. Runs the fit on the
+    /// background thread and builds the chart controls on the UI thread (G5).
+    /// </summary>
+    private void SyncInputAnalysis()
+        => InputAnalysis.ApplyAsync(
+            Config.Binding,
+            Config.InterArrivalDistribution ?? "Exponential",
+            Config.ServiceDistribution ?? "Exponential",
+            Config.SignificanceLevelForRun);
 
     /// <summary>
     /// Full reset to the fresh-launch state (Phase 5c.4): clears every config

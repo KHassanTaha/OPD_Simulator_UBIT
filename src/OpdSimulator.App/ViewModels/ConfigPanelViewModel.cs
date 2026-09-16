@@ -528,6 +528,15 @@ public partial class ConfigPanelViewModel : ObservableObject
     public DataBindingResult? Binding { get; private set; }
 
     /// <summary>
+    /// Raised whenever <see cref="Binding"/> changes — a file was loaded or the
+    /// config was reset. Subscribers (the Input Analysis tab) re-derive their
+    /// charts from the new binding (Phase 6C, 6c.2).
+    /// </summary>
+    public event EventHandler? DataBindingChanged;
+
+    internal void RaiseDataBindingChanged() => DataBindingChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
     /// Applies a loaded data file: the view resolves the picker path, this
     /// method analyses the file (load, validate, fit λ / μ / p_exit) and
     /// reports the outcome.
@@ -554,6 +563,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         RefreshStageSourceLabels();
         RecomputeStagesMismatch();
+        RaiseDataBindingChanged();
     }
 
     /// <summary>
@@ -669,6 +679,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         RefreshStageSourceLabels();
         RecomputeRho();
         RecomputeBlockingState();
+        RaiseDataBindingChanged();
     }
 
     private IEnumerable<ConfigFieldViewModel> AllFieldErrors()

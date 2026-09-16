@@ -2001,3 +2001,76 @@ impact (positive and negative), alternatives considered.
   (rejected — violates §16.3, breaks one-file restyle); reuse the two
   existing series tokens for all four series (rejected — queue-over-time and
   waiting-time charts in 6c.5 would reuse identical colours on one panel).
+
+### D-118 — input histogram reuses the chi-square result's bins, never recomputes (6c.2) — 2026-09-16
+
+- **Decision:** the Input Analysis histograms are built exclusively from
+  `ChiSquareResult.BinEdges` + `Observed` — the exact arrays the goodness-of-
+  fit verdict was computed on. The fitted PDF overlay per bin is
+  `Density(midpoint) × (edgeHigh − edgeLow) × N`, with N = fit sample count.
+  Bin categories render as `[low, high)` (invariant culture). One card per
+  series in the run's own fit order (`"Inter-arrival"`, then `"<stage>
+  service"`), each captioned `Family (params) — χ²(df) = stat, p = p — verdict`.
+  A failed fit still produces a card, in seriesless empty state.
+- **Rationale:** 6c.2's owner spec was explicit: "bins from the chi-square
+  result (never recomputed)". Equal-probability chi-square bins have *varying*
+  widths, so a "16 fixed bins" histogram (the M6 `ChartsBuilder` approach)
+  would disagree with the goodness-of-fit table — a viva-hostile
+  inconsistency. Scaling density by the *actual* bin width keeps the fitted
+  curve a fair comparison to the observed counts.
+- **Implementation:** `Services/InputAnalysisService.cs` (pure numbers, no UI
+  types): `FitAll` mirrors `SimulationCoordinator.BuildFits` labels; `BuildHistogram`
+  maps one `FitReport` → `HistogramChartData`. `Services/ChartControlBuilder.cs`
+  builds the `CartesianChart` (observed `ColumnSeries` in `BrushChartSeries1`,
+  fitted `LineSeries` in `BrushChartSeries2`) on the UI thread; every colour
+  resolves a `ChartTheme.axaml` brush with hex fallbacks matching those theme
+  colours (headless tests). Legend/tooltip paints + axes come from the theme.
+  Cache lesson: the LiveCharts enums (`LegendPosition`, `TooltipPosition`) live
+  in `LiveChartsCore.Measure`, not `LiveChartsCore`.
+- **Impact:** (+) chart and verdict can never disagree — same bins, observed
+  copied verbatim; (+) pure service is unit-testable without a UI session
+  (PDF scaling and bin reuse asserted exactly); (−) a card only appears when a
+  fit ran at all — an α or degradation that skips fitting shows the card's
+  empty state instead of bars; acceptable, surfaces the failure.
+- **Alternatives considered:** recompute histogram bins from samples at a
+  fixed count (rejected — the anti-pattern the owner overrode); put `Data`'s
+  binned output in Core and feed LiveCharts stateless models like M6's
+  `ChartViewModel` (rejected — the M6 branch is retired; live controls bound
+  to simple card VMs suit the single-tab layout and keep Core untouched).
+
+### D-119 — Input Analysis refresh wiring: explicit binding-change event + background fit, superseding generation guard (6c.2) — 2026-09-16
+
+- **Decision:** `ConfigPanelViewModel` raises a new `DataBindingChanged` event
+  when `Binding` changes (file load in `ApplyLoadedFile`, reset in
+  `ResetToDefaults`). `MainViewModel` subscribes to it plus
+  `Config.PropertyChanged` on the two distribution dropdowns and
+  `Config.SignificanceLevel.PropertyChanged` (α drives the card captions), all
+  funneling into one `InputAnalysis.ApplyAsync(...)`. Preparation (fits +
+  binning) runs on a `Task.Run` (G5); the chart controls are built on the UI
+  thread. A monotonically increasing generation counter is captured at apply
+  and checked inside `Dispatcher.UIThread.Post` — a stale background apply from
+  an older generation is dropped with a warning. A synchronous `Apply` (and
+  `ApplyPrepared`) power deterministic wiring/UI tests and the screenshot path.
+- **Rationale:** the Input Analysis tab must mirror exactly what the run uses —
+  same binding, same distribution labels, same α — and must refresh whenever
+  any of those change, or the tab lies next to the results panel. G5 forbids
+  creating LiveCharts controls off the UI thread; the generation guard prevents
+  a slow background job overwriting a newer refresh (e.g. user re-uploads while
+  a fit is running). Labels and α values are passed straight to `FitsService`
+  mirroring `SimulationCoordinator`, so no label→family mapping code exists.
+- **Implementation:** `ConfigPanelViewModel.DataBindingChanged` (internal
+  `RaiseDataBindingChanged()` invoked at the end of load/reset); `MainViewModel`
+  handlers described above; `InputAnalysisViewModel.{ApplyAsync, Apply,
+  ApplyPrepared}` + `ObservableCollection<InputAnalysisChartViewModel> Charts`
+  rendered by `InputAnalysisView` as `ChartCard`s. Wiring covered by
+  `MainViewModel_UploadResetAndDistributionChange_StayInSync` (awaits the
+  posted apply via a deadline poll; headless dispatcher pumps during `await`).
+- **Impact:** (+) reviewers see the same fit on the tab and in results;
+  (+) deterministic sync path makes the async UI wiring itself testable; (−)
+  three event sources into one refresh — mildly coupled, but each carries one
+  datum and there is no cross-talk.
+- **Alternatives considered:** poll `Binding` on a timer (rejected — polling is
+  silent work and late by nature); recompute inside `ApplyLoadedFile`/reset
+  directly (rejected — couples data analysis to the tab and skips distribution
+  changes); re-evaluate every `PropertyChanged` (rejected — noisy, re-fits on
+  unrelated fields).
