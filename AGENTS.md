@@ -886,6 +886,31 @@ Anti-patterns:
 - Do NOT persist session state across launches "for convenience."
 - Do NOT hide the welcome card just because a preset exists on disk.
 
+### 16.12 Tab Semantics
+
+The two analysis tabs answer different questions, and a widget appears on
+exactly one of them based on what it describes:
+
+- **Input Analysis tab** = everything that describes the LOADED DATA:
+  inter-arrival and service-time histograms, the fitted PDFs, the chi-square
+  goodness-of-fit verdicts, the data preview, and the stage/service counts
+  implied by the uploaded columns.
+- **Results tab** = everything that describes A RUN: the system and per-stage
+  metrics, the per-server utilisation chart, the queue-length-over-time and
+  wait-time-distribution charts (when added), and the event trace.
+
+Rules:
+
+- The customise-results selector (FR-UI-14) only controls Results-tab widgets.
+  Input Analysis is intentionally NOT customisable — its widget set is fixed
+  by the data and always shown together.
+- Data-derived figures (histograms, fitted parameters, chi-square) never
+  appear on the Results tab; run-derived figures (utilisation, wait times,
+  queue lengths) never appear on the Input Analysis tab.
+- The per-server utilisation widget is a Results widget: it needs a finished
+  simulation run and shows "Run a simulation to see utilisation." until one
+  exists (Phase 6c.4, D-121).
+
 ## 17. In-Program Guide & Preset System (M5)
 
 ### 17.1 In-Program Guide

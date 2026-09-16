@@ -8,8 +8,8 @@
 
     <!-- Phase-5 results panel (Simulation tab, right column). Layout contract:
          welcome card until any run is attempted; afterwards the chosen widgets
-         inside a scrollable stack. Widget order is stable: metrics → chi-square
-         → data preview → trace. -->
+         inside a scrollable stack. Widget order is stable: metrics →
+         utilisation (6c.4) → chi-square → data preview → trace. -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -65,13 +65,14 @@
                         <CheckBox IsChecked="{Binding ShowChiSquare, Mode=TwoWay}" Content="Chi-square"/>
                         <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
                         <CheckBox IsChecked="{Binding ShowDataPreview, Mode=TwoWay}" Content="Data preview"/>
+                        <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>
             </StackPanel>
 
-            <!-- Scrollable widget area (5c.1): metrics, chi-square, preview,
-                 trace scroll together; the selector row above stays pinned. -->
+            <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square,
+                 preview, trace scroll together; the selector row above stays pinned. -->
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -148,6 +149,31 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-server utilisation widget (FR-STAT-7, Phase 6c.4): bar per
+                 server, green or amber by imbalance; thin stage-average reference
+                 line; empty state until a run finishes. -->
+            <Border IsVisible="{Binding ShowUtilisation}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Per-server utilisation"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding UtilisationCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="Run a simulation to see utilisation."
+                               IsVisible="{Binding ShowUtilisationEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasUtilisationChart}"
+                                    Content="{Binding UtilisationChart}"/>
                 </StackPanel>
             </Border>
 

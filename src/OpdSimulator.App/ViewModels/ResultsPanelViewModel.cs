@@ -1,6 +1,7 @@
 namespace OpdSimulator.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
@@ -34,10 +35,11 @@ public sealed record ChiSquareRow(
 
 /// <summary>
 /// Drives the Simulation-tab results panel (Phase 5): the welcome card until a
-/// run starts, then the chosen widgets — metrics table, chi-square table, the
-/// scrollable event trace, the data preview — plus the run-refusal banner with
-/// its clean message (G3/G4, 5-F). Widget visibility follows
-/// <see cref="WidgetPreferences"/> (FR-UI-14), seeded to all-on.
+/// run starts, then the chosen widgets — metrics table, per-server utilisation
+/// chart (Phase 6c.4), chi-square table, the scrollable event trace, the data
+/// preview — plus the run-refusal banner with its clean message (G3/G4, 5-F).
+/// Widget visibility follows <see cref="WidgetPreferences"/> (FR-UI-14),
+/// seeded to all-on.
 /// </summary>
 public partial class ResultsPanelViewModel : ObservableObject
 {
@@ -63,10 +65,20 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
 
         var visible = _preferences.VisibleWidgets;
+        if (!visible.Contains("utilisation"))
+        {
+            // 6c.4 migration: a ui.json written before the utilisation widget
+            // existed must not hide it forever. Add the key once and persist,
+            // so the new widget starts visible like every other default.
+            visible.Add("utilisation");
+            _preferences.Save();
+        }
+
         ShowMetrics = visible.Contains("metrics");
         ShowChiSquare = visible.Contains("chiSquare");
         ShowTrace = visible.Contains("trace");
         ShowDataPreview = visible.Contains("dataPreview");
+        ShowUtilisation = visible.Contains("utilisation");
     }
 
     /// <summary>Called at the start of every run attempt so config proof is a one-time concern.</summary>
@@ -108,6 +120,7 @@ public partial class ResultsPanelViewModel : ObservableObject
             : string.Empty;
 
         SetMetrics(outcome.Result);
+        SetUtilisation(outcome.Result);
     }
 
     private static string N0(double v) => $"{v:0.###}";
@@ -137,6 +150,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         PreviewRows = null;
         PreviewInvalidRows = null;
         PreviewError = null;
+        UtilisationChart = null;
         ApplyPreferences();
     }
 
@@ -168,6 +182,38 @@ public partial class ResultsPanelViewModel : ObservableObject
                 N0(stage.AverageWaitMinutes),
                 N0(stage.AverageQueueLength),
                 $"{stage.StageUtilisation:0.##}"));
+        }
+    }
+
+    /// <summary>
+    /// Feeds the per-server utilisation widget (FR-STAT-7, Phase 6c.4). The
+    /// chart control is built by <see cref="ChartControlBuilder"/> on the UI
+    /// thread; a refused run (or none) leaves an empty card and the widget shows
+    /// its "run a simulation to see utilisation" empty state instead.
+    /// </summary>
+    /// <param name="result">The completed simulation result, or null when the run was refused.</param>
+    private void SetUtilisation(OpdSimulator.Core.Engine.SimulationResult? result)
+    {
+        if (result is null)
+        {
+            UtilisationChart = null;
+            return;
+        }
+
+        var data = UtilisationChartService.Build(result);
+        try
+        {
+            UtilisationChart = ChartControlBuilder.BuildUtilisationChart(data);
+        }
+        catch (Exception ex)
+        {
+            // G5: LiveCharts controls only construct inside a fully-initialised
+            // Avalonia app (with a rendering platform). Headless unit tests that
+            // assert metrics/trace have none, so the widget degrades to its
+            // empty state instead of failing the whole results panel. The real
+            // path is proven by the AvaloniaFact screenshot test.
+            Serilog.Log.Warning(ex, "Utilisation chart could not be built in this context");
+            UtilisationChart = null;
         }
     }
 
@@ -279,6 +325,25 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private string? _previewError;
 
+    /// <summary>Built per-server utilisation chart (Phase 6c.4), or null before the first run.</summary>
+    [ObservableProperty]
+    private Control? _utilisationChart;
+
+    /// <summary>True once a utilisation chart was built from a finished run.</summary>
+    public bool HasUtilisationChart => UtilisationChart is not null;
+
+    /// <summary>True before the first run — the widget shows its empty state then.</summary>
+    public bool ShowUtilisationEmptyState => !HasUtilisationChart;
+
+    partial void OnUtilisationChartChanged(Control? value)
+    {
+        OnPropertyChanged(nameof(HasUtilisationChart));
+        OnPropertyChanged(nameof(ShowUtilisationEmptyState));
+    }
+
+    /// <summary>Widget caption (FR-STAT-7): names the imbalance threshold and rule.</summary>
+    public string UtilisationCaption => UtilisationChartService.Caption;
+
     // ── Widget visibility (FR-UI-14, persisted via WidgetPreferences) ─────
 
     [ObservableProperty]
@@ -293,6 +358,9 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private bool _showDataPreview;
 
+    [ObservableProperty]
+    private bool _showUtilisation = true;
+
     partial void OnShowMetricsChanged(bool value) => OnWidgetVisibilityChanged();
 
     partial void OnShowChiSquareChanged(bool value) => OnWidgetVisibilityChanged();
@@ -301,8 +369,10 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowDataPreviewChanged(bool value) => OnWidgetVisibilityChanged();
 
+    partial void OnShowUtilisationChanged(bool value) => OnWidgetVisibilityChanged();
+
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "dataPreview").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "dataPreview", "utilisation").</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -319,6 +389,9 @@ public partial class ResultsPanelViewModel : ObservableObject
             case "dataPreview":
                 ShowDataPreview = !ShowDataPreview;
                 break;
+            case "utilisation":
+                ShowUtilisation = !ShowUtilisation;
+                break;
         }
     }
 
@@ -332,6 +405,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (ShowChiSquare) { visible.Add("chiSquare"); }
         if (ShowTrace) { visible.Add("trace"); }
         if (ShowDataPreview) { visible.Add("dataPreview"); }
+        if (ShowUtilisation) { visible.Add("utilisation"); }
 
         VisibleWidgets = visible;
         WidgetVisibilityChanged?.Invoke(this, EventArgs.Empty);
@@ -342,7 +416,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Widget keys currently visible (mirrors the four Show flags).</summary>
+    /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace" };
+        new[] { "metrics", "chiSquare", "trace", "utilisation" };
 }

@@ -2,6 +2,47 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 6c.4 — per-server utilisation widget (2026-09-17 01:35)
+
+Owner confirmed placement by DECISION message (superseding a quick answer):
+the utilisation chart is a **Results** widget, run-driven (option 2), never an
+Input Analysis figure. Implemented on `feat/milestone-6c-input-analysis-charts`:
+- `Services/UtilisationChartService.cs` — pure `UtilisationChartData` builder:
+  one `UtilisationBarRow` per server in stage order, a reference line per stage
+  at `StageUtilisation` (which IS the mean of per-server utilisations,
+  Engine.cs:344), `IsOutlier` when |util − stage mean| > 0.15, threshold +
+  caption exposed as public consts.
+- `ChartControlBuilder.BuildUtilisationChart` — per-server `ColumnSeries<double?>`
+  (green `BrushChartSeries1`, amber `BrushWarning` for outliers), per-server
+  `YToolTipLabelFormatter` ("Above/Below average by {delta:.1%}"), thin
+  stage-average `LineSeries` per stage, hidden legend (one series per server +
+  per stage), Y P0 labeler; the shared `CreateChart` shell gained optional
+  `yLabeler` + `showLegend`.
+- `ResultsPanelViewModel` — `ShowUtilisation` (FR-UI-14, default-on),
+  `UtilisationChart` control content, empty state until a run; `SetUtilisation`
+  degrades to the empty card in plain headless unit tests (LiveCharts controls
+  require a fully-initialised app — real path proven by the AvaloniaFact).
+  `BrushColor` lookup wrapped with theme-hex fallback for lazy dictionary builds.
+- `ResultsPanel.axaml` — utilisation widget between metrics and chi-square; 5th
+  picker checkbox; layout comments updated. `WidgetPreferences` default seed
+  gained "utilisation"; a pre-6c.4 `ui.json` gets the key added once on load
+  (default-on migration).
+- AGENTS.md §16.12 Tab Semantics added verbatim (owner-pasted).
+- Tests: `Phase6c4UtilisationTests` (bar layout, outlier flag, caption,
+  null-result empty card, toggle/defaults) + `Phase6c4Screenshot` (real 3-stage
+  run, servers 1/2/3 → 6 bars + 3 reference lines, screenshot saved).
+- Docs: D-121, USER_MANUAL §6.4 + right-panel figure + changelog, CONTEXT §5.7
+  imbalance rule reconciled to the owner-confirmed |Δ − mean| definition, TODO
+  row DONE, DEV_LAUNCH refreshed. After the gate, PRD FR-STAT-7's max−min rule
+  was retained as the analytical definition (owner "keep both" decision) and the
+  widget's |Δ vs stage mean| rule documented as the per-server visual variant —
+  D-121 + CONTEXT §5.7 updated.
+
+Gate: build 0/0; suite **284 green** (Core 85 / Data 58 / Cli 35 / App 106);
+real Linux launch 18 s alive, crash logs unchanged;
+`logs/screenshots/phase-6c4-utilisation.png` (~100 KB). Committed + pushed on
+the 6c branch. NOT yet reviewed/merged by owner.
+
 ### Session Handoff — 2026-09-16 07:35
 Branch: `feat/milestone-6c-input-analysis-charts`
 Status: Clean (committed, uncommitted = none)

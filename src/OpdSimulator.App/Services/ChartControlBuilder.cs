@@ -13,11 +13,12 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 /// <summary>
-/// Builds the <see cref="CartesianChart"/> controls for the Input Analysis
-/// cards (Phase 6C). Lives in Services, not the view model, because it owns
-/// the LiveCharts — UI — types; view models hold the built controls. Called on
-/// the UI thread (G5): LiveCharts controls are Avalonia controls and cannot be
-/// created on the background thread.
+/// Builds the <see cref="CartesianChart"/> controls for the chart cards — the
+/// Input Analysis histograms and chi-square pairs (Phase 6C) and the Results
+/// per-server utilisation chart (Phase 6c.4). Lives in Services, not the view
+/// model, because it owns the LiveCharts — UI — types; view models hold the
+/// built controls. Called on the UI thread (G5): LiveCharts controls are
+/// Avalonia controls and cannot be created on the background thread.
 /// </summary>
 /// <remarks>
 /// Every colour resolves a ChartTheme.axaml brush (AGENTS §16.3 — no hex in
@@ -102,10 +103,94 @@ public static class ChartControlBuilder
     }
 
     /// <summary>
-    /// Shared shell for every card's chart: categorical X labels, a frequency
-    /// Y axis, and theme-resolved axis/legend/tooltip paints.
+    /// Creates the per-server utilisation chart (FR-STAT-7, Phase 6c.4). One
+    /// column per server, green by default and amber when the server deviates
+    /// from its stage mean by more than
+    /// <see cref="UtilisationChartService.ImbalanceThreshold"/>; a thin
+    /// reference line per stage at the stage mean. The legend is hidden because
+    /// there is one series per server plus one per stage — the X labels,
+    /// per-server tooltips and caption carry the meaning instead.
     /// </summary>
-    private static CartesianChart CreateChart(IReadOnlyList<ISeries> series, IReadOnlyList<string> xCategories)
+    public static CartesianChart? BuildUtilisationChart(UtilisationChartData data)
+    {
+        if (!data.HasSeries)
+        {
+            return null;
+        }
+
+        var greenColor = BrushColor("BrushChartSeries1", new SKColor(0x1B, 0x7A, 0x4C));
+        var amberColor = BrushColor("BrushWarning", new SKColor(0x8A, 0x53, 0x00));
+        var lineColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
+
+        var series = new List<ISeries>();
+        var xCategories = new List<string>();
+        var count = data.Bars.Count;
+
+        int barIndex = 0;
+        foreach (var bar in data.Bars)
+        {
+            // A single non-null value at the server's categorical index; nulls
+            // elsewhere leave gaps so the bar lands on the right X label.
+            var values = new double?[count];
+            values[barIndex] = bar.Utilisation;
+
+            var tooltip = bar.IsOutlier
+                ? bar.DeltaFromAverage > 0
+                    ? $"Utilisation: {bar.Utilisation.ToString("P1", CultureInfo.InvariantCulture)}\n" +
+                      $"Above average by {bar.DeltaFromAverage.ToString("0.0%", CultureInfo.InvariantCulture)}"
+                    : $"Utilisation: {bar.Utilisation.ToString("P1", CultureInfo.InvariantCulture)}\n" +
+                      $"Below average by {Math.Abs(bar.DeltaFromAverage).ToString("0.0%", CultureInfo.InvariantCulture)}"
+                : $"Utilisation: {bar.Utilisation.ToString("P1", CultureInfo.InvariantCulture)}";
+
+            series.Add(new ColumnSeries<double?>
+            {
+                Name = $"{bar.StageName} · Server {bar.ServerNumber}",
+                Values = values,
+                Fill = new SolidColorPaint(bar.IsOutlier ? amberColor : greenColor),
+                MaxBarWidth = 28,
+                YToolTipLabelFormatter = _ => tooltip,
+            });
+
+            xCategories.Add($"{bar.StageName} S{bar.ServerNumber}");
+            barIndex++;
+        }
+
+        foreach (var reference in data.ReferenceLines)
+        {
+            var values = new double?[count];
+            for (int i = reference.FirstBarIndex; i <= reference.LastBarIndex; i++)
+            {
+                values[i] = reference.Average;
+            }
+
+            series.Add(new LineSeries<double?>
+            {
+                Name = "Stage average",
+                Values = values,
+                Stroke = new SolidColorPaint(lineColor, 1),
+                Fill = null,
+                GeometrySize = 0,
+                LineSmoothness = 0,
+            });
+        }
+
+        return CreateChart(
+            series,
+            xCategories,
+            yLabeler: value => value.ToString("P0", CultureInfo.InvariantCulture),
+            showLegend: false);
+    }
+
+    /// <summary>
+    /// Shared shell for every card's chart: categorical X labels, a Y axis
+    /// (frequency by default, percent for utilisation), and theme-resolved
+    /// axis/legend/tooltip paints.
+    /// </summary>
+    private static CartesianChart CreateChart(
+        IReadOnlyList<ISeries> series,
+        IReadOnlyList<string> xCategories,
+        Func<double, string>? yLabeler = null,
+        bool showLegend = true)
     {
         var gridColor = BrushColor("BrushChartGrid", new SKColor(0xC9, 0xD1, 0xCC));
         var axisTextColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
@@ -131,14 +216,14 @@ public static class ChartControlBuilder
             {
                 new()
                 {
-                    Labeler = value => value.ToString("0.##", CultureInfo.InvariantCulture),
+                    Labeler = yLabeler ?? (value => value.ToString("0.##", CultureInfo.InvariantCulture)),
                     LabelsPaint = new SolidColorPaint(axisTextColor),
                     TicksPaint = new SolidColorPaint(tickColor),
                     SeparatorsPaint = new SolidColorPaint(gridColor),
                 },
             },
             Height = ChartHeight,
-            LegendPosition = LegendPosition.Top,
+            LegendPosition = showLegend ? LegendPosition.Top : LegendPosition.Hidden,
             LegendTextPaint = new SolidColorPaint(legendTextColor),
             LegendBackgroundPaint = new SolidColorPaint(legendBackgroundColor),
             TooltipTextPaint = new SolidColorPaint(tooltipTextColor),
@@ -148,11 +233,22 @@ public static class ChartControlBuilder
 
     private static SKColor BrushColor(string key, SKColor fallback)
     {
-        if (Application.Current?.Resources.TryGetResource(key, null, out var value) == true
-            && value is SolidColorBrush brush)
+        try
         {
-            var c = brush.Color;
-            return new SKColor(c.R, c.G, c.B, c.A);
+            if (Application.Current?.Resources.TryGetResource(key, null, out var value) == true
+                && value is SolidColorBrush brush)
+            {
+                var c = brush.Color;
+                return new SKColor(c.R, c.G, c.B, c.A);
+            }
+        }
+        catch (Exception ex)
+        {
+            // The resource lookup can throw when a theme dictionary builds
+            // lazily in a context where its StaticResource targets are not yet
+            // resolvable (headless unit tests). The fallback hex matches the
+            // theme color, so degraded contexts degrade to the same pixels.
+            Serilog.Log.Warning(ex, "Chart brush {Key} unresolvable; using theme fallback", key);
         }
 
         return fallback;

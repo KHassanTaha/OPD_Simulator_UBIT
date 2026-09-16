@@ -95,18 +95,16 @@ The window has two panels:
 |  LEFT: Configuration       |  RIGHT: Results                |
 |  ------------------------  |  --------------------------    |
 |  - Parameter mode          |  - Metrics table               |
-|  - Inter-arrival dist.     |  - Chi-square results          |
-|  - Service dist.           |  - Event log (scrollable)      |
-|  - Servers per stage       |                                |
-|  - Manual λ (optional)     |                                |
+|  - Inter-arrival dist.     |  - Utilisation chart (per-server) |
+|  - Service dist.           |  - Chi-square results          |
+|  - Servers per stage       |  - Data preview                 |
+|  - Manual λ (optional)     |  - Event log (scrollable)       |
 |  - [Upload Data]           |                                |
 |  - Time horizon            |                                |
 |  - Random seed             |                                |
 |  - Daily cap (optional)    |                                |
 |  - [Run Simulation]        |                                |
 +----------------------------+--------------------------------+
-
-      [ Tab: Simulation ]   [ Tab: Input Analysis ]   [ Tab: Token Generator ]   [ Tab: Help ]
 ```
 
 The **Input Analysis** tab shows distribution-fit charts for the loaded data.
@@ -310,7 +308,9 @@ members, professor). It is replaced by the results the moment you start a
 calculation. If the run was refused, an error banner explains exactly why.
 
 The widget selector (a "Customise results" toggle at the top of the right
-panel) shows or hides the individual widgets below it.
+panel) shows or hides the individual widgets below it: the **metrics table**,
+the **per-server utilisation chart**, the **chi-square results**, the **data
+preview**, and the **event trace**.
 
 ### 6.1 Metrics Table
 For each stage:
@@ -334,6 +334,28 @@ Shows how well the chosen distribution fits the data:
 Chronological trace of every event, rendered only by a **Diagnostic trace**
 run (§5 step 7). Choose the trace level in the Horizon section to include
 queue-state snapshots and (at `RNG`) random-number draws.
+
+### 6.4 Per-Server Utilisation Chart
+Shows what the engine's own servers actually did during a run (one bar per
+server, grouped by stage). Until a run finishes it shows
+*"Run a simulation to see utilisation."*
+
+How to read it:
+
+- A **green** bar means that server worked roughly like its
+  stage-mates. The bar turns **amber** when a server deviates from its
+  stage's **average utilisation** by more than **0.15** — e.g. one doctor
+  doing far more (or far less) work than the other two.
+- Hover a bar for the tooltip: the server's utilisation plus the exact gap
+  ("Above average by 17.5%" / "Below average by 17.5%").
+- The thin line across each stage marks that stage's average utilisation.
+- This chart shows what the stage-level numbers hide: stage utilisation is
+  the *mean* of all its servers, so a very busy plus a very idle server can
+  average out to "looks fine".
+
+The utilisation chart is a **Results** widget: it describes a run, so it
+lives on the Simulation tab next to the metrics, not on the Input Analysis
+tab with the data-derived figures.
 
 ---
 
@@ -495,6 +517,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-17 | Phase 6c.4: the **Simulation** tab's results now include a **Per-server utilisation** widget (§6.4) — one bar per server, amber when a server deviates from its stage's average utilisation by more than 0.15, with a thin stage-average reference line. It appears once a run finishes ("Run a simulation to see utilisation." before that) and is toggleable via "Customise results" (§6) |
 | 2026-09-16 | Phase 6c.3: each fitted series now shows a second card in the **Input Analysis** tab — a chi-square card ("Chi-square: …") plotting the observed (green) vs expected (teal) frequencies per bin side by side, with the verdict caption repeated exactly as the results table shows it (§4) |
 | 2026-09-16 | Phase 6c.2: the **Input Analysis** tab now plots the loaded data — one histogram card per fitted series (observed columns + fitted-PDF overlay, bins shared with the chi-square verdict) with a fit/χ² caption, updating automatically on data load/clear and on distribution / significance-level changes (§4) |
 | 2026-09-16 | Phase 6c.1: the **Input Analysis** tab is no longer a placeholder — it now shows a themed hint ("Load a data file to see fit analysis.") until a data file is loaded; distribution-fit charts replace this hint in Phase 6C (see §4) |

@@ -2117,3 +2117,92 @@ impact (positive and negative), alternatives considered.
   (rejected — two binning rules = two disagreeing pictures); `StackedColumnSeries`
   (rejected — stacks hide the per-bin gap); print χ² into a static label only
   (rejected — the owner asked for the paired bars).
+
+### D-121 — per-server utilisation is a Results widget, run-driven; |Δ − stage mean| > 0.15 is the imbalance rule (6c.4) — 2026-09-17
+
+- **Decision:** The per-server utilisation chart lives in the **Results** panel,
+  shown **only after a finished run** ("Run a simulation to see utilisation."
+  before that), and is a toggleable widget in the "Customise results" selector
+  (FR-UI-14) like Metrics, Chi-square, Data preview and Event trace. It answers
+  the question "what did this run do to that server?" — a run-derived figure —
+  so it sits with the other run outputs (metrics, trace), never on the Input
+  Analysis tab, per AGENTS §16.12 Tab Semantics. Data source is the engine's
+  own report: `StageMetrics.PerServerUtilisation` (server-by-server usage) and
+  `StageMetrics.StageUtilisation` — which the engine defines as the **mean of
+  the stage's per-server utilisations** (Engine.cs) — used as the "stage
+  average" reference. A server is **flagged** when
+  |server utilisation − stage mean| > 0.15: bar goes amber (`BrushWarning`) and
+  the tooltip states the gap ("Above average by {delta:.1%}" /
+  "Below average by {delta:.1%}"); a thin reference line per stage marks the
+  stage mean. Widget order in the Results stack: metrics → utilisation →
+  chi-square → data preview → trace. This **supersedes** the earlier quick
+  answer given during pre-flight ("historical utilisation from data") — the
+  owner's DECISION message states the Results-panel option explicitly; no
+  historical utilisation was requested and no Data-layer work was done.
+- **Rationale:** the historical/simulated dichotomy in CONTEXT §5.7 predates
+  the widget and is out of scope here — the sample data has no server-ID
+  columns, so a per-server historical value cannot exist, and the owner chose
+  the simulated engine path. Comparing each server against its **stage mean**
+  (not the whole-clinic mean, and not max−min spread) makes the flag local:
+  a clinic where one doctor is worked unfairly relative to the other two is
+  exactly the decision-relevant signal, and "mean of the stage" is what
+  `StageUtilisation` already is, so the chart can never disagree with the
+  metrics table. The run-driven placement follows the tab-semantics rule that
+  run-derived figures describe a run (FR-UI-14 only customises Results
+  widgets); putting historical or fitted-data figures here would violate the
+  Input Analysis/Results split. A threshold of 0.15 keeps the amber signal
+  meaningful (a ±15% workload gap is the agreed "imbalance" magnitude) while
+  ordinary sampling noise at this clinic's volumes (~60 services/server/session)
+  almost never crosses it on its own.
+  **Relationship to PRD FR-STAT-7 (owner decision, 2026-09-17 — "keep both,
+  document the distinction"):** PRD's imbalance flag
+  `max(server_util) − min(server_util) > 0.15` remains the standing
+  **analytical** definition (stage range). This widget's rule — per-server
+  |Δ vs stage mean| > 0.15 — is a **per-server visual variant** of the same
+  concern: max−min cannot say *which* servers deviate (a 3-server stage could
+  hide an overworked middle server), and pairing every bar against its own
+  stage mean is what the toggleable widget can display. The two rules coexist
+  and are documented as such in CONTEXT §5.7; they answer different questions
+  (stage dispersion vs per-server deviation) and are not averaged.
+- **Implementation:** `Services/UtilisationChartService.Build(SimulationResult?)`
+  returns pure `UtilisationChartData` (Bars: StageName/ServerNumber/Utilisation/
+  IsOutlier/DeltaFromAverage; ReferenceLines per stage with bar-index spans;
+  `ImbalanceThreshold = 0.15` and `Caption` as public constants) — UI-agnostic so
+  the flag logic is unit-testable headlessly. `ChartControlBuilder.BuildUtilisationChart`
+  emits one `ColumnSeries<double?>` per server (a single non-null value at the
+  server's categorical index; `double?` nulls create the gaps) filled green or
+  amber, with per-series `YToolTipLabelFormatter` (LiveCharts 2.0.5: cartesian
+  series expose `YToolTipLabelFormatter`/`XToolTipLabelFormatter`; the bare
+  `ToolTipLabelFormatter` is Pie-only — compiler-confirmed), plus one thin
+  `LineSeries<double?>` per stage at the stage mean; legend hidden because
+  series ≈ bars + stages (X labels + tooltips carry the meaning); Y axis labels
+  percent (`P0`). The shared `CreateChart` shell gained optional `yLabeler` and
+  `showLegend`. `ResultsPanelViewModel` gains `ShowUtilisation` (default-on,
+  FR-UI-14), `UtilisationChart` (built `CartesianChart`), empty-state flags, and
+  wiring in `CompleteRun` via `SetUtilisation`. `WidgetPreferences` default seed
+  includes "utilisation"; a **pre-6c.4 ui.json** gets the key inserted once on
+  load so existing users see the new widget (a deliberate later-off is restored
+  to on a single time — accepted one-time migration cost; no schema version
+  exists to detect it). `BrushColor` resource lookup is wrapped so a lazily
+  built theme dictionary that throws degrades to the documented theme-matching
+  hex; `SetUtilisation` drops to the widget empty state when no fully-initialised
+  Avalonia app exists (plain unit tests) — the real chart path is proven by the
+  AvaloniaFact screenshot (`logs/screenshots/phase-6c4-utilisation.png`).
+  Covered by `Phase6c4UtilisationTests` (bar layout across stages in order,
+  outlier flag for ±0.32 around a 0.50 mean, no flag at the mean, caption
+  contains the threshold, null result → empty card, toggle/defaults) +
+  `Phase6c4Screenshot` (real 3-stage run, servers 1/2/3 → 6 bars + 3 reference
+  lines rendered).
+- **Impact:** (+) the metric the metrics table hides — a single over/under-used
+  server — is now visible at a glance; (+) flag rule is local, deterministic
+  and unit-tested; (+) tab semantics stay clean (run figures on Results).
+  (−) one more widget to customise; (−) pre-6c.4 preference files re-enable the
+  widget once after a deliberate hide (documented migration; harmless).
+- **Alternatives considered:** historical utilisation from the data (rejected —
+  no server-ID columns exist, and the owner's decision message chose the
+  engine's run output); flag by max−min **spread** > 0.15 per CONTEXT §5.7
+  (rejected for this widget — the owner's spec is per-server |Δ vs stage mean|,
+  which also composes cleanly with N servers whereas spread only pairs two);
+  place in Input Analysis next to the histograms (rejected — violates §16.12,
+  and there is nothing to plot until a run exists); stage-level aggregate bar
+  (rejected — the whole point is per-server imbalance).

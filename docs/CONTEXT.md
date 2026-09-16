@@ -240,8 +240,22 @@ its **last service end**, identical for historical and simulated values. A
 fixed 8:15–11:00 window would let close-time overtime push utilisation
 toward (and past) 1, so it is rejected (Decision D-018).
 
-**Imbalance flag:** applies to BOTH sources — flag when
-max(util_server) − min(util_server) > 0.15.
+**Imbalance flag (simulated source — implemented 6c.4):** flag a server when
+|util_server − stage mean| > 0.15. Shown as an amber bar in the Results
+per-server utilisation widget, with the gap in the tooltip
+("Above/Below average by …"). The stage mean is `StageUtilisation`, which the
+engine defines as the mean of its per-server utilisations (D-121).
+
+> **[VERIFIED — owner, 2026-09-17]** Two imbalance rules coexist by owner
+> decision ("keep both, document the distinction"): **PRD FR-STAT-7 keeps
+> max − min > 0.15 as the standing analytical definition** (stage range);
+> the Results **per-server utilisation widget** instead flags
+> |util − stage mean| > 0.15 (owner's 6c.4 decision message, D-121) — a
+> per-server visual variant, because max−min only ever contrasts the two
+> extreme servers of a stage and cannot say *which* of the others deviate.
+> The historical per-server source was not implemented (the sample data has
+> no server-ID columns), so the widget flag applies to simulated engine runs
+> only, on the Results tab (run-derived figure — AGENTS §16.12).
 
 > **[UNVERIFIED — assumption, 2026-09-13]** Blank cells inside an optional
 > server-ID column: where the patient WAS served at that stage, a blank
