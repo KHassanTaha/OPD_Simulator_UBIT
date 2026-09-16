@@ -106,8 +106,12 @@ The window has two panels:
 |  - [Run Simulation]        |                                |
 +----------------------------+--------------------------------+
 
-      [ Tab: Simulation ]   [ Tab: Token Generator ]
+      [ Tab: Simulation ]   [ Tab: Input Analysis ]   [ Tab: Token Generator ]   [ Tab: Help ]
 ```
+
+The **Input Analysis** tab shows distribution-fit charts for the loaded data
+(added in Phase 6C). Until a data file is loaded it shows a hint instead:
+*"Load a data file to see fit analysis."*
 
 ---
 
@@ -467,6 +471,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | Phase 6c.1: the **Input Analysis** tab is no longer a placeholder — it now shows a themed hint ("Load a data file to see fit analysis.") until a data file is loaded; distribution-fit charts replace this hint in Phase 6C (see §4) |
 | 2026-09-16 | GUI run flow live (rebuild Phase 5): three run modes — Clinic day / Multi-day / **Diagnostic trace** — in the Horizon section; welcome card on first launch; results widgets (metrics, chi-square, trace, data preview) with a "Customise results" toggle; refused runs show an explanation banner instead of failing silently |
 | 2026-09-14 | M4 CLI: new `trace` command (§7.6) prints a deterministic line-by-line event trace (ARRIVAL/START_SVC/END_SVC/EXIT, plus RNG draw rows with `--level rng`); use it to walk through any simulation by hand before the viva |
 | 2026-09-13 | M3 CLI: `simulate-data` now runs multi-stage files (per-stage μᵢ, p_exit, one network run — §7.4) and a new `simulate-network` command with `--days`/`--start-day`/`--cap`/`--verbose` (§7.5); blank doctor cells for Screening exits are accepted; multi-stage runs print a per-stage block and network totals |

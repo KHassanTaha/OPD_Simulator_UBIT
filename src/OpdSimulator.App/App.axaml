@@ -14,13 +14,15 @@
     </Application.Styles>
 
     <!-- Theme.axaml is the single source of colours/fonts/spacing/shadows
-         (AGENTS §16.3); Motion.axaml owns every animation duration. Hex
-         values appear in exactly one file. -->
+         (AGENTS §16.3); Motion.axaml owns every animation duration; ChartTheme.
+         axaml owns every chart visual token (Phase 6C — brushes only, no hex).
+         Hex values appear in exactly one file. -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://OpdSimulator.App/Assets/Theme.axaml"/>
                 <ResourceInclude Source="avares://OpdSimulator.App/Assets/Motion.axaml"/>
+                <ResourceInclude Source="avares://OpdSimulator.App/Assets/ChartTheme.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

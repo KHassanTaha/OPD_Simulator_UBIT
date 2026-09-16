@@ -20,6 +20,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Results panel state (Simulation tab, right column). Persisted widget visibility is restored (FR-UI-14).</summary>
     public ResultsPanelViewModel Results { get; } = new(WidgetPreferences.Load());
 
+    /// <summary>Input Analysis tab state (P1 input charts, Phase 6C).</summary>
+    public InputAnalysisViewModel InputAnalysis { get; } = new();
+
     public MainViewModel()
     {
         Config.RunRequested += OnRunRequested;

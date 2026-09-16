@@ -1936,3 +1936,68 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** a separate `NoticeBanner` control (rejected —
   identical layout, duplicated logic, AGENTS §16.5); new `ColorWarningBright`
   tokens (rejected — Theme.axaml already had them from earlier phases).
+
+### D-116 — LiveChartsCore.SkiaSharpView.Avalonia 2.0.5 re-pinned for charts (6c.1) — 2026-09-16
+
+- **Decision:** `OpdSimulator.App` re-adds the chart package as
+  **LiveChartsCore.SkiaSharpView.Avalonia 2.0.5** (exact version, no range).
+  It was dropped in Phase 1 of the GUI rebuild (the view layer was deleted);
+  Phase 6C brings the Input Analysis + results chart suite back on top of the
+  rebuilt Avalonia 11.3.3 shell.
+- **Rationale:** 2.0.5 is the latest stable of the 2.0.x line (2.1.x is
+  dev-only pre-releases on NuGet), and its dependency contract —
+  Avalonia ≥ 11.0.0, Avalonia.Skia ≥ 11.0.0, LiveChartsCore.SkiaSharpView ≥
+  2.0.5 — matches our Avalonia 11.3.3 exactly. The parked M6 branch
+  (`feat/milestone-6-charts-and-token`) already paired the same two versions,
+  so this re-pin has in-repo precedent rather than an untested guess.
+- **Implementation:** one `<PackageReference>` in `OpdSimulator.App.csproj`;
+  restore verified. Probe of the 2.0.5 assembly confirmed the exported
+  Avalonia controls (`CartesianChart`, `PieChart`, `PolarChart`, `GeoMap`,
+  `MotionCanvas`, `XamlAxis`, `Xaml*Series`) and that legend/tooltip are
+  **not** Avalonia controls — they are themed via per-chart paint objects
+  (`LegendTextPaint`, `LegendBackgroundPaint`, `LegendTextSize`,
+  `TooltipTextPaint`, `TooltipBackgroundPaint`, `TooltipTextSize`, per-axis
+  `LabelPaint`) drawn as `SKPaint` from ChartTheme brushes in 6c.2+.
+- **Impact:** (+) same LiveCharts flavour as the archived M5 charts, so
+  `ChartsBuilder`/`ChartViewModels` lessons transfer; (+) SkiaSharp native
+  deps already satisfied (libfontconfig/libfreetype) — no new apt
+  prerequisites. (−) none observed.
+- **Alternatives considered:** stay package-free (rejected — NFR-6 asks for
+  charts and hand-rolled Skia drawing would be slower to defend in the viva);
+  `LiveChartsCore.SkiaSharpView` 2.1.x pre-release (rejected — unstable).
+
+### D-117 — chart series palette + `ChartTheme.axaml` brush contract, hex never inline (6c.1) — 2026-09-16
+
+- **Decision:** the 6c.1 chart infrastructure adds four colour tokens to
+  `Assets/Theme.axaml` — the existing `ColorChartSeries1` (brand blue) and
+  `ColorChartSeries2` (teal), plus **`ColorChartSeries3` #6B2FBA** (violet)
+  and **`ColorChartSeries4` #E54600** (vermillion) — all ≥ 3:1 contrast
+  (WCAG AA non-text) against the white `ColorBackgroundPanel`. A
+  brush-*only* resource dictionary, `Assets/ChartTheme.axaml`, maps those
+  colour tokens to chart brushes (`BrushChartSeries1..4`, grid, axis text,
+  axis ticks, legend text/background/border, tooltip background/border/text).
+  Charts reference ChartTheme brushes only; hex values appear **only** in
+  Theme.axaml. Legend/axis/tooltip colours are handed to LiveCharts as
+  SKPaints built from these brushes (D-116) — never as literal ARGB.
+- **Rationale:** AGENTS §16.3 (one file restyles the whole app) extends to
+  charts; the violet/vermillion pair stays distinguishable from brand
+  blue/teal under colour-blindness (blue-violet vs orange-red axes).
+  Contrasts: #6B2FBA ≈ 7.7:1, #E54600 ≈ 4.0:1 vs #FFFFFF — comfortably inside
+  WCAG AA for non-text UI.
+- **Implementation:** Theme.axaml tokens + `ChartTheme.axaml` merged in
+  `App.axaml` after Theme/Motion (tokens resolve first, brushes reference
+  them). `Controls/ChartCard.axaml` (reusable Title / Caption /
+  EmptyStateText / ShowEmptyState / ChartContent) toggles the empty-state
+  Border vs the ChartHost ContentPresenter; the screenshot + tests assert on
+  the *named container parts* — a hidden `ContentPresenter` prunes its
+  content from the visual tree, and `Control.IsVisible` is **local**, not
+  effective, so child TextBlocks under a hidden Border still report
+  `IsVisible = true` (implementation lesson, recorded for every future
+  chart test).
+- **Impact:** (+) chart look follows the theme contract; (+) empty/error
+  states are first-class (FR-UI-9) from day one; (−) two resource files to
+  keep in sync (tokens vs brushes), mitigated by the brush-only rule.
+- **Alternatives considered:** hard-code ARGB in LiveCharts configuration
+  (rejected — violates §16.3, breaks one-file restyle); reuse the two
+  existing series tokens for all four series (rejected — queue-over-time and
+  waiting-time charts in 6c.5 would reuse identical colours on one panel).

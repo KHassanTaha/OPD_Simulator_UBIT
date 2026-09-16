@@ -83,8 +83,7 @@
             <TabItem Header="Input Analysis" TabIndex="1">
                 <Border Background="{DynamicResource BrushBackgroundWindow}"
                         Padding="{DynamicResource ThicknessWindowPadding}">
-                    <controls:PlaceholderContent Title="Input analysis"
-                                                 Hint="Uploaded data preview, distribution fitting (MLE), chi-square goodness-of-fit and parameter comparison — Phase 4/5."/>
+                    <views:InputAnalysisView DataContext="{Binding InputAnalysis}"/>
                 </Border>
             </TabItem>
 

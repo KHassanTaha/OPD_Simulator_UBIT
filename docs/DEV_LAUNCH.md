@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-15 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **197 green** (Core 85, Data 58, Cli 35, App 19), 0 warnings (2026-09-15: dead-state clean of all `bin`/`obj`, Release build 0/0, full suite + GUI-rebuild Phase 1 & 2 headless tests). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
+**Last verified:** 2026-09-16 — restore/build/test/CLI-run all pass from a clean state on **Ubuntu 24.04** (.NET SDK 8.0.131), Phase 6c.1: Release build 0 warnings/0 errors, full suite **261 green** (Core 85, Data 58, Cli 35, App 83) including the 6c.1 chart-scaffold + screenshot-evidence tests, real Linux launch 18 s alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-6c1-empty.png` (Input Analysis tab empty state). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -75,6 +75,11 @@ Expected output ends with `Restored ...`.
 > **Serilog 4.4.0** (event trace, D-036); `OpdSimulator.Cli` references
 > **Serilog.Sinks.File 7.0.0** (rolling + error sinks) and
 > `<ProjectReference>` to Core; `OpdSimulator.Core.Tests` references Core.
+>
+> Phase 6c.1 (2026-09-16): `OpdSimulator.App` re-adds
+> **LiveChartsCore.SkiaSharpView.Avalonia 2.0.5** (charts, D-116). The SkiaSharp
+> native deps (libfontconfig.so.1, libfreetype.so.6) are already present on
+> Ubuntu 24.04 — no extra `apt` step.
 
 **Troubleshooting:**
 - `NU1101` — package not found → check `NuGet.config`, check spelling.
@@ -169,7 +174,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-16 **256 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **261 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,7 +185,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **256 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (78, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (83, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d, 6c.1) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -220,6 +225,13 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **256 tests pass**:
   confirmation before resizing; 5d evidence screenshots
   `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) and
   `phase-5d-cleared.png` (default no-source labels after Clear All).
+  **Phase-6c.1 chart scaffold (5):** `ChartCard` renders title + caption, shows
+  the empty state by default (`ChartCard_EmptyStateVisibleWhenNoData`), hides
+  it when `ShowEmptyState=false` (asserted on the named container parts —
+  a hidden ContentPresenter prunes its content, local `IsVisible` is not
+  effective, D-117), `InputAnalysisView` shows "Load a data file to see fit
+  analysis." with no file loaded, and the Phase-6c.1 empty-state screenshot
+  (`logs/screenshots/phase-6c1-empty.png`).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -494,6 +506,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **Phase 6c.1 — chart infrastructure + Input Analysis scaffold** (`feat/milestone-6c-input-analysis-charts`): re-pinned **LiveChartsCore.SkiaSharpView.Avalonia 2.0.5** (D-116, matches the parked M6 branch pair with Avalonia 11.3.3); Theme.axaml adds colour tokens `ColorChartSeries3` #6B2FBA (violet, ≈7.7:1) and `ColorChartSeries4` #E54600 (vermillion, ≈4.0:1), both ≥ 3:1 WCAG AA vs the white panel; new brush-only `Assets/ChartTheme.axaml` (referenced by charts, hex never inline — D-117); new reusable `Controls/ChartCard` (Title/Caption/EmptyStateText/ShowEmptyState/ChartContent); new `InputAnalysisViewModel` + `Views/InputAnalysisView` (empty state "Load a data file to see fit analysis.") wired into the Input Analysis tab, replacing the placeholder; §6 refreshed to 261 tests (App 83) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 261 green (Core 85 / Data 58 / Cli 35 / App 83); real Linux launch 18 s alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-6c1-empty.png` (Input Analysis tab empty state) |
 | 2026-09-16 | **GUI rebuild Phase 5d — config panel refinements** (`feat/gui-rebuild`): 5d.1 μ moves out of Stages — rows are topology only (name + servers) with a read-only μ-source label; the single manual entry point is the Parameters comma list (rate/mean-wise per toggle, blank = fitted); the run refuses with a banner naming the stage (`Stage '<name>' has no service rate…`) when no source exists (D-112). 5d.2 significance level α in Model — default 0.05, strictly (0,1) validation blocking Start, threads through FitsService into every chi-square verdict and into the dynamic results caption (`SetChiSquareAlpha`, D-113). 5d.3 stage-count mismatch — amber warning (reuses theme warning tokens, D-115) with Sync-stages-from-data / Keep-current-stages actions when the loaded data's stage count differs from the configured list (D-114; the 5d.1-vs-5d.3 message conflict resolved to the 5d.3 "NEW" wording). 5d.4 ErrorBanner gained a `BannerSeverity` (Error/Warning/Info) with theme-resource colours. §6 refreshed to **256 tests** (App 78) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 256 green (Core 85 / Data 58 / Cli 35 / App 78); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) + `logs/screenshots/phase-5d-cleared.png` (default no-source μ labels after Clear All) |
 | 2026-09-16 | **GUI rebuild Phase 5c.4 — Clear All full reset** (`feat/gui-rebuild`): confirming the Clear All themed dialog now runs `MainViewModel.ResetAll()` — `Config.ResetToDefaults()` (unloads the uploaded file, drops fitted parameters) + new `ResultsPanelViewModel.Reset()` (welcome card back, `HasRun=false`, `RunError=null`, `TraceText=""`, metrics/chi-square/preview content cleared; persisted widget VISIBILITY preferences survive per FR-UI-21); ConfigPanel falls back to config-only reset when no MainWindow hosts it; tooltip updated; D-111; §6 refreshed to 239 tests (App 61) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 239 green (Core 85 / Data 58 / Cli 35 / App 61); real Linux launch 15 s alive with "Main window created." and crash log unchanged |
 | 2026-09-16 | **GUI rebuild Phase 5c parts 2 + 3** (`feat/gui-rebuild`): the calendar `Engine.Run` overload now forwards an optional `ITraceSink` so ClinicDay/MultiDay runs populate the event trace in every mode (owner-approved minimal Core change, D-110 — Core suite 85 green before AND after; `SimulationCoordinator` passes its sink in every run mode; the "(D-105) Diagnostic-only" placeholder removed; new `TraceViewer_PopulatesAfterClinicDayRun`; two old `Assert.Empty(TraceLines)` calendar assertions updated); welcome card now actually renders on fresh launch — the ResultsPanel `ContentControl` was bound only to `IsVisible` and never to `Content="{Binding Welcome}"`, so the template never instantiated (D-109 value — part 3 test `WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun`); test-data fix — `TraceViewer_PopulatesAfterClinicDayRun` needed three manual μs (one per default stage), not one; §6 refreshed to 236 tests (App 58); §9.1 ui.json paths unchanged (part 1) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 236 green (Core 85 / Data 58 / Cli 35 / App 58); real Linux launch 15 s alive with "Main window created." and crash log unchanged (0 new entries); headless evidence `logs/screenshots/phase-5c-results.png` (60.9 KB, populated run) + `logs/screenshots/phase-5c-welcome.png` (48.5 KB, fresh-launch welcome card with logos + "Group members" card, asserted in-test) |

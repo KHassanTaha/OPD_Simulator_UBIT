@@ -2,6 +2,53 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 6c.1 — 2026-09-16 06:45 — chart infrastructure + Input Analysis scaffold (`feat/milestone-6c-input-analysis-charts`)
+
+Pre-flight (owner-approved) established: pin **LiveChartsCore.SkiaSharpView.Avalonia
+2.0.5** (latest stable, deps Avalonia ≥ 11.0 ≥ 11.0.0 — matches the parked M6
+branch pair with 11.3.3; D-116); SkiaSharp native deps already present, no apt
+change; charts consume `DataBindingResult.InterArrivalMinutes` +
+`ServiceMinutesByStage` through the public `FitsService.Fit` (chi-square bins
+never recomputed — used straight from `ChiSquareResult`); per-stage
+`StageMetrics.WaitingTimeSamples` + `QueueLengthSeries` already exist in frozen
+Core, so the proposed "minimal Core addition" is **permanently dropped** per
+owner instruction — any genuine 6c.5 gap gets reported, not patched
+speculatively. Owner added two accessible colour tokens (≥ 3:1 vs white panel,
+logged with rationale).
+
+Shipped in 6c.1:
+- `Theme.axaml`: `ColorChartSeries3` #6B2FBA (violet ≈ 7.7:1) +
+  `ColorChartSeries4` #E54600 (vermillion ≈ 4.0:1) — hex lives only here.
+- `Assets/ChartTheme.axaml` (new): brush-only chart dictionary
+  (BrushChartSeries1..4, grid, axis text/ticks, legend, tooltip brushes);
+  merged into App.axaml after Theme/Motion (D-117).
+- `Controls/ChartCard.axaml(.cs)` (new): reusable card — Title / Caption /
+  EmptyStateText / ShowEmptyState(default true) / ChartContent; empty-state
+  Border vs ChartHost ContentPresenter toggled by ApplyEmptyState.
+- `ViewModels/InputAnalysisViewModel.cs` (new): `IsEmpty` → "Load a data file
+  to see fit analysis.", `HasData` inverse raised via OnIsEmptyChanged.
+- `Views/InputAnalysisView.axaml(.cs)` (new): empty-state + HasData
+  ScrollViewer reserved for 6c.2+ cards. MainWindow Input Analysis tab now
+  hosts it (placeholder removed); `MainViewModel.InputAnalysis` property added.
+- Tests (`Phase6c1InputAnalysisTests`, 4) + `Phase6c1Screenshot` (evidence):
+  ChartCard title+caption, empty-state visible by default, hidden when
+  ShowEmptyState=false, InputAnalysisView empty message, empty-state PNG.
+- Build/test lesson (D-117): `Control.IsVisible` is **local**, not effective —
+  a hidden ContentPresenter prunes its content; assertions target the named
+  containers (`EmptyStateBorder`/`ChartHost`), never child TextBlocks. Stale
+  App.Tests dll caused one false failure — rebuild the solution, not just the
+  App project. Test scratch probe (`ScratchProbe.cs`) deleted.
+
+GATE (all passed): Release build 0 warnings/0 errors; full suite **261 green**
+(Core 85 / Data 58 / Cli 35 / App 83 — 256 baseline + 4 spec'd tests + 1
+screenshot-evidence test, matching the per-phase convention that counts the
+screenshot test); real Linux launch 18 s alive with "Main window created."
+and crash logs unchanged (0 new entries); evidence
+`logs/screenshots/phase-6c1-empty.png` (27 KB). Docs: DECISIONS D-116 (package
+pin) + D-117 (palette/theme contract); DEV_LAUNCH §1 Last-verified, §3 package
+note, §6 counts + 6c.1 bullet, §12 changelog row; USER_MANUAL §4 tab list +
+hint text, §12 changelog row; TODO 6c.1 → [x], 6c.2..6c.6 rows retained.
+
 ### Phase 5d — 2026-09-16 06:10 — config panel refinements (μ relocation, α selector, stage-count mismatch warning)
 
 - **5d.1 (D-112):** Stages rows are now **topology only** — the editable per-row
