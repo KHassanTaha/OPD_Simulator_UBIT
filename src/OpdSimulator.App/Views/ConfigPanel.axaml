@@ -278,7 +278,7 @@
                 <Button Content="Clear All"
                         Command="{Binding ClearAllCommand}"
                         Classes="GhostButton"
-                        ToolTip.Tip="Resets every configuration field to its default value"/>
+                        ToolTip.Tip="Resets the configuration, the uploaded file, and the results panel to the fresh-launch state"/>
             </StackPanel>
         </controls:PinnedFooterBar>
 

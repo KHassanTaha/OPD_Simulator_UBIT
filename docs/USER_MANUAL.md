@@ -205,10 +205,11 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
      08:15 start, services continue past 11:00 until they finish). *Default.*
    - **Multi-day** — N consecutive operating days (Friday/Sunday are skipped).
      Shows the fields **Days**, **Start day**, and **Daily patient cap**.
-   - **Diagnostic trace** — a fixed-length run in minutes, used to walk
-     DES correctness line by line. Shows **Horizon (minutes)** (default
-     `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
-     Only this mode produces an event trace (clinic-day runs have none).
+- **Diagnostic trace** — a fixed-length run in minutes, used to walk
+      DES correctness line by line. Shows **Horizon (minutes)** (default
+      `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
+      Clinic-day and multi-day runs also record an event trace — it appears in
+      the right panel's **Event trace** widget, most detailed in diagnostic mode.
 
 8. **(Diagnostic trace only) Set the trace level.**
    "State" records arrivals, service start/end, routes and queue changes;
@@ -223,6 +224,12 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
 
 11. **Click "Start Calculation".**
     The right panel fills in a few seconds later.
+
+12. **Reset everything with "Clear All".**
+    The footer's **Clear All** button asks for confirmation, then returns the
+    app to the fresh-launch state: every field back to default, the uploaded
+    file unloaded, the results panel cleared and the welcome card shown
+    again. (Which result widgets you chose to show or hide are kept.)
 
 The run is refused — with an explanation banner, never silently — if no
 arrival rate is available (you entered no λ in **Parameters** and loaded no

@@ -122,12 +122,23 @@ public partial class ConfigPanel : UserControl
         var result = await ThemedDialog.ShowMessageAsync(
             owner,
             "Clear all fields?",
-            "Reset every configuration field to its default value?",
+            "Reset the configuration and the current results to the fresh-launch state?",
             "Clear",
             "Cancel");
 
-        if (result == ThemedDialogResult.Primary)
+        if (result != ThemedDialogResult.Primary)
         {
+            return;
+        }
+
+        if (owner?.DataContext is MainViewModel main)
+        {
+            // Full reset (Phase 5c.4): config fields + uploaded file + results panel.
+            main.ResetAll();
+        }
+        else
+        {
+            // Standalone host (controls demo / tests without a MainWindow): config only.
             _vm.ResetToDefaults();
         }
     }

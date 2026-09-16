@@ -1,10 +1,12 @@
 using System;
+using System.IO;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
@@ -142,5 +144,112 @@ public class Phase5cFixesTests
         Assert.False(CrashReporter.IsIgnorableWaylandQuirk(
             new Exception("com.canonical.AppMenu.Registrar mentioned in unrelated code")));
         Assert.False(CrashReporter.IsIgnorableWaylandQuirk(new InvalidOperationException("real failure")));
+    }
+
+    [Fact]
+    public void ClearAll_ResetsResultsPanel_ToWelcomeState()
+    {
+        // Phase 5c.4: Clear All is a FULL reset, not just a field clear. After
+        // a completed run the results panel must return to its fresh-launch
+        // state — welcome card back, every widget and the banner empty.
+        var main = new MainViewModel();
+        var config = main.Config;
+        config.ParametersIsOptionalEnabled = true;
+        config.ManualLambda.Value = "0.4";
+        config.ManualMuPerStage.Value = "0.8, 0.5, 0.4";
+
+        var outcome = SimulationCoordinator.Run(config.TryBuildRunParameters()!, binding: null);
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Result);
+
+        main.Results.StartRun();
+        main.Results.CompleteRun(outcome);
+        Assert.True(main.Results.HasRun);
+        Assert.NotEmpty(main.Results.TraceText);
+
+        main.ResetAll();
+
+        Assert.True(main.Results.IsWelcomeVisible, "welcome card must be back after Clear All");
+        Assert.False(main.Results.HasRun);
+        Assert.Equal(string.Empty, main.Results.TraceText);
+        Assert.Null(main.Results.RunError);
+        Assert.Empty(main.Results.SystemMetrics);
+        Assert.Empty(main.Results.ChiSquareRows);
+        // FR-UI-21: widget VISIBILITY is a persisted preference (it survives
+        // Clear All); the reset contract is that widget CONTENT is dropped.
+        Assert.Null(main.Results.PreviewRows);
+        Assert.Null(main.Results.PreviewColumnTitles);
+        Assert.Null(main.Results.PreviewError);
+
+        // The config side also lands at factory ground.
+        Assert.False(config.ParametersIsOptionalEnabled);
+        Assert.Equal("No file loaded", config.DataStatus);
+        Assert.Null(config.Binding);
+    }
+
+    [AvaloniaFact]
+    public void ClearAll_UnloadsUploadedFile()
+    {
+        // Phase 5c.4: Clear All must drop the uploaded file and its fitted
+        // parameters so the Data section returns to "No file loaded".
+        var main = new MainViewModel();
+        var root = FindRepoRoot(AppContext.BaseDirectory);
+        var csv = Path.Combine(root, "samples", "sample_patients.csv");
+        Assert.True(File.Exists(csv), $"sample missing: {csv}");
+
+        main.Config.ApplyLoadedFile(csv);
+        Assert.NotNull(main.Config.Binding);
+        Assert.StartsWith("Loaded", main.Config.DataStatus);
+
+        main.ResetAll();
+
+        Assert.Equal("No file loaded", main.Config.DataStatus);
+        Assert.Null(main.Config.LoadedFileName);
+        Assert.Null(main.Config.Binding);
+    }
+
+    [AvaloniaFact]
+    public void ClearAll_KeepsPinnedFooterVisible()
+    {
+        // Regression guard: the pinned footer carrying the reset button is
+        // part of the panel shell, not run output, so it must survive a reset.
+        var main = new MainViewModel();
+        var host = new Window
+        {
+            Width = 900,
+            Height = 700,
+            Content = new ConfigPanel { DataContext = main.Config },
+        };
+        host.Show();
+
+        try
+        {
+            host.UpdateLayout();
+            var footer = host.GetVisualDescendants().OfType<PinnedFooterBar>().Single();
+            Assert.True(footer.IsEffectivelyVisible, "pinned footer must be visible");
+
+            main.ResetAll();
+            host.UpdateLayout();
+
+            Assert.True(footer.IsEffectivelyVisible, "pinned footer must stay visible after Clear All");
+            Assert.True(host.GetVisualDescendants().OfType<Button>()
+                .Any(b => b.Content?.ToString() == "Clear All"), "Clear All button must remain");
+        }
+        finally
+        {
+            host.Close();
+        }
+    }
+
+    private static string FindRepoRoot(string start)
+    {
+        var dir = new DirectoryInfo(start);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "OpdSimulator.sln")))
+        {
+            dir = dir.Parent;
+        }
+
+        return dir?.FullName
+            ?? throw new InvalidOperationException("could not locate OpdSimulator.sln from " + start);
     }
 }

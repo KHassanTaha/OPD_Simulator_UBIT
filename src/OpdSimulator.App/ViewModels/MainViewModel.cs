@@ -25,6 +25,20 @@ public partial class MainViewModel : ObservableObject
         Config.RunRequested += OnRunRequested;
     }
 
+    /// <summary>
+    /// Full reset to the fresh-launch state (Phase 5c.4): clears every config
+    /// field, which also unloads the uploaded data file and drops its fitted
+    /// parameters, and returns the results panel to the welcome card (empty
+    /// widgets, no banner). Invoked by the ConfigPanel view after the user
+    /// confirms the "Clear All" themed dialog.
+    /// </summary>
+    public void ResetAll()
+    {
+        Config.ResetToDefaults();
+        Results.Reset();
+        Log.Information("Clear All requested: config, uploaded data and results reset to the launch state");
+    }
+
     private void OnRunRequested(object? sender, EventArgs e)
     {
         if (Config.TryBuildRunParameters() is not { } parameters)

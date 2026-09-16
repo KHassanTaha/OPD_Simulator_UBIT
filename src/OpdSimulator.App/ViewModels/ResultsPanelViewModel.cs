@@ -112,6 +112,33 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     private static string N0(double v) => $"{v:0.###}";
 
+    /// <summary>
+    /// Returns the panel to its fresh-launch state (FR-UI-5/21, Phase 5c.4):
+    /// the welcome card shows again, every widget, the banner and the status
+    /// texts are cleared, and widget visibility is re-applied from
+    /// preferences. Called by <see cref="MainViewModel.ResetAll"/> after the
+    /// user confirms "Clear All".
+    /// </summary>
+    public void Reset()
+    {
+        IsWelcomeVisible = true;
+        HasRun = false;
+        IsBusy = false;
+        StatusText = string.Empty;
+        RunSummary = string.Empty;
+        EffectiveExitText = string.Empty;
+        RunError = null;
+        TraceText = string.Empty;
+        SystemMetrics.Clear();
+        StageRows.Clear();
+        ChiSquareRows.Clear();
+        PreviewColumnTitles = null;
+        PreviewRows = null;
+        PreviewInvalidRows = null;
+        PreviewError = null;
+        ApplyPreferences();
+    }
+
     private void SetMetrics(OpdSimulator.Core.Engine.SimulationResult? result)
     {
         SystemMetrics.Clear();

@@ -2,6 +2,34 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 5c.4 — 2026-09-16 05:36 — Clear All performs a full reset to the fresh-launch state
+
+- Owner-reported bug: Clear All reset the fields but left the previous run's
+  metrics, chi-square, trace and banner on the results panel with the welcome
+  card hidden — the opposite of "return to the clear screen".
+- `MainViewModel.ResetAll()` (invoked by ConfigPanel.axaml.cs after the
+  themed confirmation; fallback to config-only `ResetToDefaults()` when no
+  MainWindow hosts the panel) = `Config.ResetToDefaults()` (already unloads
+  the file: `Binding=null`, `LoadedFileName=null`, "No file loaded") + the new
+  `ResultsPanelViewModel.Reset()` (welcome card back, `HasRun=false`,
+  `RunError=null`, `TraceText=""`, SystemMetrics/StageRows/ChiSquareRows
+  cleared, preview rows dropped; then `ApplyPreferences()` re-applies the
+  persisted widget-visibility set — CONTENT resets, VISIBILITY preferences
+  survive by design, FR-UI-21). Information log line. Tooltip updated (D-111).
+- Three tests added (App +3 = 61): `ClearAll_ResetsResultsPanel_ToWelcomeState`,
+  `ClearAll_UnloadsUploadedFile` (loads samples/sample_patients.csv, asserts
+  "No file loaded" + `Binding` null), `ClearAll_KeepsPinnedFooterVisible`.
+- Hermeticity note: a stale `~/.config/OpdSimulator/ui.json` containing
+  "dataPreview" (a one-off artifact from the first test run) made the reset
+  test read a non-default visibility set. Root cause: visibility is a
+  persisted preference, so the assertion was corrected to the reset CONTRACT —
+  widget content empty, not the visibility flag. With a clean store the suite
+  is hermetic (verified twice: no ui.json written, store unchanged when
+  seeded with defaults).
+- Gate: Release build 0/0; **full suite 239 green** (Core 85 / Data 58 / Cli
+  35 / App 61); real launch 15 s alive "Main window created." + crash log
+  unchanged; DEV_LAUNCH §6 refreshed.
+
 ### Phase 5c, part 2 — 2026-09-16 05:10 — traceSink forwards through the calendar Engine.Run (5c.3)
 
 - Owner approved the minimal Core change (byte-compatible additive seam).

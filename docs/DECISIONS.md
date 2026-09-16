@@ -1722,8 +1722,9 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** setting `Content` in code-behind on loaded
   (rejected — XAML binding is the declarative, testable form).
 - **Note (ID reallocation):** 5c/5d decision IDs shifted — welcome card is
-  now D-109; the coming 5c.3 Core traceSink change takes D-110, and the 5d
-  entries (previously planned as D-109..D-112) become D-111..D-114 in order.
+  now D-109; 5c.3's Core traceSink change took D-110; the 5c.4 Clear All
+  reset takes D-111; the 5d entries (previously planned as D-111..D-114)
+  become D-112..D-115 in order.
 
 ### D-110 — Calendar Engine.Run overload forwards an optional traceSink (5c.3) — 2026-09-16
 
@@ -1755,3 +1756,38 @@ impact (positive and negative), alternatives considered.
   overload (rejected — one additive optional parameter is the minimal
   surface). D-105's "only DiagnosticTrace records events" wording is
   superseded; DiagnosticTrace remains the recommended hand-walk mode.
+
+### D-111 — "Clear All" performs a full reset to the fresh-launch state (5c.4) — 2026-09-16
+
+- **Decision:** confirming the Clear All dialog is now a **full** reset owned
+  by `MainViewModel.ResetAll()`: it calls `Config.ResetToDefaults()` (which
+  already unloads the uploaded file by nulling `Binding`/`LoadedFileName` and
+  restoring "No file loaded"), calls the new `ResultsPanelViewModel.Reset()`
+  (welcome card back, `HasRun=false`, `RunError=null`, `TraceText=""`,
+  metrics/chi-square/`StageRows` cleared, preview rows dropped, then
+  `ApplyPreferences()` re-applies the persisted widget-visibility set), and
+  logs an Information line. The ConfigPanel code-behind invokes it after the
+  themed confirmation — falling back to config-only reset when no MainWindow
+  hosts the panel (standalone tests/demo).
+- **Rationale:** the previous reset only cleared fields, leaving a stale run,
+  banner and hidden welcome card — the opposite of the user's "return to the
+  clear screen" (FR-UI-5/13/21). Owner spec, quoted: "Clear All must return
+  the app to the state it was in on fresh launch: empty config, no uploaded
+  file, welcome card visible, results panel empty."
+- **Implementation:** `MainViewModel.ResetAll()` (public, invoked by the view
+  post-confirm — the entry point stayed the config's `ClearAllCommand` →
+  `ClearAllRequested` → themed dialog, so the confirmation gate is unchanged;
+  a MainWindow-scoped RelayCommand would bypass it); `ResultsPanelViewModel.
+  Reset()`; tooltip now reads "Resets the configuration, the uploaded file,
+  and the results panel to the fresh-launch state". Tests:
+  `ClearAll_ResetsResultsPanel_ToWelcomeState` (post-run → welcome state,
+  widget CONTENT cleared — visibility is a persisted preference, FR-UI-21,
+  and survives by design), `ClearAll_UnloadsUploadedFile` (samples/sample_
+  patients.csv → "No file loaded", `Binding` null), `ClearAll_KeepsPinnedFooter_
+  Visible` (footer + button survive the reset).
+- **Impact:** (+) predictable factory ground on demand; (+) welcome-card fix
+  (D-109) is now reachable by the user, not only on launch. (−) none observed.
+- **Alternatives considered:** binding a new MainViewModel RelayCommand
+  directly to the button (rejected — would skip or duplicate the existing
+  confirmation dialog); keeping the reset config-only (rejected — that is the
+  bug being fixed).
