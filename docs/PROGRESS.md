@@ -2,6 +2,13 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+> **Process note (owner, 2026-09-17):** the deep-dive authoring was intended to
+> run after all phases complete, but was started early on its own branch
+> (`docs/deep-dive-ch1-6`). From now on, deep-dive authoring sessions must run
+> against `main` (or a clean docs branch off `main`), NOT interleaved with
+> feature work. (Triggered by the 6c.4 commit landing work-tree changes that
+> straddled the feat and docs branches.)
+
 ### Phase 6c.4 — per-server utilisation widget (2026-09-17 01:35)
 
 Owner confirmed placement by DECISION message (superseding a quick answer):
