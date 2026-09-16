@@ -2,6 +2,51 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 09:05
+Branch: `docs/deep-dive-ch1-6`
+Status: Clean (committed, pushed, uncommitted = none)
+Done
+Project deep-dive Session B — chapters 7–9 of `docs/PROJECT_DEEP_DIVE.md` (TODO deep-dive row updated: Session B component done): ch. 7 Core deep walk (30 files, all sections with file:line citations — Engine DES loop, EventType stage-mapping, FEL tie-break D-033, NetworkTopology ρ/effective-rate D-007/D-015, ClinicCalendar day model D-051, trace sink feature D-055..D-058), ch. 8 Data deep walk (30 files — validator rules incl. the D-008/D-038 Reception-anomaly split, TimeParser formats D-039, fitting pipeline D-040..D-044 incl. MoM Gamma D-041 and n-denominator Normal/Lognormal D-043), ch. 9 CLI deep walk (9 files — subcommand dispatcher, exit codes 0/1/2, D-037 clean refusal, trace command as M4 viva artifact). Verified against all 30 Core + 30 Data + 9 Cli source files (glob-confirmed; earlier "31/31" counts corrected to 30/30), decision IDs cross-checked against DECISIONS.md entries.
+
+In Progress
+Project deep-dive — Sessions C–E (ch. 10–18 + PDF) await owner "go".
+
+What is complete: chapters 7–9 written with file:line citations; Document Status row B updated to "written 2026-09-16"; TODO deep-dive row updated; all claims verified against read source files in this session. NOTE: earlier summary claimed Core=31/Data=31 files; glob on 2026-09-16 Session B confirmed Core=30, Data=30, Cli=9 — corrected in chapters and this handoff (reality wins per AGENTS §14.2).
+
+What remains: Sessions C–E (ch. 10–11 App/Tests, ch. 12–15, ch. 16–18 + PDF), each gated by owner "go"; PDF renderer = wkhtmltopdf (pandoc/xelatex/weasyprint all absent; no sudo-permitted installs). DEV_LAUNCH.md:177 "272 tests pass" vs §6 "278" reconciliation still deferred to a docs pass (do NOT edit without owner OK — DEV_LAUNCH has a 6c.3 row already).
+
+Next Session Should Start With
+Session C — chapters 10–11 (App, Tests) per the task brief; commit "docs: deep dive, chapters 10-11", push, wait for "go".
+
+Blocked
+None.
+
+Git State
+Commits made this session: (pending commit of docs/PROJECT_DEEP_DIVE.md + TODO + PROGRESS, listed in report)
+Pushed to origin: pending owner "go" check — feature branch `docs/deep-dive-ch1-6` will be pushed by the agent at owner go-gate.
+
+Uncommitted changes: docs/PROJECT_DEEP_DIVE.md (modified), docs/TODO.md (modified), docs/PROGRESS.md (modified)
+
+Build & Test
+dotnet build: PASS (0 warnings/errors — verified in 6c.3 session gate, unchanged this docs-only session)
+dotnet test: PASS — 278 green (Core 85 / Data 58 / Cli 35 / App 100) per 6c.3 gate result (DEV_LAUNCH:6)
+
+Warnings: 0
+
+Files Touched
+docs/PROJECT_DEEP_DIVE.md: modified (ch. 7–9 added before Incremental Update Rule; Document Status row B)
+docs/TODO.md: modified (deep-dive row → Session B done)
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+None (docs-only session; no new decision required).
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+Session C reads all App + Tests source files (30 folders) before writing ch. 10–11. DEV_LAUNCH.md:177 "272" reconciliation still pending owner review.
+
 ### Session Handoff — 2026-09-16 08:20
 Branch: `docs/deep-dive-ch1-6`
 Status: Clean (committed, pushed, uncommitted = none)
