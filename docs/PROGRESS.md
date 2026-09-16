@@ -2,6 +2,675 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 5d — 2026-09-16 06:10 — config panel refinements (μ relocation, α selector, stage-count mismatch warning)
+
+- **5d.1 (D-112):** Stages rows are now **topology only** — the editable per-row
+  "Service rate μ" field is removed; each row shows a read-only source label
+  (`μ = 0.50 (from data)` / `μ = 0.50 (manual)` / `μ = — (no source)`) maintained
+  by `RefreshStageSourceLabels()` across load, Parameter-list change, mode
+  toggle, Parameters toggle and stage resize. The single manual entry point is
+  the Parameters comma list. `SimulationCoordinator.BuildStageSpecs` returns a
+  `(Specs, MissingStageName)` tuple and the run is refused with
+  `String.Format(MissingServiceRateMessage, …)` naming the stage. `RecomputeRho`
+  now uses the identical λ/μ sources so the ρ preview and the run cannot
+  disagree. 5d.1's old message snippet is superseded by the canonical 5d.3
+  wording (logged in D-114).
+- **5d.2 (D-113):** Model gains "Significance level (α)" (default 0.05), strict
+  (0,1) blur validation with exact error strings and Start blocking;
+  `SignificanceLevelForRun` threads through `SimulationCoordinator.Run` →
+  `BuildFits` → `FitsService.Fit(…, alpha)` → `ChiSquareTest.Run` (Data API
+  unchanged — it already took α). Results caption now dynamic via
+  `ResultsPanelViewModel.SetChiSquareAlpha`, restored on Clear All.
+- **5d.3 (D-114):** loading data whose detected stage count differs from the
+  configured list raises an **amber warning** (theme `BrushWarning*` tokens,
+  D-115) in the Data section with exact counts + names and two actions:
+  **Sync stages from data** (themed confirm → `SyncStagesToData()` resizes,
+  adopts names, refreshes labels, clears warning) and **Keep current stages**
+  (non-destructive dismiss). 5d.1-vs-5d.3 message conflict resolved to the
+  "NEW" wording as the single canonical banner.
+- **5d.4 (D-115):** ErrorBanner gained `BannerSeverity` (Error/Warning/Info)
+  with theme-resource colours and a `BrushOf` fallback keeping the build at 0
+  warnings; automation name `"{Severity}: {Message}"`.
+- **Tests (17 new, Phase5dConfigTests + Phase5dScreenshot):** default/nosource
+  labels + Start enabled; fitted label from data; manual label only while
+  Parameters on; missing-μ refusal names the stage ("Stage 'Doctor' has no
+  service rate…" via a temp 2-stage CSV whose p_exit = 0.5); SignificanceLevel
+  default/zero/one/non-numeric; α flows into chi-square verdicts (120-sample
+  guaranteed-degenerate-free series asserts a real verdict at 0.01 and
+  0.05); coordinator threads α through the data batch; caption reflects α and
+  resets; mismatch N<M, N>M (temp 2-stage CSV vs StageCount 1); Sync resizes +
+  names + clears + refreshes labels; Sync command asks for confirmation
+  without resizing; Keep dismisses. Screenshots host the real ConfigPanel:
+  `logs/screenshots/phase-5d-config.png` (sample loaded vs 3 stages → amber
+  warning + α field) and `phase-5d-cleared.png` (after Clear All → default
+  no-source labels, warning gone).
+- **Gate:** Release build 0 errors/0 warnings; **256 green** (Core 85 / Data
+  58 / Cli 35 / App 78); real launch 15 s alive `timeout 15 dotnet run
+  --project src/OpdSimulator.App --no-build -c Release` → exit 124, "Application
+  started. Main window created." at 05:53:05 in `logs/app-20260916.log`, crash
+  log mtime unchanged (02:49). Docs synced: DECISIONS D-112..D-115, DEV_LAUNCH
+  §6 (256) + changelog row, USER_MANUAL (Service rate / Significance level /
+  new α + μ steps 4–8 / refuse paragraph), CONTEXT D-100 assumption updated to
+  VERIFIED/superseded by D-112, TODO phase-5d [x], D-106 polish row marked
+  fixed.
+
+### Phase 5c.4 — 2026-09-16 05:36 — Clear All performs a full reset to the fresh-launch state
+
+- Owner-reported bug: Clear All reset the fields but left the previous run's
+  metrics, chi-square, trace and banner on the results panel with the welcome
+  card hidden — the opposite of "return to the clear screen".
+- `MainViewModel.ResetAll()` (invoked by ConfigPanel.axaml.cs after the
+  themed confirmation; fallback to config-only `ResetToDefaults()` when no
+  MainWindow hosts the panel) = `Config.ResetToDefaults()` (already unloads
+  the file: `Binding=null`, `LoadedFileName=null`, "No file loaded") + the new
+  `ResultsPanelViewModel.Reset()` (welcome card back, `HasRun=false`,
+  `RunError=null`, `TraceText=""`, SystemMetrics/StageRows/ChiSquareRows
+  cleared, preview rows dropped; then `ApplyPreferences()` re-applies the
+  persisted widget-visibility set — CONTENT resets, VISIBILITY preferences
+  survive by design, FR-UI-21). Information log line. Tooltip updated (D-111).
+- Three tests added (App +3 = 61): `ClearAll_ResetsResultsPanel_ToWelcomeState`,
+  `ClearAll_UnloadsUploadedFile` (loads samples/sample_patients.csv, asserts
+  "No file loaded" + `Binding` null), `ClearAll_KeepsPinnedFooterVisible`.
+- Hermeticity note: a stale `~/.config/OpdSimulator/ui.json` containing
+  "dataPreview" (a one-off artifact from the first test run) made the reset
+  test read a non-default visibility set. Root cause: visibility is a
+  persisted preference, so the assertion was corrected to the reset CONTRACT —
+  widget content empty, not the visibility flag. With a clean store the suite
+  is hermetic (verified twice: no ui.json written, store unchanged when
+  seeded with defaults).
+- Gate: Release build 0/0; **full suite 239 green** (Core 85 / Data 58 / Cli
+  35 / App 61); real launch 15 s alive "Main window created." + crash log
+  unchanged; DEV_LAUNCH §6 refreshed.
+
+### Phase 5c, part 2 — 2026-09-16 05:10 — traceSink forwards through the calendar Engine.Run (5c.3)
+
+- Owner approved the minimal Core change (byte-compatible additive seam).
+  `Engine.cs` calendar `Run` gained `ITraceSink? traceSink = null`, forwarded
+  to `RunCore`; the minutes-horizon overload already had one (D-110).
+- **Core byte-compatibility proven: 85 green BEFORE the edit AND 85 green AFTER.**
+- App side: `SimulationCoordinator` now passes its `CollectionTraceSink` in
+  EVERY run mode; the "Only the Diagnostic trace mode records events (D-105)"
+  placeholder was removed from ResultsPanel.axaml.
+- Test fallout handled: the failing new test (`TraceViewer_PopulatesAfterClinicDayRun`)
+  was a TEST-DATA bug — `ManualMuPerStage` set one μ for the default 3-stage
+  config, so `BuildStageSpecs` refused with "Stage has no service rate…".
+  Fixed to `"0.8, 0.5, 0.4"` (one μ per stage), matching the screenshot
+  fixture. Two EXISTING Phase5RunFlowTests assertions
+  (`Assert.Empty(outcome.TraceLines)` on ClinicDay/MultiDay) were updated to
+  reflect the new reality — calendar runs now populate the trace.
+- Fresh-launch FR-UI-5 evidence: `Phase5cScreenshot.Render_FreshLaunchWelcome_
+  SavesWelcomeSnapshot` captures `logs/screenshots/phase-5c-welcome.png`
+  (welcome card with logos + "Group members" card, asserted in-test).
+- Gate: Release build 0/0; **full suite 236 green** (Core 85 / Data 58 / Cli 35
+  / App 58 — one more than the owner's 235 estimate because of the welcome
+  screenshot test); real launch smoke "Main window created." with crash log
+  unchanged (0 new entries); `phase-5c-results.png` regenerated (60.9 KB) +
+  `phase-5c-welcome.png` new (48.5 KB).
+
+### Phase 5c — 2026-09-16 03:20 — post-review fixes (5c.1 + 5c.2 done, 5c.3 blocked, checkpoint reached)
+
+Implemented and (mostly) gate-evidenced the first two Phase-5c fixes plus a
+discovered FR-UI-14 defect, then STOPPED at the owner's mandatory checkpoint
+because 5c.3 needs a Core decision (B-008).
+
+- **5c.1 — results column scrolls.** `Views/ResultsPanel.axaml` restructured:
+  the `HasRun` grid is now `RowDefinitions="Auto,*"` — the header row + the
+  "Customise results" toggle + widget picker are PINNED at the top; the
+  metrics / chi-square / data-preview / event-trace widgets sit in a
+  `ScrollViewer` (Vertical=Auto, Horizontal=Disabled) so the event trace no
+  longer has to fit vertically. The results column stays readable via
+  `MinWidth="540"` on the results `Border` in `MainWindow.axaml` — Avalonia's
+  compact grid parser rejects `MinMax(540,*)` with AVLN2005, so the minimum
+  moves to the border. Verified by `ResultsPanel_ScrollViewer_ContainsAllWidgets`.
+- **5c.2 — Wayland DBus quirk no longer crashes.** `App.axaml.cs` filter +
+  `CrashReporter.IsIgnorableWaylandQuirk` (internal, exposed to tests via the
+  repo's first `InternalsVisibleTo`). The 02:49 crash log was the historical
+  reproduction inside Tmds.DBus; message-level matching was chosen over type
+  matching because the class is `DBusException`, not `ServiceUnknown`
+  (D-107). Verified by `CrashReporter_IgnoresAppMenuRegistrarDBusError`.
+- **D-108 bug found + fixed:** `MainViewModel` passed `new WidgetPreferences()`
+  — never `Load()` — so persisted widget visibility was never restored, and
+  the default seed was all-off despite the documented all-on. Now loads + seeds
+  all-on. The dev machine's stale `ui.json` (`VisibleWidgets: []`) is flagged,
+  not deleted. This made all window-based UI tests run with hidden widgets;
+  the screenshot test now hosts its own `ResultsPanelViewModel` with explicit
+  temp-file preferences to stay hermetic.
+- **5c.3 — RESOLVED (B-008 → option (a)):** see the "Phase 5c, part 2" entry above — calendar `Engine.Run` now forwards an optional `ITraceSink` (D-110, Core 85 green before AND after); `SimulationCoordinator` collects a trace in every run mode; `TraceViewer_PopulatesAfterClinicDayRun` green. (Historical record below captured the blocked state for the viva's bug-fix narrative.)
+- **Gate evidence collected:** Release build 0/0; full suite **233 green**
+  (App +3 = 55); real launch smoke (3:18) 15 s alive "Main window created." +
+  crash-*.log unchanged; `logs/screenshots/phase-5c-results.png` (65 KB,
+  metrics + chi-square + populated State trace, in-test overflow assertion).
+- **Next:** owner decision on 5c.3 → commit 5c.1/5c.2 (+ D-107/D-108; the
+  owner-specified commit message mentions 5c.3, so it must be confirmed) →
+  push → Phase 5d.
+
+### Session Handoff — 2026-09-16 02:32
+Branch: feat/gui-rebuild (Phase 5 — STOPPED at the 5-H gate for owner review)
+Status: Clean (all changes below are committed/queued; Phase-5 code complete and gate-verified, awaiting owner review + merge per AGENTS §11.5)
+
+Done
+- Phase 5 (5-A..5-H) — ResultsPanel + run flow on feat/gui-rebuild: coordinator seam (D-104), three-valued RunMode with DiagnosticTrace (D-105), welcome card, widget selector, refusal banners, 8 run-flow tests + gate screenshot.
+
+In Progress
+- None (STOPPED at the Phase 5 gate; owner must review + merge into main before Phase 6 — TODO row for Phase 5 flips `[x]` only after merge)
+
+What is complete:
+- 5-B — `Models/{RunMode,SimulationParameters,DataBindingResult,FitReport}.cs`, `Services/{DataAnalyzer,FitsService,CollectionTraceSink,WidgetPreferences,SimulationCoordinator}.cs`; DECISIONS D-104 + D-105. Commit `3901016`.
+- 5-Config — `ConfigPanelViewModel` run modes + per-mode gating + `TryBuildRunParameters` + `Binding` analysis on load; ConfigPanel 3rd radio + Horizon(minutes) field. Commit `c3d4bcd`.
+- 5-C/5-D/5-A — `CourseInfo.cs` (App), `WelcomeCardViewModel`, `WelcomeCard.axaml(.cs)`, `ResultsPanelViewModel`, `ResultsPanel.axaml(.cs)` (metrics / chi-square / trace / preview widgets, customise toggle, ErrorBanner), MainViewModel wiring (Task.Run + Dispatcher.UIThread.Post), MainWindow col-2 → ResultsPanel. Commit `61755ad`.
+- 5-G — `Phase5RunFlowTests.cs` (8 tests: trace detail by level, diagnostic run records arrivals, ClinicDay = single-session no-trace, MultiDay exact day count, missing-λ and p_exit=1.0 and unstable-refusal banners, welcome-card swap). Fixed `TryBuildRunParameters` seed gating (Advanced seed must not gate Start — D-106) and comma-list μ backfill. Commit `e59729b`.
+- 5-H gate — Release build **0 errors / 0 warnings**; full suite **230 green** (Core 85 / Data 58 / Cli 35 / App 52), 0 failed; gate screenshot `logs/screenshots/phase-5-results.png` rendered from a completed diagnostic run (λ 0.1; μ 0.8/0.5/0.4; TraceLevel State; horizon 1500 min) via the new `Phase5Screenshot.cs` test. Docs updated for the gate: DECISIONS D-106, REQUIREMENTS rows FR-UI-3/5/9/14/20/21 re-pointed at rebuilt sources + Phase-5 tests, USER_MANUAL §5/§6/§7/§9/§12, TODO Phase 5 row + 2 polish items, PROGRESS (this entry), and new `docs/VIVA_ANSWERS.md`.
+
+What remains:
+- Owner review + merge of feat/gui-rebuild into main; then Phase 6 (Help tab + preset system).
+
+Next Session Should Start With
+- Owner review/merge gate for feat/gui-rebuild, then Phase 6 — Help tab (Markdig) + preset system (TODO line ≈43)
+- Post-Phase-5 polish items in TODO §5-A1 (manual-μ consolidation; trace-widget scroll performance)
+
+Blocked
+- None (B-007 keyboard-acceptance rows remain owner-blocked for a later manual pass per D-089)
+
+Git State
+- Commits made this session: b861ae8 (4c, prior entry) → 3901016 (5-B), c3d4bcd (5-Config), 61755ad (5-C/5-D/5-A), e59729b (5-G tests); Phase5Screenshot.cs + docs queued for the final gate commit
+- Pushed to origin: yes, history pushed with the Phase-5 row (feat/gui-rebuild); final gate commit pushes with this entry
+
+Build & Test
+- dotnet build: PASS (Release) — 0 errors, 0 warnings
+- dotnet test: PASS — 230 green (Core 85 / Data 58 / Cli 35 / App 52), 0 failed
+
+Decisions Made
+- D-104 — Coordinator seam for refused runs (topology built inside the try; G3/G4)
+- D-105 — Three-valued RunMode ClinicDay | MultiDay | DiagnosticTrace
+- D-106 — Manual-μ dual-source resolution (stage row wins, list backfills) + seed never gates Start
+- (full entries in DECISIONS.md, appended in real time)
+
+Assumptions Added/Changed
+- D-100 [UNVERIFIED] from 2026-09-16 carried forward unchanged (blank per-stage μ → use fitted value)
+
+Notes for Next Session
+- The guest/Owner-review gates are STOP points: nothing may begin without an explicit "go".
+- Phase 5 flips `[x]` in TODO.md only after the owner merges the branch into main.
+
+### Session Handoff — 2026-09-16 02:05
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4c shipped, awaiting owner eye-ball for Phase 5)
+
+Done
+- Phase 4c — owner corrections to Phase 4b (feat/gui-rebuild): optional-OFF sections no longer gate Start (D-103 supersedes the D-102 deviation note); white/light header switch; single full-width blue section bar.
+
+In Progress
+- None (STOPPED at the Phase 4c gate; Phase 5 not started)
+
+What is complete:
+- 4c.1 — Toggled-OFF sections: `OnParametersIsOptionalEnabledChanged(false)` / `OnAdvancedIsOptionalEnabledChanged(false)` call `ClearError()` on their fields; `RecomputeBlockingState()` filters those fields out; toggling back ON re-evaluates Start without pre-flagging (re-validate on next blur). Phase-4 test `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables Parameters first; 3 new tests: `OptionalSection_ToggledOff_ClearsFieldErrors`, `OptionalSection_ToggledOff_DoesNotBlockStart`, `OptionalSection_ToggledOn_RevalidatesOnNextBlur` (note: CommunityToolkit setters skip the callback on an unchanged value, so ground-false is a no-op — tests use real true→false transitions).
+- 4c.2 — Custom `HeaderToggleSwitch` ControlTheme: white/light track+knob readable on the blue bar (dark knob on white track OFF; white knob on dark track ON). ToggleSwitch requires `PART_MovingKnobs` to be a `Panel` (AVLN2207); inline part Styles inside a ControlTheme need `x:SetterTargetType` (AVLN2200) — build lessons logged in D-103.
+- 4c.3 — Header is now ONE brand-green bar spanning the full card width (top corners `8,8,0,0`), padding `ThicknessSectionHeader`, title white, InfoIcon far-right, switch between; expanded content sits on the panel-white background below the bar (no second coloured frame).
+- A temp `Exclude="Assets\**\*.axaml"` csproj experiment was reverted (it stopped App.axaml compiling — explicit items suppress SDK defaults); the transient duplicated-`AvaloniaResources` manifest that crashed headless `StandardAssetLoader` was a stale partial compile and cleared on clean rebuild.
+
+What remains:
+- Phase 5 — ResultsPanel + run flow, awaiting the owner's second "go".
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 41)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: f7641b1 (Phase 4b, prior session block) → (Phase 4c commit lands with this entry)
+- Pushed to origin: pushed with this entry (feat/gui-rebuild)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 221 green (Core 85 / Data 58 / Cli 35 / App 43), 0 failed
+
+Decisions Made
+- D-103 — Optional section OFF means its fields do not participate in Start gating (supersedes the D-102 deviation note; also logs the HeaderToggleSwitch build lessons)
+
+Assumptions Added/Changed
+- None new (D-100 [UNVERIFIED] from 2026-09-16 carried forward unchanged)
+
+### Session Handoff — 2026-09-16 01:35
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4b shipped, awaiting owner "go" for Phase 5)
+
+Done
+- Phase 4b — ConfigPanel UI corrections (feat/gui-rebuild): white section headers on brand-green bars with 12,10 padding (`ThicknessSectionHeader`), InfoIcon right-anchored in a new `Auto,*,Auto,Auto` header grid, and optional-section enable toggles (Parameters + Advanced) that disable/dim descendant fields with FR-UI-7 tooltips while OFF and persist in the VM (D-101/D-102).
+
+In Progress
+- None (STOPPED at the Phase 4b gate; Phase 5 not started)
+
+What is complete:
+- Phase 4b gate: Release build 0/0; 218 green (Core 85/Data 58/Cli 35/App 40, +5 tests); real launch 15s alive "Main window created." 0 new crash logs; screenshot `logs/screenshots/phase-4-config.png` regenerated (43 KB); DECISIONS D-101/D-102, TODO 4b [x], DEV_LAUNCH §6 + Changelog row.
+
+What remains:
+- Phase 5 ResultsPanel + run flow — awaiting owner "go".
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 40)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: (Phase 4b commit lands with this entry)
+- Pushed to origin: No — pushed after this block (feat/gui-rebuild)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 218 green (Core 85 / Data 58 / Cli 35 / App 40), 0 failed
+
+Decisions Made
+- D-101 — CollapsibleSection header redesign (see DECISIONS.md)
+- D-102 — Optional-section enable-toggle pattern (see DECISIONS.md)
+
+Assumptions Added/Changed
+- Start-blocking stays independent of the optional toggles (any field error blocks Start) — required to keep the Phase-4 baseline (p_exit = 1 blocks at factory ground) green; the "off = not supplied" rule governs run parameters + ρ preview. Flagged in DECISIONS D-102 for owner awareness.
+
+### Session Handoff — 2026-09-16 01:10
+Branch: feat/gui-rebuild
+Status: Clean (Phase 4 shipped, awaiting review)
+
+Done
+- Phase 4 — ConfigPanel (feat/gui-rebuild): Data / Model / Parameters / Stages 1–5 / Horizon / Advanced + PinnedFooterBar Start & Clear All. Files: `Views/ConfigPanel.axaml(.cs)`, `ViewModels/ConfigPanelViewModel.cs`, `ViewModels/ConfigFieldViewModel.cs`, `ViewModels/MainViewModel.cs`, `tests/Phase4ConfigTests.cs`; `MainWindow.axaml` now hosts `<views:ConfigPanel DataContext="{Binding Config}"/>`.
+
+What is complete:
+- Six CollapsibleSection groups in one ScrollViewer + pinned footer (D-096); p_exit visible only for 2+ stages (D-097) and boundary [0,1) enforced inline, blocking Start (D-098); stages resize live 1–5 with default names Reception/Screening/Doctor/Stage 4/Stage 5 (D-099, D-100); blur-based validation routed via the `ConfigPanelValidation.ValidationKey` attached property; Upload → DataLoaderFactory row count; Clear All → ThemedDialog confirm then reset.
+
+What remains:
+- Phase 5 ResultsPanel + run wiring (awaiting owner "go" — STOP at phase boundary per gate).
+
+Next Session Should Start With
+- Phase 5 — ResultsPanel + run flow (TODO line 39)
+
+Blocked
+- None
+
+Git State
+- Commits made this session: <pending — one Phase 4 commit after this entry>
+- Pushed to origin: Yes (after commit)
+- Uncommitted changes: none (commit lands with the Phase 4 commit)
+
+Build & Test
+- dotnet build: PASS — 0 errors, 0 warnings
+- dotnet test: PASS — 213 green (Core 85 / Data 58 / Cli 35 / App 35), 0 failed
+
+Files Touched
+- src/OpdSimulator.App/Views/ConfigPanel.axaml, ConfigPanel.axaml.cs: added
+- src/OpdSimulator.App/ViewModels/ConfigFieldViewModel.cs, ConfigPanelViewModel.cs, MainViewModel.cs: added
+- src/OpdSimulator.App/Views/MainWindow.axaml: modified (DataContext → MainViewModel; column-0 Content → ConfigPanel)
+- tests/OpdSimulator.App.Tests/Phase4ConfigTests.cs: added (10 tests incl. screenshot)
+- docs/: TODO.md, PROGRESS.md, DECISIONS.md, DEV_LAUNCH.md, CONTEXT.md
+
+Decisions Made
+- D-096 ConfigPanel layout (ScrollViewer + pinned footer)
+- D-097 p_exit hidden for 1-stage configs
+- D-098 p_exit boundary [0,1) matches Core
+- D-099 Stage row is a dedicated view-model class (not a tuple)
+- D-100 Blank service-rate = fitted fallback; Start enabled by default
+
+Assumptions Added/Changed
+- D-100 tagged [UNVERIFIED] in CONTEXT.md — blank per-stage rate means "use fitted value" (needs owner sign-off vs PRD "double > 0")
+
+Notes for Next Session
+- Phase 4 verified live on 2026-09-16: real launch 15 s "Application started. Main window created.", 0 new crash entries; screenshot `logs/screenshots/phase-4-config.png`.
+
+## GUI REBUILD — Phase 5 — ResultsPanel + Run Flow — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — Phase 5 code complete and gate-verified; awaiting owner
+review + merge of feat/gui-rebuild into main (AGENTS §11.5). Phase 6 not started.**
+
+What shipped (commits `3901016`, `c3d4bcd`, `61755ad`, `e59729b`):
+- **D-104 — Coordinator seam.** `Services/SimulationCoordinator.Run` owns the
+  whole run: the topology is built **inside** the try (a ρ ≥ 1 topology throws
+  `UnstableSystemException`; an out-of-range `exitProbability` throws
+  `ArgumentOutOfRangeException`), so the VM can never crash the UI thread and
+  the refusal banner shows the exact Core message. Returns a structured
+  `RunOutcome(Result?, Fits, TraceLines, EffectiveExitProbability, Error?)`.
+  Two dedicated banners: `MissingArrivalRateMessage` (no manual λ **and** no
+  valid loaded data) and `FittedPExitEqualsOneMessage` (every data row exits
+  at Screening so the Doctor stage is unreachable — recompute with an override,
+  G3/G4). `DataAnalyzer` is the single data-source path; fitted λ is null
+  only for < 2 arrivals.
+- **D-105 — Three-valued RunMode ClinicDay | MultiDay | DiagnosticTrace.**
+  Only DiagnosticTrace reveals Horizon (minutes) (int ≥ 1, default 10000) and
+  the Trace-level dropdown, and hides Days/Start day/Daily cap; the other modes
+  hide Horizon + Trace level. Start gating follows 4-c.1 (visible fields only);
+  leaving a mode clears its hidden field's stale error. Dispatching (frozen
+  Core untouched): DiagnosticTrace → `Engine.Run(topology, seed, horizonMinutes,
+  sink)`; ClinicDay/MultiDay → `Engine.Run(topology, ClinicCalendar(startDay),
+  generatorDays, seed, dailyCap)` (calendar overload hardcodes `traceSink: null`,
+  so only diagnostic runs produce a trace).
+- **D-106 — manual-μ resolution.** Per-stage `ServiceRate` row wins; the
+  Parameters `ManualMuPerStage` list backfills blanks, both after rate/mean
+  conversion. Raw `Seed.Value` never gates Start (Advanced is optional);
+  `EffectiveSeed` falls back to 42 — a bug found during 5-G where the factory-
+  default config was un-startable.
+- **5-C/5-D/5-A — welcome card + results panel.** `CourseInfo.cs` constants;
+  `WelcomeCardViewModel`/`WelcomeCard.axaml` (logo, members, CS-577, professor
+  — themed with rebuilt tokens); `ResultsPanelViewModel`/`ResultsPanel.axaml`
+  with the metrics table, per-stage ρ block, chi-square, trace, and data
+  preview widgets, a "Customise results" widget toggle persisted via
+  `WidgetPreferences`, and the ErrorBanner. `MainViewModel` subscribes to
+  `RunRequested`, runs the coordinator on a `Task.Run` worker and posts status
+  back with `Dispatcher.UIThread.Post`; `MainWindow` column-2 placeholder →
+  ResultsPanel.
+- **5-G — 8 run-flow tests** (`Phase5RunFlowTests.cs`): trace detail by level,
+  diagnostic run records arrivals, ClinicDay = one-session run with no trace,
+  MultiDay generates exactly the requested days, and the three refusal banners;
+  welcome card visible initially and replaced by the first run attempt.
+
+**§18 verification — Phase 5 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless run-flow tests: 8 in `Phase5RunFlowTests.cs` (see above) — all pass.
+- Screenshot `logs/screenshots/phase-5-results.png` (62 KB) rendered by the new
+  `Phase5Screenshot.cs` headless test: a full `MainWindow` after a *completed*
+  diagnostic run — λ 0.1, μ 0.8/0.5/0.4, TraceLevel State, horizon 1500 min —
+  showing metrics + chi-square + trace populated. (Agent cannot visually inspect
+  the image — owner to eyeball.)
+- This gate's launch smoke is the screenshot test itself (it constructs the real
+  `MainWindow` and dispatches a real run end-to-end). Real-display launch and
+  §16.8 keyboard walk remain owner-required (per D-089, captured in B-007).
+
+Gate evidence:
+- `dotnet build OpdSimulator.sln -c Release` → 0 errors, 0 warnings (the
+  README/DEV_LAUNCH release command in §4).
+- `dotnet test OpdSimulator.sln -c Release --no-build` → **230 green** (Core 85
+  / Data 58 / Cli 35 / App 52), 0 failed.
+- Docs updated at the gate: DECISIONS D-106 (D-104/D-105 were logged when the
+  decision was made, §9.3); REQUIREMENTS rows FR-UI-3/5/9/14/20/21 re-pointed at
+  rebuilt sources + Phase-5 tests; USER_MANUAL §5/§6/§7/§9/§12; TODO Phase 5 row
+  + §5-A1 polish items; new `docs/VIVA_ANSWERS.md` (`Phase 5` section). DEV_LAUNCH
+  unchanged — the build/launch commands did not change this phase (§10.2).
+- Dev-notes: `ValidateHorizonMinutes` is registered under the `horizon-minutes`
+  validation key in `ConfigPanel.axaml.cs`; the chi-square row maps validation
+  rows `RowNumber` (1-based) to preview index −1; the 5-G seed-gating bug above
+  was caught because the tests exercised a factory-default config.
+
+## GUI REBUILD — Phase 4c — Owner Corrections to Phase 4b — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner eye-ball of `logs/screenshots/phase-4-config.png` before Phase 5.**
+
+Three owner-reported defects in Phase 4b, fixed:
+
+- **4c.1 — Toggled-OFF fields must not block Start (D-103).**
+  Prior behaviour (D-102 deviation note): with the Parameters toggle OFF an
+  error in `p_exit` etc. still disabled the Start button. Now an OFF optional
+  section contributes nothing: `OnParametersIsOptionalEnabledChanged(false)` /
+  `OnAdvancedIsOptionalEnabledChanged(false)` call `ClearError()` on all of
+  the section's fields (so stale red borders disappear too), and
+  `RecomputeBlockingState()` only includes `ManualLambda`/`ManualMuPerStage`/
+  `PExit` when `ParametersIsOptionalEnabled` and `Seed` when
+  `AdvancedIsOptionalEnabled`. Flipping the toggle back ON re-runs
+  `RecomputeBlockingState()` but pre-flags nothing — each field re-validates
+  on its next blur. (Start gating therefore depends only on what the user is
+  actually using.) Tests in `Phase4ConfigTests.cs`: `OptionalSection_ToggledOff_
+  ClearsFieldErrors`, `OptionalSection_ToggledOff_DoesNotBlockStart`,
+  `OptionalSection_ToggledOn_RevalidatesOnNextBlur`; the Phase-4 baseline
+  `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables the Parameters
+  toggle first so its assertion still exercises blocking.
+- **4c.2 — White/light toggle on the blue header.** The Fluent `ToggleSwitch`
+  exposes no knob colour properties (only `KnobTransitions`/`OnContent`/
+  `OffContent`), so its dark knob vanished against the brand bar. A local
+  `HeaderToggleSwitch` ControlTheme draws an explicit track + knob: white
+  pill with a dark-green knob when OFF, dark-green pill with a white knob
+  when ON, 2 px focus ring on `:focus-visible`. Two compiled-XAML contracts
+  surfaced as build errors and are logged in D-103: the knob part must be
+  named `PART_MovingKnobs` and typed `Panel` (ToggleSwitch's knob-animation
+  contract, AVLN2207), and inline part Styles inside a `ControlTheme` need
+  `x:SetterTargetType="Border|Panel"` so compiled setters know each part's
+  CLR type (AVLN2200).
+- **4c.3 — Single blue bar, no blue-on-green.** The header bar previously
+  rendered as an inner blue box inset within the outer card Border (its
+  corner radius + padding showed the panel background around it). The whole
+  outer Border is now a plain rounded card; the brand-green bar spans the
+  full width (top corners `8,8,0,0` to match the card), carries the white
+  title, the right-anchored switch, and the InfoIcon, and the expanded body
+  sits on the panel-white background beneath with `ThicknessSpaceM` padding.
+  No background behind the bar; no ControlStyles/theme-token changes.
+
+Build & test notes (logged for the viva): a mid-fix partial compile left a
+stale `AvaloniaResources` manifest with `/Assets/ControlStyles.axaml` twice
+(crashed headless `StandardAssetLoader` with a duplicate-key ArgumentException
+— masked on incremental builds); a clean rebuild after the axaml errors were
+fixed resolved it. A tentative `Exclude="Assets\**\*.axaml"` on the
+`AvaloniaResource` glob was reverted: explicit AvaloniaResource items suppress
+the SDK's default axaml items, so excluding axaml silently dropped `App.axaml`
+("No precompiled XAML found").
+
+Verified live on 2026-09-16: Release build 0/0; full suite **221 green**
+(Core 85 / Data 58 / Cli 35 / App 43); 15 s real launch "Application started.
+Main window created."; 0 new crash logs (only stale `crash-20260915.log`);
+screenshot `logs/screenshots/phase-4-config.png` regenerated (45 KB, 01:56).
+
+## GUI REBUILD — Phase 4b — ConfigPanel UI Corrections — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 5.**
+
+What shipped:
+- **4b.1** `CollapsibleSection` header title now renders **white** on a
+  **brand-green bar** (`Foreground BrushTextOnBrand`, background
+  `BrushBrandGreen`); chevron stroke matches (D-101).
+- **4b.2** New theme resource **`ThicknessSectionHeader = "12,10"`** — the blue
+  bar's vertical padding grows to 10 px top/bottom, left/right stay 12 px.
+- **4b.3** Header layout re-built as `Grid ColumnDefinitions="Auto,*,Auto,Auto"`:
+  collapse ToggleButton (chevron + title) spans the first two columns so a
+  click still collapses; the **InfoIcon is anchored to the far right** and the
+  unused header ContentPresenter is removed (D-101).
+- **4b.4** **Optional-section toggle pattern** (D-102): `CollapsibleSection`
+  gains `IsOptional` + two-way `IsEnabledToggle` and a header `ToggleSwitch`.
+  **Parameters** and **Advanced** are flagged optional and default **OFF**;
+  while OFF the section content is `IsEnabled=false` + `Opacity 0.5` and every
+  descendant field gets the injected FR-UI-7 tooltip "Enable '\<Section\>'
+  above to edit this field." (hand-authored tooltips win). State lives in the
+  VM — Clear All resets both toggles to OFF.
+- Semantics when OFF: Parameters → run sees no manual λ/μ/p_exit
+  (`ParametersSupplied == false`), ρ preview reads "—" (`RecomputeRho` needs
+  the toggle on); Advanced → `EffectiveSeed` **42**, `EffectiveTraceLevel`
+  **State**. Start-blocking equation deliberately unchanged from Phase 4
+  (field errors block regardless of toggle — required by the 213-test
+  baseline, D-102).
+
+**§18 verification — Phase 4b verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests (5 new, `tests/OpdSimulator.App.Tests/Phase4bConfigTests.cs`):
+  `OptionalSection_ToggleOff_DisablesFields` (3 fields present, effectively
+  disabled, dimmed body, FR-UI-7 tooltip text), `OptionalSection_ToggleOn_
+  EnablesFields` (switch → section → VM chain, fields re-enabled, opacity
+  restored), `ClearAll_ResetsOptionalTogglesToOff`, plus two VM-behaviour tests
+  (Parameters off ⇒ `ParametersSupplied == false` + ρ "—"; Advanced off ⇒
+  seed 42 / trace State).
+- Real launch (Wayland box, capture blocked per D-089): `timeout 15 dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → **"Application
+  started. Main window created."**, killed by timeout, **0 new crash log
+  entries** (only stale `crash-20260915.log`).
+- Screenshot `logs/screenshots/phase-4-config.png` **regenerated** (43 KB) by
+  the existing Phase-4 screenshot test — owner to eyeball the new headers.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **218 green** (Core 85 / Data 58 / Cli 35 /
+  App 40), 0 failed.
+- Real launch 15 s alive, "Main window created." logged, 0 new crash logs.
+- Docs: DECISIONS D-101 + D-102; TODO Phase 4b [x]; DEV_LAUNCH §6 refreshed
+  (218 tests) + Changelog row.
+- Dev-notes: (`IsEnabled` reports the local value; effective inheritance is
+  `IsEffectivelyEnabled` — the disable assertions use the effective value.)
+
+## GUI REBUILD — Phase 4 — ConfigPanel — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: passed — Phase 5 NOT started (owner "go" required).**
+
+What shipped:
+- `ConfigPanel` replaces the Simulation-tab column-0 placeholder: one
+  ScrollViewer with six CollapsibleSections and a pinned footer
+  (Start Calculation + Clear All) outside the scroll area (D-096).
+  1 · Data (Upload → DataLoaderFactory, "No file loaded" / "Loaded N rows from …"),
+  2 · Model (two SearchableDropdowns + Rate-wise/Mean-wise radio, CONTEXT §5.6),
+  3 · Parameters (manual λ, manual μ comma-list, live ρ-per-stage summary, p_exit
+  override shown only for 2+ stages — D-097, boundary [0,1) — D-098),
+  4 · Stages (count 1–5 resizes rows live; default names Reception/Screening/Doctor/
+  Stage N; per-row Servers + Service rate) — D-099,
+  5 · Horizon (Single day default / Multi-day + Days + Start day, optional Daily cap),
+  6 · Advanced (Random seed default 42, Trace level default State).
+- `ConfigFieldViewModel` wraps value + HasError + ErrorMessage with blur-clear
+  behaviour (FR-UI-17); `MainViewModel` exposes the Config panel; MainWindow
+  DataContext is now a MainViewModel (FR-UI-21 clean start, no auto-restore).
+- Blur-time validation is routed from the view to the VM through the
+  `ConfigPanelValidation.ValidationKey` attached property; Clear All confirms via
+  ThemedDialog then resets every field to factory defaults (D-100).
+
+**§18 verification — Phase 4 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests (10 new, `test/OpdSimulator.App.Tests/Phase4ConfigTests.cs`): six
+  sections + pinned footer present; stage-count resize (3→5→1 with default names);
+  p_exit visible ⇔ stages ≥ 2; p_exit = 1 → exact inline error + `StartCalculationCommand`
+  disabled; p_exit = 0.4 accepted and Start enabled; stage-name/servers two-way
+  binding; Clear All reset (all fields verified); Clear All confirmation gate;
+  Upload request event; screenshot capture.
+- Real launch (Wayland box, capture blocked per D-089): `timeout 15 dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → **"Application started.
+  Main window created."** in `logs/app-20260916.log`, killed by timeout, **0 new
+  crash log entries** (`crash-20260915.log` untouched).
+- Screenshot `logs/screenshots/phase-4-config.png` (47 KB, headless; owner to
+  eyeball).
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **213 green** (Core 85 / Data 58 / Cli 35 / App 35), 0 failed.
+- Real launch 15 s alive, "Main window created." logged, 0 new crash logs.
+- Docs: DECISIONS D-096..D-100; CONTEXT assumption tagged; DEV_LAUNCH §6 refreshed
+  (213 tests) + Changelog row; TODO Phase 4 [x].
+
+## GUI REBUILD — Phase 3 MainWindow Shell — 2026-09-16 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 4.**
+
+What shipped:
+- `MainWindow` is now the shell: header bar + TabControl with four tabs —
+  **Simulation | Input Analysis | Token Generator | Help**.
+- Simulation tab: **380px config column / GridSplitter / fill results column**
+  (mirrors M5's 400,6,* split). Config/Results placeholders carry themed
+  "Phase 4/5" hints.
+- New reusable `Controls/PlaceholderContent` (Title + Hint) fills all four
+  tabs and will back the pre-build empty states until each real panel lands —
+  built once, reused in all tabs (§16.5). New `Border.PanelCard` style in
+  ControlStyles.axaml (theme tokens only).
+- ControlsDemo (Phase-2 showroom) is no longer hosted in MainWindow; its
+  screenshot test now hosts the demo in its own test window so the
+  `controls-demo.png` evidence path is preserved.
+
+**Keyboard contract (§16.7):** tab headers are the first focusable element;
+arrow-key selection between tabs is implemented natively by the TabControl and
+exercised headlessly (Right×2 → Input Analysis, Token Generator; Left → back).
+
+**§18 verification — Phase 3 verified on 2026-09-16 by agent (feat/gui-rebuild):**
+- Headless tests: 4 tab headers in order; Simulation default-selected; 380px
+  pixel column + star results column (found via TabControl content presenter —
+  the data grid is NOT a descendant of the TabItem, an Avalonia realisation
+  quirk); MinWidth/MinHeight 1100×700 + Maximized; arrow-key tab navigation.
+- Real launch (Wayland box, capture blocked per D-089): `dotnet run
+  --project src/OpdSimulator.App -c Release --no-build` → "Application started.
+  Main window created." in `logs/app-20260916.log`, killed by 15 s timeout,
+  **0 new crash-log entries** (`crash-20260915.log` untouched).
+- Screenshot `logs/screenshots/phase-3-shell.png` (headless; owner to eyeball).
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **203 green** (Core 85 / Data 58 / Cli 35 / App 25), 0 failed.
+
+## GUI REBUILD — Phase 2 Reusable Controls — 2026-09-15 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 3.**
+(Owner also owes the real-display §16.8 keyboard walk of the 9 controls —
+this box is Wayland, so headless evidence was used per D-089.)
+
+What shipped:
+- All nine reusable controls rebuilt/tested: ValidatedField, SearchableDropdown,
+  ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar,
+  DataPreviewTable, ErrorBanner.
+- `Views/ControlsDemo.axaml(.cs)` + `ViewModels/ControlsDemoViewModel.cs` —
+  showroom hosting every control live inside MainWindow for visual/keyboard review.
+- `tests/OpdSimulator.App.Tests/ControlsSmokeTests.cs` — 9 per-control `[AvaloniaFact]`
+  headless tests (tooltips/a11y names, error cause+remedy + clear-on-fix, type-to-filter
+  + Enter commit, toggle/collapse, dismiss, toast close-with-item, footer command via
+  real pointer click, dialog Escape→Cancel / primary→Primary via `KeyPressQwerty`,
+  sort cycle asc→desc→original + invalid-row banner).
+- `tests/OpdSimulator.App.Tests/ControlsDemoScreenshot.cs` — renders MainWindow →
+  `logs/screenshots/controls-demo.png` (69 KB frame; both png files identical render
+  because MainWindow is now the showroom).
+
+**Avalonia 11.3 API corrections surfaced during Phase 2 (see DECISIONS D-090..D-093):**
+- No WPF-style `GetTemplateChild`: `OnApplyTemplate(TemplateAppliedEventArgs)` +
+  `e.NameScope.Find("PART_…")`. XAML-name generator does not emit fields for
+  elements inside `ControlTemplate`.
+- `TemplatedControl` has no `Content`; `Shape` uses `StrokeJoin`; `StackPanel` has
+  no `Padding`; `Popup` uses `IsLightDismissEnabled`.
+- `ItemsRepeater` is NOT in Avalonia core; `Avalonia.Controls.ItemsRepeater` 11.x
+  stops at 11.1.5 with no `VirtualizingStackLayout` → replaced with virtualising
+  `ListBox` + code-built header buttons (D-090).
+- Compiled bindings reject `$parent[UserControl]` (resolves base) → must use
+  `$parent[controls:ConcreteType]`.
+
+**Real bugs caught by the tests (Rule 9 — tests encode intent):**
+- ErrorBanner: binding to inner `Root.IsVisible` meant the control could never
+  escape its hidden state → `IsVisible` now mirrors `Message` (D-093).
+- PinnedFooterBar: inner `ContentPresenter` bound to the UserControl's own `Content`
+  was self-recursive under Measure (`Border already has a visual parent`) →
+  control is now a `ContentControl` with a ControlTemplate (the chrome lives in the
+  template; caller content presents exactly once).
+
+**§18 verification — Phase 2 verified on 2026-09-15 by agent (feat/gui-rebuild):**
+| Control | Headless test | Evidence |
+|---|---|---|
+| ValidatedField | error shows cause+remedy, clears on fix, FieldLostFocus on blur | Pass |
+| SearchableDropdown | filter reduces 4→1, Enter commits SelectedItem | Pass |
+| ThemedDialog | Escape→Cancel, primary→Primary, buttons = 2 | Pass |
+| ThemedToast | severity text renders, Close runs with item | Pass |
+| CollapsibleSection | toggle flips IsExpanded | Pass |
+| InfoIcon | tooltip + automation name, help event | Pass |
+| PinnedFooterBar | enabled/disabled reflects PrimaryIsEnabled; command via real click | Pass |
+| DataPreviewTable | asc→desc→original cycle, invalid-row banner | Pass |
+| ErrorBanner | message visible on set, hidden on dismiss | Pass |
+- Screenshot `logs/screenshots/controls-demo.png` (headless, D-089; owner to eyeball).
+- **Not performed on this box (Wayland):** real-display keyboard walk (§16.8). Owner task.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings (clean `bin`/`obj`).
+- `dotnet test -c Release` → **197 green** (Core 85 / Data 58 / Cli 35 / App 19), 0 failed.
+
+## GUI REBUILD — Phase 1 Foundation — 2026-09-15 (feat/gui-rebuild)
+
+**Phase gate: STOPPED — awaiting owner "go" before Phase 2.** (Phase 2 work proceeded per owner instruction 2026-09-15.)
+
+What shipped:
+- Old M5 view layer deleted on this branch (Views/Controls/ViewModels/Services/
+  Logging/Models/ViewLocator/app.manifest; LiveCharts2 + Serilog.Extensions.Logging
+  dropped from the csproj). M6 chart files untouched on
+  `feat/milestone-6-charts-and-token`.
+- New `Assets/Theme.axaml` token contract (palette+brushes, 3 font families,
+  sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, ShadowCard/ShadowOverlay,
+  focus ring 2/1 px) + `Assets/Motion.axaml` (150/200/250/600 ms,
+  MotionDurationReduced = 0) merged in App.axaml.
+- `Views/MainWindow` — "OPD Clinic Queue Simulator", Maximized, min 1100×700,
+  theme background; `Services/CrashReporter.cs` relocated (namespace → Services);
+  §12.1 3-sink Serilog + §12.3 handlers carry over (D-088).
+- Test project rebuilt around Avalonia.Headless(.XUnit): 6 smoke tests
+  (title/state, theme/motion token resolution) + 1 render-capture test.
+
+**§18 verification — Phase 1 verified on 2026-09-15 by agent (feat/gui-rebuild):**
+launched `dotnet run --project src/OpdSimulator.App -c Release` on Linux
+(Ubuntu 24.04, dotnet SDK 8.0.131); observed the maximized window
+("Application started. Main window created." in `logs/app-20260915.log`),
+WindowState=Maximized + Title asserted headless, app stayed alive >10 s,
+**0 new crash-log entries** (`logs/crash-20260915.log` unchanged, 12 lines /
+mtime 05:01). Screenshot `logs/screenshots/phase-1-window.png` — rendered via
+Avalonia.Headless Skia frame capture because the Wayland compositor blocks X
+frame capture here (D-089); owner to eyeball the PNG.
+
+Gate evidence:
+- `dotnet build -c Release` → 0 errors, 0 warnings.
+- `dotnet test -c Release` → **185 green** (Core 85 / Data 58 / Cli 35 / App 7), 0 failed.
+- Real launch → maximized, alive, no crash.
+
 ## Resume — 2026-09-14 — reconciled: 6 findings
 
 Findings (all non-blocking for M6) + B-007 blocker recorded for the M5 keyboard pass:

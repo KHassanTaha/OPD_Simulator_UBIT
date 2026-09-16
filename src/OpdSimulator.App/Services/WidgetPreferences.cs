@@ -37,8 +37,8 @@ public sealed class WidgetPreferences
             "OpdSimulator",
             "ui.json");
 
-    /// <summary>Widget keys checked on in the results panel.</summary>
-    public List<string> VisibleWidgets { get; set; } = new();
+    /// <summary>Widget keys checked on in the results panel, seeded all-on (FR-UI-14).</summary>
+    public List<string> VisibleWidgets { get; set; } = new() { "metrics", "chiSquare", "trace" };
 
     /// <summary>Collapsible-section keys that are currently collapsed.</summary>
     public List<string> CollapsedSections { get; set; } = new();
@@ -77,6 +77,7 @@ public sealed class WidgetPreferences
         {
             Directory.CreateDirectory(directory);
         }
+
         File.WriteAllText(_filePath, JsonSerializer.Serialize(this, JsonOptions));
     }
 }

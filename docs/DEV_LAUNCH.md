@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-14 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **243 green** (Core 85, Data 58, Cli 35, App 65), 0 warnings. M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5 GUI verified: `dotnet run --project src/OpdSimulator.App` opens the full panel window and stays alive (≥ 10 s smoke run, no crash log, welcome logos load via AssetLoader).** [Windows: TBD]
+**Last verified:** 2026-09-15 — restore/build/test/CLI-run all pass from a dead state on **Ubuntu 24.04** (.NET SDK 8.0.131), full suite **197 green** (Core 85, Data 58, Cli 35, App 19), 0 warnings (2026-09-15: dead-state clean of all `bin`/`obj`, Release build 0/0, full suite + GUI-rebuild Phase 1 & 2 headless tests). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -96,11 +96,13 @@ If warnings appear, treat them as errors — this project enforces zero-warning 
 
 ## 5. Run the Simulator (Single Command)
 
-> **Status as of 2026-09-14:** the Avalonia GUI shell is up (Program.cs + App.axaml +
-> ViewLocator + CrashReporter, foundry hand-built — no template installed, see
-> DECISIONS.md D-078). The window opens but shows placeholder config/results panels;
-> the real layout lands in M5-D. Until then the CLI stays the primary path for
-> verified command-line runs.
+> **Status as of 2026-09-15:** the view layer is being **rebuilt from scratch**
+> on `feat/gui-rebuild` (feat/gui-rebuild Phases 1–8; the M5 GUI was disposed —
+> see `docs/M5_FAILURES.md`). Phase 1 shipped: empty maximized window
+> "OPD Clinic Queue Simulator" with the new Token Theme/Motion dictionaries,
+> Serilog 3 sinks (§12.1) and the 3 crash handlers (§12.3). The config/results
+> panels land in Phases 2–5. Until the GUI is functional again the CLI remains
+> the primary path for verified command-line runs.
 
 **Linux / macOS:**
 ```bash
@@ -167,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **256 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -178,18 +180,46 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-14 **243 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (65, M5-B..L) — pure logic only, no Avalonia session needed:
-  SearchFilter prefix>substring ranking + empty/no-match cases (FR-UI-6); DataPreviewStore
-  asc→desc→original sort cycle, invalid-row preservation, out-of-range column (FR-UI-20);
-  ToastService/ToastLifecycle expiry at exact duration + oldest-first purge (FR-UI-10);
-  **ResultsViewModel** (run lifecycle, error banner, widget toggles persist, reset);
-  **MainViewModel** (widget prefs apply on construction, run-summary line, ResetAll toast);
-  **ChartViewModel/ChartsPanelViewModel** (empty state, line/histogram projections,
-  SetCharts/Clear, theme-resource fallback); **GuideViewModel** (embedded-vs-repo drift guard,
-  section parse, search ranking, anchor deep-link); **PresetStore** (round-trip, schema
-  mismatch v99, missing data file, sanitisation, collisions, ApplicationData path resolution,
-  export→import, case-insensitive names); **WelcomeCardViewModel** (course constants, logo
-  null-safety headless).
+- `OpdSimulator.App.Tests` (78, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d) — Avalonia.Headless
+  session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
+  motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
+  cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
+  commit), ThemedDialog (Escape→Cancel, primary/secondary), ThemedToast (severity render,
+  close-with-item), CollapsibleSection (toggle), InfoIcon (tooltip + automation name),
+  PinnedFooterBar (real pointer click drives command), DataPreviewTable (asc→desc→original
+  sort cycle, invalid-row banner), ErrorBanner (visible on message, hidden on dismiss),
+  ControlsDemo screenshot render; Phase-3 shell tests: four tab headers in order, Simulation
+  default-selected, 380px config / fill-results split (searched from the window — tab content
+  lives in the TabControl content presenter, D-095), min size 1100×700, arrow-key tab
+  navigation; shell screenshot render. Phase-4 ConfigPanel tests (10): six CollapsibleSections +
+  pinned footer, stage-count live resize (3→5→1 with default names), p_exit visible ⇔ stages ≥ 2,
+  p_exit = 1 → inline error + Start blocked (Core boundary [0,1), D-098), p_exit = 0.4 accepted,
+  stage-name/Servers two-way binding, Clear All factory reset (FR-UI-21), Clear All confirmation
+  gate, Upload request event, config screenshot render. Phase-4b ConfigPanel
+  corrections (5): Parameters-section fields effectively disabled + dimmed at
+  50% with an FR-UI-7 "Enable '…' above to edit this field." tooltip while the
+  optional toggle is OFF, re-enabled + full opacity when toggled ON, Clear All
+  resets both optional toggles to OFF, Parameters-off ⇒ no manual overrides +
+  ρ "—", Advanced-off ⇒ seed 42 / trace State. **Phase-5c (3 more tests):**
+  results column scrolls with the customise toggle pinned and all widgets inside
+  the ScrollViewer (`ResultsPanel_ScrollViewer_ContainsAllWidgets`), the known
+  Wayland `AppMenu.Registrar` DBus quirk is ignored instead of crash-reported
+  (`CrashReporter_IgnoresAppMenuRegistrarDBusError`), and the Phase-5c results
+  screenshot renders with a populated trace (overflow asserted in-test).
+  **Phase-5d config refinements (17):** 5d.1 stage rows are topology only —
+  no editable per-row μ, each row's read-only label shows "(no source)" at
+  factory defaults, "(from data)" for stages the loaded file covers, "(manual)"
+  only while Parameters is on, and a run whose stage has no μ is refused with
+  a banner naming that stage; 5d.2 significance-level α — default 0.05,
+  zero/one/non-numeric rejected (blocking Start), α flows into every chi-square
+  verdict and into the dynamic "Chi-square goodness-of-fit (α = …)" caption
+  (restored by Clear All); 5d.3 stage-count mismatch — loading data with fewer
+  or more stages than configured raises the amber warning with Sync / Keep
+  actions, Sync resizes + renames rows + clears the warning + refreshes the μ
+  labels, Keep dismisses non-destructively, and the Sync command requests
+  confirmation before resizing; 5d evidence screenshots
+  `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) and
+  `phase-5d-cleared.png` (default no-source labels after Clear All).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -360,6 +390,7 @@ opd-simulator/
 | App crashes on start | Missing `samples/` file or config | Check console output; file a bug in `BLOCKERS.md` |
 | App crashes at runtime | Unhandled exception | Open `logs/crash-*.log` FIRST (full stack trace); see §9.1 |
 | No log files appear | App not run yet, or logging misconfigured | Run once; if still none, check `appsettings.json` Serilog sinks |
+| All results widgets hidden on launch | Stale per-user preferences file left by an older build | One-time reset: delete the preferences file below; the app re-seeds all widgets on |
 
 ### 9.1 Where to Find Logs
 
@@ -374,6 +405,14 @@ opd-simulator/
 
 If the app crashes and the dialog points to a crash log, open that file
 first — it contains the full stack trace.
+
+**Per-user preference file (FR-UI-14 widget visibility + collapsed sections; the ONLY persisted UI state — AGENTS §16.11):**
+- Linux: `~/.config/OpdSimulator/ui.json`
+- Windows: `%APPDATA%\OpdSimulator\ui.json`
+
+If widgets fail to appear on launch, delete this file as a one-time reset — the
+app re-seeds all widgets on (D-108). On Linux the folder also holds
+`presets/` — never delete presets; `ui.json` alone resets the view state.
 
 *(Add new rows here whenever a new failure mode is discovered and fixed.)*
 
@@ -455,6 +494,15 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **GUI rebuild Phase 5d — config panel refinements** (`feat/gui-rebuild`): 5d.1 μ moves out of Stages — rows are topology only (name + servers) with a read-only μ-source label; the single manual entry point is the Parameters comma list (rate/mean-wise per toggle, blank = fitted); the run refuses with a banner naming the stage (`Stage '<name>' has no service rate…`) when no source exists (D-112). 5d.2 significance level α in Model — default 0.05, strictly (0,1) validation blocking Start, threads through FitsService into every chi-square verdict and into the dynamic results caption (`SetChiSquareAlpha`, D-113). 5d.3 stage-count mismatch — amber warning (reuses theme warning tokens, D-115) with Sync-stages-from-data / Keep-current-stages actions when the loaded data's stage count differs from the configured list (D-114; the 5d.1-vs-5d.3 message conflict resolved to the 5d.3 "NEW" wording). 5d.4 ErrorBanner gained a `BannerSeverity` (Error/Warning/Info) with theme-resource colours. §6 refreshed to **256 tests** (App 78) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 256 green (Core 85 / Data 58 / Cli 35 / App 78); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) + `logs/screenshots/phase-5d-cleared.png` (default no-source μ labels after Clear All) |
+| 2026-09-16 | **GUI rebuild Phase 5c.4 — Clear All full reset** (`feat/gui-rebuild`): confirming the Clear All themed dialog now runs `MainViewModel.ResetAll()` — `Config.ResetToDefaults()` (unloads the uploaded file, drops fitted parameters) + new `ResultsPanelViewModel.Reset()` (welcome card back, `HasRun=false`, `RunError=null`, `TraceText=""`, metrics/chi-square/preview content cleared; persisted widget VISIBILITY preferences survive per FR-UI-21); ConfigPanel falls back to config-only reset when no MainWindow hosts it; tooltip updated; D-111; §6 refreshed to 239 tests (App 61) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 239 green (Core 85 / Data 58 / Cli 35 / App 61); real Linux launch 15 s alive with "Main window created." and crash log unchanged |
+| 2026-09-16 | **GUI rebuild Phase 5c parts 2 + 3** (`feat/gui-rebuild`): the calendar `Engine.Run` overload now forwards an optional `ITraceSink` so ClinicDay/MultiDay runs populate the event trace in every mode (owner-approved minimal Core change, D-110 — Core suite 85 green before AND after; `SimulationCoordinator` passes its sink in every run mode; the "(D-105) Diagnostic-only" placeholder removed; new `TraceViewer_PopulatesAfterClinicDayRun`; two old `Assert.Empty(TraceLines)` calendar assertions updated); welcome card now actually renders on fresh launch — the ResultsPanel `ContentControl` was bound only to `IsVisible` and never to `Content="{Binding Welcome}"`, so the template never instantiated (D-109 value — part 3 test `WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun`); test-data fix — `TraceViewer_PopulatesAfterClinicDayRun` needed three manual μs (one per default stage), not one; §6 refreshed to 236 tests (App 58); §9.1 ui.json paths unchanged (part 1) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 236 green (Core 85 / Data 58 / Cli 35 / App 58); real Linux launch 15 s alive with "Main window created." and crash log unchanged (0 new entries); headless evidence `logs/screenshots/phase-5c-results.png` (60.9 KB, populated run) + `logs/screenshots/phase-5c-welcome.png` (48.5 KB, fresh-launch welcome card with logos + "Group members" card, asserted in-test) |
+| 2026-09-16 | **GUI rebuild Phase 5c part 1** (`feat/gui-rebuild`): results column scrolls — widget container in a ScrollViewer (Vertical=Auto, Horizontal=Disabled) with the "Customise results" toggle + widget picker pinned above (ResultsPanel `RowDefinitions="Auto,*"`), results column `380,6,*` + `MinWidth=540` on the Border (compares to the rejected `MinMax(540,*)` — AVLN2005); the known Wayland `AppMenu.Registrar` DBus quirk is ignored by the TaskScheduler handler instead of crash-reported (D-107); FR-UI-14 persistence actually restored — `MainViewModel` now `WidgetPreferences.Load()`s and the default seed is all-on instead of all-off (D-108); repo's first `InternalsVisibleTo` so App log/banner machinery is testable; §6 refreshed to 233 tests (App 55); §9.1 documents the per-user `ui.json` paths + one-time reset; stale `ui.json` deleted as the approved one-time reset | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 233 green (Core 85 / Data 58 / Cli 35 / App 55); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5c-results.png` (65 KB, metrics + chi-square + populated State trace, overflow asserted in-test) |
+| 2026-09-16 | **GUI rebuild Phase 4c — owner corrections to Phase 4b** (`feat/gui-rebuild`): optional-OFF sections no longer gate Start — `ClearError()` on OFF, `RecomputeBlockingState` skips their fields, re-validate on next blur (D-103 supersedes the D-102 deviation note; Phase-4 `PExit_ValueOne` test now enables Parameters first; +3 App tests); white/light header switch via custom `HeaderToggleSwitch` ControlTheme (`PART_MovingKnobs` Panel contract + `x:SetterTargetType`, build lessons in D-103); single full-width brand-blue section bar (top corners `8,8,0,0`, content on white beneath); §6 refreshed to 221 tests (App 43) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 221 green (Core 85 / Data 58 / Cli 35 / App 43); real Linux launch 15 s alive with "Main window created." and 0 new crash-log entries; headless evidence `logs/screenshots/phase-4-config.png` regenerated (45 KB) |
+| 2026-09-16 | **GUI rebuild Phase 4 — ConfigPanel** (`feat/gui-rebuild`): real config panel replaces the Simulation-tab placeholder — six CollapsibleSections (Data upload / Model / Parameters / Stages 1–5 / Horizon / Advanced) in one ScrollViewer + pinned PinnedFooterBar (Start Calculation, Clear All with ThemedDialog confirm); p_exit override shown only for 2+ stages with Core [0,1) boundary blocking Start; stage rows resize live; `MainWindow` DataContext moved to a new `MainViewModel`; new `ConfigFieldViewModel` + `StageRow` VMs; blur-validation routed via `ConfigPanelValidation.ValidationKey` attached property; §6 refreshed to 213 tests; D-096..D-100 | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 213 green (Core 85 / Data 58 / Cli 35 / App 35); real Linux launch 15 s alive with "Main window created." and 0 new crash-log entries; headless evidence `logs/screenshots/phase-4-config.png` |
+| 2026-09-16 | **GUI rebuild Phase 3 — MainWindow shell** (`feat/gui-rebuild`): header bar + TabControl [Simulation | Input Analysis | Token Generator | Help]; Simulation tab = 380px config / GridSplitter / fill results; new reusable `Controls/PlaceholderContent` + `Border.PanelCard`; ControlsDemo no longer hosted in MainWindow (screenshot test hosts it in its own window); §6 refreshed to 203 tests; §5 status updated (shell tabs, real panels pending P4–P6) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 203 green (Core 85 / Data 58 / Cli 35 / App 25); real Linux launch 15 s alive with "Main window created." and 0 crash-log entries; headless evidence `logs/screenshots/phase-3-shell.png` |
+| 2026-09-15 | **GUI rebuild Phase 2 — reusable controls** (`feat/gui-rebuild`): 9 controls in `src/OpdSimulator.App/Controls/` (ValidatedField, SearchableDropdown, ThemedDialog, ThemedToast, CollapsibleSection, InfoIcon, PinnedFooterBar, DataPreviewTable, ErrorBanner) + `Views/ControlsDemo` showroom inside MainWindow; template wiring moved to `OnApplyTemplate`+`INameScope.Find` (D-091); DataPreviewTable virtualises via ListBox, `Avalonia.Controls.ItemsRepeater` package dropped (D-090); PinnedFooterBar is a ContentControl template (fixes self-recursive content, D-092); ErrorBanner `IsVisible` mirrors Message (D-093); §6 refreshed to 197 tests | **Ubuntu 24.04** (dotnet SDK 8.0.131) — dead-state Release build 0 errors/0 warnings; full suite 197 green (Core 85 / Data 58 / Cli 35 / App 19); per-control headless tests + `logs/screenshots/controls-demo.png` render; two real bugs caught by the tests (ErrorBanner dead-control, PinnedFooterBar recursion) |
+| 2026-09-15 | **GUI rebuild Phase 1** (`feat/gui-rebuild`): M5 view layer deleted (M6 chart files preserved on `feat/milestone-6-charts-and-token`); new App skeleton — `Assets/Theme.axaml` token contract (3 fonts, sizes 18/14/12, spacing 4/8/12/16/24, radii 4/8/12, 2 shadows, focus ring), `Assets/Motion.axaml` (150/200/250/600 ms + reduced→0), empty maximized `MainWindow`, CrashReporter relocated to `Services/`; packages changed — App drops `LiveCharts2` + `Serilog.Extensions.Logging`, App.Tests adds `Avalonia.Headless` + `Avalonia.Headless.XUnit` for headless smoke/render tests; §5 status updated (CLI still primary until GUI functional) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 185 green (Core 85 / Data 58 / Cli 35 / App 7); real app launched for >10 s with 0 crash-log entries; |
 | 2026-09-14 | M5-B: 8 reusable controls landed in `src/OpdSimulator.App/Controls/` (D-080); new `tests/OpdSimulator.App.Tests` (20 pure-logic tests, no Avalonia session) added to the sln; §6 refreshed to 196 tests; §8 layout updated | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 196 green, 0 warnings; App project builds standalone |
 | 2026-09-14 | M5-A: §1 prerequisites add Linux system libs row (libx11-6 libice6 libsm6 libfontconfig1, D-079 — installed by owner, not the agent); §9 blank-window row replaced with cross-ref to §1 (one canonical apt command, AGENTS §10.7); §5/§8 status updated: App is now a real Avalonia shell (D-078), placeholder panels until M5-D | docs-only (owner installed libs; App launch smoke-tested 2026-09-14) |
 | 2026-09-14 | M4: deterministic event trace — new `trace` command (§7.6) emitting ARRIVAL/START_SVC/END_SVC/ROUTE/EXIT (+ RNG draw rows at `--level rng`); golden fixture + regression tests (draw-by-draw RNG parity, stats cross-check, sink passivity, D-055..D-059); "CLI run requested" demoted to Debug so trace stdout is pure lines; §6 refreshed to 176 tests; §8 layout note for `src/OpdSimulator.Core/Trace/` | **Ubuntu 24.04** (dotnet SDK 8.0.131) — full suite 176 green, 0 warnings; `trace` (state/rng/events, `--output`, unstable refusal) live-run verified against the frozen fixture |

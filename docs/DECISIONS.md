@@ -1126,3 +1126,813 @@ impact (positive and negative), alternatives considered.
   files for trivial negation); (b) bind `IsVisible` with a data-trigger
   Style — rejected (Avalonia style triggers over a dynamic container are
   fiddly and hard to eyeball; a VM predicate is simpler).
+
+## D-086 GUI Rebuild Mandate — View Layer Disposed, Rebuilt on feat/gui-rebuild
+
+- **Date:** 2026-09-15
+- **Decision:** The M5 view layer (`src/OpdSimulator.App` Views/Controls/
+  ViewModels/Services/Logging/Models/ViewLocator/app.manifest) is deleted on
+  `feat/gui-rebuild` and rebuilt phase-by-phase to the owner-approved layout.
+  M6 chart/token files remain on `feat/milestone-6-charts-and-token`;
+  Core/Data/Cli and their tests are untouched.
+- **Rationale:** M5_FAILURES.md documents 2 crash root causes (Preview NRE;
+  p_exit=1 boundary), FR-UI rows marked [x] without in-app verification, and
+  27 owner-reported defects. Owner ruled patching insufficient.
+- **Impact:** (+) clean slate under the §18 "verified in the running app"
+  definition of [x]; (0) M6 restores chart infra later; (−) M5 tests that
+  referenced old shapes deleted (rebuilt per phase).
+- **Alternatives considered:** (a) patch M5 iteratively — rejected by owner.
+
+## D-087 Phase 1 Token Contract — Theme.axaml + Motion.axaml
+
+- **Date:** 2026-09-15
+- **Decision:** `Theme.axaml` owns every non-animation visual token: palette +
+  brushes, exactly 3 font families (Default/Heading/Mono), font sizes 18/14/12
+  (Title/Body/Caption), spacing 4/8/12/16/24 (SpaceXxs..SpaceL + Thickness
+  twins), radii 4/8/12 (CornerRadiusS/M/L), 2 shadows (ShadowCard,
+  ShadowOverlay), focus ring (BrushFocusRing + Thickness 2 + offset 1).
+  `Motion.axaml` owns the 4 durations 150/200/250/600 ms
+  (Fast/Medium/Normal/Slow) plus MotionDurationReduced (0 ms) for
+  reduced-motion collapse (G8). Hex values appear in exactly this one file
+  (AGENTS §16.3).
+- **Rationale:** An owner-specified layout spec drives the values; separating
+  motion from visuals lets a single Motion.axaml host the reduced-motion
+  behaviour later (Phase 2 controls consume these tokens).
+- **Impact:** (+) single restyle point; (+) token values asserted by 6
+  headless smoke tests; (−) moving more tokens later = small churn.
+- **Alternatives considered:** (a) keep M5's richer scale (11px..24px) —
+  rejected, rebuild spec fixed 18/14/12.
+
+## D-088 Phase 1 Kept Proven M5 Infra — Serilog 3 Sinks + CrashReporter
+
+- **Date:** 2026-09-15
+- **Decision:** Program.cs's §12.1 pipeline (console + rolling app log,
+  7-day retention + separate errors-only file) and the §12.3 CrashReporter
+  (AppDomain/TaskScheduler/Dispatcher → crash-YYYYMMDD.log + dialog) survive
+  the rebuild. CrashReporter moves from `Logging/` to `Services/` per the new
+  layout; namespace becomes `OpdSimulator.App.Services`.
+- **Rationale:** The audit (M5_FAILURES §5-F-20) faulted exceptions reaching
+  the process, not the handlers themselves; the plumbing was already §12
+  conformant. Rewriting it would be churn with no fix.
+- **Impact:** (+) less code to re-verify; (−) namespace move touched
+  App.axaml.cs.
+- **Alternatives considered:** (a) rewrite handlers — rejected (no defect);
+  (b) keep `Logging/` namespace — rejected by the rebuild layout.
+
+## D-089 Phase 1 Screenshot Method — Headless Frame Capture (Wayland Constraint)
+
+- **Date:** 2026-09-15
+- **Decision:** §18 screenshots are produced by rendering the real window
+  through Avalonia.Headless (`.UseSkia()` + `UseHeadlessDrawing=false`) into
+  `logs/screenshots/<name>.png`. Reason: this host session is Wayland-only,
+  and ImageMagick `import` against XWayland root returned "Resource temporarily
+  unavailable"; xdotool cannot enumerate Wayland windows, so no real-display
+  X capture is possible here. The real maximized app IS launched and kept alive
+  (>10 s, 0 crash-log entries) per the gate; the pixel evidence is the
+  headless render of the identical XAML + theme.
+- **Impact:** (−) screenshots lack window chrome/OS decorations; disclosed —
+  owner eyeballs `phase-1-window.png` before Phase 2. (+) deterministic,
+  theme-faithful renders on any machine.
+- **Alternatives considered:** (a) gnome-screenshot/scrot/grim — none installed;
+  (b) XWayland window capture — blocked by the compositor.
+
+## D-090 DataPreviewTable Virtualisation — ListBox Over ItemsRepeater
+
+- **Date:** 2026-09-15
+- **Decision:** NFR-10's virtualised preview table is a virtualising `ListBox`
+  (`VirtualizingStackPanel` ItemsPanel, `ScrollViewer.VerticalScrollBarVisibility="Auto"`,
+  `MaxHeight`-capped, non-virtualising `ItemsRepeater` explicitly rejected) with
+  file-driven header `Button`s built in code and a code-behind `ApplySort`
+  (asc → desc → original, ordinal-ignore-case via `CellOf`).
+- **Rationale:** `ItemsRepeater` is a separate NuGet (`Avalonia.Controls.ItemsRepeater`)
+  NOT in Avalonia core; the only 11.x version is **11.1.5** and it ships
+  `StackLayout`/`UniformGridLayout`/`WrapLayout` only — **no `VirtualizingStackLayout`
+  (12.x+)** — so it cannot meet the NFR-10 performance contract (10k rows < 1 s,
+  scroll never blocks > 100 ms). `ListBox` provides built-in container recycling
+  today. Doesn't help D-081's component-count goal but meets the hard NFR.
+- **Impact:** (+) NFR-10 achievable on 11.3.3 with zero extra packages; (+) sort + *▲/▼*
+  indicator + invalid-row banner (`LoadErrorSummary`) verified by headless tests. (−)
+  header row is not pixel-scrolled with the body (declaration-order column alignment
+  preserved; scrolls below the header) — documented as acceptable for a preview-only
+  surface.
+- **Alternatives considered:** (a) keep `Avalonia.Controls.ItemsRepeater` 11.1.5 —
+  non-virtualising, re-checked against nuget flat-container metadata; (b) drop the
+  header into the ListBox template — defeats the fixed-header goal; (c) upgrade to
+  Avalonia 12 — out of scope (M5 pinned 11.3.3, D-086).
+
+## D-091 Template Wiring Pattern — `OnApplyTemplate` + `INameScope.Find`
+
+- **Date:** 2026-09-15
+- **Decision:** Any control that needs a named part inside its `ControlTemplate`
+  resolves it via `protected override void OnApplyTemplate(TemplateAppliedEventArgs e)`
+  + `e.NameScope.Find("PART_…") as T` into a private field (used by CollapsibleSection,
+  DataPreviewTable, PinnedFooterBar). No WPF-style `GetTemplateChild`, no template
+  `Loaded`/`TemplateApplied` event wiring.
+- **Rationale:** verified against the 11.3.3 XML docs: `TemplatedControl.OnApplyTemplate`
+  takes `TemplateAppliedEventArgs` whose `NameScope` is an `INameScope`;
+  `NameScopeExtensions.Find<T>` exists. XAML-name generator fields are NOT emitted
+  for elements inside a `ControlTemplate` (the CS0103/CS0102 confusion in early Phase 2),
+  so named parts must be located at runtime.
+- **Impact:** (+) one canonical, framework-idiomatic wiring path for all template-based
+  controls; (+) parts are null-safe (only wired when the template supplies them). (−)
+  devs must remember to null-guard before use and to re-fetch on template re-apply.
+- **Alternatives considered:** (a) `Loaded` handler + `GetTemplateChild` — nonexistent
+  API, rejected; (b) `TemplateApplied` routed event — works, but scatters wiring across
+  handlers.
+
+## D-092 Compiled-Binding `$parent` Rule, ContentControl Templates, and Test-Input API on 11.3
+
+- **Date:** 2026-09-15
+- **Decision:** Three 11.3-compatible conventions the whole App follows:
+  1. `$parent[<ConcreteControl>]` (e.g. `$parent[controls:ValidatedField]`, never
+     `$parent[UserControl]`) — compiled bindings resolve the concrete named base the
+     declaring type expects, whereas `$parent[UserControl]` resolves the *framework's*
+     base UserControl and binds nothing.
+  2. Composite controls that host caller content (PinnedFooterBar) are
+     `ContentControl` + `ControlTemplate`; `TemplateBinding` targets all DP bindings
+     inside the template (no `$parent` needed there). A plain UserControl whose inner
+     `ContentPresenter` re-binds `$parent.Content` is **self-recursive** — it crashed
+     under Measure ("Border already has a visual parent ContentPresenter"); the tests
+     caught it, and rule 2 kills the class of bug.
+  3. Headless tests use real input where the pipeline matters: buttons that execute
+     `ICommand` (PinnedFooterBar primary) need a real `window.MouseDown/MouseUp` — a
+     manually `RaiseEvent`d routed Click bypasses Button's command pipeline; dialogs are
+     driven with `KeyPressQwerty(PhysicalKey.Escape, …)` (the bare `KeyPress(Key,…)`
+     overload is CS0618-obsolete on 11.3).
+- **Rationale:** each sub-decision is a correction to an assumption that failed
+  against the 11.3.3 implementation (verified by build errors + headless test output).
+- **Impact:** (+) App-wide rules that prevent the recurring failure trios; (+) tests now
+  exercise real input paths. (−) caller content in footer arrows must go through
+  `Content` (the intended slot).
+- **Alternatives considered:** templating every composite as a UserControl with slotted
+  panels — rejected for recursion/ordering hazards.
+
+## D-093 ErrorBanner Visibility — Self-Hidden Control Is a Dead Control
+
+- **Date:** 2026-09-15
+- **Decision:** `ErrorBanner` flips BOTH the root `Border` and its own `IsVisible` from
+  `UpdateVisibility()`; the XAML chrome keeps `IsVisible="False"` only as a transient
+  default. Previously the code toggled only `Root.IsVisible`, so the UserControl instance
+  carried `IsVisible=false` from the constructor forever (§16.4: a hidden error surface
+  is worse than none).
+- **Rationale:** the FR-UI-9 headless check (`Message set → visible`, `dismiss → hidden`)
+  failed at assert time — it encoded the product intent (an ErrorBanner must actually
+  appear) and exposed the dead-control bug before any screen could.
+- **Impact:** (+) errors are definitely visible; (+) automation name now reflects
+  `"Error: ⟨message⟩"` / `"No error"` for screen readers. (−) none identified.
+- **Alternatives considered:** collapsing via DataTriggers — indirect, harder to test;
+  keep binding-only — the bug we just fixed.
+
+## D-094 MainWindow Shell — Four-Tab TabControl + 380 px Config / Fill Results
+
+- **Date:** 2026-09-16
+- **Decision:** `MainWindow` is a header bar + top `TabControl` with exactly four
+  tabs in order — **Simulation | Input Analysis | Token Generator | Help**. The
+  Simulation tab is a `380,6,*` grid (380 px config column, 6 px `GridSplitter`,
+  fill results column), mirroring the M5 design's `400,6,*` split. All four tabs
+  use the new reusable `Controls/PlaceholderContent` (Title + Hint) until the real
+  panels land (ConfigPanel P4, ResultsPanel P5, Help P6).
+- **Rationale:** the phase contract names the tabs, the sizes and the min window
+  (1100×700) explicitly; one reusable placeholder avoids four copies of the same
+  centered-empty-state layout (§16.5). Placeholders are non-focusable so the
+  keyboard contract is "tab headers are the first focusable element", matching
+  the "tab-first focus cycle" requirement.
+- **Impact:** (+) shell is evaluable standalone; (+) both screenshots
+  (`phase-3-shell.png`, `controls-demo.png`) stay reproducible because the demo is
+  captured from its own host window rather than MainWindow. (−) ConfigPanel and
+  ResultsPanel are not yet wired — placeholders will be swapped in P4/P5.
+- **Alternatives considered:** stacking panels in one page without tabs — rejected,
+  the PRD/AGENTS prescribe tabs; hosting ControlsDemo inside the shell — rejected,
+  it would leak a dev surface into the product shell.
+
+## D-095 Avalonia Realisation Note — Tab Content Lives in the TabControl ContentPresenter
+
+- **Date:** 2026-09-16
+- **Decision:** When testing TabControl-backed layouts headlessly, locate the tab's
+  root grid by walking **visual descendants of the window** and filtering for the
+  specific column count/units — NOT descendants of the `TabItem`. The tab content
+  element is hosted in the TabControl's selected-item content presenter and is not
+  a descendant of the `TabItem` node itself.
+- **Rationale:** discovered when `SimulationTab_LaysOut380pxConfigAndFillResults`
+  threw "Sequence contains no matching element" while searching inside the TabItem.
+  The assertion intent stayed the same (380 px pixel column + star results column);
+  only the traversal root changed.
+- **Impact:** (+) a reusable test recipe for any future tab-scoped assertions;
+  (+) prevents a whole class of "content doesn't exist inside the TabItem" cargo
+  culting. (−) none.
+- **Alternatives considered:** asserting only counts/sizes on the window without
+  narrowing — weaker (masks wrong-config regressions).
+
+## D-096 ConfigPanel Layout — One ScrollViewer + PinnedFooterBar
+
+- **Date:** 2026-09-16
+- **Decision:** The Phase-4 config panel is a single `ScrollViewer`
+  (`VerticalScrollBarVisibility="Auto"`) hosting six `CollapsibleSection`
+  groups (1 · Data, 2 · Model, 3 · Parameters, 4 · Stages, 5 · Horizon,
+  6 · Advanced), with the `PinnedFooterBar` placed **outside** the
+  ScrollViewer in a second grid row — so Start Calculation / Clear All
+  never scroll away with the configuration (AGENTS §16.2 "Pinned primary
+  action").
+- **Rationale:** the config column can outgrow the 760 px window (stage rows
+  grow 1→5); a pinned footer keeps the run action reachable at every scroll
+  position without a sticky-position hack. Six sections, not one tall form,
+  so related fields collapse behind chevrons when a user is focused on a
+  single concern.
+- **Impact:** (+) primary action always visible; (+) grouping maps 1:1 to the
+  specification's six sections. (−) the footer consumes vertical space even
+  when collapsed sections minimise the form (acceptable — it is the
+  contract's primary action).
+- **Alternatives considered:** footer inside the ScrollViewer — scrolls out of
+  view (rejected); sticky header/footer via a custom layout — reinvents what
+  a two-row grid provides; a single ungrouped form — no collapse affordance.
+
+## D-097 p_exit Hidden for 1-Stage Configurations
+
+- **Date:** 2026-09-16
+- **Decision:** The `p_exit override` field is only rendered when the stage
+  count is 2 or more (`PExitVisible => StageCount >= 2`). At 1 stage no
+  early-exit route exists after screening, so the field (and its validation)
+  is hidden entirely rather than disabled-showing-an-error.
+- **Rationale:** an exit-after-screening route requires a downstream stage to
+  exit from; a hidden field avoids confusing an "orphan" parameter and
+  matches the PRD's 3-stage framing where p_exit routes Screening → Doctor.
+  Hiding (not disabling) also keeps the p_exit state out of the Start gate:
+  a stale 1-stage value cannot silently block a run.
+- **Impact:** (+) the panel self-explains for 1-stage experiments; (+) no
+  dead "why is this disabled" tooltips needed. (−) resizing 2+ → 1 hides the
+  field but preserves its entered value (restored on resize back) — intended.
+- **Alternatives considered:** disable + reason tooltip — more noise in the
+  exact axis-case the field is meaningless; always show — violates the spec
+  ("VISIBLE ONLY WHEN 2+ STAGES CONFIGURED").
+
+## D-098 p_exit Boundary [0, 1) Matches the Core Contract
+
+- **Date:** 2026-09-16
+- **Decision:** The p_exit field accepts only values in **[0, 1)**: empty is
+  valid (fitted value is used later), a parse failure or a negative value
+  yields the inline error *"Enter a number between 0 and 1 (exclusive)."*,
+  and `1 ≤ v` yields *"Exit probability must be less than 1. You entered
+  ⟨v⟩."* — matching the Core engine's stability contract exactly. A p_exit
+  of exactly 1 is an inline error **and** blocks `Start Calculation`
+  (`StartCalculationCommand.CanExecute == false`).
+- **Rationale:** p_exit = 1 means *every* patient exits at Screening, which
+  is the degenerate "no doctor flow" case the core refuses (see p_exit
+  estimation in CONTEXT §5.4). The GUI must not let a run be configured that
+  the engine itself would reject — encode the boundary at the input, not at
+  the engine worker.
+- **Impact:** (+) the refusal reason is inline (FR-UI-9/FR-UI-17) instead of
+  a late worker error; (+) the boundary is single-sourced in one guard so a
+  future Core change is a one-line edit. (−) the field cannot express "every
+  patient exits" — this is a model decision, not a UI restriction.
+- **Alternatives considered:** allow `p_exit == 1` and let the run refuse —
+  worse UX (start fails after the user believes they configured a valid
+  model); allow `p_exit > 1` — clearly invalid analytically.
+
+## D-099 Stage Row Is a Dedicated View-Model Class (Not a Tuple)
+
+- **Date:** 2026-09-16
+- **Decision:** A simulated stage row is represented by a dedicated
+  `StageRow` view-model class (declared alongside `ConfigPanelViewModel` in
+  `ConfigPanelViewModel.cs`), owning its `StageName` string plus two
+  validated `ConfigFieldViewModel`s (`Servers`, `ServiceRate`) — not a C#
+  tuple or an anonymous record.
+- **Rationale:** each row needs (a) a validated string field with inline
+  error state, (b) per-row blur validation rules, and (c) an observable
+  display name — exactly what a class exposes. Tuples cannot carry
+  `INotifyPropertyChanged` state cleanly and would force the ItemsControl
+  DataTemplate to reach through indexer syntax. A class also gives the
+  pattern a name for the viva: "each stage row is a mini view-model".
+- **Impact:** (+) blur validation has a natural home (`ValidateServers`,
+  `ValidateServiceRate`); (+) `HasErrors => Servers.HasError ||
+  ServiceRate.HasError` feeds the Start gate; (−) slightly more files… none
+  — the class lives in the same file. No downside identified beyond
+  boilerplate.
+- **Alternatives considered:** `(string Name, string Servers, string Rate)`
+  tuples — no change notifications/validation; a `record` — immutable,
+  wrong for two-way input fields; three parallel arrays in the panel VM —
+  loses the row encapsulation.
+
+## D-100 Stage Service-Rate Blank = Use the Fitted Value (Start enabled by default)
+
+- **Date:** 2026-09-16
+- **Decision:** A stage's *Service rate μ (per server)* field treats an
+  **empty value as valid** (the run will fall back to the fitted value in
+  Phase 5), mirroring the Section-3 manual λ/μ overrides. A non-empty value
+  must parse as a positive double or the field errors inline. This keeps the
+  factory-default config (3 empty stage rates) fully **Start-enabled**.
+- **Rationale:** the whole app premise is "fit parameters from the uploaded
+  data" (Milestone 2); per-stage rates are overrides of the fitted
+  per-stage μ, exactly like manual λ. Forcing a number by default would also
+  make the very first launch red-flag three required fields, contradicting
+  FR-UI-21's clean-start principle and the spec's intent that Start is
+  blocked only by genuinely invalid input (p_exit out of range, bad numbers).
+- **Impact:** (+) fresh window is runnable; (+) blank rate renders "—" in
+  the ρ summary rather than a dead state. (−) a blank rate is silently
+  "unset" — the ρ preview and Phase 5 will make the fitted substitution
+  visible. Tagged `[UNVERIFIED]` in CONTEXT.md — needs owner sign-off
+  against the PRD wording "double > 0".
+- **Alternatives considered:** require a number per row (empty = error) —
+  blocks Start out of the box and needs an invented default rate; default
+  each row to "0.5"/"1.0" — manufactures a made-up clinical rate the owner
+  never specified.
+
+## D-101 CollapsibleSection Header Redesign — Brand Bar, 12/10 Padding, Right-Anchored Help Icon
+
+- **Date:** 2026-09-16
+- **Decision:** The `CollapsibleSection` header is a **brand-green bar**
+  (`BrushBrandGreen`) with the title in `BrushTextOnBrand` (white). The bar
+  uses the new theme thickness resource **`ThicknessSectionHeader = "12,10"`**
+  (left/right 12 px, top/bottom 10 px; 4b.2). The header layout is a
+  `Grid ColumnDefinitions="Auto,*,Auto,Auto"`: column 0 = the collapse
+  ToggleButton (chevron + title, spanning the Auto and `*` columns so a click
+  anywhere left of the toggle/icon still collapses), column 2 = the
+  optional-section toggle (hidden unless set), column 3 = the InfoIcon pinned
+  to the **extreme right** (4b.3). The chevron stroke also becomes white.
+- **Rationale:** readability on the coloured bar (dark text on brand blue
+  failed AGENTS §16.4 contrast), and a taller touch/click target. Moving the
+  InfoIcon outside the ToggleButton also stops a tooltip hover from toggling
+  the section, and gives the icon a stable far-right anchor regardless of
+  title length. The existing header ContentPresenter (col 2) was never bound
+  to anything and is removed.
+- **Impact:** (+) consistent branding and contrast across all six sections;
+  (+) icon position predictable. (−) slightly taller headers reduce the
+  visible config area; the collapse ToggleButton no longer covers the
+  toggle/icon area — collapse is via chevron + title only.
+- **Alternatives considered:** keep the light header (fails the "brand bar"
+  requirement); shrink padding to keep compactness (worse touch target).
+
+## D-102 Optional-Section Enable Toggle Pattern (Parameters / Advanced)
+
+- **Date:** 2026-09-16
+- **Decision:** Sections whose **entire contents are optional** (Phase 4b:
+  "3 · Parameters" = manual λ/μ/p_exit overrides; "6 · Advanced" = random
+  seed/trace level) get a `ToggleSwitch` in the header, right-aligned before
+  the InfoIcon. `CollapsibleSection` exposes `IsOptional` (hides the toggle
+  when false) and two-way `IsEnabledToggle`. The toggle **defaults to OFF**;
+  while OFF the section content presenter is `IsEnabled=false` and dimmed to
+  `Opacity 0.5`, and every descendant field receives an injected FR-UI-7
+  tooltip "Enable '<SectionName>' above to edit this field." (only where no
+  hand-authored tooltip exists). The state is persisted in the **view model**
+  (`ParametersIsOptionalEnabled`, `AdvancedIsOptionalEnabled`) so Clear All
+  resets both to OFF.
+- **Behaviour semantics:** when Parameters is OFF, the run sees **no manual
+  overrides** (`ParametersSupplied == false`) and the ρ preview reads "—"
+  (λ unknown); when Advanced is OFF the effective seed is **42** and trace
+  level **State** (`EffectiveSeed` / `EffectiveTraceLevel`). The Start
+  **blocking** equation is deliberately left unchanged from Phase 4 — an
+  error in any field, optional section on or off, still blocks Start, because
+  the 213-test baseline asserts `p_exit = 1` blocks with Parameters at
+  factory ground (error-state blocking is orthogonal to run-value semantics).
+- **Rationale:** a first-time user faces two sections of scary blanks they
+  must never fill (λ/μ/p_exit override the fitted values; seed/trace are
+  power-user knobs). A visible OFF switch explains that these fields are
+  optional, dims them so they do not read as "unfilled required fields", and
+  still lets the run proceed with fitted defaults. Keeping the blocking
+  equation intact preserves the Phase-4 gate guarantee that Start never runs
+  with a visibly red field.
+- **Impact:** (+) honest optionality, cleaner launch state, keyboard-reachable
+  toggle (Tab order col 0 → toggle → InfoIcon); (+) tooltip satisfies FR-UI-7
+  for disabled fields. (−) two more interactions before manually overriding
+  parameters; tooltip injection walks the body subtree on toggle (cheap for
+  this panel's size).
+- **Alternatives considered:** grey-out placeholders instead of a switch
+  (unexplained, and a disabled field must *say why*); a global "advanced
+  mode" checkbox (coarse — hides p_exit as well); making the sections
+  always-editable and only visually muted (accidental input into clearly
+  optional fields).
+
+### D-103 — Optional section OFF means its fields do not participate in Start gating — 2026-09-16
+- **Decision:** An optional section (Parameters / Advanced) whose enable
+  toggle is OFF contributes **nothing** to the Start button computation:
+  its fields' inline errors are cleared and the fields are skipped entirely
+  when deriving `IsStartEnabled`. Turning the section back ON re-evaluates
+  Start but does not re-flag any field — each field re-validates on its own
+  next blur (view-model `Validate*` call).
+- **Rationale:** "OFF = not supplied" was already the effective-value rule
+  (D-101); it is inconsistent to then let an OFF section's stale text block
+  Start. Owner review required this: the Phase-4b deviation note (keeping the
+  blocking equation unconditional to preserve the p_exit=1 baseline test) is
+  **superseded** by this decision.
+- **Implementation details:** `ConfigPanelViewModel.OnParametersIsOptional
+  EnabledChanged` / `OnAdvancedIsOptionalEnabledChanged` call `ClearError()`
+  on the section's fields when the value transitions to `false`
+  (CommunityToolkit setters suppress the callback when the value is
+  unchanged, so ground-false is a no-op). `RecomputeBlockingState()` gates
+  `ManualLambda`/`ManualMuPerStage`/`PExit` behind `ParametersIsOptional
+  Enabled` and `Seed` behind `AdvancedIsOptionalEnabled`. The Phase-4 test
+  `PExit_ValueOne_SetsInlineError_AndBlocksStart` now enables the Parameters
+  toggle first so its assertion still tests blocking. Three new tests cover
+  clear-on-OFF, skip-in-gating, and revalidate-on-next-blur.
+- **Impact:** (+) Start is disabled only by fields the user is actually
+  using; (+) toggling OFF visually and semantically removes a section's
+  values. (−) a user who types a bad p_exit while the section is OFF sees it
+  "disappear" when they toggle OFF — intended, and surfaced by the switch
+  label.
+- **Alternatives considered:** keeping the original unconditional equation
+  (owner rejected — contradicts "OFF"); pre-flagging on re-enable (spec
+  explicitly rejected — fields must not be marked before their next blur).
+- **Note (build, not a behaviour decision):** the temporary cascade of
+  `AVLN2000/AVLN2200/AVLN2207` compile errors came from the custom
+  `HeaderToggleSwitch` theme — `PART_MovingKnobs` must be a `Panel` subtype
+  (ToggleSwitch's knob-animation contract) and inline part Styles inside a
+  `ControlTheme` need `x:SetterTargetType="Border|Panel"` so compiled XAML
+  knows each part's CLR type. A failed partial compile also left a stale
+  duplicated `AvaloniaResources` manifest (`/Assets/ControlStyles.axaml`
+  twice), which crashed `StandardAssetLoader` in the headless tests; a clean
+  rebuild after the fix resolved it. No csproj change required (the
+  tentative `Exclude="Assets\**\*.axaml"` was reverted).
+
+### D-104 — Phase 5 coordinator re-implements the M5 data/run seam inside the App — 2026-09-16
+- **Decision:** The rebuilt `feat/gui-rebuild` run flow re-introduces the M5
+  App-layer seam — `Models/{DataBindingResult,FitReport,SimulationParameters}`,
+  `Services/{DataAnalyzer,CollectionTraceSink,FitsService,WidgetPreferences,
+  SimulationCoordinator}` — because the Phase-1 rebuild intentionally deleted
+  the M5 view layer wholesale. The coordinator is **re-written**, not copied:
+  the M5 copy built `NetworkTopology` *outside* the `try` block, so a fitted
+  `p_exit = 1.0` surfaced as an unhandled `ArgumentOutOfRangeException` instead
+  of a clean refusal (owner gotchas G3/G4). The rebuild builds the topology
+  **inside** the `try`: `UnstableSystemException` → refused outcome carrying
+  the **exact Core message** (no prefix rewrite); `ArgumentOutOfRangeException`
+  for the `exitProbability` parameter → refused outcome; fitted `p_exit ≥ 1.0`
+  is detected before the topology is built and refused with the user-meaningful
+  "every row in the loaded data exits after Screening…" message (5-F).
+- **Rationale:** `Core`, `Data`, and `Cli` are frozen (GUI-rebuild mandate);
+  the fitting (λ = 1/mean inter-arrival, μ per stage, p_exit from
+  `departure_stage`) and refusal semantics already exist and are tested in the
+  Data/Core layers — duplicating them in the App contradicts "one canonical
+  location" (D-077 heritage) and forces a second, untested implementation.
+- **Implementation details:** `DataAnalyzer` (from M5) is the GUI twin of the
+  CLI `simulate-data` loading stage; `CollectionTraceSink` caps at 50,000
+  rendered lines so long runs cannot grow the trace unboundedly. Manual λ / μ /
+  p_exit overrides take precedence, then fitted, then default
+  `p_exit = 0.4` (M5 `DefaultExitProbability`). Sizes/G12: the refused-run
+  banner uses a content-sized strip (32 px minimum, 96 px cap) so a refusal
+  never claims the full results panel.
+- **Impact:** (+) One tested path for fitted values and one for refuse; (+)
+  exact Core wording preserved for the ρ ≥ 1 refusal (viva evidence); (−) the
+  App now carries Data-layer references (already transitively true).
+- **Alternatives considered:** duplicating fitting inside the App (rejected —
+  untested copy, violates canonical-location); letting the exitProbability
+  exception reach the UI (rejected — owner G4).
+
+### D-105 — "Diagnostic trace" run mode for the event trace — 2026-09-16
+- **Decision:** The GUI Horizon section becomes a three-valued run mode:
+  **ClinicDay** (one operating session, default) | **MultiDay** (N consecutive
+  operating days) | **DiagnosticTrace** (a minutes-horizon run with the full
+  event trace). Diagnosed during Phase-5 recon: the frozen Core `Engine` only
+  emits `ITraceSink` events on the plain horizon overload; the calendar
+  overload hardcodes `traceSink: null`. The rebuilt Phase-4 config had **no**
+  minutes horizon, so the trace viewer and TraceLevel dropdown could never
+  populate. Owner decision: expose the trace as a **diagnostic** mode, not a
+  co-equal clinic mode. Deliberately **not** named `HorizonMode.Minutes` — the
+  M5 semantic was a general minutes run; here the mode exists solely to walk
+  DES correctness on a bounded run.
+- **Rationale:** the viva needs a step-by-step trace (M4/M5 requirement), but a
+  clinic-day run spans dozens of days and tens of thousands of events — an
+  impractical hand-walk target. A bounded minutes-horizon run is the natural
+  trace surface. The frozen-Core rule is untouched: both `Engine.Run`
+  overloads already exist.
+- **Implementation details:** `RunMode { ClinicDay, MultiDay, DiagnosticTrace }`
+  on `ConfigPanelViewModel`; `IsSingleDay`/`IsMultiDay` become derived views
+  (existing bindings and Phase-4 tests intact). DiagnosticTrace reveals the
+  `Horizon (minutes)` `ValidatedField` (integer ≥ 1, default 10000) and the
+  Trace level dropdown and hides Days / Start day / Daily patient cap; the other
+  modes hide Horizon and Trace level entirely (hidden, not merely disabled).
+  Start gating follows 4-c.1: only the fields visible in the current mode
+  participate, and toggling a field out of view clears its stale error. The
+  coordinator dispatches DiagnosticTrace → `Engine.Run(topology, seed,
+  horizonMinutes, sink)`; ClinicDay / MultiDay → `Engine.Run(topology,
+  ClinicCalendar(startDay), generatorDays, seed, dailyCap)` with no sink.
+- **Impact:** (+) trace viewer + TraceLevel dropdown become functional; (+)
+  day-model default and semantics untouched; (−) one extra config field and
+  mode radio, slightly larger config panel.
+- **Alternatives considered:** keeping the trace widget as a "no trace for
+  calendar runs" note (owner rejected — trace feature visibly dead); dropping
+  the trace widget from Phase 5 (owner rejected — it is a Phase-5 deliverable).
+- **Viva note (owner-supplied, lands in VIVA_ANSWERS.md):** see §13 wrap-up for
+  the exact framings.
+
+### D-106 — Manual-μ source resolution and seed-gating fix (Phase 5, 5-G) — 2026-09-16
+- **Decision:** Manual service rates come from **two sources**: each stage row's
+  `ServiceRate` field is authoritative; the Parameters list `ManualMuPerStage`
+  fills in the blanks in stage order, both after mode conversion (Mean-wise
+  divides 1 by the value). Raw `Seed.Value` **never gates Start** — the Advanced
+  seed is optional and `EffectiveSeed` falls back to the default `42` when
+  Parameters are OFF.
+- **Rationale:** adding a second manual-μ path beside the per-stage rows was a
+  Phase-5 decision inherited from the M5 seam; two inputs feeding one rate is
+  confusing, so the per-stage row wins and the list only backfills blanks (a
+  Phase-5 polish item already captured in TODO §5-A1). The seed-gating bug
+  surfaced when Phase-5 tests failed: `TryBuildRunParameters` refused to start
+  unless `Seed.Value` parsed, but the Advanced section is optional and OFF by
+  default, so the whole factory-default config was un-startable — a flat
+  contradiction of factory-defaults-Start-enabled (D-100).
+- **Implementation details:** `SimulationParameters.ManualServiceRates` holds
+  the resolved rates; `ConfigPanelViewModel.TryBuildRunParameters` merges
+  `ManualMuPerStage` into blank rows and gates only on the parameters actually
+  visible in the active RunMode (D-105). Unstable ρ ≥ 1 still surfaces the
+  exact `UnstableSystemException` message (G3/G4).
+- **Impact:** (+) factory-default config Start-enabled; (+) single resolved
+  rate per stage; (−) two input paths still visible to the user until the
+  polish phase consolidates them.
+- **Alternatives considered:** making the Advanced seed mandatory (rejected —
+  breaks D-100 and the optional-section semantics decided in 4-c.1); dropping
+  the ManualMuPerStage list (deferred — removal belongs to the consolidation
+  polish task, not 5-G).
+
+### D-107 — Wayland `AppMenu.Registrar` DBus quirk is ignored, not reported as a crash (5c.2) — 2026-09-16
+
+- **Decision:** The `TaskScheduler.UnobservedTaskException` handler ignores the
+  unobserved `org.freedesktop.DBus.Error.ServiceUnknown: The name
+  com.canonical.AppMenu.Registrar was not provided by any .service files`
+  error, but **only** that error. `CrashReporter.IsIgnorableWaylandQuirk`
+  walks the inner-exception chain and matches BOTH the `com.canonical.AppMenu.Registrar`
+  marker AND `ServiceUnknown`/`org.freedesktop.DBus.Error.ServiceUnknown`.
+  The matching quirk is `SetObserved()` + Information-logged; everything else
+  still routes to `CrashReporter.Report` unchanged.
+- **Rationale:** The marker query is a cosmetic probing of the global app-menu
+  DBus name, and on Wayland this box there is no registrar; the CLR raises it
+  as an UNOBSERVED task exception even though the query needs no result.
+  Crashing is wrong (ordering a quote), but swallowing arbitrary exceptions is
+  worse — hence the strict two-condition match. The real 2026-09-16 02:49
+  crash log (`logs/crash-20260916.log`) shows the inner type is
+  `Tmds.DBus.Protocol.DBusException` (class name "DBusException"), which is
+  why the filter matches the SERVICE-UNKNOWN TEXT, not the CLR type name
+  (that class name varies across Tmds.DBus versions).
+- **Implementation:** `Services/CrashReporter.cs::IsIgnorableWaylandQuirk`
+  (internal, visible to tests via the new `InternalsVisibleTo
+  Include="OpdSimulator.App.Tests"` in the App csproj — the repo's first
+  InternalsVisibleTo, needed so the App's own log/banner machinery is
+  unit-testable); wired in `App.axaml.cs` before `CrashReporter.Report`.
+  Test: `Phase5cFixesTests.CrashReporter_IgnoresAppMenuRegistrarDBusError`.
+- **Impact:** (+) 0 crash dialogs for a benign Wayland interaction; (+) real
+  crashes still surface with the full report. (−) none observed.
+- **Alternatives considered:** matching on the marker string alone (rejected —
+  would suppress real errors that merely mention the registrar); matching on
+  the type name alone (rejected — type name is not stable across Tmds.DBus
+  versions); filtering in `UnhandledException` (rejected — the quirk arrives
+  via the TaskScheduler path, is the one seen in production logs).
+
+### D-108 — Persisted widget visibility was never restored; default seed corrected to all-on (5c discovery) — 2026-09-16
+
+- **Decision:** `MainViewModel` now builds the results view model with
+  `WidgetPreferences.Load()` (it previously passed `new WidgetPreferences()`,
+  which never reads the per-user `ui.json` — FR-UI-14 restore was dead code),
+  and `WidgetPreferences.VisibleWidgets` now defaults to
+  `["metrics", "chiSquare", "trace"]` (all-on) instead of an empty list.
+- **Rationale:** The restore path is contractual (AGENTS §16.11 / FR-UI-14:
+  "Persist: UI widget visibility preferences"); a store that is never loaded
+  plus an empty default caused EVERY fresh launch to hide all four widgets,
+  contradicting `ResultsPanelViewModel`'s documented "seeded to all-on"
+  contract and its own all-on `VisibleWidgets` property default.
+- **Implementation:** `ViewModels/MainViewModel.cs:21` (`new(WidgetPreferences.Load())`);
+  `Services/WidgetPreferences.cs` default seed. Tests stay hermetic: the
+  Phase 5c screenshot test hosts `ResultsPanelViewModel` with an explicit
+  temp-file `WidgetPreferences` rather than the real machine file.
+- **Impact:** (+) the user's widget choices survive restarts; (+) fresh
+  installs show all widgets as documented. (−) the dev machine's stale
+  `~/.config/OpdSimulator/ui.json` (`VisibleWidgets: []`, written 03:08 by a
+  pre-fix test run) now gets honoured — flagged to the owner for a one-time
+  reset rather than silently deleted.
+- **Alternatives considered:** keeping the empty default and special-casing
+  "empty means all-on" (rejected — ambiguous with a user who explicitly hid
+  everything, and drift-prone); deleting the stale file in code (rejected —
+  never delete user config).
+
+### D-109 — Welcome card must be bound as Content, not just IsVisible (5c part 3) — 2026-09-16
+
+- **Decision:** `Views/ResultsPanel.axaml`'s welcome `ContentControl` gained
+  `Content="{Binding Welcome}"`. Before the fix it bound only
+  `IsVisible="{Binding IsWelcomeVisible}"`, so its `Content` stayed null and the
+  `ContentTemplate` **never instantiated `WelcomeCard`** — the FR-UI-5 card
+  rendered nothing on every launch even though `IsWelcomeVisible` defaults to
+  true and `ResultsPanelViewModel.Welcome` was already populated.
+- **Rationale:** in this layout an Avalonia `ContentControl` applies its
+  `ContentTemplate` only when `Content` is non-null; the missing binding was a
+  silent no-op, exactly the "welcome card absent" defect the owner spotted in
+  every screenshot/launch. The view and view model were both complete (AGENTS
+  §16.6: logos, CourseInfo-driven course/professor/members, instruction line) —
+  the only gap was the binding.
+- **Implementation:** one-line XAML addition;
+  `Phase5cFixesTests.WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun`
+  asserts the `WelcomeCard` is in the tree, is effectively visible on a fresh
+  launch, and hides once `StartRun()` replaces it.
+- **Impact:** (+) the required launch state now actually shows; (+) the test
+  pins the binding so a future refactor cannot silently drop it again. (−) none.
+- **Alternatives considered:** setting `Content` in code-behind on loaded
+  (rejected — XAML binding is the declarative, testable form).
+- **Note (ID reallocation):** 5c/5d decision IDs shifted — welcome card is
+  now D-109; 5c.3's Core traceSink change took D-110; the 5c.4 Clear All
+  reset takes D-111; the 5d entries (previously planned as D-111..D-114)
+  become D-112..D-115 in order.
+
+### D-110 — Calendar Engine.Run overload forwards an optional traceSink (5c.3) — 2026-09-16
+
+- **Decision:** the calendar `Engine.Run` overload gained a final optional
+  `ITraceSink? traceSink = null` parameter (forwarded to `RunCore`), mirroring
+  the minutes-horizon overload which already took a sink. Owner-approved (the
+  "Do NOT touch Core" rule protects against GUI-driven churn, not additive
+  seams; the change is byte-compatible).
+- **Rationale:** with a real sink the App can collect the event trace for
+  ClinicDay/MultiDay runs — `SimulationCoordinator` now forwards its
+  `CollectionTraceSink` in **every** run mode — so the event-trace widget
+  populates after a normal clinic-day run instead of only in DiagnosticTrace.
+  Default `null` keeps every existing Core/CLI/test caller unchanged, proven
+  by the Core suite: **85 green before AND after** the edit.
+- **Implementation:** one parameter (Engine.cs) + one forwarded line; the
+  removed `traceSink: null` literal and its "The calendar run has no trace
+  output" comment are the same edit site. App side: `SimulationCoordinator`
+  calendar branch passes `sink`; the transient ResultsPanel placeholder
+  "Only the Diagnostic trace mode records events (D-105)" was removed.
+  Tests: `TraceViewer_PopulatesAfterClinicDayRun` (new); the old
+  `Assert.Empty(outcome.TraceLines)` assertions in
+  `ClinicDay_IsOneSessionCalendarRun_WithNoTrace` and
+  `MultiDay_GeneratesExactlyTheRequestedDays` were updated to Assert.NotEmpty
+  (renamed the first to `ClinicDay_IsOneSessionCalendarRun_RecordsTrace`).
+- **Impact:** (+) trace evidence for the modes a clinic user actually runs;
+  (+) Core surface stays backward-compatible. (−) none observed.
+- **Alternatives considered:** keeping calendar runs sink-less (rejected — a
+  trace widget that ignores the modes a clinic user actually runs); a second
+  overload (rejected — one additive optional parameter is the minimal
+  surface). D-105's "only DiagnosticTrace records events" wording is
+  superseded; DiagnosticTrace remains the recommended hand-walk mode.
+
+### D-111 — "Clear All" performs a full reset to the fresh-launch state (5c.4) — 2026-09-16
+
+- **Decision:** confirming the Clear All dialog is now a **full** reset owned
+  by `MainViewModel.ResetAll()`: it calls `Config.ResetToDefaults()` (which
+  already unloads the uploaded file by nulling `Binding`/`LoadedFileName` and
+  restoring "No file loaded"), calls the new `ResultsPanelViewModel.Reset()`
+  (welcome card back, `HasRun=false`, `RunError=null`, `TraceText=""`,
+  metrics/chi-square/`StageRows` cleared, preview rows dropped, then
+  `ApplyPreferences()` re-applies the persisted widget-visibility set), and
+  logs an Information line. The ConfigPanel code-behind invokes it after the
+  themed confirmation — falling back to config-only reset when no MainWindow
+  hosts the panel (standalone tests/demo).
+- **Rationale:** the previous reset only cleared fields, leaving a stale run,
+  banner and hidden welcome card — the opposite of the user's "return to the
+  clear screen" (FR-UI-5/13/21). Owner spec, quoted: "Clear All must return
+  the app to the state it was in on fresh launch: empty config, no uploaded
+  file, welcome card visible, results panel empty."
+- **Implementation:** `MainViewModel.ResetAll()` (public, invoked by the view
+  post-confirm — the entry point stayed the config's `ClearAllCommand` →
+  `ClearAllRequested` → themed dialog, so the confirmation gate is unchanged;
+  a MainWindow-scoped RelayCommand would bypass it); `ResultsPanelViewModel.
+  Reset()`; tooltip now reads "Resets the configuration, the uploaded file,
+  and the results panel to the fresh-launch state". Tests:
+  `ClearAll_ResetsResultsPanel_ToWelcomeState` (post-run → welcome state,
+  widget CONTENT cleared — visibility is a persisted preference, FR-UI-21,
+  and survives by design), `ClearAll_UnloadsUploadedFile` (samples/sample_
+  patients.csv → "No file loaded", `Binding` null), `ClearAll_KeepsPinnedFooter_
+  Visible` (footer + button survive the reset).
+- **Impact:** (+) predictable factory ground on demand; (+) welcome-card fix
+  (D-109) is now reachable by the user, not only on launch. (−) none observed.
+- **Alternatives considered:** binding a new MainViewModel RelayCommand
+  directly to the button (rejected — would skip or duplicate the existing
+  confirmation dialog); keeping the reset config-only (rejected — that is the
+  bug being fixed).
+
+### D-112 — μ leaves the Stages rows: topology-only rows + one manual entry point (5d.1) — 2026-09-16
+
+- **Decision:** the editable per-row "Service rate μ (per server)" field in
+  the Stages section is removed. Each stage row is now **topology only** (name
+  + server count) plus a read-only **μ-source label** in one of three forms:
+  `μ = {v:0.##} (from data)` (fitted rate for that stage name), `μ = {v:0.##}
+  (manual)` (taken from the Parameters comma list at that index, converted
+  1/v in mean-wise mode), or `μ = — (no source)`. The single manual entry
+  point is the Parameters comma list (blank entries use the fitted value).
+  When a stage has no rate from either source the run is refused with a
+  banner naming the stage: `Stage '{name}' has no service rate. Upload data
+  covering this stage, or enable Parameters to enter μ manually.`
+- **Rationale:** owner spec 5d.1 ("removes per-row [μ]; stage rows = name +
+  servers only; single manual entry point in Parameters; Start must be
+  blocked with ErrorBanner if μ is missing after loading data"). One canonical
+  μ input removes the duplicate-source ambiguity the per-row field created
+  (D-100's "blank means fitted" intent is preserved, but expressed as the
+  Parameters-list back-fill rather than a silent empty row). The Start gate is
+  deliberately a **run-time refusal banner**, not a disabled button: a factory
+  default config (no μ explicit anywhere) must stay runnable in principle, and
+  the (0,1)-validated gap between "no μ yet" and "invalid μ" is better
+  explained at the moment of impact.
+- **Implementation:** `StageRow` dropped `ServiceRate`/`ValidateServiceRate()`
+  (`HasErrors` = servers only), gained `ServiceRateLabel`; `ConfigPanelViewModel`
+  `RefreshStageSourceLabels()`/`BuildServiceRateLabel()`/`ManualMuParts()`/
+  `FittedRateFor()`/`EffectiveMu()` recompute labels on load, manual-list
+  change, mode toggle, Parameters toggle and stage-list resize;
+  `RecomputeRho()` now uses the same sources (labels and ρ cannot disagree);
+  `SimulationCoordinator.BuildStageSpecs` returns a `(Specs, MissingStageName)`
+  tuple and `Run` refuses via `MissingServiceRateMessage` (format string
+  naming the stage). ConfigPanel.axaml renders the label (TextBlock) in place
+  of the ValidatedField and the section HelpText says "topology only".
+- **Impact:** (+) one authoritative μ-source; (+) refusal names the exact
+  stage — the viva can reproduce it ("Stage 'Doctor' has no service rate…");
+  (+) ρ preview always shows what the run will use. (−) renaming a row after
+  load does not re-derive its label without a reload/resync (limited: labels
+  describe the source the run will use at run time, and Start's banner is
+  authoritative).
+- **Alternatives considered:** keeping the per-row field disabled-until-data
+  (rejected — the owner's split of concerns is cleaner: one entry point, and
+  richer labeling than a blank box); a per-stage manual list keyed by name
+  (rejected — the Parameters comma list is positional and matches the λ list
+  already there).
+
+### D-113 — significance level α selector with (0,1) validation (5d.2) — 2026-09-16
+
+- **Decision:** a new "Significance level (α)" field in the Model section
+  (default **0.05**), validated strictly between 0 and 1 (blur validation,
+  inline error: "Enter a number between 0 and 1." for non-numeric,
+  "Significance level must be strictly between 0 and 1. You entered {value}."
+  for out-of-range). Invalid α blocks Start. The value threads through the
+  whole chi-square path: `ConfigPanelViewModel.SignificanceLevelForRun` →
+  `SimulationCoordinator.Run(…, significanceLevel)` → `BuildFits` →
+  `FitsService.Fit(…, alpha)` → `ChiSquareTest.Run(…, alpha)` → every verdict
+  uses it. The results panel caption is dynamic:
+  `Chi-square goodness-of-fit (α = 0.05)` → `(α = 0.01)` etc., set via
+  `ResultsPanelViewModel.SetChiSquareAlpha` and restored by Clear All.
+- **Rationale:** owner spec 5d.2 ("significance level selector … default
+  0.05 … must be > 0 and < 1"). Previously every chi-square verdict silently
+  used the hard-coded 0.05 constant; the user could not adjust the test's
+  strictness and the caption lied about nothing (it was static). The validity
+  set (0,1) excludes the degenerate boundaries where the test is meaningless
+  (α=0 → nothing ever rejected; α=1 → everything rejected).
+- **Implementation:** `ConfigPanelViewModel.SignificanceLevel` (ConfigField,
+  added to `AllFieldErrors` + `RecomputeBlockingState`,
+  `ValidateSignificanceLevel()` routed from `ValidationKey="significance-level"`),
+  `SignificanceLevelForRun` falls back to `FitsService.DefaultAlpha` on parse
+  failure (defence in depth, matching configuration-time validation);
+  `FitsService.Fit(string, …, double alpha = DefaultAlpha)`; `SimulationCoordinator`
+  carries α through to every `FitReport`; `ResultsPanelViewModel.ChiSquareCaption`
+  (+ `SetChiSquareAlpha`); ConfigPanel.axaml adds the ValidatedField after the
+  two distribution dropdowns.
+- **Impact:** (+) the goodness-of-fit decision is now a user-controlled knob,
+  defensible in the viva; (+) one constant lives in one place
+  (`FitsService.DefaultAlpha`, still the fallback). (−) a third numeric in the
+  Model section — mitigated by group help text and the (0,1) validation.
+- **Alternatives considered:** fixing at 0.05 with no field (rejected — the
+  spec demands the selector and a competence question in the viva is "how do I
+  change the test's strictness?"); a (0,1] acceptance (rejected — α=1 makes
+  the test vacuous, spec says strictly less than 1).
+
+### D-114 — stage-count mismatch amber warning with Sync / Keep actions (5d.3) — 2026-09-16
+
+- **Decision:** after loading data whose detected stage count differs from the
+  configured stage list, the Data section shows an **amber warning banner**
+  with the exact counts and names — N < M: "…Configured stages not covered by
+  the data will have no service rate."; N > M: "…Extra stages in the data will
+  be ignored." — plus two actions: **Sync stages from data** (themed confirm
+  dialog, then the VM's `SyncStagesToData()` resizes the rows, adopts the
+  data's stage names, clears the warning and refreshes the μ labels) and
+  **Keep current stages** (non-destructive dismiss for the session). The
+  message conflict between the 5d.1 spec wording and the 5d.3 "NEW" wording is
+  resolved to the 5d.3 text as the single canonical banner: `Stage '{name}'
+  has no service rate. Upload data covering this stage, or enable Parameters
+  to enter μ manually.` (the older 5d.1 snippet is dropped).
+- **Rationale:** owner spec 5d.3 ("must NOT be wrapped in the 5d.1 error; the
+  user sees [New] message … warning is amber"). Sync surfaces the fastest
+  fix (adopt the data's topology); Keep guarantees no silent mutation — the
+  warning must never auto-change the user's stage list. The 5d.1-vs-5d.3
+  conflict appears only when the warning is visible with a missing-μ banner
+  pending; the spec's later, more specific wording wins (AGENTS §7: pick the
+  more recent).
+- **Implementation:** `RecomputeStagesMismatch()` (invoked from
+  `ApplyLoadedFile`), `IsStageMismatchWarningVisible`/`StageMismatchMessage`
+  observables, `SyncStagesFromDataCommand`/`KeepCurrentStagesCommand` raising
+  `SyncStagesRequested`/`KeepStageMismatchRequested` (the view confirms the
+  destructive Sync via `ThemedDialog`, calls `SyncStagesToData()`, and just
+  calls `DismissStageMismatchWarning()` for Keep); ConfigPanel.axaml amber
+  `Border` (theme warning tokens) below the Data status. Recompute, Sync and
+  Dismiss are all cleared by `ResetToDefaults` (5d + 5c.4).
+- **Impact:** (+) the user always learns *why* a stage "has no service rate"
+  before the run is refused; (+) N>M silently ignoring extra data is no longer
+  invisible. (−) an extra banner needs a dismiss for users who knowingly run a
+  subset — provided by Keep.
+- **Alternatives considered:** overloading the ErrorBanner (rejected — the
+  banner is failure-red and this is an advisory state); resizing automatically
+  on load (rejected — silent topology mutation breaks AGENTS §3 and surprise
+  the user); warning-only without actions (rejected — the spec asks for
+  Sync).
+
+### D-115 — amber theme tokens + `ErrorBanner.Severity` (5d.4) — 2026-09-16
+
+- **Decision:** the warning palette is the theme's existing amber tokens
+  (`ColorWarning #8A5300` / `ColorWarningBackground #FFF4E0` + the
+  `BrushWarning`/`BrushWarningBackground` brushes) — **no new colours** — and
+  `ErrorBanner` gains a `BannerSeverity` attached property
+  (`Error` default / `Warning` / `Info`) whose `ApplySeverity()` picks
+  foreground, background, border and accent glyph from theme resources. The
+  automation name becomes `"{Severity}: {Message}"`.
+- **Rationale:** AGENTS §16.3 forbids hard-coded colours; the banner is now
+  reused for a non-fatal advisory (mismatch), so "error-red" semantics are
+  wrong. One control, three severities, zero new tokens.
+- **Implementation:** `BannerSeverity` enum + styled `Severity` property;
+  `BrushOf(name, r, g, b)` resolves each brush via `TryFindResource` with a
+  literal fallback triple (unreachable when the theme loads; kept for nullable
+  analysis — 0 warnings). Warning = amber, Info = muted neutral, Error = the
+  existing red trio. The StageMismatchMessage banner in ConfigPanel uses
+  `BrushWarningBackground`/`BrushWarning` directly in XAML (no Severity
+  plumbing needed for a static-colour advisory).
+- **Impact:** (+) one visual language for severity; (+) theming survives a
+  single-file restyle. (−) none observed.
+- **Alternatives considered:** a separate `NoticeBanner` control (rejected —
+  identical layout, duplicated logic, AGENTS §16.5); new `ColorWarningBright`
+  tokens (rejected — Theme.axaml already had them from earlier phases).

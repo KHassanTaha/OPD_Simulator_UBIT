@@ -1,16 +1,16 @@
 namespace OpdSimulator.App.Services;
 
 using OpdSimulator.App.Models;
-using OpdSimulator.Data;
 using OpdSimulator.Data.Loaders;
 using OpdSimulator.Data.Preprocess;
 using OpdSimulator.Data.Validation;
 
 /// <summary>
-/// Turns a data file into the <see cref="DataBindingResult"/> the config view
-/// model displays and the coordinator runs with — the GUI twin of the CLI's
-/// <c>simulate-data</c> loading stage (stage detection in clinic order,
-/// λ = 1/mean(inter-arrival), μ per stage, p_exit from departure_stage).
+/// Turns a data file into the <see cref="DataBindingResult"/> the run needs —
+/// the GUI twin of the CLI's <c>simulate-data</c> loading stage (stage
+/// detection in clinic order, λ = 1/mean(inter-arrival), μ per stage, p_exit
+/// from departure_stage). Load errors and validation issues are reported as
+/// clean user-facing reasons, never exceptions (FR-UI-9).
 /// </summary>
 public static class DataAnalyzer
 {
@@ -37,7 +37,6 @@ public static class DataAnalyzer
         }
         catch (Exception ex)
         {
-            // A clean, user-facing reason instead of a stack trace (FR-UI-9).
             Serilog.Log.Warning(ex, "Data file could not be parsed: {Path}", path);
             return new DataBindingResult(path, null, Array.Empty<ValidationIssue>(),
                 $"The file could not be read: {ex.Message}", null, Array.Empty<string>(),
@@ -47,7 +46,6 @@ public static class DataAnalyzer
 
         var issues = DataValidator.ValidateReturningIssues(dataSet);
 
-        // Inter-arrival gaps from arrival_time; at least two are needed for a rate.
         var arrivals = new List<double>();
         foreach (var row in dataSet.Rows)
         {
@@ -59,7 +57,6 @@ public static class DataAnalyzer
 
         double? lambda = arrivals.Count >= 2 ? 1.0 / InterArrivalCalculator.Compute(arrivals).Average() : null;
 
-        // Detected clinic stages in flow order, with one fitted μ each.
         var stageSet = StagePairDetector.Detect(dataSet.Columns);
         var pairByName = stageSet.Pairs.ToDictionary(p => p.Stage, StringComparer.OrdinalIgnoreCase);
         var orderedNames = ClinicStageOrder.Flow.Where(n => pairByName.ContainsKey(n)).ToArray();
@@ -74,8 +71,6 @@ public static class DataAnalyzer
             serviceMinutes[name] = times;
         }
 
-        // p_exit only means something when there is a stage after Screening (Doctor).
-        // A file with no usable departure_stage leaves it undefined (null).
         double? pExitProbability = null;
         int screeningExits = 0;
         int doctorExits = 0;
@@ -90,6 +85,8 @@ public static class DataAnalyzer
         }
         catch (DataValidationException)
         {
+            // No usable departure_stage → p_exit undefined; null lets the
+            // coordinator fall back to its default (D-104).
         }
 
         return new DataBindingResult(path, dataSet, issues, null, lambda,

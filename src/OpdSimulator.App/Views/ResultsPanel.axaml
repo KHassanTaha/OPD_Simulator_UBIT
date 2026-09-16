@@ -3,14 +3,17 @@
              xmlns:controls="using:OpdSimulator.App.Controls"
              xmlns:vm="using:OpdSimulator.App.ViewModels"
              xmlns:views="using:OpdSimulator.App.Views"
-             x:DataType="vm:ResultsViewModel"
+             x:DataType="vm:ResultsPanelViewModel"
              x:Class="OpdSimulator.App.Views.ResultsPanel">
 
-    <!-- Right panel (M5-E): the welcome card until a run starts; afterwards the
-         chosen result widgets (FR-UI-14), each hidden via ShowX. -->
+    <!-- Phase-5 results panel (Simulation tab, right column). Layout contract:
+         welcome card until any run is attempted; afterwards the chosen widgets
+         inside a scrollable stack. Widget order is stable: metrics → chi-square
+         → data preview → trace. -->
     <Grid>
 
-        <!-- Welcome card (FR-UI-5). -->
+        <!-- Welcome card (FR-UI-5). Content must be bound or the template
+             never instantiates the card (5c welcome-card bug, part 3). -->
         <ContentControl IsVisible="{Binding IsWelcomeVisible}"
                         Content="{Binding Welcome}">
             <ContentControl.ContentTemplate>
@@ -20,17 +23,19 @@
             </ContentControl.ContentTemplate>
         </ContentControl>
 
-        <!-- Results content once a run starts. -->
-        <StackPanel IsVisible="{Binding ShowResults}" Spacing="10" Margin="16">
+        <!-- Results once a run starts. Header + widget picker stay pinned; the
+             widgets themselves scroll (5c.1). -->
+        <Grid IsVisible="{Binding HasRun}" RowDefinitions="Auto,*">
+            <StackPanel Margin="16,16,16,0" Spacing="{DynamicResource SpaceM}">
 
-            <!-- Run header + error banner + customise. -->
+            <!-- Run header + customise toggle. -->
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding RunSummary}"
-                               FontSize="{DynamicResource FontSizeBodyStrong}"
+                               FontSize="{DynamicResource FontSizeTitle}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="{Binding EffectivePExit, StringFormat='Effective exit probability (after Screening): {0}'}"
+                    <TextBlock Text="{Binding EffectiveExitText}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
                 </StackPanel>
@@ -43,206 +48,188 @@
                               ToolTip.Tip="Choose which result widgets are visible (FR-UI-14)"/>
             </Grid>
 
-            <!-- Widget visibility chooser. -->
+            <!-- Widget-visibility chooser. -->
             <Border x:Name="WidgetPicker"
                     IsVisible="False"
                     Background="{DynamicResource BrushBackgroundAlt}"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
-                <UniformGrid Columns="3">
-                    <CheckBox IsChecked="{Binding ShowMetrics, Mode=OneWay}" Click="OnWidgetToggle" Tag="metrics" Content="Metrics"/>
-                    <CheckBox IsChecked="{Binding ShowChiSquare, Mode=OneWay}" Click="OnWidgetToggle" Tag="chiSquare" Content="Chi-square"/>
-                    <CheckBox IsChecked="{Binding ShowTrace, Mode=OneWay}" Click="OnWidgetToggle" Tag="trace" Content="Trace"/>
-                    <CheckBox IsChecked="{Binding ShowDataPreview, Mode=OneWay}" Click="OnWidgetToggle" Tag="dataPreview" Content="Data preview"/>
-                    <CheckBox IsChecked="{Binding ShowCharts, Mode=OneWay}" Click="OnWidgetToggle" Tag="charts" Content="Charts"/>
-                    <CheckBox IsChecked="{Binding ShowToken, Mode=OneWay}" Click="OnWidgetToggle" Tag="token" Content="Token"/>
-                </UniformGrid>
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Visible widgets"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextSecondary}"
+                               ToolTip.Tip="Widget visibility is remembered; configuration and results are not (FR-UI-21)"/>
+                    <UniformGrid Columns="2">
+                        <CheckBox IsChecked="{Binding ShowMetrics, Mode=TwoWay}" Content="Metrics"/>
+                        <CheckBox IsChecked="{Binding ShowChiSquare, Mode=TwoWay}" Content="Chi-square"/>
+                        <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
+                        <CheckBox IsChecked="{Binding ShowDataPreview, Mode=TwoWay}" Content="Data preview"/>
+                    </UniformGrid>
+                </StackPanel>
             </Border>
+            </StackPanel>
 
-            <!-- Running progress (M5-F). -->
-            <StackPanel Spacing="4" IsVisible="{Binding IsRunning}">
+            <!-- Scrollable widget area (5c.1): metrics, chi-square, preview,
+                 trace scroll together; the selector row above stays pinned. -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
+
+            <!-- Running progress. -->
+            <StackPanel Spacing="4" IsVisible="{Binding IsBusy}">
                 <ProgressBar IsIndeterminate="True"/>
                 <TextBlock Text="{Binding StatusText}"
                            FontSize="{DynamicResource FontSizeCaption}"
                            Foreground="{DynamicResource BrushTextMuted}"/>
             </StackPanel>
 
-            <!-- Run-refusal / error banner. -->
-            <Border Background="{DynamicResource BrushErrorBackground}"
-                    BorderBrush="{DynamicResource BrushError}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusSmall}"
-                    Padding="{DynamicResource ThicknessSpaceM}"
-                    IsVisible="{Binding HasError}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="&#xEA39;" Foreground="{DynamicResource BrushError}" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding RunError}"
-                               Foreground="{DynamicResource BrushErrorDark}"
-                               TextWrapping="Wrap" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Border>
+            <!-- Run-refusal banner (G3/G4, 5-F): clean message, never a stack trace. -->
+            <controls:ErrorBanner Message="{Binding RunError}"
+                                  IsVisible="{Binding HasError}"
+                                  ToolTip.Tip="The simulator did not run; read the message and adjust the configuration."/>
 
             <!-- Metrics widget (FR-STAT-6/7). -->
-            <Border x:Name="MetricsWidget"
-                    IsVisible="{Binding ShowMetrics}"
+            <Border IsVisible="{Binding ShowMetrics}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="10">
+                <StackPanel Spacing="{DynamicResource SpaceM}">
                     <TextBlock Text="System totals"
-                               FontSize="{DynamicResource FontSizeHeading4}"
-                               FontWeight="SemiBold"/>
-                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Text="{Binding System.Served}" FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="Avg wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Text="{Binding System.AvgWait}" FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" Spacing="2">
-                            <TextBlock Text="Avg queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Text="{Binding System.AvgQueue}" FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                        </StackPanel>
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding Stages}">
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <ItemsControl ItemsSource="{Binding SystemMetrics}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:StageResultsViewModel">
-                                <Border BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,6">
-                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="14">
-                                        <TextBlock Text="{Binding StageName}" FontWeight="SemiBold" MinWidth="80"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding ArrivalRate, StringFormat='λ={0}'}"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding ServerCount, StringFormat='c={0}'}"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding ServiceRate, StringFormat='μ={0}'}"/>
-                                        <TextBlock Grid.Column="4" Text="{Binding Rho, StringFormat='ρ={0}'}"/>
-                                        <TextBlock Grid.Column="5" Text="{Binding Served, StringFormat='served {0}'}"/>
-                                        <TextBlock Grid.Column="6" Text="{Binding Wait, StringFormat='wait {0}m'}" ToolTip.Tip="Average waiting time in minutes"/>
-                                        <TextBlock Grid.Column="7" Text="{Binding QueueLength, StringFormat='Lq {0}'}" ToolTip.Tip="Time-weighted average queue length"/>
-                                        <TextBlock Grid.Column="8" Text="{Binding Utilisation, StringFormat='ρn {0}'}" ToolTip.Tip="Stage-level utilisation"/>
-                                        <TextBlock Grid.Column="9" Text="{Binding PerServerUtilisation}" ToolTip.Tip="Utilisation per server"/>
-                                    </Grid>
-                                </Border>
+                            <DataTemplate x:DataType="vm:MetricRow">
+                                <Grid ColumnDefinitions="170,*" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="{DynamicResource FontSizeCaption}"
+                                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Value}"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <!-- See ENGINE metrics export for details. -->
-                    <TextBlock Text="Rho vs rho-note: ρ is traffic intensity; ρn is the mean server utilisation."
-                               FontSize="{DynamicResource FontSizeCaption}"
-                               Foreground="{DynamicResource BrushTextMuted}"/>
+
+                    <TextBlock Text="Per stage"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <Grid ColumnDefinitions="90,52,40,58,52,56,64,64,64" ColumnSpacing="8">
+                        <TextBlock Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="1" Text="λ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="2" Text="c" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="3" Text="μ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="4" Text="ρ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="5" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="6" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="7" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="8" Text="Util." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding StageRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StageMetricRow">
+                                <Grid ColumnDefinitions="90,52,40,58,52,56,64,64,64" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ArrivalRate}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Servers}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding ServiceRate}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Rho}"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Served}"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding Wait}"/>
+                                    <TextBlock Grid.Column="7" Text="{Binding Queue}"/>
+                                    <TextBlock Grid.Column="8" Text="{Binding Utilisation}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 
             <!-- Chi-square widget (FR-STAT-8). -->
-            <Border x:Name="ChiSquareWidget"
-                    IsVisible="{Binding ShowChiSquare}"
+            <Border IsVisible="{Binding ShowChiSquare}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Goodness-of-fit (χ², α = 0.05)"
-                               FontSize="{DynamicResource FontSizeHeading4}"
-                               FontWeight="SemiBold"/>
-                    <ItemsControl ItemsSource="{Binding Fits}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+<TextBlock Text="{Binding ChiSquareCaption}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <Grid ColumnDefinitions="130,110,72,46,72,*" ColumnSpacing="8">
+                        <TextBlock Text="Series" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="1" Text="Distribution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="2" Text="χ²" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="3" Text="df" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="4" Text="p" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="5" Text="Decision" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ChiSquareRows}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:FitRowViewModel">
-                                <StackPanel Spacing="2" Margin="0,4,0,4">
-                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
-                                               FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                                    <TextBlock Text="{Binding Detail}"
-                                               FontSize="{DynamicResource FontSizeBody}"
-                                               Foreground="{DynamicResource BrushTextSecondary}"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Verdict, StringFormat='Verdict: {0}'}"
-                                               FontSize="{DynamicResource FontSizeCaption}"
-                                               Foreground="{DynamicResource BrushTextMuted}"/>
-                                </StackPanel>
+                            <DataTemplate x:DataType="vm:ChiSquareRow">
+                                <Grid ColumnDefinitions="130,110,72,46,72,*" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Text="{Binding Series}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Distribution}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Chi2}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DegreesOfFreedom}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding PValue}"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Decision}"/>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
             </Border>
 
-            <!-- Charts widget (FR-UI-4). -->
-            <Border IsVisible="{Binding ShowCharts}"
+            <!-- Data preview widget (FR-UI-20): only visible once a file was analysed. -->
+            <Border IsVisible="{Binding ShowDataPreview}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
-                <views:ChartsPanel DataContext="{Binding Charts}"/>
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Uploaded data preview"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <controls:DataPreviewTable ColumnTitles="{Binding PreviewColumnTitles}"
+                                               Rows="{Binding PreviewRows}"
+                                               InvalidRows="{Binding PreviewInvalidRows}"
+                                               LoadErrorSummary="{Binding PreviewError}"/>
+                </StackPanel>
             </Border>
 
-            <!-- Trace widget (M4 event log). -->
-            <Border x:Name="TraceWidget"
-                    IsVisible="{Binding ShowTrace}"
+            <!-- Event trace widget: mono, scrollable, selectable text (M4). -->
+            <Border IsVisible="{Binding ShowTrace}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Simulation trace"
-                               FontSize="{DynamicResource FontSizeHeading4}"
-                               FontWeight="SemiBold"/>
-                    <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding TraceLines}" FontFamily="monospace">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Event trace"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <ScrollViewer MaxHeight="360"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <SelectableTextBlock Text="{Binding TraceText}"
+                                             FontFamily="{DynamicResource FontFamilyMono}"
+                                             FontSize="{DynamicResource FontSizeCaption}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             TextWrapping="Wrap"/>
                     </ScrollViewer>
                 </StackPanel>
             </Border>
 
-            <!-- Data preview widget (FR-UI-20). -->
-            <Border x:Name="PreviewWidget"
-                    IsVisible="{Binding ShowDataPreview}"
-                    Background="{DynamicResource BrushBackgroundPanel}"
-                    BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
-                    Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Data preview (read-only)"
-                               FontSize="{DynamicResource FontSizeHeading4}"
-                               FontWeight="SemiBold"/>
-                    <controls:DataPreviewTable x:Name="ResultsPreviewTable"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Token widget (M6 placeholder readout; live estimates land in M6). -->
-            <Border x:Name="TokenWidget"
-                    IsVisible="{Binding ShowToken}"
-                    Background="{DynamicResource BrushBackgroundPanel}"
-                    BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
-                    Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Tokens issued"
-                               FontSize="{DynamicResource FontSizeHeading4}"
-                               FontWeight="SemiBold"
-                               ToolTip.Tip="Live per-patient token estimates arrive in the final milestone (M6)."/>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Patients assigned tokens" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Text="{Binding System.Served}" FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="Average waiting time" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Text="{Binding System.AvgWait}" FontSize="{DynamicResource FontSizeBodyStrong}"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
         </StackPanel>
+        </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

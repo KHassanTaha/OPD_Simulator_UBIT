@@ -1,202 +1,219 @@
 using System;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.ViewModels;
-using OpdSimulator.App.Services;
+using Serilog;
 
 namespace OpdSimulator.App.Views;
 
 /// <summary>
-/// Left-panel code-behind: owns only view concerns — the OS file picker, the
-/// preset dialogs and focus routing (FR-UI-17). All values, validation and
-/// persistence live in <see cref="ConfigViewModel"/>.
+/// Attached property that labels every <see cref="ValidatedField"/> in the
+/// config panel with its validation key. The code-behind uses it to route the
+/// blur-time <c>FieldLostFocus</c> event to the exact validator on the view
+/// model without a name-scope lookup per field.
+/// </summary>
+public sealed class ConfigPanelValidation
+{
+    /// <summary>Attached property identifying which validator a field feeds.</summary>
+    public static readonly AttachedProperty<string?> ValidationKeyProperty =
+        AvaloniaProperty.RegisterAttached<ConfigPanelValidation, Control, string?>(
+            "ValidationKey", null);
+
+    /// <summary>Sets the validation key on a field (used from AXAML).</summary>
+    public static void SetValidationKey(Control element, string? value) =>
+        element.SetValue(ValidationKeyProperty, value);
+
+    /// <summary>Gets the validation key carried by a field.</summary>
+    public static string? GetValidationKey(Control element) =>
+        element.GetValue(ValidationKeyProperty);
+}
+
+/// <summary>
+/// Phase-4 configuration panel. Owns no simulation logic: it forwards blur
+/// validation to the <see cref="ConfigPanelViewModel"/>, opens the data-file
+/// picker on Upload, and confirms "Clear All" through a themed dialog.
 /// </summary>
 public partial class ConfigPanel : UserControl
 {
-    /// <summary>Creates the config panel.</summary>
+    private ConfigPanelViewModel? _vm;
+
     public ConfigPanel()
     {
         InitializeComponent();
+
+        // All ValidatedField blur events bubble up to the panel; route them by
+        // ValidationKey so blur-time validation stays on the view model.
+        AddHandler(ValidatedField.FieldLostFocusEvent, OnFieldLostFocus);
+        DataContextChanged += OnDataContextChanged;
     }
 
-    private ConfigViewModel? Config => DataContext as ConfigViewModel;
-
-    private MainViewModel? Root =>
-        (this.GetVisualRoot() as Window)?.DataContext as MainViewModel;
-
-    /// <inheritdoc/>
-    protected override void OnDataContextChanged(EventArgs e)
+    private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        base.OnDataContextChanged(e);
-
-        if (Config is not null)
+        if (_vm is not null)
         {
-            Config.PropertyChanged += OnConfigPropertyChanged;
-            Config.FocusFieldRequested += FocusField;
+            _vm.UploadRequested -= OnUploadRequested;
+            _vm.ClearAllRequested -= OnClearAllRequested;
+            _vm.SyncStagesRequested -= OnSyncStagesRequested;
+            _vm.KeepStageMismatchRequested -= OnKeepStageMismatchRequested;
+        }
 
-            if (Root is not null)
+        _vm = DataContext as ConfigPanelViewModel;
+        if (_vm is not null)
+        {
+            _vm.UploadRequested += OnUploadRequested;
+            _vm.ClearAllRequested += OnClearAllRequested;
+            _vm.SyncStagesRequested += OnSyncStagesRequested;
+            _vm.KeepStageMismatchRequested += OnKeepStageMismatchRequested;
+        }
+    }
+
+    private async void OnUploadRequested(object? sender, EventArgs e)
+    {
+        var topLevel = this.GetVisualRoot() as TopLevel;
+        if (topLevel is null || _vm is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                WireViewServices(Root);
-            }
-        }
-    }
-
-    /// <inheritdoc/>
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-
-        // Route every '?' badge to the in-program guide (§17.1 deep-link).
-        foreach (var icon in this.GetVisualDescendants().OfType<InfoIcon>())
-        {
-            icon.HelpRequested += OnHelpRequested;
-        }
-
-        if (Root is not null)
-        {
-            WireViewServices(Root);
-        }
-    }
-
-    private void WireViewServices(MainViewModel root)
-    {
-        // OS file picker comes from the view; the VM just asks.
-        Config!.PickFileRequested = ShowFilePickerAsync;
-
-        // Show the preview rows as soon as data lands (and on later loads).
-        if (Config.HasDataFile)
-        {
-            PreviewTable.Load(Config.Preview);
-        }
-    }
-
-    private void OnConfigPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(ConfigViewModel.DataFilePath) && Config is not null)
-        {
-            // Bound VM sends collection reset anyway; keep the preview fresh.
-            PreviewTable.Load(Config.Preview);
-        }
-        else if (e.PropertyName == nameof(ConfigViewModel.SelectedPresetName))
-        {
-            // The dropdown cycles the same property, so a preset change that
-            // did not come from ApplyPreset must be applied here. Guarding on
-            // the last applied name prevents a reload loop.
-            if (Config is not null && !string.IsNullOrEmpty(Config.SelectedPresetName)
-                && !string.Equals(Config.SelectedPresetName, _lastAppliedPreset, StringComparison.Ordinal))
-            {
-                Config.ApplyPreset(Config.SelectedPresetName);
-                _lastAppliedPreset = Config.SelectedPresetName;
-            }
-        }
-    }
-
-    private string? _lastAppliedPreset;
-
-    private async Task<string?> ShowFilePickerAsync()
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null)
-        {
-            return null;
-        }
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Load patient log",
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("Spreadsheet or CSV")
+                Title = "Select patient data file",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
                 {
-                    Patterns = new[] { "*.xlsx", "*.csv" },
+                    new FilePickerFileType("Patient data (.xlsx / .csv)")
+                    {
+                        Patterns = new[] { "*.xlsx", "*.csv" },
+                    },
                 },
-                FilePickerFileTypes.All,
-            },
-        });
+            });
 
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
+            if (files.Count == 0)
+            {
+                return;
+            }
 
-    private void OnHelpRequested(object? sender, EventArgs e)
-    {
-        if (sender is InfoIcon { HelpAnchor: { Length: > 0 } anchor } && Root is not null)
+            var path = files[0].TryGetLocalPath() ?? files[0].Path.ToString();
+            _vm.ApplyLoadedFile(path);
+        }
+        catch (Exception ex)
         {
-            Root.OpenGuide(anchor);
+            Log.Error(ex, "File picker failed");
+            if (VisualRoot is Window owner)
+            {
+                await ThemedDialog.ShowMessageAsync(
+                    owner,
+                    "Could not open file picker",
+                    "A system error prevented the file dialog from opening. See logs/errors-*.log for details.");
+            }
         }
     }
 
-    private void OnClearDataClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Config?.ClearData();
-
-    private async void OnSavePresetClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnClearAllRequested(object? sender, EventArgs e)
     {
-        if (Config is null || Root is null)
+        if (_vm is null)
         {
             return;
         }
 
-        var (result, name) = await ThemedDialog.ShowPromptAsync(
-            (Window)this.GetVisualRoot()!,
-            "Save preset",
-            "Name this saved clinic configuration. Invalid file characters are removed automatically.",
-            initialValue: Config.SelectedPresetName);
+        var owner = this.GetVisualRoot() as Window;
+        var result = await ThemedDialog.ShowMessageAsync(
+            owner,
+            "Clear all fields?",
+            "Reset the configuration and the current results to the fresh-launch state?",
+            "Clear",
+            "Cancel");
 
-        if (result != DialogResult.Confirm || string.IsNullOrWhiteSpace(name))
+        if (result != ThemedDialogResult.Primary)
         {
             return;
         }
 
-        bool ok = Config.SavePreset(name, Root.Results.VisibleWidgets, Config.CollapsedSectionKeys);
-        _lastAppliedPreset = Config.SelectedPresetName;
-        if (ok)
+        if (owner?.DataContext is MainViewModel main)
         {
-            Root.Toasts.Show($"Preset '{PresetNaming.Sanitize(name)}' saved.", ToastKind.Success);
+            // Full reset (Phase 5c.4): config fields + uploaded file + results panel.
+            main.ResetAll();
         }
         else
         {
-            Root.Toasts.Show("The preset name contains no usable characters.", ToastKind.Error);
+            // Standalone host (controls demo / tests without a MainWindow): config only.
+            _vm.ResetToDefaults();
         }
     }
 
-    private async void OnManagePresetsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnSyncStagesRequested(object? sender, EventArgs e)
     {
-        if (Config is null || Root is null)
+        if (_vm is null || _vm.Binding is not { } binding)
         {
             return;
         }
 
-        var owner = (Window)this.GetVisualRoot()!;
-        await PresetManagerDialog.ShowAsync(owner, Config);
-        Root.Toasts.Show("Presets updated.", ToastKind.Info);
+        var owner = this.GetVisualRoot() as Window;
+        var result = await ThemedDialog.ShowMessageAsync(
+            owner,
+            "Sync stages to the data?",
+            $"Replace the configured stage list with the {binding.StageNames.Count} stage(s) found in the loaded data?",
+            "Sync",
+            "Cancel");
+
+        if (result == ThemedDialogResult.Primary)
+        {
+            _vm.SyncStagesToData();
+        }
     }
 
-    private void FocusField(string key)
+    private void OnKeepStageMismatchRequested(object? sender, EventArgs e)
     {
-        var box = key switch
-        {
-            "arrival" => ArrivalBox,
-            "receptionServers" => ReceptionServersBox,
-            "screeningServers" => ScreeningServersBox,
-            "doctorServers" => DoctorServersBox,
-            "receptionRate" => ReceptionRateBox,
-            "screeningRate" => ScreeningRateBox,
-            "doctorRate" => DoctorRateBox,
-            "horizon" => HorizonBox,
-            "dailyCap" => DailyCapBox,
-            "seed" => SeedBox,
-            "pExit" => PExitBox,
-            _ => null,
-        };
+        // Non-destructive: no confirmation needed, the warning is merely
+        // dismissed for the session (5d.3).
+        _vm?.DismissStageMismatchWarning();
+    }
 
-        box?.Focus();
+    private void OnFieldLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is not ValidatedField field || _vm is null)
+        {
+            return;
+        }
+
+        switch (ConfigPanelValidation.GetValidationKey(field))
+        {
+            case "manual-lambda":
+                _vm.ValidateManualLambda();
+                break;
+            case "manual-mu":
+                _vm.ValidateManualMuPerStage();
+                break;
+            case "p-exit":
+                _vm.ValidatePExit();
+                break;
+            case "significance-level":
+                _vm.ValidateSignificanceLevel();
+                break;
+            case "stage-count":
+                _vm.ValidateStageCount();
+                break;
+            case "days":
+                _vm.ValidateDays();
+                break;
+            case "daily-cap":
+                _vm.ValidateDailyCap();
+                break;
+            case "horizon-minutes":
+                _vm.ValidateHorizonMinutes();
+                break;
+            case "seed":
+                _vm.ValidateSeed();
+                break;
+            case "servers":
+                (field.DataContext as StageRow)?.ValidateServers();
+                break;
+        }
     }
 }

@@ -5,6 +5,15 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
+*(none — current resolutions on file)*
+
+## Resolved
+
+- **B-008:** Phase 5c.3 (event trace in ClinicDay/MultiDay run modes) conflicts with the frozen-Core rule.
+  - Resolution: owner chose **(a)** — allow the minimal Core change. 2026-09-16.
+  - Outcome: optional `ITraceSink? traceSink = null` added to the calendar `Engine.Run` overload and forwarded to `RunCore` (D-110). Byte-compatibility proven: Core suite 85 green before AND after. `SimulationCoordinator` now collects a trace in every run mode; `TraceViewer_PopulatesAfterClinicDayRun` green.
+  - Linked: `docs/TODO.md` Phase 5c row (5c.3 DONE); DECISIONS.md D-110.
+
 - **B-001:** Confirm daily patient cap with clinic management.
   - Owner: Taha
   - Impact: Affects default config in UI (maps to PRD OQ-1)

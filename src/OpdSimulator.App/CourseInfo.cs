@@ -31,9 +31,8 @@ public static class CourseInfo
     };
 
     /// <summary>
-    /// University of Karachi logo, embedded as an Avalonia resource (PNG
-    /// variant supplied by the department — D-077). Referenced by URI so a
-    /// future higher-resolution SVG replaces only this path, never the XAML.
+    /// University of Karachi logo, embedded as an Avalonia resource. Referenced
+    /// by URI so a future higher-resolution image replaces only this path.
     /// </summary>
     public const string UokLogoPath = "avares://OpdSimulator.App/Assets/uok-logo.png";
 

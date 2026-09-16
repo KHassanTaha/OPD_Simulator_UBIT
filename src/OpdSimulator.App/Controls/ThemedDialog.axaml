@@ -1,53 +1,53 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpdSimulator.App.Controls.ThemedDialog"
-        Width="520"
-        MinWidth="440"
-        CanResize="False"
+        Width="440"
+        SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource BrushBackgroundWindow}"
-        InputElement.IsTabStop="True">
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource BrushBackgroundWindow}">
 
-    <Border Background="{DynamicResource BrushBackgroundPanel}"
-            CornerRadius="{DynamicResource CornerRadiusMedium}"
-            Margin="24"
-            Padding="{DynamicResource ThicknessSpaceL}">
-        <StackPanel Spacing="12">
-            <Grid ColumnDefinitions="Auto,*">
-                <Border x:Name="IconBadge"
-                        Width="34"
-                        Height="34"
-                        CornerRadius="17"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Top">
-                    <TextBlock x:Name="Glyph" FontWeight="SemiBold"
-                               FontSize="{DynamicResource FontSizeBodyStrong}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <TextBlock x:Name="TitleText"
-                           Grid.Column="1"
-                           Margin="12,0,0,0"
-                           FontSize="{DynamicResource FontSizeHeading3}"
-                           FontWeight="SemiBold"
-                           TextWrapping="Wrap"/>
+    <!-- ThemedDialog — AGENTS §16.2 "Themed dialog | all confirmations and
+         errors | never OS-native". Modal focus trap is native; Escape returns
+         Cancel; closing returns focus to the owner. -->
+    <Border CornerRadius="{DynamicResource CornerRadiusL}"
+            Padding="0">
+        <StackPanel Spacing="{DynamicResource SpaceM}">
+
+            <TextBlock x:Name="DialogTitle"
+                       Text="{Binding $parent[Window].Title}"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"/>
+
+            <ScrollViewer MaxHeight="420"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="DialogMessage"
+                           TextWrapping="Wrap"
+                           FontSize="{DynamicResource FontSizeBody}"
+                           Foreground="{DynamicResource BrushTextSecondary}"
+                           LineHeight="20"/>
+            </ScrollViewer>
+
+            <Grid ColumnDefinitions="*,Auto,Auto"
+                  ColumnSpacing="{DynamicResource SpaceS}">
+                <Button Grid.Column="1"
+                        x:Name="SecondaryButton"
+                        Classes="GhostButton"
+                        Click="OnSecondaryClick"
+                        MinWidth="88"
+                        HorizontalAlignment="Right"/>
+                <Button Grid.Column="2"
+                        x:Name="PrimaryButton"
+                        Classes="PrimaryButton"
+                        Click="OnPrimaryClick"
+                        MinWidth="88"
+                        HorizontalAlignment="Right"
+                        IsDefault="True"/>
             </Grid>
 
-            <TextBlock x:Name="MessageText"
-                       TextWrapping="Wrap"
-                       FontSize="{DynamicResource FontSizeBody}"
-                       Foreground="{DynamicResource BrushTextSecondary}"/>
-
-            <TextBox x:Name="InputTextBox"
-                     IsVisible="False"
-                     Watermark="Enter a value…"
-                     FontSize="{DynamicResource FontSizeBody}"/>
-
-            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,16,0,0">
-                <Button Grid.Column="1" x:Name="CancelButton" Classes="dialogButton"
-                        Margin="0,0,12,0" Click="OnCancelClicked"/>
-                <Button Grid.Column="2" x:Name="ConfirmButton" Classes="primaryDialogButton"
-                        Click="OnConfirmClicked"/>
-            </Grid>
         </StackPanel>
     </Border>
 </Window>

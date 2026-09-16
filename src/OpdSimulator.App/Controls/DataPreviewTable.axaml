@@ -1,32 +1,81 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="OpdSimulator.App.Controls.DataPreviewTable">
+<TemplatedControl xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:controls="using:OpdSimulator.App.Controls"
+                  xmlns:models="using:OpdSimulator.App.Controls"
+                  x:Class="OpdSimulator.App.Controls.DataPreviewTable"
+                  x:DataType="controls:DataPreviewTable">
 
-    <!-- Verification surface, not an editor (FR-UI-20). The header row is
-         fixed; the body is a virtualizing ListBox (reads from the viewport
-         only) so 10,000 rows do not all realise their cells. Rows/cells are
-         built in code because the column count comes from the loaded file. -->
-    <Grid RowDefinitions="Auto,*">
-        <Grid x:Name="HeaderGrid"
-              Background="{DynamicResource BrushBackgroundAlt}"
-              MinHeight="34"/>
-        <ListBox x:Name="RowsList"
-                 Grid.Row="1"
-                 BorderThickness="0"
-                 Background="Transparent">
-            <ListBox.Styles>
-                <Style Selector="ListBoxItem">
-                    <Setter Property="Padding" Value="0"/>
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="IsTabStop" Value="False"/>
-                </Style>
-                <Style Selector="ListBoxItem:selected">
-                    <Setter Property="Background" Value="Transparent"/>
-                </Style>
-                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                    <Setter Property="Background" Value="Transparent"/>
-                </Style>
-            </ListBox.Styles>
-        </ListBox>
-    </Grid>
-</UserControl>
+    <!-- DataPreviewTable — FR-UI-20 read-only preview. Rows render in a
+         virtualising ListBox (10k rows scroll smoothly); column headers come
+         from the loaded file and cycle asc -> desc -> original on click; cells
+         are SelectableTextBlock so values can be Ctrl+C'd; invalid rows are
+         red-flagged with a reason tooltip; load failures swap the table for an
+         ErrorBanner. -->
+    <TemplatedControl.Template>
+        <ControlTemplate>
+            <Grid x:Name="TableArea"
+                  RowDefinitions="Auto,*"
+                  IsVisible="False">
+
+                <controls:ErrorBanner x:Name="LoadErrorBanner"
+                                      IsVisible="False"/>
+                <TextBlock x:Name="NoRowsText"
+                           Text="No valid rows in the loaded file."
+                           Classes="Caption"
+                           Foreground="{DynamicResource BrushTextMuted}"
+                           Padding="{DynamicResource ThicknessSpaceM}"/>
+
+                <ScrollViewer Grid.Row="0"
+                              x:Name="HeaderScroller"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="HeaderPanel"
+                                Orientation="Horizontal"
+                                Margin="0,0,0,4"/>
+                </ScrollViewer>
+
+                <Border Grid.Row="1"
+                        BorderBrush="{DynamicResource BrushBorderDefault}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource CornerRadiusS}"
+                        Background="{DynamicResource BrushBackgroundPanel}">
+                    <ListBox x:Name="RowRepeater"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:PreviewRow">
+                                <ItemsControl ItemsSource="{Binding Cells}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:PreviewCell">
+                                            <SelectableTextBlock Text="{Binding Text}"
+                                                                 Width="{Binding Width}"
+                                                                 TextTrimming="CharacterEllipsis"
+                                                                 FontFamily="{DynamicResource FontMono}"
+                                                                 FontSize="{DynamicResource FontSizeCaption}"
+                                                                 Padding="4,2"
+                                                                 Foreground="{DynamicResource BrushTextPrimary}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+
+            </Grid>
+        </ControlTemplate>
+    </TemplatedControl.Template>
+</TemplatedControl>

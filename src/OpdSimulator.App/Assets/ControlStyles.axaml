@@ -1,0 +1,66 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- CONTROLSTYLES.AXAML — control-level styles consumed across the App
+         (AGENTS §16.2/§16.3). All colours/typography/spacing come from the
+         Theme.axaml tokens; this file adds NO new colours or sizes. -->
+
+    <!-- Primary action button (pinned footer, dialogs, run button). -->
+    <Style Selector="Button.PrimaryButton">
+        <Setter Property="Background" Value="{DynamicResource BrushBrandGreen}"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextOnBrand}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusM}"/>
+        <Setter Property="Padding" Value="{DynamicResource ThicknessControlPadding}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.PrimaryButton:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushBrandGreenDark}"/>
+    </Style>
+    <Style Selector="Button.PrimaryButton:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushBrandGreenDark}"/>
+    </Style>
+    <Style Selector="Button.PrimaryButton:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushDisabledBackground}"/>
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource BrushDisabledText}"/>
+    </Style>
+
+    <!-- Borderless icon/secondary button (dismiss, toggles). -->
+    <Style Selector="Button.GhostButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusS}"/>
+        <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceXxs}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+    </Style>
+    <Style Selector="Button.GhostButton:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushBackgroundHover}"/>
+    </Style>
+
+    <!-- Muted caption under a field or section. -->
+    <Style Selector="TextBlock.Caption">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}"/>
+    </Style>
+
+    <!-- Phase-2 demo card wrapping a live control on the showroom page. -->
+    <Style Selector="Border.DemoCard">
+        <Setter Property="Background" Value="{DynamicResource BrushBackgroundPanel}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusM}"/>
+        <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
+    </Style>
+
+    <!-- Interim shell placeholder card (Phase 3). -->
+    <Style Selector="Border.PanelCard">
+        <Setter Property="Background" Value="{DynamicResource BrushBackgroundWindow}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusM}"/>
+        <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceL}"/>
+    </Style>
+
+</Styles>

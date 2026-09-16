@@ -1,33 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="using:OpdSimulator.App.Controls"
              x:Class="OpdSimulator.App.Controls.InfoIcon">
 
-    <Button x:Name="InfoButton"
-            Classes="infoIconButton"
-            Click="OnInfoButtonClick"
-            Focusable="True"
-            HorizontalAlignment="Left"
-            HorizontalContentAlignment="Center"
-            VerticalContentAlignment="Center">
-        <ToolTip.Tip>
-            <TextBlock Text="{ReflectionBinding HelpTip, RelativeSource={RelativeSource AncestorType=controls:InfoIcon}}"
-                       TextWrapping="Wrap"
-                       MaxWidth="320"/>
-        </ToolTip.Tip>
-        <TextBlock Text="?" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeCaption}"/>
-    </Button>
-
-    <UserControl.Styles>
-        <Style Selector="Button.infoIconButton">
-            <Setter Property="Width" Value="22"/>
-            <Setter Property="Height" Value="22"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Background" Value="{DynamicResource BrushBackgroundAlt}"/>
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="11"/>
-        </Style>
-    </UserControl.Styles>
+    <!-- InfoIcon — AGENTS §16.2: a "?" affordance with a ≤120-char tooltip on
+         hover (500 ms delay set globally in App.axaml). Complex/technical
+         inputs carry HelpText so the user can ask "why". -->
+    <Border MinWidth="20"
+            Height="20"
+            Background="{DynamicResource BrushBackgroundAlt}"
+            BorderBrush="{DynamicResource BrushTextMuted}"
+            BorderThickness="1"
+            CornerRadius="10">
+        <TextBlock Text="?"
+                   Foreground="{DynamicResource BrushTextSecondary}"
+                   FontSize="{DynamicResource FontSizeCaption}"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+    </Border>
 </UserControl>

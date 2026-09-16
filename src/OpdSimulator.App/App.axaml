@@ -1,72 +1,26 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:OpdSimulator.App"
              x:Class="OpdSimulator.App.App"
              RequestedThemeVariant="Light">
-    <Application.DataTemplates>
-        <local:ViewLocator/>
-    </Application.DataTemplates>
-
     <Application.Styles>
         <FluentTheme/>
-
-        <!-- Shared styles for controls defined in ControlStyles.axaml. -->
-        <Style Selector="ToggleButton.collapsibleHeader">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="CornerRadius" Value="8,8,0,0"/>
-        </Style>
-        <Style Selector="ToggleButton.collapsibleHeader:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource BrushBackgroundHover}"/>
-        </Style>
-
-        <!-- ThemedDialog buttons: neutral vs primary (FR-UI-10). -->
-        <Style Selector="Button.dialogButton">
-            <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
-            <Setter Property="MinWidth" Value="88"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
-            <Setter Property="Background" Value="{DynamicResource BrushBackgroundAlt}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
-            <Setter Property="BorderThickness" Value="{DynamicResource ThicknessFieldBorder}"/>
-        </Style>
-        <Style Selector="Button.primaryDialogButton">
-            <Setter Property="Padding" Value="{DynamicResource ThicknessSpaceM}"/>
-            <Setter Property="MinWidth" Value="88"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextOnBrand}"/>
-            <Setter Property="Background" Value="{DynamicResource BrushBrandGreen}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-
-        <!-- Field chrome shared by ValidatedField and SearchableDropdown (§16.9). -->
-        <Style Selector="Border.fieldError">
-            <Setter Property="BorderBrush" Value="{DynamicResource BrushError}"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
-        <Style Selector="Button.fieldIconButton">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,0"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSizeBodyStrong}"/>
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
-        </Style>
-        <Style Selector="Button.fieldIconButton:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+        <!-- Button/text stock styles for reusable controls (no raw colours —
+             every token comes from Theme.axaml). -->
+        <StyleInclude Source="avares://OpdSimulator.App/Assets/ControlStyles.axaml"/>
+        <!-- Global tooltip delay: 500 ms hover delay (AGENTS §16.2). -->
+        <Style Selector="ToolTip">
+            <Setter Property="ShowDelay" Value="500"/>
         </Style>
     </Application.Styles>
 
-    <!-- Theme.axaml is the single source of all colours/fonts/spacing (AGENTS §16.3).
-         ControlStyles.axaml holds the ControlThemes for chrome-style controls. -->
+    <!-- Theme.axaml is the single source of colours/fonts/spacing/shadows
+         (AGENTS §16.3); Motion.axaml owns every animation duration. Hex
+         values appear in exactly one file. -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://OpdSimulator.App/Assets/Theme.axaml"/>
-                <ResourceInclude Source="avares://OpdSimulator.App/Controls/ControlStyles.axaml"/>
+                <ResourceInclude Source="avares://OpdSimulator.App/Assets/Motion.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

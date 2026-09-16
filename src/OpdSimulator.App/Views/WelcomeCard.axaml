@@ -5,26 +5,28 @@
              x:Class="OpdSimulator.App.Views.WelcomeCard">
 
     <!-- Welcome card (FR-UI-5 / AGENTS §16.6): logos, course identity and the
-         member list, all from CourseInfo via the view model. Disappears when
-         the user starts a calculation. -->
+         member list, all read from CourseInfo via the view model. The results
+         panel swaps it out the moment the user starts a calculation. -->
     <StackPanel HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 MaxWidth="520"
-                Spacing="16">
+                Spacing="{DynamicResource SpaceM}">
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="48">
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="{DynamicResource SpaceL}">
             <Image Source="{Binding UokLogoImage}" Width="96" Height="96" Stretch="Uniform"/>
             <Image Source="{Binding UbitLogoImage}" Width="96" Height="96" Stretch="Uniform"/>
         </StackPanel>
 
         <StackPanel Spacing="4">
             <TextBlock Text="University of Karachi"
-                       FontSize="{DynamicResource FontSizeHeading2}"
+                       FontSize="{DynamicResource FontSizeTitle}"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource BrushTextPrimary}"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="{Binding CourseCode} — {Binding CourseName}"
-                       FontSize="{DynamicResource FontSizeHeading4}"
+                       FontSize="{DynamicResource FontSizeBody}"
                        Foreground="{DynamicResource BrushTextSecondary}"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="{Binding Professor}"
@@ -34,7 +36,7 @@
         </StackPanel>
 
         <Border Background="{DynamicResource BrushBackgroundAlt}"
-                CornerRadius="{DynamicResource CornerRadiusMedium}"
+                CornerRadius="{DynamicResource CornerRadiusM}"
                 Padding="{DynamicResource ThicknessSpaceM}">
             <StackPanel Spacing="4">
                 <TextBlock Text="Group members"

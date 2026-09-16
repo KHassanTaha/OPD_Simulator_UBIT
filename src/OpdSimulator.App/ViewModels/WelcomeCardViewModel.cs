@@ -1,6 +1,5 @@
 namespace OpdSimulator.App.ViewModels;
 
-using System.Collections.ObjectModel;
 using Avalonia.Media.Imaging;
 using OpdSimulator.App;
 
@@ -11,7 +10,7 @@ using OpdSimulator.App;
 /// Logos are resolved eagerly so a missing asset logs a warning instead of
 /// crashing at render time (the card degrades to text alone).
 /// </summary>
-public class WelcomeCardViewModel : ViewModelBase
+public sealed class WelcomeCardViewModel
 {
     private static readonly Func<string, Bitmap?> BitmapFromAvares = path =>
     {

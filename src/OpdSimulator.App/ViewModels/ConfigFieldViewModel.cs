@@ -1,69 +1,68 @@
-namespace OpdSimulator.App.ViewModels;
-
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 
+namespace OpdSimulator.App.ViewModels;
+
 /// <summary>
-/// One user-editable config field: its raw text value plus the FR-UI-17
-/// error state (border + icon + actionable message). Wrapping each field in
-/// its own observable lets the <c>ValidatedField</c> wrapper bind error state
-/// directly, and editing any value clears that field's error immediately so
-/// "fixing a field clears its red border" (AGENTS §16.9) is impossible to
-/// forget.
+/// Wraps a single validated input field: its string value, error state and
+/// error message. Validation is blur-based (AGENTS §16.9): the value setter
+/// clears any existing error so a field stops looking wrong the instant the
+/// user starts editing it, and re-validation happens on <c>LostFocus</c>.
 /// </summary>
-public sealed partial class ConfigFieldViewModel : ViewModelBase
+public partial class ConfigFieldViewModel : ObservableObject
 {
-    /// <summary>Creates a field.</summary>
-    /// <param name="key">Stable key used for focus-first-invalid navigation.</param>
-    /// <param name="defaultValue">Initial text; fields start empty unless a default is meaningful.</param>
-    public ConfigFieldViewModel(string key, string? defaultValue = null)
+    private string? _value;
+
+    /// <summary>
+    /// Raised whenever <see cref="Value"/> changes. Consumers (e.g. the ρ
+    /// summary) use this to recompute derived output live.
+    /// </summary>
+    public event EventHandler? ValueChanged;
+
+    /// <summary>
+    /// Gets or sets the raw string the user typed into the field. Setting it
+    /// clears any pending error (FR-UI-17: valid-after-error clears at once)
+    /// and raises <see cref="ValueChanged"/>.
+    /// </summary>
+    public string? Value
     {
-        Key = key;
-        _value = defaultValue ?? string.Empty;
+        get => _value;
+        set
+        {
+            if (SetProperty(ref _value, value))
+            {
+                HasError = false;
+                ErrorMessage = null;
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 
-    /// <summary>Gets the stable key (focus navigation and error reporting).</summary>
-    public string Key { get; }
-
-    /// <summary>Gets or sets the raw field text.</summary>
-    [ObservableProperty]
-    private string _value;
-
-    /// <summary>Gets or sets whether the field is currently invalid.</summary>
+    /// <summary>Gets or sets whether the field currently shows an inline error (FR-UI-17).</summary>
     [ObservableProperty]
     private bool _hasError;
 
-    /// <summary>Gets or sets the actionable inline error message.</summary>
+    /// <summary>
+    /// Gets or sets the cause + remedy message shown when the field is invalid
+    /// ("Arrival rate must be greater than 0. You entered 0." — never generic).
+    /// </summary>
     [ObservableProperty]
-    private string _errorMessage = string.Empty;
+    private string? _errorMessage;
 
-    partial void OnValueChanged(string value)
-    {
-        // Editing is the user fixing the problem — the red treatment must go
-        // away at once, not at the next submit (AGENTS §16.9).
-        ClearError();
-    }
-
-    /// <summary>Clears the error state.</summary>
-    public void ClearError()
-    {
-        HasError = false;
-        ErrorMessage = string.Empty;
-    }
-
-    /// <summary>Sets the error state with an actionable message.</summary>
-    /// <param name="message">"What is wrong AND what is expected", e.g.
-    /// "Arrival rate must be greater than 0. You entered 0."</param>
+    /// <summary>
+    /// Marks the field invalid with the given cause + remedy message.
+    /// </summary>
+    /// <param name="message">The inline error text to display under the field.</param>
     public void SetError(string message)
     {
         HasError = true;
         ErrorMessage = message;
     }
 
-    /// <summary>Restores the field to a default value with no error.</summary>
-    /// <param name="defaultValue">Text to restore; empty by default.</param>
-    public void Reset(string? defaultValue = null)
+    /// <summary>Clears any inline error (used on blur when the value is valid).</summary>
+    public void ClearError()
     {
-        Value = defaultValue ?? string.Empty;
-        ClearError();
+        HasError = false;
+        ErrorMessage = null;
     }
 }

@@ -1,77 +1,98 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Data;
 using Avalonia.Interactivity;
-using OpdSimulator.App.Services;
 
 namespace OpdSimulator.App.Controls;
 
 /// <summary>
-/// Typing-filterable dropdown of string options (FR-UI-6): type to filter,
-/// arrow keys to navigate, Enter to choose, Escape to dismiss, "×" to clear,
-/// chevron to toggle the list. Filtering delegates to the pure
-/// <see cref="SearchFilter"/> so the ranking can be unit tested.
+/// Searchable dropdown (FR-UI-6): type-to-filter over <see cref="Items"/>,
+/// × clear, and full keyboard navigation (Down opens, Up/Down move, Enter
+/// commits, Escape closes). Selection is committed only on Enter, click or clear,
+/// so previewing items never mutates the bound value.
 /// </summary>
 public partial class SearchableDropdown : UserControl
 {
-    private readonly List<string> _allItems = new();
+    private readonly ObservableCollection<string> _filtered = new();
+    private bool _filteringFromProgrammaticSet;
 
-    /// <summary>Identifies the <see cref="Items"/> direct property.</summary>
-    public static readonly DirectProperty<SearchableDropdown, IEnumerable<string>?> ItemsProperty =
-        AvaloniaProperty.RegisterDirect<SearchableDropdown, IEnumerable<string>?>(
-            nameof(Items), c => c.Items, (c, v) => c.Items = v);
-
-    /// <summary>Identifies the <see cref="SelectedValue"/> styled property.</summary>
-    public static readonly StyledProperty<string?> SelectedValueProperty =
-        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(SelectedValue));
-
-    /// <summary>Identifies the <see cref="Watermark"/> styled property.</summary>
-    public static readonly StyledProperty<string> WatermarkProperty =
-        AvaloniaProperty.Register<SearchableDropdown, string>(nameof(Watermark), "(none)");
-
-    private IEnumerable<string>? _items;
-
-    /// <summary>Gets or sets the option list shown in the dropdown.</summary>
-    public IEnumerable<string>? Items
-    {
-        get => _items;
-        set
-        {
-            var changed = !ReferenceEquals(_items, value);
-            _items = value;
-            _allItems.Clear();
-            if (value is not null)
-            {
-                _allItems.AddRange(value);
-            }
-
-            if (changed)
-            {
-                ReapplyFilter();
-            }
-        }
-    }
-
-    /// <summary>Gets or sets the currently chosen option (two-way bindable).</summary>
-    public string? SelectedValue
-    {
-        get => GetValue(SelectedValueProperty);
-        set => SetValue(SelectedValueProperty, value);
-    }
-
-    /// <summary>Gets or sets the placeholder text shown when nothing is typed.</summary>
-    public string Watermark
-    {
-        get => GetValue(WatermarkProperty);
-        set => SetValue(WatermarkProperty, value);
-    }
-
-    /// <summary>Creates the dropdown.</summary>
     public SearchableDropdown()
     {
         InitializeComponent();
+    }
+
+    /// <summary>Persistent visible label.</summary>
+    public static readonly StyledProperty<string?> LabelProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Label));
+
+    /// <summary>Persistent visible label.</summary>
+    public string? Label
+    {
+        get => GetValue(LabelProperty);
+        set => SetValue(LabelProperty, value);
+    }
+
+    /// <summary>Format-example placeholder text.</summary>
+    public static readonly StyledProperty<string?> PlaceholderProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Placeholder));
+
+    /// <summary>Format-example placeholder text.</summary>
+    public string? Placeholder
+    {
+        get => GetValue(PlaceholderProperty);
+        set => SetValue(PlaceholderProperty, value);
+    }
+
+    /// <summary>Short hover tooltip for the field.</summary>
+    public static readonly StyledProperty<string?> TooltipProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Tooltip));
+
+    /// <summary>Short hover tooltip for the field.</summary>
+    public string? Tooltip
+    {
+        get => GetValue(TooltipProperty);
+        set => SetValue(TooltipProperty, value);
+    }
+
+    /// <summary>The selectable items.</summary>
+    public static readonly StyledProperty<IEnumerable<string>?> ItemsProperty =
+        AvaloniaProperty.Register<SearchableDropdown, IEnumerable<string>?>(nameof(Items));
+
+    /// <summary>The selectable items.</summary>
+    public IEnumerable<string>? Items
+    {
+        get => GetValue(ItemsProperty);
+        set => SetValue(ItemsProperty, value);
+    }
+
+    /// <summary>The committed selection (two-way).</summary>
+    public static readonly StyledProperty<string?> SelectedItemProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(
+            nameof(SelectedItem),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    /// <summary>The committed selection (two-way).</summary>
+    public string? SelectedItem
+    {
+        get => GetValue(SelectedItemProperty);
+        set => SetValue(SelectedItemProperty, value);
+    }
+
+    /// <summary>Guide anchor for the help icon.</summary>
+    public static readonly StyledProperty<string> HelpAnchorProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string>(nameof(HelpAnchor));
+
+    /// <summary>Guide anchor for the help icon.</summary>
+    public string HelpAnchor
+    {
+        get => GetValue(HelpAnchorProperty);
+        set => SetValue(HelpAnchorProperty, value);
     }
 
     /// <inheritdoc/>
@@ -79,124 +100,176 @@ public partial class SearchableDropdown : UserControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == SelectedValueProperty && SearchBox is not null)
+        bool touchesElements = change.Property == ItemsProperty
+            || change.Property == SelectedItemProperty
+            || change.Property == LabelProperty;
+        if (touchesElements && FilterBox is null)
         {
-            var value = (string?)change.NewValue;
-            if (!string.Equals(SearchBox.Text, value, StringComparison.Ordinal))
+            return; // property set before the template materialised
+        }
+
+        switch (change.Property.Name)
+        {
+            case nameof(Items):
+                RefreshFilter();
+                break;
+            case nameof(SelectedItem):
+                OnSelectedItemChanged(change.NewValue as string);
+                break;
+            case nameof(Label):
+                if (FilterBox is not null)
+                {
+                    AutomationProperties.SetName(FilterBox, Label ?? string.Empty);
+                }
+
+                break;
+        }
+    }
+
+    private void OnSelectedItemChanged(string? selection)
+    {
+        _filteringFromProgrammaticSet = true;
+        FilterBox.Text = selection ?? string.Empty;
+        _filteringFromProgrammaticSet = false;
+        ClearButton.IsVisible = !string.IsNullOrEmpty(selection);
+    }
+
+    private void OnFilterGotFocus(object? sender, GotFocusEventArgs e) => OpenPopup();
+
+    private void OnFilterLostFocus(object? sender, RoutedEventArgs e) => ClosePopup();
+
+    private void OnFilterTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_filteringFromProgrammaticSet)
+        {
+            return;
+        }
+
+        string filter = FilterBox.Text ?? string.Empty;
+        ClearButton.IsVisible = filter.Length > 0;
+
+        if (filter.Length == 0 && !DropdownPopup.IsOpen)
+        {
+            return;
+        }
+
+        RefreshFilter();
+        if (DropdownPopup.IsOpen)
+        {
+            ItemList.SelectedItem = _filtered.FirstOrDefault(i => i.Contains(filter, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void RefreshFilter()
+    {
+        string filter = (FilterBox.Text ?? string.Empty).Trim();
+        string? fallback = SelectedItem;
+        _filtered.Clear();
+        foreach (var item in Items ?? [])
+        {
+            if (filter.Length == 0
+                || item.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || item == fallback)
             {
-                SearchBox.Text = value ?? string.Empty;
+                _filtered.Add(item);
             }
         }
-        else if (change.Property == WatermarkProperty && SearchBox is not null)
-        {
-            SearchBox.Watermark = Watermark;
-        }
-        else if (change.Property == BoundsProperty)
-        {
-            // Keep the suggestion list flush beneath the field.
-            DropDown.Margin = new Thickness(0, Bounds.Height - 2, 0, 0);
-        }
     }
 
-    private void OnFilterChanged(object? sender, TextChangedEventArgs e)
+    private void OpenPopup()
     {
-        ReapplyFilter();
-
-        // A typed query implies intent to pick, so surface the list.
-        if (QueryLength() > 0)
+        RefreshFilter();
+        if (_filtered.Count == 0)
         {
-            DropDown.IsVisible = true;
+            return;
         }
 
-        ClearButton.IsVisible = QueryLength() > 0;
+        ItemList.ItemsSource = _filtered;
+        ItemList.SelectedItem = SelectedItem;
+        DropdownPopup.PlacementTarget = ComboHost;
+        DropdownPopup.WindowManagerAddShadowHint = false;
+        DropdownPopup.HorizontalOffset = 0;
+        DropdownPopup.VerticalOffset = 1;
+        DropdownPopup.IsOpen = true;
+        ItemList.Focus();
     }
 
-    private int QueryLength() => SearchBox?.Text?.Length ?? 0;
-
-    private void ReapplyFilter()
+    private void OnListKeyDown(object? sender, KeyEventArgs e)
     {
-        var matches = SearchFilter.Filter(_allItems, SearchBox?.Text);
-        Suggestions.ItemsSource = matches;
-        NoResults.IsVisible = DropDown.IsVisible && matches.Count == 0 && QueryLength() > 0;
-    }
-
-    private void OnClearClicked(object? sender, RoutedEventArgs e)
-    {
-        SearchBox.Text = string.Empty;
-        SelectedValue = null;
-        ClearButton.IsVisible = false;
-        DropDown.IsVisible = true;
-        ReapplyFilter();
-        SearchBox.Focus();
-    }
-
-    private void OnToggleChanged(object? sender, RoutedEventArgs e)
-    {
-        DropDown.IsVisible = ToggleButton.IsChecked == true;
-        ReapplyFilter();
-    }
-
-    private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (Suggestions.SelectedItem is string chosen)
-        {
-            CommitSelection(chosen);
-        }
-    }
-
-    /// <inheritdoc/>
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-
         switch (e.Key)
         {
-            case Key.Down when DropDown.IsVisible:
-                MoveSelection(1);
+            case Key.Enter:
+                Commit(ItemList.SelectedItem as string ?? _filtered.FirstOrDefault());
                 e.Handled = true;
                 break;
-            case Key.Up when DropDown.IsVisible:
-                MoveSelection(-1);
-                e.Handled = true;
-                break;
-            case Key.Enter when DropDown.IsVisible && Suggestions.SelectedItem is string chosen:
-                CommitSelection(chosen);
-                e.Handled = true;
-                break;
-            case Key.Escape when DropDown.IsVisible:
-                DropDown.IsVisible = false;
-                ToggleButton.IsChecked = false;
+            case Key.Escape:
+                ClosePopupRestore();
                 e.Handled = true;
                 break;
         }
     }
 
-    private void MoveSelection(int delta)
+    private void OnFilterKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Suggestions.ItemCount == 0)
+        switch (e.Key)
         {
-            return;
+            case Key.Down when !DropdownPopup.IsOpen:
+                OpenPopup();
+                e.Handled = true;
+                break;
+            case Key.Down when ItemList.ItemCount > 0:
+                ItemList.Focus();
+                e.Handled = true;
+                break;
+            case Key.Enter when ItemList.SelectedItem is string pick:
+                Commit(pick);
+                e.Handled = true;
+                break;
+            case Key.Escape when DropdownPopup.IsOpen:
+                ClosePopupRestore();
+                e.Handled = true;
+                break;
         }
-
-        var next = delta > 0
-            ? Suggestions.SelectedIndex + 1
-            : Suggestions.SelectedIndex - 1;
-
-        if (next < 0 || next >= Suggestions.ItemCount)
-        {
-            return;
-        }
-
-        Suggestions.SelectedIndex = next;
-        Suggestions.ScrollIntoView(Suggestions.SelectedItem!);
     }
 
-    private void CommitSelection(string chosen)
+    private void OnClearClick(object? sender, PointerPressedEventArgs e)
     {
-        SelectedValue = chosen;
-        SearchBox.Text = chosen;
-        DropDown.IsVisible = false;
-        ToggleButton.IsChecked = false;
-        ClearButton.IsVisible = true;
+        SelectedItem = null;
+        FilterBox.Clear();
+        RefreshFilter();
+        ClosePopup();
+        FilterBox.Focus();
+        e.Handled = true;
+    }
+
+    private void Commit(string? pick)
+    {
+        if (pick is null)
+        {
+            return;
+        }
+
+        SelectedItem = pick;
+        ClosePopup();
+        OnSelectedItemChanged(pick);
+        FilterBox.Focus();
+    }
+
+    private void ClosePopupRestore()
+    {
+        if (SelectedItem is not null)
+        {
+            _filteringFromProgrammaticSet = true;
+            FilterBox.Text = SelectedItem;
+            _filteringFromProgrammaticSet = false;
+        }
+
+        ClosePopup();
+    }
+
+    private void ClosePopup()
+    {
+        DropdownPopup.IsOpen = false;
+        ItemList.ItemsSource = null;
     }
 }

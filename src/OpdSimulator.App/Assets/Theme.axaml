@@ -4,9 +4,18 @@
 
     <!--
         THEME.AXAML — the single definition of every colour, brush, font,
-        spacing, radius and duration used anywhere in the app (AGENTS §16.3).
-        Views must reference these resources via {DynamicResource }; hex
-        values appear ONLY in this file.
+        spacing, radius, shadow and focus-ring token used anywhere in the app
+        (AGENTS §16.3). Views reference these via {DynamicResource } only;
+        hex values appear ONLY in this file. Motion durations live in
+        Motion.axaml, not here.
+
+        Token contract (Phase 1):
+          - fonts:      FontFamilyDefault (UI), FontFamilyHeading, FontFamilyMono
+          - font sizes: 18 (title), 14 (body), 12 (caption)
+          - spacing:    4, 8, 12, 16, 24
+          - radii:      4 (S), 8 (M), 12 (L)
+          - shadows:    ShadowCard, ShadowOverlay
+          - focus ring: BrushFocusRing + ThicknessFocusRing(2) + ThicknessFocusRingOffset(1)
     -->
 
     <!-- ============ Palette (Colours) ============ -->
@@ -14,6 +23,7 @@
     <Color x:Key="ColorBrandGreenDark">#145C39</Color>
     <Color x:Key="ColorBrandGreenLight">#2E9E62</Color>
     <Color x:Key="ColorAccentInfo">#0B7285</Color>
+    <Color x:Key="ColorFocusRing">#1565C0</Color>
 
     <Color x:Key="ColorBackgroundWindow">#F4F6F5</Color>
     <Color x:Key="ColorBackgroundPanel">#FFFFFF</Color>
@@ -36,14 +46,6 @@
     <Color x:Key="ColorWarningBackground">#FFF4E0</Color>
     <Color x:Key="ColorSuccess">#145C39</Color>
     <Color x:Key="ColorSuccessBackground">#E6F4EB</Color>
-    <Color x:Key="ColorInfoBackground">#E5F3F7</Color>
-
-    <Color x:Key="ColorToastErrorBackground">#B3261E</Color>
-    <Color x:Key="ColorToastErrorText">#FFFFFF</Color>
-    <Color x:Key="ColorToastSuccessBackground">#145C39</Color>
-    <Color x:Key="ColorToastSuccessText">#FFFFFF</Color>
-    <Color x:Key="ColorToastInfoBackground">#1A2320</Color>
-    <Color x:Key="ColorToastInfoText">#FFFFFF</Color>
 
     <Color x:Key="ColorDisabledBackground">#EDF0EE</Color>
     <Color x:Key="ColorDisabledText">#9AA39D</Color>
@@ -55,6 +57,7 @@
     <SolidColorBrush x:Key="BrushBrandGreenDark" Color="{StaticResource ColorBrandGreenDark}"/>
     <SolidColorBrush x:Key="BrushBrandGreenLight" Color="{StaticResource ColorBrandGreenLight}"/>
     <SolidColorBrush x:Key="BrushAccentInfo" Color="{StaticResource ColorAccentInfo}"/>
+    <SolidColorBrush x:Key="BrushFocusRing" Color="{StaticResource ColorFocusRing}"/>
 
     <SolidColorBrush x:Key="BrushBackgroundWindow" Color="{StaticResource ColorBackgroundWindow}"/>
     <SolidColorBrush x:Key="BrushBackgroundPanel" Color="{StaticResource ColorBackgroundPanel}"/>
@@ -77,49 +80,53 @@
     <SolidColorBrush x:Key="BrushWarningBackground" Color="{StaticResource ColorWarningBackground}"/>
     <SolidColorBrush x:Key="BrushSuccess" Color="{StaticResource ColorSuccess}"/>
     <SolidColorBrush x:Key="BrushSuccessBackground" Color="{StaticResource ColorSuccessBackground}"/>
-    <SolidColorBrush x:Key="BrushInfoBackground" Color="{StaticResource ColorInfoBackground}"/>
-
-    <SolidColorBrush x:Key="BrushToastErrorBackground" Color="{StaticResource ColorToastErrorBackground}"/>
-    <SolidColorBrush x:Key="BrushToastErrorText" Color="{StaticResource ColorToastErrorText}"/>
-    <SolidColorBrush x:Key="BrushToastSuccessBackground" Color="{StaticResource ColorToastSuccessBackground}"/>
-    <SolidColorBrush x:Key="BrushToastSuccessText" Color="{StaticResource ColorToastSuccessText}"/>
-    <SolidColorBrush x:Key="BrushToastInfoBackground" Color="{StaticResource ColorToastInfoBackground}"/>
-    <SolidColorBrush x:Key="BrushToastInfoText" Color="{StaticResource ColorToastInfoText}"/>
 
     <SolidColorBrush x:Key="BrushDisabledBackground" Color="{StaticResource ColorDisabledBackground}"/>
     <SolidColorBrush x:Key="BrushDisabledText" Color="{StaticResource ColorDisabledText}"/>
     <SolidColorBrush x:Key="BrushOverlayDim" Color="{StaticResource ColorOverlayDim}"/>
     <SolidColorBrush x:Key="BrushSelection" Color="{StaticResource ColorSelection}"/>
 
-    <!-- ============ Typography ============ -->
+    <!-- ============ Typography (3 families max) ============ -->
     <FontFamily x:Key="FontFamilyDefault">Inter, Segoe UI, Ubuntu, Noto Sans, sans-serif</FontFamily>
-    <sys:Double x:Key="FontSizeCaption">11</sys:Double>
-    <sys:Double x:Key="FontSizeBody">13</sys:Double>
-    <sys:Double x:Key="FontSizeBodyStrong">14</sys:Double>
-    <sys:Double x:Key="FontSizeHeading4">15</sys:Double>
-    <sys:Double x:Key="FontSizeHeading3">17</sys:Double>
-    <sys:Double x:Key="FontSizeHeading2">20</sys:Double>
-    <sys:Double x:Key="FontSizeHeading1">24</sys:Double>
+    <FontFamily x:Key="FontFamilyHeading">Inter, Segoe UI, Ubuntu, Noto Sans, sans-serif</FontFamily>
+    <FontFamily x:Key="FontFamilyMono">JetBrains Mono, Cascadia Mono, Consolas, monospace</FontFamily>
 
-    <!-- ============ Spacing ============ -->
-    <Thickness x:Key="ThicknessSpaceXS">4</Thickness>
-    <Thickness x:Key="ThicknessSpaceS">8</Thickness>
+    <!-- Font sizes: 18 title / 14 body / 12 caption. -->
+    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <sys:Double x:Key="FontSizeBody">14</sys:Double>
+    <sys:Double x:Key="FontSizeTitle">18</sys:Double>
+
+    <!-- ============ Spacing (4, 8, 12, 16, 24) ============ -->
+    <sys:Double x:Key="SpaceXxs">4</sys:Double>
+    <sys:Double x:Key="SpaceXs">8</sys:Double>
+    <sys:Double x:Key="SpaceS">12</sys:Double>
+    <sys:Double x:Key="SpaceM">16</sys:Double>
+    <sys:Double x:Key="SpaceL">24</sys:Double>
+
+    <Thickness x:Key="ThicknessSpaceXxs">4</Thickness>
+    <Thickness x:Key="ThicknessSpaceXs">8</Thickness>
+    <Thickness x:Key="ThicknessSpaceS">12</Thickness>
     <Thickness x:Key="ThicknessSpaceM">16</Thickness>
     <Thickness x:Key="ThicknessSpaceL">24</Thickness>
-    <Thickness x:Key="ThicknessSpaceXL">32</Thickness>
+
+    <Thickness x:Key="ThicknessWindowPadding">16</Thickness>
     <Thickness x:Key="ThicknessControlPadding">10,6</Thickness>
     <Thickness x:Key="ThicknessFieldPadding">10,8</Thickness>
+    <Thickness x:Key="ThicknessSectionHeader">12,10</Thickness>
     <Thickness x:Key="ThicknessFieldBorder">1</Thickness>
     <Thickness x:Key="ThicknessCardPadding">16</Thickness>
 
-    <!-- ============ Radii ============ -->
-    <CornerRadius x:Key="CornerRadiusSmall">4</CornerRadius>
-    <CornerRadius x:Key="CornerRadiusMedium">8</CornerRadius>
-    <CornerRadius x:Key="CornerRadiusLarge">12</CornerRadius>
-    <CornerRadius x:Key="CornerRadiusFull">20</CornerRadius>
+    <!-- ============ Radii (4, 8, 12) ============ -->
+    <CornerRadius x:Key="CornerRadiusS">4</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusM">8</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusL">12</CornerRadius>
 
-    <!-- ============ Durations ============ -->
-    <sys:TimeSpan x:Key="DurationFade">0:0:0.15</sys:TimeSpan>
-    <sys:TimeSpan x:Key="DurationStandard">0:0:0.3</sys:TimeSpan>
+    <!-- ============ Shadows ============ -->
+    <BoxShadows x:Key="ShadowCard">0 1 3 0 #1F000000</BoxShadows>
+    <BoxShadows x:Key="ShadowOverlay">0 8 24 0 #33000000</BoxShadows>
+
+    <!-- ============ Focus ring ============ -->
+    <Thickness x:Key="ThicknessFocusRing">2</Thickness>
+    <Thickness x:Key="ThicknessFocusRingOffset">1</Thickness>
 
 </ResourceDictionary>

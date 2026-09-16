@@ -1,50 +1,53 @@
-using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 
 namespace OpdSimulator.App.Controls;
 
 /// <summary>
-/// A small "?" badge shown next to complex/technical controls (FR-UI-8).
-/// Hovering reveals <see cref="HelpTip"/> in a tooltip; activating requests
-/// the in-program guide at <see cref="HelpAnchor"/> (§17.1 deep-link).
+/// A circular "?" glyph that shows a tooltip (≤120 chars, AGENTS §16.2).
+/// The long-form rationale lives in the on-top guide section named by
+/// <see cref="HelpAnchor"/> so clicking a future guide link can deep-link.
 /// </summary>
 public partial class InfoIcon : UserControl
 {
-    /// <summary>Identifies the <see cref="HelpAnchor"/> styled property.</summary>
+    public InfoIcon()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>The short tooltip text shown on hover.</summary>
+    public static readonly StyledProperty<string> HelpTextProperty =
+        AvaloniaProperty.Register<InfoIcon, string>(nameof(HelpText));
+
+    /// <summary>The tooltip text (≤120 chars) shown on hover.</summary>
+    public string HelpText
+    {
+        get => GetValue(HelpTextProperty);
+        set => SetValue(HelpTextProperty, value);
+    }
+
+    /// <summary>Guide section anchor this icon deep-links to (e.g. "arrival-rate").</summary>
     public static readonly StyledProperty<string> HelpAnchorProperty =
         AvaloniaProperty.Register<InfoIcon, string>(nameof(HelpAnchor));
 
-    /// <summary>Identifies the <see cref="HelpTip"/> styled property.</summary>
-    public static readonly StyledProperty<string> HelpTipProperty =
-        AvaloniaProperty.Register<InfoIcon, string>(nameof(HelpTip));
-
-    /// <summary>Raises when the badge is activated; subscribers open the guide at the anchor.</summary>
-    public event EventHandler? HelpRequested;
-
-    /// <summary>Gets or sets the guide section anchor to jump to (e.g. "arrival-rate").</summary>
+    /// <summary>Guide section anchor this icon deep-links to (Phase 6 guide).</summary>
     public string HelpAnchor
     {
         get => GetValue(HelpAnchorProperty);
         set => SetValue(HelpAnchorProperty, value);
     }
 
-    /// <summary>Gets or sets the short explanation shown in the hover tooltip (≤ 120 chars).</summary>
-    public string HelpTip
+    /// <inheritdoc/>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
-        get => GetValue(HelpTipProperty);
-        set => SetValue(HelpTipProperty, value);
-    }
+        base.OnPropertyChanged(change);
 
-    /// <summary>Creates the badge.</summary>
-    public InfoIcon()
-    {
-        InitializeComponent();
-    }
-
-    private void OnInfoButtonClick(object? sender, RoutedEventArgs e)
-    {
-        HelpRequested?.Invoke(this, EventArgs.Empty);
+        if (change.Property == HelpTextProperty || change.Property == HelpAnchorProperty)
+        {
+            ToolTip.SetTip(this, HelpText);
+            AutomationProperties.SetName(this, $"Help: {(string.IsNullOrEmpty(HelpAnchor) ? "general" : HelpAnchor)}");
+        }
     }
 }

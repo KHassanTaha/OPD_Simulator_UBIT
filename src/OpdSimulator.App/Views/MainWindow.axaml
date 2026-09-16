@@ -1,90 +1,110 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:OpdSimulator.App.ViewModels"
-        xmlns:views="using:OpdSimulator.App.Views"
         xmlns:controls="using:OpdSimulator.App.Controls"
+        xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+        xmlns:views="using:OpdSimulator.App.Views"
         x:Class="OpdSimulator.App.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
+        x:DataType="viewModels:MainViewModel"
+        Title="OPD Clinic Queue Simulator"
         Width="1200"
         Height="760"
-        MinWidth="960"
-        MinHeight="640"
-        Title="{Binding Title}"
-        WindowStartupLocation="CenterScreen">
+        MinWidth="1100"
+        MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Background="{DynamicResource BrushBackgroundWindow}">
 
-    <Panel>
-        <Grid RowDefinitions="*,Auto">
+    <Window.DataContext>
+        <viewModels:MainViewModel/>
+    </Window.DataContext>
 
-            <!-- Left configuration + right results, split by a draggable splitter. -->
-            <Grid Margin="12,12,12,0">
-                <Grid ColumnDefinitions="400,6,*">
-                    <views:ConfigPanel Grid.Column="0"
-                                       DataContext="{Binding Config}"/>
-                    <GridSplitter Grid.Column="1" Width="6"
-                                  Background="{DynamicResource BrushBackgroundAlt}"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Stretch"/>
-                    <views:ResultsPanel Grid.Column="2"
-                                        DataContext="{Binding Results}"/>
-                </Grid>
-            </Grid>
+    <!-- MainWindow shell (Phase 3). Layout contract (AGENTS §16.7 — tab order
+         sketched before authoring):
+           Tab order on launch:  TabControl header (Simulation) first → tab
+           headers left→right → the active tab's content (config fields first,
+           results second) → window chrome.   Only the TabControl has focusable
+           content in the shell; placeholder cards are non-interactive.
+         Structure: header bar + TabControl [Simulation | Input Analysis |
+         Token Generator | Help]. Simulation carries the 380px-config / fill-
+         results split (GridSplitter, mirrors M5 "400,6,*" design). -->
+    <Grid RowDefinitions="Auto,*">
 
-            <!-- Pinned footer bar: primary action always visible (FR-UI-2). -->
-            <controls:PinnedFooterBar Grid.Row="1" Padding="14,8">
-                <Grid ColumnDefinitions="Auto,10,*,Auto">
-                    <Button Content="Start calculation"
-                            Command="{Binding RunCommand}"
-                            Classes="primaryDialogButton"
-                            MinWidth="150"/>
-                    <Button Grid.Column="2"
-                            Content="Reset"
-                            Command="{Binding ResetAllCommand}"
-                            Classes="dialogButton"
-                            Margin="0,0,10,0"
-                            HorizontalAlignment="Right"/>
-                    <Button Grid.Column="3"
-                            Content="Guide (F1)"
-                            Command="{Binding OpenGuideCommand}"
-                            Classes="dialogButton"/>
-                </Grid>
-            </controls:PinnedFooterBar>
-        </Grid>
-
-        <!-- Guide overlay (§17.1): trap focus, close on Escape, return focus. -->
-        <Border x:Name="GuideOverlay"
-                Background="{DynamicResource BrushOverlayDim}"
-                IsVisible="{Binding IsGuideOpen}">
-            <Border Background="{DynamicResource BrushBackgroundPanel}"
-                    BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusMedium}"
-                    Margin="80,40"
-                    Padding="20">
-                <Grid RowDefinitions="Auto,*" RowSpacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="User manual"
-                                   FontSize="{DynamicResource FontSizeHeading4}"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <Button Grid.Column="1"
-                                Content="&#xE711;"
-                                Classes="fieldIconButton"
-                                ToolTip.Tip="Close the guide (Esc)"
-                                Command="{Binding CloseGuideCommand}"/>
-                    </Grid>
-                    <views:GuidePanel x:Name="GuidePanelHost"
-                                      Grid.Row="1"
-                                      DataContext="{Binding Guide}"/>
-                </Grid>
-            </Border>
+        <Border Grid.Row="0"
+                Background="{DynamicResource BrushBackgroundWindow}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="0,0,0,1"
+                Padding="{DynamicResource ThicknessWindowPadding}">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceM}">
+                <TextBlock Text="&#x1F3E5;"
+                           FontSize="28"
+                           VerticalAlignment="Center"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="OPD Clinic Queue Simulator"
+                               FontSize="{DynamicResource FontSizeTitle}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="Simulation &amp; Modelling — Weekday Clinic"
+                               Classes="Caption"/>
+                </StackPanel>
+            </StackPanel>
         </Border>
 
-        <!-- Toast stack (FR-UI-10) — hosted items are added in code-behind. -->
-        <ItemsControl x:Name="ToastHost"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Bottom"
-                      Margin="0,0,16,16"
-                      MaxWidth="420"
-                      IsHitTestVisible="True"/>
-    </Panel>
+        <TabControl Grid.Row="1"
+                    Background="{DynamicResource BrushBackgroundWindow}"
+                    TabIndex="0">
+
+            <!-- Simulation: 380px config column / fill results column
+                 (results column has a 540 px MinWidth so tables stay readable — 5c.1). -->
+            <TabItem Header="Simulation" TabIndex="0">
+                <Grid ColumnDefinitions="380,6,*">
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource BrushBackgroundPanel}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1"
+                            Padding="{DynamicResource ThicknessWindowPadding}">
+                        <views:ConfigPanel DataContext="{Binding Config}"/>
+                    </Border>
+                    <GridSplitter Grid.Column="1"
+                                  Width="6"
+                                  Background="{DynamicResource BrushBorderDefault}"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"/>
+                    <Border Grid.Column="2"
+                            MinWidth="540"
+                            Background="{DynamicResource BrushBackgroundWindow}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1,1,0,0"
+                            Padding="{DynamicResource ThicknessWindowPadding}">
+                        <views:ResultsPanel DataContext="{Binding Results}"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Input Analysis" TabIndex="1">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Input analysis"
+                                                 Hint="Uploaded data preview, distribution fitting (MLE), chi-square goodness-of-fit and parameter comparison — Phase 4/5."/>
+                </Border>
+            </TabItem>
+
+            <TabItem Header="Token Generator" TabIndex="2">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Token generator"
+                                                 Hint="Token queue card with estimated waiting times, updated live as the simulation progresses — Phase 6."/>
+                </Border>
+            </TabItem>
+
+            <TabItem Header="Help" TabIndex="3">
+                <Border Background="{DynamicResource BrushBackgroundWindow}"
+                        Padding="{DynamicResource ThicknessWindowPadding}">
+                    <controls:PlaceholderContent Title="Help &amp; user manual"
+                                                 Hint="In-program guide rendered from the embedded user manual with a searchable section list — Phase 6."/>
+                </Border>
+            </TabItem>
+
+        </TabControl>
+
+    </Grid>
 </Window>

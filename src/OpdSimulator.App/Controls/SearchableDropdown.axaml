@@ -1,65 +1,87 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="OpdSimulator.App.Controls.SearchableDropdown">
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.SearchableDropdown"
+             x:DataType="controls:SearchableDropdown">
 
-    <!-- Type-to-filter select (FR-UI-6): textbox + clear + chevron + an
-         in-layout suggestion list that opens below the field. All colours
-         come from Theme.axaml. -->
-    <Grid>
-        <Border x:Name="FieldBorder"
-                BorderBrush="{DynamicResource BrushBorderDefault}"
-                BorderThickness="{DynamicResource ThicknessFieldBorder}"
-                Background="{DynamicResource BrushBackgroundPanel}"
-                CornerRadius="{DynamicResource CornerRadiusSmall}"
-                Padding="0,6">
-            <Grid ColumnDefinitions="*,Auto,Auto">
-                <TextBox x:Name="SearchBox"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         Padding="10,0"
-                         VerticalContentAlignment="Center"
-                         TextChanged="OnFilterChanged"
-                         Watermark="Type to filter…"
-                         CaretIndex="0"/>
-                <Button x:Name="ClearButton"
-                        Grid.Column="1"
-                        Classes="fieldIconButton"
-                        Content="&#xE711;"
-                        IsVisible="False"
-                        Click="OnClearClicked"
-                        ToolTip.Tip="Clear the selected value"/>
-                <ToggleButton x:Name="ToggleButton"
-                              Grid.Column="2"
-                              Classes="fieldIconButton"
-                              Content="&#xE70D;"
-                              Checked="OnToggleChanged"
-                              Unchecked="OnToggleChanged"
-                              ToolTip.Tip="Show or hide the option list"/>
-            </Grid>
-        </Border>
+    <!-- SearchableDropdown — FR-UI-6 / AGENTS §16.2 "Searchable dropdown":
+         type-to-filter, × clear, keyboard navigation (Up/Down/Enter/Escape),
+         tab-reachable focus anchor. The item list lives in a Popup and is
+         driven from code-behind so behaviour stays deterministic. -->
+    <StackPanel Spacing="{DynamicResource SpaceXxs}">
 
-        <Border x:Name="DropDown"
-                Grid.ColumnSpan="1"
-                Margin="0,34,0,0"
-                VerticalAlignment="Top"
-                IsVisible="False"
-                Background="{DynamicResource BrushBackgroundPanel}"
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding $parent[controls:SearchableDropdown].Label}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       VerticalAlignment="Center"/>
+            <controls:InfoIcon Grid.Column="1"
+                      Margin="6,0,0,0"
+                      HelpText="{Binding $parent[controls:SearchableDropdown].Tooltip}"
+                      HelpAnchor="{Binding $parent[controls:SearchableDropdown].HelpAnchor}"/>
+        </Grid>
+
+        <Border x:Name="ComboHost"
                 BorderBrush="{DynamicResource BrushBorderDefault}"
                 BorderThickness="1"
-                CornerRadius="{DynamicResource CornerRadiusSmall}">
-            <Grid RowDefinitions="Auto,*" MaxHeight="300">
-                <TextBlock x:Name="NoResults"
-                           IsVisible="False"
-                           Padding="10,8"
-                           FontSize="{DynamicResource FontSizeBody}"
-                           Foreground="{DynamicResource BrushTextMuted}"
-                           Text="No matches"/>
-                <ListBox x:Name="Suggestions"
-                         Grid.Row="1"
-                         Background="Transparent"
+                CornerRadius="{DynamicResource CornerRadiusS}"
+                Background="{DynamicResource BrushBackgroundPanel}">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox x:Name="FilterBox"
+                         Grid.Column="0"
                          BorderThickness="0"
-                         SelectionChanged="OnSelectionChanged"/>
+                         Background="Transparent"
+                         CornerRadius="0"
+                         Padding="{DynamicResource ThicknessFieldPadding}"
+                         Watermark="{Binding $parent[controls:SearchableDropdown].Placeholder}"
+                         GotFocus="OnFilterGotFocus"
+                         LostFocus="OnFilterLostFocus"
+                         TextChanged="OnFilterTextChanged"
+                         KeyDown="OnFilterKeyDown"/>
+                <Border x:Name="ClearButton"
+                        Grid.Column="1"
+                        IsVisible="False"
+                        Background="Transparent"
+                        CornerRadius="{DynamicResource CornerRadiusS}"
+                        Margin="0,0,4,0"
+                        VerticalAlignment="Center"
+                        PointerPressed="OnClearClick"
+                        ToolTip.Tip="Clear the selection">
+                    <TextBlock Text="&#x2715;"
+                               Foreground="{DynamicResource BrushTextMuted}"
+                               VerticalAlignment="Center"
+                               Margin="6,4"/>
+                </Border>
+                <Path Grid.Column="2"
+                      Data="M 2 6 L 8 0 L 14 6"
+                      Stroke="{DynamicResource BrushTextMuted}"
+                      StrokeThickness="2"
+                      StrokeLineCap="Round"
+                      VerticalAlignment="Center"
+                      Margin="0,0,10,0"/>
             </Grid>
         </Border>
-    </Grid>
+
+        <Popup x:Name="DropdownPopup"
+               Placement="BottomEdgeAlignedLeft"
+               IsLightDismissEnabled="True">
+            <Border Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    BoxShadow="{DynamicResource ShadowOverlay}"
+                    Padding="{DynamicResource ThicknessSpaceXxs}"
+                    MinWidth="240"
+                    MaxHeight="280">
+                <ListBox x:Name="ItemList"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         KeyboardNavigation.TabNavigation="Cycle"
+                         KeyDown="OnListKeyDown"/>
+            </Border>
+        </Popup>
+
+    </StackPanel>
 </UserControl>

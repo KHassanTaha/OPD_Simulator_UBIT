@@ -1,52 +1,29 @@
 using System;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace OpdSimulator.App.ViewModels;
 
-/// <summary>Toast severity; selects the themed variant shown on the card.</summary>
-public enum ToastKind
-{
-    /// <summary>Confirmation-style notification.</summary>
-    Success,
-
-    /// <summary>Failure/warning-style notification.</summary>
-    Error,
-
-    /// <summary>Neutral informational notification.</summary>
-    Info,
-}
-
 /// <summary>
-/// A single toast as shown in the notification stack: message, severity and
-/// the window in which it expires (pure data, no UI dependency).
+/// A single toast notification displayed by <see cref="Controls.ThemedToast"/>.
+/// Severity drives the theme colours and icon; Messages are the user-facing text.
 /// </summary>
-public sealed partial class ToastItem : ViewModelBase
+public sealed record ToastItem(
+    string Severity,
+    string Message,
+    DateTimeOffset Timestamp = default)
 {
-    /// <summary>Creates a toast item.</summary>
-    /// <param name="message">Text shown on the card.</param>
-    /// <param name="kind">Severity variant.</param>
-    /// <param name="duration">How long the card stays visible before expiring.</param>
-    /// <param name="createdUtc">Creation time; defaults to now (injectable for tests).</param>
-    public ToastItem(string message, ToastKind kind, TimeSpan duration,
-        DateTimeOffset? createdUtc = null)
-    {
-        Message = message;
-        Kind = kind;
-        Duration = duration;
-        CreatedUtc = createdUtc ?? DateTimeOffset.UtcNow;
-    }
+    /// <summary>Creates an info toast timestamped now.</summary>
+    public static ToastItem Info(string message)
+        => new("info", message, DateTimeOffset.Now);
 
-    /// <summary>Gets the message text.</summary>
-    [ObservableProperty]
-    private string _message;
+    /// <summary>Creates a success toast timestamped now.</summary>
+    public static ToastItem Success(string message)
+        => new("success", message, DateTimeOffset.Now);
 
-    /// <summary>Gets the severity variant.</summary>
-    [ObservableProperty]
-    private ToastKind _kind;
+    /// <summary>Creates a warning toast timestamped now.</summary>
+    public static ToastItem Warning(string message)
+        => new("warning", message, DateTimeOffset.Now);
 
-    /// <summary>Gets the wall-clock time the toast was created (UTC).</summary>
-    public DateTimeOffset CreatedUtc { get; }
-
-    /// <summary>Gets how long the toast stays visible.</summary>
-    public TimeSpan Duration { get; }
+    /// <summary>Creates an error toast timestamped now.</summary>
+    public static ToastItem Error(string message)
+        => new("error", message, DateTimeOffset.Now);
 }

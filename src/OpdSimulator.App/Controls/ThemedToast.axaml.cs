@@ -1,48 +1,52 @@
 using System;
+using System.Windows.Input;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
+using Avalonia.Media;
 using OpdSimulator.App.ViewModels;
 
 namespace OpdSimulator.App.Controls;
 
 /// <summary>
-/// One themed notification card, driven by a <see cref="ToastItem"/>'s
-/// message and kind (FR-UI-10). The host control is responsible for
-/// stacking and auto-dismissing toasts; this control renders a single one.
+/// Renders one toast from a <see cref="ToastItem"/> using shared theme visuals.
+/// Severity drives the accent bar, glyph, label and colours (AGENTS §16.2).
 /// </summary>
 public partial class ThemedToast : UserControl
 {
-    /// <summary>Raises when the user closes the toast explicitly.</summary>
-    public event EventHandler? Dismissed;
-
-    /// <summary>Identifies the <see cref="Message"/> styled property.</summary>
-    public static readonly StyledProperty<string> MessageProperty =
-        AvaloniaProperty.Register<ThemedToast, string>(nameof(Message));
-
-    /// <summary>Identifies the <see cref="ToastKind"/> styled property.</summary>
-    public static readonly StyledProperty<ToastKind> ToastKindProperty =
-        AvaloniaProperty.Register<ThemedToast, ToastKind>(nameof(ToastKind), defaultValue: ToastKind.Info);
-
-    /// <summary>Gets or sets the message text.</summary>
-    public string Message
+    private static readonly IBrush[] AccentsForSeverity =
     {
-        get => GetValue(MessageProperty);
-        set => SetValue(MessageProperty, value);
-    }
+        new SolidColorBrush(Color.Parse("#0B7285")),  // info
+        new SolidColorBrush(Color.Parse("#145C39")),  // success
+        new SolidColorBrush(Color.Parse("#8A5300")),  // warning
+        new SolidColorBrush(Color.Parse("#B3261E")),  // error
+    };
 
-    /// <summary>Gets or sets which theme variant (colour + glyph) to render.</summary>
-    public ToastKind ToastKind
-    {
-        get => GetValue(ToastKindProperty);
-        set => SetValue(ToastKindProperty, value);
-    }
-
-    /// <summary>Creates the toast card.</summary>
     public ThemedToast()
     {
         InitializeComponent();
+    }
+
+    /// <summary>The toast to display.</summary>
+    public static readonly StyledProperty<ToastItem?> ItemProperty =
+        AvaloniaProperty.Register<ThemedToast, ToastItem?>(nameof(Item));
+
+    /// <summary>The toast to display.</summary>
+    public ToastItem? Item
+    {
+        get => GetValue(ItemProperty);
+        set => SetValue(ItemProperty, value);
+    }
+
+    /// <summary>Raised when the user dismisses the toast.</summary>
+    public static readonly StyledProperty<ICommand?> CloseCommandProperty =
+        AvaloniaProperty.Register<ThemedToast, ICommand?>(nameof(CloseCommand));
+
+    /// <summary>Command executed when the toast is dismissed.</summary>
+    public ICommand? CloseCommand
+    {
+        get => GetValue(CloseCommandProperty);
+        set => SetValue(CloseCommandProperty, value);
     }
 
     /// <inheritdoc/>
@@ -50,57 +54,55 @@ public partial class ThemedToast : UserControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == MessageProperty)
+        if (change.Property == ItemProperty)
         {
-            if (MessageText is not null)
-            {
-                MessageText.Text = Message;
-            }
-        }
-        else if (change.Property == ToastKindProperty)
-        {
-            if (Card is not null)
-            {
-                ApplyKind();
-            }
+            ApplyItem();
         }
     }
 
-    /// <inheritdoc/>
-    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    private void ApplyItem()
     {
-        base.OnApplyTemplate(e);
-        ApplyKind();
-    }
-
-    private void ApplyKind()
-    {
-        var kindClass = ToastKind switch
+        var item = Item;
+        if (item is null)
         {
-            ToastKind.Success => "toastSuccess",
-            ToastKind.Error => "toastError",
-            _ => "toastInfo",
+            return;
+        }
+
+        int severityIndex = item.Severity.ToLowerInvariant() switch
+        {
+            "success" => 1,
+            "warning" => 2,
+            "error" => 3,
+            _ => 0,
         };
 
-        // Toggle exactly one kind class so conflicting card styles never
-        // stack; the message colour follows the same class selector.
-        Card.Classes.Remove("toastSuccess");
-        Card.Classes.Remove("toastError");
-        Card.Classes.Remove("toastInfo");
-        Card.Classes.Add(kindClass);
-        MessageText.Classes.Add("toastMessage");
-        MessageText.Text = Message;
-
-        Glyph.Text = ToastKind switch
+        AccentBar.Fill = AccentsForSeverity[severityIndex];
+        SeverityGlyph.Text = severityIndex switch
         {
-            ToastKind.Success => "\uE73E", // check circle
-            ToastKind.Error => "\uEA39",   // error circle
-            _ => "\uE946",                 // info circle
+            1 => "\u2713",
+            2 => "\u26A0",
+            3 => "\u2716",
+            _ => "\u2139",
         };
+        SeverityLabel.Text = severityIndex switch
+        {
+            1 => "Success",
+            2 => "Warning",
+            3 => "Error",
+            _ => "Info",
+        };
+        MessageText.Text = item.Message;
+
+        AutomationProperties.SetName(this, $"Toast {SeverityLabel.Text}: {item.Message}");
     }
 
-    private void OnCloseClicked(object? sender, RoutedEventArgs e)
+    private void OnCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        Dismissed?.Invoke(this, EventArgs.Empty);
+        // CloseCommand receives the toast itself as the parameter so an owning
+        // view model can remove exactly this item from its collection.
+        if (CloseCommand is not null && CloseCommand.CanExecute(Item))
+        {
+            CloseCommand.Execute(Item);
+        }
     }
 }
