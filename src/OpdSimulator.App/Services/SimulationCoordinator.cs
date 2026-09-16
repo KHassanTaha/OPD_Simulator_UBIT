@@ -59,8 +59,9 @@ public static class SimulationCoordinator
     public const string MissingArrivalRateMessage =
         "Nothing to run yet: enter an arrival rate λ in Parameters, or load a valid data file.";
 
-    /// <summary>Banner shown when a stage has neither a manual nor a fitted service rate.</summary>
-    public const string MissingServiceRatePrefix = "Stage has no service rate: enter one in Stages, or load data with timings for it.";
+    /// <summary>Banner shown when a stage has neither a manual nor a fitted service rate (5d.1, D-112): names the stage.</summary>
+    public const string MissingServiceRateMessage =
+        "Stage '{0}' has no service rate. Upload data covering this stage, or enable Parameters to enter μ manually.";
 
     /// <summary>Banner shown when the data's fitted p_exit is 1.0 (no downstream route exists).</summary>
     public const string FittedPExitEqualsOneMessage =
@@ -72,10 +73,11 @@ public static class SimulationCoordinator
     /// <param name="parameters">Validated inputs from the config panel.</param>
     /// <param name="binding">Loaded data binding, or null for a pure-manual run.</param>
     /// <param name="status">Optional progress text callback (e.g. "Running simulation…").</param>
-    public static RunOutcome Run(SimulationParameters parameters, DataBindingResult? binding, Action<string>? status = null)
+    /// <param name="significanceLevel">α used for every chi-square verdict (5d.2, D-113).</param>
+    public static RunOutcome Run(SimulationParameters parameters, DataBindingResult? binding, Action<string>? status = null, double significanceLevel = FitsService.DefaultAlpha)
     {
         status?.Invoke("Fitting distributions…");
-        var fits = BuildFits(parameters, binding);
+        var fits = BuildFits(parameters, binding, significanceLevel);
 
         status?.Invoke("Running simulation…");
 
@@ -96,10 +98,11 @@ public static class SimulationCoordinator
             return Refused(fits, exitProbability, MissingArrivalRateMessage);
         }
 
-        var specs = BuildStageSpecs(parameters, binding);
-        if (specs is null)
+        var stageResult = BuildStageSpecs(parameters, binding);
+        if (stageResult.Specs is null)
         {
-            return Refused(fits, exitProbability, MissingServiceRatePrefix);
+            return Refused(fits, exitProbability,
+                string.Format(MissingServiceRateMessage, stageResult.MissingStageName ?? "?"));
         }
 
         int exitStageIndex = exitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
@@ -109,7 +112,7 @@ public static class SimulationCoordinator
         // unhandled exception.
         try
         {
-            var topology = new NetworkTopology(arrivalRate.Value, specs, exitStageIndex, exitProbability);
+            var topology = new NetworkTopology(arrivalRate.Value, stageResult.Specs!, exitStageIndex, exitProbability);
 
             var traceLevel = TraceLevelFromName(parameters.TraceLevelName);
             var sink = new CollectionTraceSink(traceLevel);
@@ -135,7 +138,7 @@ public static class SimulationCoordinator
         }
     }
 
-    private static IReadOnlyList<FitReport> BuildFits(SimulationParameters parameters, DataBindingResult? binding)
+    private static IReadOnlyList<FitReport> BuildFits(SimulationParameters parameters, DataBindingResult? binding, double significanceLevel)
     {
         if (binding is null || !binding.IsUsable || binding.FittedArrivalRate is null)
         {
@@ -144,14 +147,14 @@ public static class SimulationCoordinator
 
         var reports = new List<FitReport>
         {
-            FitsService.Fit("Inter-arrival", binding.InterArrivalMinutes, parameters.InterArrivalDistribution),
+            FitsService.Fit("Inter-arrival", binding.InterArrivalMinutes, parameters.InterArrivalDistribution, significanceLevel),
         };
 
         foreach (var stage in binding.StageNames)
         {
             if (binding.ServiceMinutesByStage.TryGetValue(stage, out var times))
             {
-                reports.Add(FitsService.Fit($"{stage} service", times, parameters.ServiceDistribution));
+                reports.Add(FitsService.Fit($"{stage} service", times, parameters.ServiceDistribution, significanceLevel));
             }
         }
 
@@ -162,9 +165,9 @@ public static class SimulationCoordinator
     /// Builds the ordered stage specifications, replacing a stage whose manual
     /// μ is blank with the data-fitted rate for that stage name (D-100). Null
     /// when any stage has neither manual nor fitted μ — the run cannot be
-    /// configured.
+    /// configured (5d.1: the banner names the first offending stage).
     /// </summary>
-    private static List<StageSpec>? BuildStageSpecs(SimulationParameters parameters, DataBindingResult? binding)
+    private static (List<StageSpec>? Specs, string? MissingStageName) BuildStageSpecs(SimulationParameters parameters, DataBindingResult? binding)
     {
         string? missingFor = null;
         var specs = new List<StageSpec>(parameters.StageNames.Count);
@@ -184,10 +187,10 @@ public static class SimulationCoordinator
         if (specs.Count != parameters.StageNames.Count)
         {
             Log.Warning("Run refused: stage '{}' has no service rate (manual or fitted)", missingFor);
-            return null;
+            return (null, missingFor);
         }
 
-        return specs;
+        return (specs, null);
     }
 
     private static double? FittedRateFor(string stageName, DataBindingResult? binding)

@@ -250,12 +250,16 @@ max(util_server) − min(util_server) > 0.15.
 > that stage (e.g., exited at Screening → no `doctor_server`), the blank is
 > **expected** and excluded silently.
 
-> **[UNVERIFIED — assumption, 2026-09-16 — D-100]** A blank per-stage
-> "Service rate μ (per server)" field means *use the fitted value* (Phase 5),
-> exactly like the Section-3 manual λ/μ overrides, so a factory-default
-> config is Start-enabled on launch. Non-empty values must be positive
-> doubles. Needs owner sign-off against the PRD wording "double > 0" (which
-> the GUI reads as required-only-when-non-empty).
+> **[VERIFIED — 2026-09-16 — D-112 supersedes D-100]** A blank per-stage
+> "Service rate μ (per server)" field means *use the fitted value*. This
+> assumption is now **implemented without a per-row field at all**: Phase 5d
+> removed the editable μ from the Stages rows (topology only — name +
+> servers). Rates come from the single **Parameters** comma list (applied in
+> stage order; blank entries use the fitted value) or from the loaded data,
+> reflected by each row's read-only "(from data)" / "(manual)" / "(no
+> source)" label. This matches the Section-3 λ/μ override pattern exactly, so
+> D-100's "blank means fitted" intent is preserved with one canonical entry
+> point (D-112).
 
 ---
 

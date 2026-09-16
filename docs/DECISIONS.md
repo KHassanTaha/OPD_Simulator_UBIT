@@ -1791,3 +1791,148 @@ impact (positive and negative), alternatives considered.
   directly to the button (rejected — would skip or duplicate the existing
   confirmation dialog); keeping the reset config-only (rejected — that is the
   bug being fixed).
+
+### D-112 — μ leaves the Stages rows: topology-only rows + one manual entry point (5d.1) — 2026-09-16
+
+- **Decision:** the editable per-row "Service rate μ (per server)" field in
+  the Stages section is removed. Each stage row is now **topology only** (name
+  + server count) plus a read-only **μ-source label** in one of three forms:
+  `μ = {v:0.##} (from data)` (fitted rate for that stage name), `μ = {v:0.##}
+  (manual)` (taken from the Parameters comma list at that index, converted
+  1/v in mean-wise mode), or `μ = — (no source)`. The single manual entry
+  point is the Parameters comma list (blank entries use the fitted value).
+  When a stage has no rate from either source the run is refused with a
+  banner naming the stage: `Stage '{name}' has no service rate. Upload data
+  covering this stage, or enable Parameters to enter μ manually.`
+- **Rationale:** owner spec 5d.1 ("removes per-row [μ]; stage rows = name +
+  servers only; single manual entry point in Parameters; Start must be
+  blocked with ErrorBanner if μ is missing after loading data"). One canonical
+  μ input removes the duplicate-source ambiguity the per-row field created
+  (D-100's "blank means fitted" intent is preserved, but expressed as the
+  Parameters-list back-fill rather than a silent empty row). The Start gate is
+  deliberately a **run-time refusal banner**, not a disabled button: a factory
+  default config (no μ explicit anywhere) must stay runnable in principle, and
+  the (0,1)-validated gap between "no μ yet" and "invalid μ" is better
+  explained at the moment of impact.
+- **Implementation:** `StageRow` dropped `ServiceRate`/`ValidateServiceRate()`
+  (`HasErrors` = servers only), gained `ServiceRateLabel`; `ConfigPanelViewModel`
+  `RefreshStageSourceLabels()`/`BuildServiceRateLabel()`/`ManualMuParts()`/
+  `FittedRateFor()`/`EffectiveMu()` recompute labels on load, manual-list
+  change, mode toggle, Parameters toggle and stage-list resize;
+  `RecomputeRho()` now uses the same sources (labels and ρ cannot disagree);
+  `SimulationCoordinator.BuildStageSpecs` returns a `(Specs, MissingStageName)`
+  tuple and `Run` refuses via `MissingServiceRateMessage` (format string
+  naming the stage). ConfigPanel.axaml renders the label (TextBlock) in place
+  of the ValidatedField and the section HelpText says "topology only".
+- **Impact:** (+) one authoritative μ-source; (+) refusal names the exact
+  stage — the viva can reproduce it ("Stage 'Doctor' has no service rate…");
+  (+) ρ preview always shows what the run will use. (−) renaming a row after
+  load does not re-derive its label without a reload/resync (limited: labels
+  describe the source the run will use at run time, and Start's banner is
+  authoritative).
+- **Alternatives considered:** keeping the per-row field disabled-until-data
+  (rejected — the owner's split of concerns is cleaner: one entry point, and
+  richer labeling than a blank box); a per-stage manual list keyed by name
+  (rejected — the Parameters comma list is positional and matches the λ list
+  already there).
+
+### D-113 — significance level α selector with (0,1) validation (5d.2) — 2026-09-16
+
+- **Decision:** a new "Significance level (α)" field in the Model section
+  (default **0.05**), validated strictly between 0 and 1 (blur validation,
+  inline error: "Enter a number between 0 and 1." for non-numeric,
+  "Significance level must be strictly between 0 and 1. You entered {value}."
+  for out-of-range). Invalid α blocks Start. The value threads through the
+  whole chi-square path: `ConfigPanelViewModel.SignificanceLevelForRun` →
+  `SimulationCoordinator.Run(…, significanceLevel)` → `BuildFits` →
+  `FitsService.Fit(…, alpha)` → `ChiSquareTest.Run(…, alpha)` → every verdict
+  uses it. The results panel caption is dynamic:
+  `Chi-square goodness-of-fit (α = 0.05)` → `(α = 0.01)` etc., set via
+  `ResultsPanelViewModel.SetChiSquareAlpha` and restored by Clear All.
+- **Rationale:** owner spec 5d.2 ("significance level selector … default
+  0.05 … must be > 0 and < 1"). Previously every chi-square verdict silently
+  used the hard-coded 0.05 constant; the user could not adjust the test's
+  strictness and the caption lied about nothing (it was static). The validity
+  set (0,1) excludes the degenerate boundaries where the test is meaningless
+  (α=0 → nothing ever rejected; α=1 → everything rejected).
+- **Implementation:** `ConfigPanelViewModel.SignificanceLevel` (ConfigField,
+  added to `AllFieldErrors` + `RecomputeBlockingState`,
+  `ValidateSignificanceLevel()` routed from `ValidationKey="significance-level"`),
+  `SignificanceLevelForRun` falls back to `FitsService.DefaultAlpha` on parse
+  failure (defence in depth, matching configuration-time validation);
+  `FitsService.Fit(string, …, double alpha = DefaultAlpha)`; `SimulationCoordinator`
+  carries α through to every `FitReport`; `ResultsPanelViewModel.ChiSquareCaption`
+  (+ `SetChiSquareAlpha`); ConfigPanel.axaml adds the ValidatedField after the
+  two distribution dropdowns.
+- **Impact:** (+) the goodness-of-fit decision is now a user-controlled knob,
+  defensible in the viva; (+) one constant lives in one place
+  (`FitsService.DefaultAlpha`, still the fallback). (−) a third numeric in the
+  Model section — mitigated by group help text and the (0,1) validation.
+- **Alternatives considered:** fixing at 0.05 with no field (rejected — the
+  spec demands the selector and a competence question in the viva is "how do I
+  change the test's strictness?"); a (0,1] acceptance (rejected — α=1 makes
+  the test vacuous, spec says strictly less than 1).
+
+### D-114 — stage-count mismatch amber warning with Sync / Keep actions (5d.3) — 2026-09-16
+
+- **Decision:** after loading data whose detected stage count differs from the
+  configured stage list, the Data section shows an **amber warning banner**
+  with the exact counts and names — N < M: "…Configured stages not covered by
+  the data will have no service rate."; N > M: "…Extra stages in the data will
+  be ignored." — plus two actions: **Sync stages from data** (themed confirm
+  dialog, then the VM's `SyncStagesToData()` resizes the rows, adopts the
+  data's stage names, clears the warning and refreshes the μ labels) and
+  **Keep current stages** (non-destructive dismiss for the session). The
+  message conflict between the 5d.1 spec wording and the 5d.3 "NEW" wording is
+  resolved to the 5d.3 text as the single canonical banner: `Stage '{name}'
+  has no service rate. Upload data covering this stage, or enable Parameters
+  to enter μ manually.` (the older 5d.1 snippet is dropped).
+- **Rationale:** owner spec 5d.3 ("must NOT be wrapped in the 5d.1 error; the
+  user sees [New] message … warning is amber"). Sync surfaces the fastest
+  fix (adopt the data's topology); Keep guarantees no silent mutation — the
+  warning must never auto-change the user's stage list. The 5d.1-vs-5d.3
+  conflict appears only when the warning is visible with a missing-μ banner
+  pending; the spec's later, more specific wording wins (AGENTS §7: pick the
+  more recent).
+- **Implementation:** `RecomputeStagesMismatch()` (invoked from
+  `ApplyLoadedFile`), `IsStageMismatchWarningVisible`/`StageMismatchMessage`
+  observables, `SyncStagesFromDataCommand`/`KeepCurrentStagesCommand` raising
+  `SyncStagesRequested`/`KeepStageMismatchRequested` (the view confirms the
+  destructive Sync via `ThemedDialog`, calls `SyncStagesToData()`, and just
+  calls `DismissStageMismatchWarning()` for Keep); ConfigPanel.axaml amber
+  `Border` (theme warning tokens) below the Data status. Recompute, Sync and
+  Dismiss are all cleared by `ResetToDefaults` (5d + 5c.4).
+- **Impact:** (+) the user always learns *why* a stage "has no service rate"
+  before the run is refused; (+) N>M silently ignoring extra data is no longer
+  invisible. (−) an extra banner needs a dismiss for users who knowingly run a
+  subset — provided by Keep.
+- **Alternatives considered:** overloading the ErrorBanner (rejected — the
+  banner is failure-red and this is an advisory state); resizing automatically
+  on load (rejected — silent topology mutation breaks AGENTS §3 and surprise
+  the user); warning-only without actions (rejected — the spec asks for
+  Sync).
+
+### D-115 — amber theme tokens + `ErrorBanner.Severity` (5d.4) — 2026-09-16
+
+- **Decision:** the warning palette is the theme's existing amber tokens
+  (`ColorWarning #8A5300` / `ColorWarningBackground #FFF4E0` + the
+  `BrushWarning`/`BrushWarningBackground` brushes) — **no new colours** — and
+  `ErrorBanner` gains a `BannerSeverity` attached property
+  (`Error` default / `Warning` / `Info`) whose `ApplySeverity()` picks
+  foreground, background, border and accent glyph from theme resources. The
+  automation name becomes `"{Severity}: {Message}"`.
+- **Rationale:** AGENTS §16.3 forbids hard-coded colours; the banner is now
+  reused for a non-fatal advisory (mismatch), so "error-red" semantics are
+  wrong. One control, three severities, zero new tokens.
+- **Implementation:** `BannerSeverity` enum + styled `Severity` property;
+  `BrushOf(name, r, g, b)` resolves each brush via `TryFindResource` with a
+  literal fallback triple (unreachable when the theme loads; kept for nullable
+  analysis — 0 warnings). Warning = amber, Info = muted neutral, Error = the
+  existing red trio. The StageMismatchMessage banner in ConfigPanel uses
+  `BrushWarningBackground`/`BrushWarning` directly in XAML (no Severity
+  plumbing needed for a static-colour advisory).
+- **Impact:** (+) one visual language for severity; (+) theming survives a
+  single-file restyle. (−) none observed.
+- **Alternatives considered:** a separate `NoticeBanner` control (rejected —
+  identical layout, duplicated logic, AGENTS §16.5); new `ColorWarningBright`
+  tokens (rejected — Theme.axaml already had them from earlier phases).

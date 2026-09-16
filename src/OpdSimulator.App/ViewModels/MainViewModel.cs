@@ -53,6 +53,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         Results.StartRun();
+        Results.SetChiSquareAlpha(Config.SignificanceLevelForRun);
         Results.SetPreview(Config.Binding);
 
         Task.Run(() =>
@@ -61,7 +62,8 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 outcome = SimulationCoordinator.Run(parameters, Config.Binding,
-                    status => Dispatcher.UIThread.Post(() => Results.StatusText = status));
+                    status => Dispatcher.UIThread.Post(() => Results.StatusText = status),
+                    Config.SignificanceLevelForRun);
             }
             catch (Exception ex)
             {

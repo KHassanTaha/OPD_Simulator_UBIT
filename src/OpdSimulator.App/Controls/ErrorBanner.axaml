@@ -15,6 +15,7 @@
         <Grid ColumnDefinitions="Auto,* ,Auto"
               VerticalAlignment="Center">
             <TextBlock Grid.Column="0"
+                       x:Name="AccentGlyph"
                        Text="&#x26A0;"
                        FontSize="{DynamicResource FontSizeTitle}"
                        Foreground="{DynamicResource BrushError}"

@@ -57,6 +57,8 @@ public partial class ConfigPanel : UserControl
         {
             _vm.UploadRequested -= OnUploadRequested;
             _vm.ClearAllRequested -= OnClearAllRequested;
+            _vm.SyncStagesRequested -= OnSyncStagesRequested;
+            _vm.KeepStageMismatchRequested -= OnKeepStageMismatchRequested;
         }
 
         _vm = DataContext as ConfigPanelViewModel;
@@ -64,6 +66,8 @@ public partial class ConfigPanel : UserControl
         {
             _vm.UploadRequested += OnUploadRequested;
             _vm.ClearAllRequested += OnClearAllRequested;
+            _vm.SyncStagesRequested += OnSyncStagesRequested;
+            _vm.KeepStageMismatchRequested += OnKeepStageMismatchRequested;
         }
     }
 
@@ -143,6 +147,34 @@ public partial class ConfigPanel : UserControl
         }
     }
 
+    private async void OnSyncStagesRequested(object? sender, EventArgs e)
+    {
+        if (_vm is null || _vm.Binding is not { } binding)
+        {
+            return;
+        }
+
+        var owner = this.GetVisualRoot() as Window;
+        var result = await ThemedDialog.ShowMessageAsync(
+            owner,
+            "Sync stages to the data?",
+            $"Replace the configured stage list with the {binding.StageNames.Count} stage(s) found in the loaded data?",
+            "Sync",
+            "Cancel");
+
+        if (result == ThemedDialogResult.Primary)
+        {
+            _vm.SyncStagesToData();
+        }
+    }
+
+    private void OnKeepStageMismatchRequested(object? sender, EventArgs e)
+    {
+        // Non-destructive: no confirmation needed, the warning is merely
+        // dismissed for the session (5d.3).
+        _vm?.DismissStageMismatchWarning();
+    }
+
     private void OnFieldLostFocus(object? sender, RoutedEventArgs e)
     {
         if (e.Source is not ValidatedField field || _vm is null)
@@ -161,6 +193,9 @@ public partial class ConfigPanel : UserControl
             case "p-exit":
                 _vm.ValidatePExit();
                 break;
+            case "significance-level":
+                _vm.ValidateSignificanceLevel();
+                break;
             case "stage-count":
                 _vm.ValidateStageCount();
                 break;
@@ -178,9 +213,6 @@ public partial class ConfigPanel : UserControl
                 break;
             case "servers":
                 (field.DataContext as StageRow)?.ValidateServers();
-                break;
-            case "service-rate":
-                (field.DataContext as StageRow)?.ValidateServiceRate();
                 break;
         }
     }

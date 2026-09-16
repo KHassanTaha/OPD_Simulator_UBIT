@@ -32,6 +32,33 @@
                         <TextBlock Text="{Binding DataStatus}"
                                    Classes="Caption"
                                    TextWrapping="Wrap"/>
+                        <!-- Phase 5d stage-count mismatch (D-114): amber warning
+                             + Sync/Keep actions when the data's stages differ
+                             from the configured list. -->
+                        <Border IsVisible="{Binding IsStageMismatchWarningVisible}"
+                                Background="{DynamicResource BrushWarningBackground}"
+                                BorderBrush="{DynamicResource BrushWarning}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource CornerRadiusM}"
+                                Padding="{DynamicResource ThicknessSpaceS}">
+                            <StackPanel Spacing="{DynamicResource SpaceS}">
+                                <TextBlock Text="{Binding StageMismatchMessage}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource BrushWarning}"
+                                           FontSize="{DynamicResource FontSizeCaption}"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="{DynamicResource SpaceXs}">
+                                    <Button Content="Sync stages from data"
+                                            Command="{Binding SyncStagesFromDataCommand}"
+                                            Classes="PrimaryButton"
+                                            ToolTip.Tip="Replace the configured stages with the stages found in the loaded data"/>
+                                    <Button Content="Keep current stages"
+                                            Command="{Binding KeepCurrentStagesCommand}"
+                                            Classes="GhostButton"
+                                            ToolTip.Tip="Keep the configured stages for this session; the warning is dismissed"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </controls:CollapsibleSection>
 
@@ -52,6 +79,15 @@
                                                      Items="{Binding Distributions}"
                                                      SelectedItem="{Binding ServiceDistribution, Mode=TwoWay}"
                                                      HelpAnchor="service-distribution"/>
+                        <controls:ValidatedField x:Name="SignificanceLevelField"
+                                                 Label="Significance level (α)"
+                                                 Watermark="e.g., 0.05"
+                                                 Tooltip="Significance level for the chi-square goodness-of-fit tests; must be strictly between 0 and 1"
+                                                 Value="{Binding SignificanceLevel.Value, Mode=TwoWay}"
+                                                 HasError="{Binding SignificanceLevel.HasError}"
+                                                 ErrorMessage="{Binding SignificanceLevel.ErrorMessage}"
+                                                 HelpAnchor="significance-level"
+                                                 views:ConfigPanelValidation.ValidationKey="significance-level"/>
                         <StackPanel Spacing="{DynamicResource SpaceXs}">
                             <TextBlock Text="Parameter mode"
                                        FontSize="{DynamicResource FontSizeBody}"
@@ -127,7 +163,7 @@
                 <!-- ───── 4 · Stages (1–5) ─────────────────────────────── -->
                 <controls:CollapsibleSection Title="4 · Stages"
                                              IsExpanded="True"
-                                             HelpText="Named stages through which every patient flows. Each stage has its own server count and per-server service rate.">
+                                             HelpText="Named stages through which every patient flows. The stage list defines topology only (name + server count); the service rate μ comes from the loaded data or the Parameters section (5d.1, D-112).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:ValidatedField x:Name="StageCountField"
                                                  Label="Number of stages"
@@ -160,15 +196,15 @@
                                                                      ErrorMessage="{Binding Servers.ErrorMessage}"
                                                                      HelpAnchor="servers"
                                                                      views:ConfigPanelValidation.ValidationKey="servers"/>
-                                            <controls:ValidatedField Label="Service rate μ (per server)"
-                                                                     Watermark="e.g., 0.5"
-                                                                     Tooltip="Per-server service rate. Blank uses the fitted value."
-                                                                     Unit="/ min"
-                                                                     Value="{Binding ServiceRate.Value, Mode=TwoWay}"
-                                                                     HasError="{Binding ServiceRate.HasError}"
-                                                                     ErrorMessage="{Binding ServiceRate.ErrorMessage}"
-                                                                     HelpAnchor="service-rate"
-                                                                     views:ConfigPanelValidation.ValidationKey="service-rate"/>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Service rate μ"
+                                                           FontSize="{DynamicResource FontSizeCaption}"
+                                                           Foreground="{DynamicResource BrushTextSecondary}"/>
+                                                <TextBlock Text="{Binding ServiceRateLabel}"
+                                                           Classes="Caption"
+                                                           TextWrapping="Wrap"
+                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing — the run is refused until a source exists"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

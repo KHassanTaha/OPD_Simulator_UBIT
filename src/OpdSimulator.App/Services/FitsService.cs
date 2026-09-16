@@ -12,14 +12,14 @@ using OpdSimulator.Data.Fitting;
 /// </summary>
 public static class FitsService
 {
-    /// <summary>Significance level used for every chi-square verdict (5%).</summary>
+    /// <summary>Significance level used when the caller does not supply one (5%).</summary>
     public const double DefaultAlpha = 0.05;
 
     /// <summary>
     /// Fits <paramref name="familyName"/> to <paramref name="samples"/> and
-    /// tests the result.
+    /// tests the result at the given significance level (5d.2, D-113).
     /// </summary>
-    public static FitReport Fit(string label, IReadOnlyList<double> samples, string familyName)
+    public static FitReport Fit(string label, IReadOnlyList<double> samples, string familyName, double alpha = DefaultAlpha)
     {
         if (samples.Count == 0)
         {
@@ -34,7 +34,7 @@ public static class FitsService
         try
         {
             var fitted = fitter!.Fit(samples);
-            var chiSquare = ChiSquareTest.Run(samples, fitted, DefaultAlpha);
+            var chiSquare = ChiSquareTest.Run(samples, fitted, alpha);
             return new FitReport(label, samples, fitted, chiSquare);
         }
         catch (Exception)

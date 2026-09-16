@@ -169,7 +169,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-16 **239 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-16 **256 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -180,7 +180,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **239 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (61, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (78, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -206,6 +206,20 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-16 **239 tests pass**:
   Wayland `AppMenu.Registrar` DBus quirk is ignored instead of crash-reported
   (`CrashReporter_IgnoresAppMenuRegistrarDBusError`), and the Phase-5c results
   screenshot renders with a populated trace (overflow asserted in-test).
+  **Phase-5d config refinements (17):** 5d.1 stage rows are topology only —
+  no editable per-row μ, each row's read-only label shows "(no source)" at
+  factory defaults, "(from data)" for stages the loaded file covers, "(manual)"
+  only while Parameters is on, and a run whose stage has no μ is refused with
+  a banner naming that stage; 5d.2 significance-level α — default 0.05,
+  zero/one/non-numeric rejected (blocking Start), α flows into every chi-square
+  verdict and into the dynamic "Chi-square goodness-of-fit (α = …)" caption
+  (restored by Clear All); 5d.3 stage-count mismatch — loading data with fewer
+  or more stages than configured raises the amber warning with Sync / Keep
+  actions, Sync resizes + renames rows + clears the warning + refreshes the μ
+  labels, Keep dismisses non-destructively, and the Sync command requests
+  confirmation before resizing; 5d evidence screenshots
+  `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) and
+  `phase-5d-cleared.png` (default no-source labels after Clear All).
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -480,6 +494,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-16 | **GUI rebuild Phase 5d — config panel refinements** (`feat/gui-rebuild`): 5d.1 μ moves out of Stages — rows are topology only (name + servers) with a read-only μ-source label; the single manual entry point is the Parameters comma list (rate/mean-wise per toggle, blank = fitted); the run refuses with a banner naming the stage (`Stage '<name>' has no service rate…`) when no source exists (D-112). 5d.2 significance level α in Model — default 0.05, strictly (0,1) validation blocking Start, threads through FitsService into every chi-square verdict and into the dynamic results caption (`SetChiSquareAlpha`, D-113). 5d.3 stage-count mismatch — amber warning (reuses theme warning tokens, D-115) with Sync-stages-from-data / Keep-current-stages actions when the loaded data's stage count differs from the configured list (D-114; the 5d.1-vs-5d.3 message conflict resolved to the 5d.3 "NEW" wording). 5d.4 ErrorBanner gained a `BannerSeverity` (Error/Warning/Info) with theme-resource colours. §6 refreshed to **256 tests** (App 78) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 256 green (Core 85 / Data 58 / Cli 35 / App 78); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5d-config.png` (amber mismatch banner + α field) + `logs/screenshots/phase-5d-cleared.png` (default no-source μ labels after Clear All) |
 | 2026-09-16 | **GUI rebuild Phase 5c.4 — Clear All full reset** (`feat/gui-rebuild`): confirming the Clear All themed dialog now runs `MainViewModel.ResetAll()` — `Config.ResetToDefaults()` (unloads the uploaded file, drops fitted parameters) + new `ResultsPanelViewModel.Reset()` (welcome card back, `HasRun=false`, `RunError=null`, `TraceText=""`, metrics/chi-square/preview content cleared; persisted widget VISIBILITY preferences survive per FR-UI-21); ConfigPanel falls back to config-only reset when no MainWindow hosts it; tooltip updated; D-111; §6 refreshed to 239 tests (App 61) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 239 green (Core 85 / Data 58 / Cli 35 / App 61); real Linux launch 15 s alive with "Main window created." and crash log unchanged |
 | 2026-09-16 | **GUI rebuild Phase 5c parts 2 + 3** (`feat/gui-rebuild`): the calendar `Engine.Run` overload now forwards an optional `ITraceSink` so ClinicDay/MultiDay runs populate the event trace in every mode (owner-approved minimal Core change, D-110 — Core suite 85 green before AND after; `SimulationCoordinator` passes its sink in every run mode; the "(D-105) Diagnostic-only" placeholder removed; new `TraceViewer_PopulatesAfterClinicDayRun`; two old `Assert.Empty(TraceLines)` calendar assertions updated); welcome card now actually renders on fresh launch — the ResultsPanel `ContentControl` was bound only to `IsVisible` and never to `Content="{Binding Welcome}"`, so the template never instantiated (D-109 value — part 3 test `WelcomeCard_VisibleOnFreshLaunch_AndHiddenAfterRun`); test-data fix — `TraceViewer_PopulatesAfterClinicDayRun` needed three manual μs (one per default stage), not one; §6 refreshed to 236 tests (App 58); §9.1 ui.json paths unchanged (part 1) | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 236 green (Core 85 / Data 58 / Cli 35 / App 58); real Linux launch 15 s alive with "Main window created." and crash log unchanged (0 new entries); headless evidence `logs/screenshots/phase-5c-results.png` (60.9 KB, populated run) + `logs/screenshots/phase-5c-welcome.png` (48.5 KB, fresh-launch welcome card with logos + "Group members" card, asserted in-test) |
 | 2026-09-16 | **GUI rebuild Phase 5c part 1** (`feat/gui-rebuild`): results column scrolls — widget container in a ScrollViewer (Vertical=Auto, Horizontal=Disabled) with the "Customise results" toggle + widget picker pinned above (ResultsPanel `RowDefinitions="Auto,*"`), results column `380,6,*` + `MinWidth=540` on the Border (compares to the rejected `MinMax(540,*)` — AVLN2005); the known Wayland `AppMenu.Registrar` DBus quirk is ignored by the TaskScheduler handler instead of crash-reported (D-107); FR-UI-14 persistence actually restored — `MainViewModel` now `WidgetPreferences.Load()`s and the default seed is all-on instead of all-off (D-108); repo's first `InternalsVisibleTo` so App log/banner machinery is testable; §6 refreshed to 233 tests (App 55); §9.1 documents the per-user `ui.json` paths + one-time reset; stale `ui.json` deleted as the approved one-time reset | **Ubuntu 24.04** (dotnet SDK 8.0.131) — Release build 0 errors/0 warnings; full suite 233 green (Core 85 / Data 58 / Cli 35 / App 55); real Linux launch 15 s alive with "Main window created." and crash log unchanged; headless evidence `logs/screenshots/phase-5c-results.png` (65 KB, metrics + chi-square + populated State trace, overflow asserted in-test) |

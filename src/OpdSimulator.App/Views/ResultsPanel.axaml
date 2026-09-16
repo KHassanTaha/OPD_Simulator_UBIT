@@ -159,9 +159,9 @@
                     CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
                 <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <TextBlock Text="Chi-square goodness-of-fit (α = 0.05)"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource BrushTextPrimary}"/>
+<TextBlock Text="{Binding ChiSquareCaption}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
                     <Grid ColumnDefinitions="130,110,72,46,72,*" ColumnSpacing="8">
                         <TextBlock Text="Series" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
                         <TextBlock Grid.Column="1" Text="Distribution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>

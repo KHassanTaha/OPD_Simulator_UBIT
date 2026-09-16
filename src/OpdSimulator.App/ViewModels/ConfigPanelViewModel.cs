@@ -41,7 +41,12 @@ public partial class ConfigPanelViewModel : ObservableObject
     {
         StageCount.Value = DefaultStages.ToString();
         ManualLambda.ValueChanged += (_, _) => RecomputeRho();
-        ManualMuPerStage.ValueChanged += (_, _) => RecomputeRho();
+        ManualMuPerStage.ValueChanged += (_, _) =>
+        {
+            // A comma-list edit changes each stage's effective μ source (5d.1).
+            RecomputeRho();
+            RefreshStageSourceLabels();
+        };
         StageCount.ValueChanged += (_, _) => OnStageCountEdited();
         EnsureStageCount(DefaultStages);
     }
@@ -92,6 +97,15 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private string? _serviceDistribution = "Exponential";
 
+    /// <summary>Significance level α for every chi-square verdict (strictly between 0 and 1; default 0.05, D-113).</summary>
+    public ConfigFieldViewModel SignificanceLevel { get; } = new() { Value = "0.05" };
+
+    /// <summary>The α the run will use: the parsed field when valid, else the default (defence in depth).</summary>
+    public double SignificanceLevelForRun =>
+        double.TryParse(SignificanceLevel.Value, out var alpha) && alpha is > 0 and < 1
+            ? alpha
+            : FitsService.DefaultAlpha;
+
     /// <summary>True when parameters are entered as rates (default), false when mean-wise (CONTEXT §5.6).</summary>
     [ObservableProperty]
     private bool _isRateWise = true;
@@ -106,6 +120,9 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             IsMeanWise = false;
         }
+
+        RecomputeRho();
+        RefreshStageSourceLabels();
     }
 
     partial void OnIsMeanWiseChanged(bool value)
@@ -114,6 +131,9 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             IsRateWise = false;
         }
+
+        RecomputeRho();
+        RefreshStageSourceLabels();
     }
 
     // ── Section 3 · Parameters ──────────────────────────────────────────
@@ -273,6 +293,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         OnPropertyChanged(nameof(ParametersSupplied));
         RecomputeRho();
+        RefreshStageSourceLabels();
         RecomputeBlockingState();
     }
 
@@ -288,8 +309,32 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
-    /// <summary>True only when the manual parameter overrides are switched on.</summary>
+    /// <summary>When Parameters is OFF, its entries are "not supplied" — the µ from data only.</summary>
     public bool ParametersSupplied => ParametersIsOptionalEnabled;
+
+    // ── Stage-data mismatch warning (Phase 5d, D-114) ─────────────────────
+
+    /// <summary>True while the loaded data's detected stage count differs from the configured stage list.</summary>
+    [ObservableProperty]
+    private bool _isStageMismatchWarningVisible;
+
+    /// <summary>The amber "Uploaded data has N stage(s)…" message (or empty when none).</summary>
+    [ObservableProperty]
+    private string _stageMismatchMessage = "";
+
+    /// <summary>Sync-stages button: raises <see cref="SyncStagesRequested"/> (the view confirms via ThemedDialog first).</summary>
+    public event EventHandler? SyncStagesRequested;
+
+    /// <summary>Keep-stages button: raises <see cref="KeepStageMismatchRequested"/> (no destructive change, no dialog).</summary>
+    public event EventHandler? KeepStageMismatchRequested;
+
+    /// <summary>Replaces the configured stages with the data's stages (view confirms first, then calls <see cref="SyncStagesToData"/>).</summary>
+    [RelayCommand]
+    private void SyncStagesFromData() => SyncStagesRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Dismisses the mismatch warning for this session without changing the stage list.</summary>
+    [RelayCommand]
+    private void KeepCurrentStages() => KeepStageMismatchRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Random seed the run will use (42 while the Advanced section is off).</summary>
     public int EffectiveSeed =>
@@ -435,6 +480,30 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
+    /// <summary>
+    /// Blur validation for α (D-113): any parseable number strictly inside
+    /// (0, 1). α is a required Model field, not an optional-section one, so it
+    /// participates in Start gating unconditionally.
+    /// </summary>
+    public void ValidateSignificanceLevel()
+    {
+        var value = SignificanceLevel.Value;
+        if (!double.TryParse(value, out var alpha))
+        {
+            SignificanceLevel.SetError("Enter a number between 0 and 1.");
+        }
+        else if (alpha <= 0 || alpha >= 1)
+        {
+            SignificanceLevel.SetError($"Significance level must be strictly between 0 and 1. You entered {alpha}.");
+        }
+        else
+        {
+            SignificanceLevel.ClearError();
+        }
+
+        RecomputeBlockingState();
+    }
+
     /// <summary>Blur validation for the random seed (any integer).</summary>
     public void ValidateSeed()
     {
@@ -482,6 +551,79 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             DataStatus = $"Loaded {Binding.DataSet!.RowCount} rows — {Binding.Issues.Count} issue(s) to review";
         }
+
+        RefreshStageSourceLabels();
+        RecomputeStagesMismatch();
+    }
+
+    /// <summary>
+    /// Compares the detected stage count from the loaded data with the
+    /// configured stage list and shows the amber warning (or clears it) when
+    /// they differ (5d.3, D-114). A mismatch means some stage has no service
+    /// rate — the run would be refused until it is resolved.
+    /// </summary>
+    private void RecomputeStagesMismatch()
+    {
+        if (Binding is not { IsUsable: true })
+        {
+            IsStageMismatchWarningVisible = false;
+            StageMismatchMessage = "";
+            return;
+        }
+
+        int configured = StageRows.Count;
+        int detected = Binding.StageNames.Count;
+        string names = string.Join(", ", Binding.StageNames);
+        if (detected < configured)
+        {
+            StageMismatchMessage =
+                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. Configured stages not covered by the data will have no service rate.";
+            IsStageMismatchWarningVisible = true;
+        }
+        else if (detected > configured)
+        {
+            StageMismatchMessage =
+                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. Extra stages in the data will be ignored.";
+            IsStageMismatchWarningVisible = true;
+        }
+        else
+        {
+            IsStageMismatchWarningVisible = false;
+            StageMismatchMessage = "";
+        }
+    }
+
+    /// <summary>
+    /// Replaces the configured stage list with the stages detected in the
+    /// loaded data (names and count). Called by the code-behind after the user
+    /// confirms the themed dialog (5d.3).
+    /// </summary>
+    public void SyncStagesToData()
+    {
+        if (Binding?.StageNames is not { Count: > 0 } names)
+        {
+            return;
+        }
+
+        StageCount.Value = names.Count.ToString();
+        StageRows.Clear();
+        EnsureStageCount(names.Count);
+        for (int i = 0; i < names.Count; i++)
+        {
+            StageRows[i].StageName = names[i];
+        }
+
+        RefreshStageSourceLabels();
+        IsStageMismatchWarningVisible = false;
+        StageMismatchMessage = "";
+        Log.Information("Stages synced to the loaded data: {Stages}", string.Join(", ", names));
+    }
+
+    /// <summary>Dismisses the stage-data mismatch warning for the rest of the session (5d.3).</summary>
+    public void DismissStageMismatchWarning()
+    {
+        IsStageMismatchWarningVisible = false;
+        StageMismatchMessage = "";
     }
 
     /// <summary>
@@ -496,11 +638,14 @@ public partial class ConfigPanelViewModel : ObservableObject
         Binding = null;
         InterArrivalDistribution = "Exponential";
         ServiceDistribution = "Exponential";
+        SignificanceLevel.Value = "0.05";
         IsRateWise = true;
         IsMeanWise = false;
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
         PExit.Value = "";
+        IsStageMismatchWarningVisible = false;
+        StageMismatchMessage = "";
         ParametersIsOptionalEnabled = false;
         AdvancedIsOptionalEnabled = false;
         Seed.Value = "42";
@@ -521,6 +666,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         StageRows.Clear();
         EnsureStageCount(DefaultStages);
         StageCount.Value = DefaultStages.ToString();
+        RefreshStageSourceLabels();
         RecomputeRho();
         RecomputeBlockingState();
     }
@@ -530,6 +676,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return ManualLambda;
         yield return ManualMuPerStage;
         yield return PExit;
+        yield return SignificanceLevel;
         yield return StageCount;
         yield return Days;
         yield return DailyCap;
@@ -538,7 +685,6 @@ public partial class ConfigPanelViewModel : ObservableObject
         foreach (var row in StageRows)
         {
             yield return row.Servers;
-            yield return row.ServiceRate;
         }
     }
 
@@ -570,7 +716,6 @@ public partial class ConfigPanelViewModel : ObservableObject
                 : $"Stage {index + 1}";
             var row = new StageRow { StageName = name };
             row.Servers.ValueChanged += (_, _) => RecomputeRho();
-            row.ServiceRate.ValueChanged += (_, _) => RecomputeRho();
             StageRows.Add(row);
         }
 
@@ -580,31 +725,39 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(PExitVisible));
+        RefreshStageSourceLabels();
         RecomputeRho();
         RecomputeBlockingState();
     }
 
     /// <summary>
-    /// Live utilisation per stage: ρ = λ / (c·μ). λ is the manual override
-    /// when present (the fitted λ arrives in Phase 5); a missing piece shows
-    /// as "—" for that stage.
+    /// Live utilisation per stage: ρ = λ / (c·μ). λ and μ use the SAME sources
+    /// the run will use (5d.1): the manual override when Parameters is on
+    /// (blank falls back to the fitted value), else the fitted value from the
+    /// loaded data; a missing piece shows as "—" for that stage.
     /// </summary>
     private void RecomputeRho()
     {
-        // λ is only known while the optional Parameters section is switched on.
-        bool lambdaKnown = false;
         double lambda = double.NaN;
-        if (ParametersIsOptionalEnabled && double.TryParse(ManualLambda.Value, out lambda) && lambda > 0)
+        if (ParametersIsOptionalEnabled && double.TryParse(ManualLambda.Value, out var manualLambda) && manualLambda > 0)
         {
-            lambdaKnown = true;
+            lambda = manualLambda;
         }
-        var parts = StageRows.Select(row =>
+        else if (Binding?.FittedArrivalRate is { } fitted && fitted > 0)
         {
+            lambda = fitted;
+        }
+
+        bool lambdaKnown = lambda > 0;
+        var manualParts = ManualMuParts();
+        var parts = StageRows.Select((row, i) =>
+        {
+            double? mu = EffectiveMu(row.StageName, i, manualParts);
             if (lambdaKnown
-                && double.TryParse(row.ServiceRate.Value, out var mu) && mu > 0
+                && mu is { } m && m > 0
                 && int.TryParse(row.Servers.Value, out var servers) && servers >= 1)
             {
-                var rho = lambda / (mu * servers);
+                var rho = lambda / (m * servers);
                 return $"{row.StageName}: {rho:0.00}";
             }
 
@@ -612,6 +765,97 @@ public partial class ConfigPanelViewModel : ObservableObject
         });
 
         RhoSummary = parts.Any() ? string.Join("   ", parts) : "—";
+    }
+
+    /// <summary>
+    /// Re-derives each stage row's read-only service-rate label after any
+    /// change that could affect it: the Parameters comma list, the load of a
+    /// data file, a mode switch or a stage-list resize (5d.1, D-112).
+    /// </summary>
+    private void RefreshStageSourceLabels()
+    {
+        var manualParts = ManualMuParts();
+        for (int i = 0; i < StageRows.Count; i++)
+        {
+            StageRows[i].ServiceRateLabel = BuildServiceRateLabel(StageRows[i].StageName, i, manualParts);
+        }
+    }
+
+    /// <summary>
+    /// "μ = 0.80 (manual)" when the Parameters comma list has a value for this
+    /// stage, "μ = 0.25 (from data)" when a fitted rate exists in the binding,
+    /// or "μ = — (no source)" — the exact state that refuses a run with the
+    /// per-stage banner (5d.1).
+    /// </summary>
+    private string BuildServiceRateLabel(string stageName, int index, IReadOnlyList<double?> manualParts)
+    {
+        if (index < manualParts.Count && manualParts[index] is { } manual)
+        {
+            double effective = IsMeanWise && manual > 0 ? 1.0 / manual : manual;
+            return $"μ = {effective:0.##} (manual)";
+        }
+
+        double? fitted = FittedRateFor(stageName);
+        return fitted is > 0
+            ? $"μ = {fitted.Value:0.##} (from data)"
+            : "μ = — (no source)";
+    }
+
+    /// <summary>
+    /// The manual μ per stage in index order (null for entries that are blank
+    /// or unparsable). Empty while Parameters is OFF — OFF means "not supplied",
+    /// so no stage gets a manual source (D-103).
+    /// </summary>
+    private IReadOnlyList<double?> ManualMuParts()
+    {
+        if (!ParametersIsOptionalEnabled || string.IsNullOrWhiteSpace(ManualMuPerStage.Value))
+        {
+            return Array.Empty<double?>();
+        }
+
+        return ManualMuPerStage.Value.Split(',')
+            .Select(part => part.Trim())
+            .Where(part => part.Length > 0)
+            .Select(part => double.TryParse(part, out var rate) && rate > 0 ? rate : (double?)null)
+            .ToArray();
+    }
+
+    /// <summary>The data-fitted service rate for a stage name, or null.</summary>
+    private double? FittedRateFor(string stageName)
+    {
+        var binding = Binding;
+        if (binding is null)
+        {
+            return null;
+        }
+
+        int index = -1;
+        for (int i = 0; i < binding.StageNames.Count; i++)
+        {
+            if (string.Equals(binding.StageNames[i], stageName, StringComparison.OrdinalIgnoreCase))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0 || index >= binding.FittedServiceRates.Count)
+        {
+            return null;
+        }
+
+        double rate = binding.FittedServiceRates[index];
+        return double.IsFinite(rate) && rate > 0 ? rate : null;
+    }
+
+    private double? EffectiveMu(string stageName, int index, IReadOnlyList<double?> manualParts)
+    {
+        if (index < manualParts.Count && manualParts[index] is { } manual)
+        {
+            return IsMeanWise && manual > 0 ? 1.0 / manual : manual;
+        }
+
+        return FittedRateFor(stageName);
     }
 
     /// <summary>
@@ -629,6 +873,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         var advancedInUse = AdvancedIsOptionalEnabled;
 
         var blocked = StageCount.HasError
+            || SignificanceLevel.HasError
             || (IsMultiDay && (Days.HasError || DailyCap.HasError))
             || (IsDiagnosticTrace && HorizonMinutes.HasError)
             || StageRows.Any(row => row.HasErrors)
@@ -665,8 +910,10 @@ public partial class ConfigPanelViewModel : ObservableObject
                 ? null
                 : v;
 
-        // Manual μ has two typed sources: the per-stage row is authoritative;
-        // the Parameters comma list fills any row left blank (in order).
+        // Manual μ has ONE source since Phase 5d-D-112: the Parameters comma
+        // list, applied to the configured stages in order. A missing/blank
+        // entry falls back to the fitted value inside the coordinator. (The
+        // per-row μ input was removed in 5d.1 — stages are topology only.)
         double?[] commaRates = !ParametersSupplied || string.IsNullOrWhiteSpace(ManualMuPerStage.Value)
             ? Array.Empty<double?>()
             : ManualMuPerStage.Value.Split(',')
@@ -690,8 +937,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             }
 
             serverCounts.Add(servers);
-            double? rowRate = Convert(ParsePositive(row.ServiceRate));
-            manualRates.Add(rowRate ?? (rowIndex < commaRates.Length ? commaRates[rowIndex] : null));
+            manualRates.Add(rowIndex < commaRates.Length ? commaRates[rowIndex] : null);
             rowIndex++;
         }
 
@@ -740,8 +986,11 @@ public partial class ConfigPanelViewModel : ObservableObject
 
 /// <summary>
 /// One configurable simulation stage row (Section 4). A dedicated nested
-/// view-model (not a bare tuple) so each row owns its validated Servers and
-/// Service-rate fields and its display name.
+/// view-model (not a bare tuple) so each row owns its validated Servers field,
+/// its display name and its read-only service-rate source label. Since Phase
+/// 5d (D-112) the stages section is topology ONLY — the editable service-rate
+/// field was removed; the single manual μ entry lives in Parameters and the
+/// label below reports where this stage's effective μ comes from.
 /// </summary>
 public partial class StageRow : ObservableObject
 {
@@ -752,13 +1001,16 @@ public partial class StageRow : ObservableObject
     public ConfigFieldViewModel Servers { get; } = new() { Value = "1" };
 
     /// <summary>
-    /// Per-server service-rate override (double &gt; 0; blank is valid and
-    /// falls back to the fitted value in Phase 5).
+    /// Read-only service-rate source for this stage: the fitted value with
+    /// "(from data)", the Parameters manual entry with "(manual)", or
+    /// "μ = — (no source)". Set by <see cref="ConfigPanelViewModel"/>
+    /// whenever the source could change (5d.1).
     /// </summary>
-    public ConfigFieldViewModel ServiceRate { get; } = new();
+    [ObservableProperty]
+    private string _serviceRateLabel = "μ = — (no source)";
 
-    /// <summary>True while either of this row's fields is invalid.</summary>
-    public bool HasErrors => Servers.HasError || ServiceRate.HasError;
+    /// <summary>True while this row's servers field is invalid.</summary>
+    public bool HasErrors => Servers.HasError;
 
     /// <summary>Blur validation for the servers count: integer ≥ 1.</summary>
     public void ValidateServers()
@@ -771,23 +1023,6 @@ public partial class StageRow : ObservableObject
         else
         {
             Servers.SetError($"Servers must be a whole number of at least 1. You entered \"{value}\".");
-        }
-    }
-
-    /// <summary>
-    /// Blur validation for the service rate: blank uses the fitted value;
-    /// otherwise it must be a positive number.
-    /// </summary>
-    public void ValidateServiceRate()
-    {
-        var value = ServiceRate.Value;
-        if (string.IsNullOrWhiteSpace(value) || (double.TryParse(value, out var mu) && mu > 0))
-        {
-            ServiceRate.ClearError();
-        }
-        else
-        {
-            ServiceRate.SetError($"Service rate must be a positive number. You entered \"{value}\".");
         }
     }
 }

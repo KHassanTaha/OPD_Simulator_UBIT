@@ -129,6 +129,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         EffectiveExitText = string.Empty;
         RunError = null;
         TraceText = string.Empty;
+        ChiSquareCaption = DefaultChiSquareCaption;
         SystemMetrics.Clear();
         StageRows.Clear();
         ChiSquareRows.Clear();
@@ -246,6 +247,17 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Chi-square verdict rows.</summary>
     public ObservableCollection<ChiSquareRow> ChiSquareRows { get; } = new();
+
+    /// <summary>Widget header, e.g. "Chi-square goodness-of-fit (α = 0.05)" — α flows in at run start (5d.2, D-113).</summary>
+    [ObservableProperty]
+    private string _chiSquareCaption = DefaultChiSquareCaption;
+
+    private const string DefaultChiSquareCaption = "Chi-square goodness-of-fit (α = 0.05)";
+
+    /// <summary>Records the significance level the next run's verdicts will be decided at.</summary>
+    /// <param name="alpha">Significance level from the Model section.</param>
+    public void SetChiSquareAlpha(double alpha) =>
+        ChiSquareCaption = $"Chi-square goodness-of-fit (α = {alpha:0.###})";
 
     /// <summary>Rendered trace lines of the diagnostic run, joined for the log widget.</summary>
     [ObservableProperty]

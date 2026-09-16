@@ -2,6 +2,58 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 5d — 2026-09-16 06:10 — config panel refinements (μ relocation, α selector, stage-count mismatch warning)
+
+- **5d.1 (D-112):** Stages rows are now **topology only** — the editable per-row
+  "Service rate μ" field is removed; each row shows a read-only source label
+  (`μ = 0.50 (from data)` / `μ = 0.50 (manual)` / `μ = — (no source)`) maintained
+  by `RefreshStageSourceLabels()` across load, Parameter-list change, mode
+  toggle, Parameters toggle and stage resize. The single manual entry point is
+  the Parameters comma list. `SimulationCoordinator.BuildStageSpecs` returns a
+  `(Specs, MissingStageName)` tuple and the run is refused with
+  `String.Format(MissingServiceRateMessage, …)` naming the stage. `RecomputeRho`
+  now uses the identical λ/μ sources so the ρ preview and the run cannot
+  disagree. 5d.1's old message snippet is superseded by the canonical 5d.3
+  wording (logged in D-114).
+- **5d.2 (D-113):** Model gains "Significance level (α)" (default 0.05), strict
+  (0,1) blur validation with exact error strings and Start blocking;
+  `SignificanceLevelForRun` threads through `SimulationCoordinator.Run` →
+  `BuildFits` → `FitsService.Fit(…, alpha)` → `ChiSquareTest.Run` (Data API
+  unchanged — it already took α). Results caption now dynamic via
+  `ResultsPanelViewModel.SetChiSquareAlpha`, restored on Clear All.
+- **5d.3 (D-114):** loading data whose detected stage count differs from the
+  configured list raises an **amber warning** (theme `BrushWarning*` tokens,
+  D-115) in the Data section with exact counts + names and two actions:
+  **Sync stages from data** (themed confirm → `SyncStagesToData()` resizes,
+  adopts names, refreshes labels, clears warning) and **Keep current stages**
+  (non-destructive dismiss). 5d.1-vs-5d.3 message conflict resolved to the
+  "NEW" wording as the single canonical banner.
+- **5d.4 (D-115):** ErrorBanner gained `BannerSeverity` (Error/Warning/Info)
+  with theme-resource colours and a `BrushOf` fallback keeping the build at 0
+  warnings; automation name `"{Severity}: {Message}"`.
+- **Tests (17 new, Phase5dConfigTests + Phase5dScreenshot):** default/nosource
+  labels + Start enabled; fitted label from data; manual label only while
+  Parameters on; missing-μ refusal names the stage ("Stage 'Doctor' has no
+  service rate…" via a temp 2-stage CSV whose p_exit = 0.5); SignificanceLevel
+  default/zero/one/non-numeric; α flows into chi-square verdicts (120-sample
+  guaranteed-degenerate-free series asserts a real verdict at 0.01 and
+  0.05); coordinator threads α through the data batch; caption reflects α and
+  resets; mismatch N<M, N>M (temp 2-stage CSV vs StageCount 1); Sync resizes +
+  names + clears + refreshes labels; Sync command asks for confirmation
+  without resizing; Keep dismisses. Screenshots host the real ConfigPanel:
+  `logs/screenshots/phase-5d-config.png` (sample loaded vs 3 stages → amber
+  warning + α field) and `phase-5d-cleared.png` (after Clear All → default
+  no-source labels, warning gone).
+- **Gate:** Release build 0 errors/0 warnings; **256 green** (Core 85 / Data
+  58 / Cli 35 / App 78); real launch 15 s alive `timeout 15 dotnet run
+  --project src/OpdSimulator.App --no-build -c Release` → exit 124, "Application
+  started. Main window created." at 05:53:05 in `logs/app-20260916.log`, crash
+  log mtime unchanged (02:49). Docs synced: DECISIONS D-112..D-115, DEV_LAUNCH
+  §6 (256) + changelog row, USER_MANUAL (Service rate / Significance level /
+  new α + μ steps 4–8 / refuse paragraph), CONTEXT D-100 assumption updated to
+  VERIFIED/superseded by D-112, TODO phase-5d [x], D-106 polish row marked
+  fixed.
+
 ### Phase 5c.4 — 2026-09-16 05:36 — Clear All performs a full reset to the fresh-launch state
 
 - Owner-reported bug: Clear All reset the fields but left the previous run's
