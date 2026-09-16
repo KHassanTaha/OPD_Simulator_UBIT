@@ -9,7 +9,8 @@
     <!-- Phase-5 results panel (Simulation tab, right column). Layout contract:
          welcome card until any run is attempted; afterwards the chosen widgets
          inside a scrollable stack. Widget order is stable: metrics →
-         utilisation (6c.4) → chi-square → data preview → trace. -->
+         utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
+         (6c.5) → chi-square → data preview → trace. -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -66,6 +67,8 @@
                         <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
                         <CheckBox IsChecked="{Binding ShowDataPreview, Mode=TwoWay}" Content="Data preview"/>
                         <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
+                        <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
+                        <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>
@@ -174,6 +177,66 @@
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <ContentControl IsVisible="{Binding HasUtilisationChart}"
                                     Content="{Binding UtilisationChart}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5): one line
+                 per stage, downsampled ≤ 2000 points; empty state until a run. -->
+            <Border IsVisible="{Binding ShowQueueLength}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Queue length over time"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding QueueLengthCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="Run a simulation to see queue length over time."
+                               IsVisible="{Binding ShowQueueLengthEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasQueueLengthChart}"
+                                    Content="{Binding QueueLengthChart}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5): one stage
+                 at a time via a searchable dropdown; optional log-scale Y axis. -->
+            <Border IsVisible="{Binding ShowWaitHistogram}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Waiting-time distribution"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding WaitHistogramCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <StackPanel Spacing="{DynamicResource SpaceS}"
+                                IsVisible="{Binding HasWaitHistogramChart}">
+                        <controls:SearchableDropdown Label="Stage"
+                                                     Placeholder="Choose a stage…"
+                                                     Tooltip="The stage whose waiting-time histogram is shown (one stage at a time; resets to the first on every run)"
+                                                     Items="{Binding WaitStageNames}"
+                                                     SelectedItem="{Binding SelectedWaitStage, Mode=TwoWay}"
+                                                     HelpAnchor="waiting-time-histogram"/>
+                        <CheckBox IsChecked="{Binding IsWaitLogScale, Mode=TwoWay}"
+                                  Content="Log-scale Y axis"
+                                  ToolTip.Tip="Use a base-10 logarithmic Y axis for the patient-count bins; helps read long tail bins with very small counts"/>
+                    </StackPanel>
+                    <TextBlock Text="Run a simulation to see the waiting-time distribution."
+                               IsVisible="{Binding ShowWaitHistogramEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasWaitHistogramChart}"
+                                    Content="{Binding WaitHistogramChart}"/>
                 </StackPanel>
             </Border>
 

@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
 using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Avalonia;
@@ -182,15 +183,94 @@ public static class ChartControlBuilder
     }
 
     /// <summary>
-    /// Shared shell for every card's chart: categorical X labels, a Y axis
-    /// (frequency by default, percent for utilisation), and theme-resolved
-    /// axis/legend/tooltip paints.
+    /// Creates the queue-length-over-time chart (FR-UI-4 P2, Phase 6c.5): one
+    /// <see cref="LineSeries{TModel}"/> per stage in the four-series chart
+    /// palette, X = simulated minutes (numeric axis, not categories), legend =
+    /// stage names. Points come pre-decimated by
+    /// <see cref="QueueLengthChartService"/>. Returns null for a seriesless card.
+    /// </summary>
+    public static CartesianChart? BuildQueueChart(QueueLengthChartData data)
+    {
+        if (!data.HasSeries)
+        {
+            return null;
+        }
+
+        var series = new List<ISeries>();
+        foreach (var stage in data.Series)
+        {
+            // ObservablePoint pairs time/length directly; numeric X means the
+            // axis scales to the sampled interval instead of faking categories.
+            series.Add(new LineSeries<ObservablePoint>
+            {
+                Name = stage.StageName,
+                Values = stage.Points
+                    .Select(p => new ObservablePoint(p.Time, p.Length))
+                    .ToList(),
+                Stroke = new SolidColorPaint(SeriesPaletteColor(series.Count), 2),
+                Fill = null,
+                GeometrySize = 0,
+                LineSmoothness = 0,
+            });
+        }
+
+        return CreateChart(
+            series,
+            xLabeler: value => value.ToString("0.##", CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// Creates the waiting-time histogram (FR-UI-4 P2, Phase 6c.5): one column
+    /// series for the selected stage, X = equal-width waiting-time bins, Y =
+    /// patient count. With <paramref name="logScale"/> the Y axis becomes a
+    /// base-10 <see cref="LogarithmicAxis"/> — for long tails; bins with zero
+    /// patients are dropped then (log 0 is undefined and empty bins carry no
+    /// visual mass on a log axis anyway). Returns null for a seriesless card.
+    /// </summary>
+    public static CartesianChart? BuildWaitHistogramChart(WaitHistogramData data, bool logScale)
+    {
+        if (!data.HasSeries)
+        {
+            return null;
+        }
+
+        var values = data.Counts
+            .Select(count => logScale && count == 0 ? (double?)null : count)
+            .ToList();
+
+        var series = new ISeries[]
+        {
+            new ColumnSeries<double?>
+            {
+                Name = $"Waiting time — {data.StageName}",
+                Values = values,
+                Fill = new SolidColorPaint(SeriesPaletteColor(0)),
+                MaxBarWidth = 26,
+            },
+        };
+
+        return CreateChart(
+            series,
+            data.Categories,
+            yAxisOverride: logScale ? new LogarithmicAxis(10) : null);
+    }
+
+    /// <summary>
+    /// Shared shell for every card's chart: categorical X labels by default (a
+    /// numeric-X time series passes an <paramref name="xLabeler"/> instead and
+    /// leaves the categories null), a Y axis (frequency by default, percent for
+    /// utilisation, base-10 logarithmic for the wait histogram's long tails),
+    /// and theme-resolved axis/legend/tooltip paints. When
+    /// <paramref name="yAxisOverride"/> is supplied its missing paint slots are
+    /// filled from the same theme tokens, so styling stays in one place.
     /// </summary>
     private static CartesianChart CreateChart(
         IReadOnlyList<ISeries> series,
-        IReadOnlyList<string> xCategories,
+        IReadOnlyList<string>? xCategories = null,
+        Func<double, string>? xLabeler = null,
         Func<double, string>? yLabeler = null,
-        bool showLegend = true)
+        bool showLegend = true,
+        Axis? yAxisOverride = null)
     {
         var gridColor = BrushColor("BrushChartGrid", new SKColor(0xC9, 0xD1, 0xCC));
         var axisTextColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
@@ -200,6 +280,12 @@ public static class ChartControlBuilder
         var tooltipTextColor = BrushColor("BrushChartTooltipText", new SKColor(0x1A, 0x23, 0x20));
         var tooltipBackgroundColor = BrushColor("BrushChartTooltipBackground", new SKColor(0xFF, 0xFF, 0xFF));
 
+        var yAxis = yAxisOverride ?? new Axis();
+        yAxis.Labeler ??= yLabeler ?? (value => value.ToString("0.##", CultureInfo.InvariantCulture));
+        yAxis.LabelsPaint ??= new SolidColorPaint(axisTextColor);
+        yAxis.TicksPaint ??= new SolidColorPaint(tickColor);
+        yAxis.SeparatorsPaint ??= new SolidColorPaint(gridColor);
+
         return new CartesianChart
         {
             Series = new ObservableCollection<ISeries>(series),
@@ -207,21 +293,13 @@ public static class ChartControlBuilder
             {
                 new()
                 {
-                    Labels = xCategories.ToArray(),
+                    Labels = xCategories?.ToArray(),
+                    Labeler = xLabeler ?? (value => value.ToString("0.##", CultureInfo.InvariantCulture)),
                     LabelsPaint = new SolidColorPaint(axisTextColor),
                     TicksPaint = new SolidColorPaint(tickColor),
                 },
             },
-            YAxes = new ObservableCollection<Axis>
-            {
-                new()
-                {
-                    Labeler = yLabeler ?? (value => value.ToString("0.##", CultureInfo.InvariantCulture)),
-                    LabelsPaint = new SolidColorPaint(axisTextColor),
-                    TicksPaint = new SolidColorPaint(tickColor),
-                    SeparatorsPaint = new SolidColorPaint(gridColor),
-                },
-            },
+            YAxes = new ObservableCollection<Axis> { yAxis },
             Height = ChartHeight,
             LegendPosition = showLegend ? LegendPosition.Top : LegendPosition.Hidden,
             LegendTextPaint = new SolidColorPaint(legendTextColor),
@@ -229,6 +307,25 @@ public static class ChartControlBuilder
             TooltipTextPaint = new SolidColorPaint(tooltipTextColor),
             TooltipBackgroundPaint = new SolidColorPaint(tooltipBackgroundColor),
         };
+    }
+
+    /// <summary>
+    /// The four-series palette (green, teal, violet, vermillion), cycled when a
+    /// network has more than four stages. Theme brush name + matching hex
+    /// fallback for headless tests (see <see cref="BrushColor"/>).
+    /// </summary>
+    private static (string Key, byte R, byte G, byte B)[] SeriesPalette { get; } =
+    {
+        ("BrushChartSeries1", 0x1B, 0x7A, 0x4C),
+        ("BrushChartSeries2", 0x0B, 0x72, 0x85),
+        ("BrushChartSeries3", 0x6B, 0x2F, 0xBA),
+        ("BrushChartSeries4", 0xE5, 0x46, 0x00),
+    };
+
+    private static SKColor SeriesPaletteColor(int index)
+    {
+        var entry = SeriesPalette[index % SeriesPalette.Length];
+        return BrushColor(entry.Key, new SKColor(entry.R, entry.G, entry.B));
     }
 
     private static SKColor BrushColor(string key, SKColor fallback)

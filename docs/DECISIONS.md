@@ -2206,3 +2206,132 @@ impact (positive and negative), alternatives considered.
   place in Input Analysis next to the histograms (rejected — violates §16.12,
   and there is nothing to plot until a run exists); stage-level aggregate bar
   (rejected — the whole point is per-server imbalance).
+
+### D-122 — queue-length-over-time + waiting-time histograms are Results widgets; 2000-point min-max decimation (6c.5) — 2026-09-17
+
+- **Decision:** Phase 6c.5 adds two run-derived charts to the Results panel as
+  default-on FR-UI-14 widgets (widget order metrics → utilisation → queue
+  length → waiting-time histogram → chi-square → data preview → trace):
+  1. **Queue length over time** — one `LineSeries` per stage, each from
+     `StageMetrics.QueueLengthSeries` (`QueueSample` time-steps; the engine
+     already emits one sample per queue-change event, so sampling density
+     scales with patient count). With > 2000 points per stage the series is
+     **downsampled to ≤ 2000 points by pairwise min-max bucket decimation**
+     (D-122 algorithm): the time span is split into equal-sized buckets
+     covering `[t₀, tₙ]`, each bucket contributes ≤ 2 points — its local
+     min-length point and its local max-length point — sorted by time, and
+     the **first and last original points are kept verbatim**. Both the global
+     Q-max and the max-length bucket in any interval survive by construction;
+     monotonic original time stays monotonic. Complexity O(n), no RNG, no
+     per-point interpolation → output is deterministic and the caption states
+     the source plus "downsampled from {N} samples" whenever points were
+     reduced. No Core/VML change is needed because the series already exists;
+     engine behaviour is untouched (hard 6c.5 rule — no Core/Data/Cli edits).
+  2. **Waiting-time distribution** — see D-123.
+- **Rationale:** a queue chart with 20,000+ points is unreadable columns of
+  ink and costs memory; but dropping points naively (every-nth) hides the
+  peaks — the sharp upward spikes are exactly the instability/bottleneck
+  signal a clinic manager must see. Min-max bucket decimation is the smallest
+  correct fix that a student can defend orally (two lines of arithmetic per
+  bucket) and, unlike Largest-Triangle-Three-Buckets (LTTB), it provably
+  preserves the **global min and max** and every bucket's extremes — the
+  guarantee that matters for a Q-over-time chart. LTTB was the alternative:
+  it produces visually smoother results but is harder to explain and cannot
+  guarantee that any extreme survives, which is a worse trade-off for a viva
+  than slightly jagged lines. Downsampling lives in the **service**, not the
+  control, so its properties are unit-testable headlessly (tests pin:
+  ≤ MaxPoints for 20,000 samples; first/last points verbatim; the global
+  max sample survives; monotonic time).
+- **Implementation:** new `Services/QueueLengthChartService` (pure):
+  `QueueChartPoint(Time, Length)`, `QueueStageSeries(StageName, Points)`,
+  `QueueLengthChartData` (`HasSeries`, `Caption`, `MaxPoints = 2000`, static
+  `Empty`). `SetQueueLength` in `ResultsPanelViewModel` builds it from the
+  run outcome and swaps the `ChartContent`; before any run the widget shows
+  "Run a simulation to see queue length over time."; `Reset()` clears it.
+  `ChartControlBuilder.BuildQueueChart` types each series as
+  `LineSeries<ObservablePoint>` (flat lines — `LineSmoothness 0`, `GeometrySize
+  0`), X axis in minutes, stage-name legend, palette colours from the shared
+  `SeriesPalette` cycled colour-consecutively (green → teal → violet →
+  vermillion) so 6+ stages still use only theme tokens, never inline hex
+  (D-117).
+- **Impact:** (+) the "behaviour over time" purpose §6.3 of the visual-analysis
+  strategy is finally on screen; (+) a 100,000-event trace still draws; (+)
+  deterministic headless tests prove the extremes survive compression. (−) a
+  per-stage chart adds rows to the Results stack; (−) decimation is piecewise
+  constant where buckets merge two points — accepted and documented in the
+  caption.
+- **Alternatives considered:** LTTB (rejected above — no extreme guarantee,
+  harder viva story); naive every-nth downsampling (rejected — hides peaks);
+  render raw without downsampling (rejected — memory + unreadable ink at high
+  patient counts); accumulate fewer `QueueSample` events in the engine
+  (rejected — would alter Core statistics and break the trace↔metrics
+  cross-check in D-058).
+
+### D-123 — waiting-time histogram: one stage at a time, base-10 log-scale drops zero bins, selector resets to first stage; headless chart tests must construct windows (6c.5) — 2026-09-17
+
+- **Decision:** The waiting-time distribution widget shows **one stage at a
+  time** — a `SearchableDropdown` (Label "Stage", `HelpAnchor
+  "waiting-time-histogram"`) over the stage names lets the user switch
+  between a reception vs screening vs doctor delay profile; the selector
+  **resets to the first stage on every new run** so a fresh run cannot show a
+  stale stage selection. Default: 16 equal-width bins over
+  `[min, max]` of `StageMetrics.WaitingTimeSamples` (each bin's label is an
+  invariant-culture "[low, high)" range so the axis reads correctly on any
+  locale); the histogram widget rows live on the Results tab because they
+  describe a **run** (AGENTS §16.12) — the Input Analysis tab keeps its own
+  per-stage fitted-PDF histograms of the *data*. An optional **log-scale Y**
+  checkbox swaps the Y axis for a base-10 `LogarithmicAxis`; because log(0)
+  is undefined, zero-count bins are rendered as **gaps (null values) only on
+  the log axis** — the linear axis keeps zero-height bars. Chart construction
+  happens on the UI thread (G5); the pure binning lives in the service.
+- **Rationale:** one stage at a time because the delay distributions of an
+  80-minute clinic differ violently across stages (reception waits are small
+  and tight, doctor waits are long and skewed); a single stacked chart would
+  flatten every shape onto one axis. First-stage-on-run is the least-surprise
+  default and keeps the dropdown consistent with the queue widget's per-stage
+  lines. Log scale only when asked: skewed long-tail data (a few 500-minute
+  outliers vs hundreds of 2-minute waits) makes 15 of 16 linear bars
+  invisible, and a base-10 log axis is the honest viva answer to "why do
+  small bins vanish" — dropping rather than faking them (log 0 is undefined,
+  a zero bar on a log axis would lie). Widget-level decision so nothing in
+  Core changes.
+- **Implementation:** new `Services/WaitHistogramService` (pure):
+  `WaitHistogramData(StageName, HasSeries, Categories, Counts)` with `Empty`,
+  `DefaultBinCount = 16`, `Caption`, `EmptyStateText = "Run a simulation to
+  see the waiting-time distribution."`, `Build(result, stageName)`,
+  `StageNames(result)`, `BuildForSamples(...)` (a zero-width sample range
+  yields one degenerate bin rather than 16 empty labels). `ResultsPanelViewModel`
+  adds `WaitStageNames`, `SelectedWaitStage`, `IsWaitLogScale`, `WaitHistogramChart`;
+  `SetWaitHistogram(result)` stores the run and forces the selector to the
+  first stage; changing the selector or the log toggle rebuilds the chart in a
+  try/catch that degrades to the widget empty state (G5 — never crash the UI);
+  `Reset()` clears widget + chart. `ChartControlBuilder.BuildWaitHistogramChart`
+  emits a `ColumnSeries<double?>` (null → gap on log axis), and the shared
+  `CreateChart` shell gained an `IChartSeries[]` + `yAxisOverride` overload.
+  **Test lessons (D-121 extended):** bare `CartesianChart` construction
+  outside a rendered window intermittently throws
+  `PlatformNotSupportedException` at `Dispatcher.PushFrame` under full-suite
+  load (headless dispatcher contention), even though it passes in isolation —
+  so chart *behaviour* is asserted on the pure service seam in plain `[Fact]`
+  tests (decimation, first/last, min/max, one line per stage, selector
+  change/reset, empty states) and axis/rendering proof lives only in
+  window-based `[AvaloniaFact]` tests (the log-axis swap is driven through
+  the real VM `IsWaitLogScale` path in a `MainWindow`; the gate screenshot
+  renders both widgets from a real 3-stage run — see D-121's now-fixed
+  pattern). One screenshot file per phase gate is the evidence convention
+  (owner reviews it; the agent cannot see PNGs).
+- **Impact:** (+) the long-tail signal (and its inverse, a tight symmetric
+  delay profile) is now visible per stage; (+) log-scale is opt-in so small
+  waiting sets don't look alarmingly empty by default; (+) pure service
+  seams keep the whole binning/decimation logic viva-defensible and
+  headlessly testable. (−) one more widget in the picker; (−) per-stage
+  exploration requires a dropdown click instead of one glance.
+- **Alternatives considered:** bin by the chi-square result's own edges
+  (rejected — that is a *fit* visual for Input Analysis, D-118; the widget
+  shows the run's actual waiting-time distribution, and the chi-square
+  result does not exist per wait sample); histogram all stages stacked
+  (rejected — shapes collapse onto one axis); log axis by default
+  (rejected — surprising for the day-1 user and unnecessary when samples are
+  well-behaved); a plain `Axis` swap done by recreating the chart from
+  scratch (accepted as implementation — LiveCharts axes are fixed at
+  construction, so the rebuild is the mechanism).

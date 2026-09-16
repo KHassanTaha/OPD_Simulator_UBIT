@@ -96,11 +96,11 @@ The window has two panels:
 |  ------------------------  |  --------------------------    |
 |  - Parameter mode          |  - Metrics table               |
 |  - Inter-arrival dist.     |  - Utilisation chart (per-server) |
-|  - Service dist.           |  - Chi-square results          |
-|  - Servers per stage       |  - Data preview                 |
-|  - Manual λ (optional)     |  - Event log (scrollable)       |
-|  - [Upload Data]           |                                |
-|  - Time horizon            |                                |
+|  - Service dist.           |  - Queue-length-over-time chart |
+|  - Servers per stage       |  - Waiting-time histogram (one stage) |
+|  - Manual λ (optional)     |  - Chi-square results          |
+|  - [Upload Data]           |  - Data preview                 |
+|  - Time horizon            |  - Event log (scrollable)       |
 |  - Random seed             |                                |
 |  - Daily cap (optional)    |                                |
 |  - [Run Simulation]        |                                |
@@ -356,6 +356,45 @@ How to read it:
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input Analysis
 tab with the data-derived figures.
+
+### 6.5 Queue-Length-over-Time Chart
+Shows, minute by minute, how many patients were waiting at **each stage's
+queue** during a run (one coloured line per stage). Until a run finishes it
+shows *"Run a simulation to see queue length over time."*
+
+How to read it:
+
+- Each line jumps when a patient joins or leaves that stage's queue, so a
+  steady low line means the stage is coping and a climbing curve means queues
+  are building up (a sign the ρ ≥ 1 instability check should have caught).
+- Long runs are **downsampled** to at most 2000 points per stage so the
+  chart stays readable. The caption notes *"downsampled from N samples"*
+  when that happens. Downsampling keeps the first and last points and the
+  tallest queue peaks, so you can still see how bad the worst moment was.
+- The legend and the tooltips name the stage for each line. The X axis is
+  minutes since the sim's start time.
+
+### 6.6 Waiting-Time Distribution
+Shows how long patients actually **waited in each stage's queue** during a
+run — the spread, the typical wait, and the long tail. Until a run finishes
+it shows *"Run a simulation to see the waiting-time distribution."*
+
+How to read it:
+
+- The **Stage** dropdown picks one stage at a time (the stages can differ a
+  lot: doctor waits are usually longer and more skewed than reception
+  waits). It resets to the first stage whenever you start a new run.
+- The bars are **16 equal-width bins** across that stage's waiting times.
+  A tall bar near the left means most waits were short; a long thin right
+  tail means a few patients waited far longer than the rest.
+- Tick **Log-scale Y axis** if the tail is so long that the short-wait bars
+  look invisible. The Y axis then becomes logarithmic, and empty bins are
+  dropped (log 0 is undefined) — they show as gaps, which is a true
+  absence, not a zero.
+
+Both widgets are **Results** widgets: they describe a run, so they live on
+the Simulation tab next to the metrics, never on the Input Analysis tab
+(which shows the data-derived fit charts instead).
 
 ---
 
