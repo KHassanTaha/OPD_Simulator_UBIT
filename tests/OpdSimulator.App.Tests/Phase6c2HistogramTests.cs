@@ -126,8 +126,9 @@ public class Phase6c2HistogramTests
         vm.ApplyPrepared(Prepare(binding));
 
         Assert.False(vm.IsEmpty);
-        Assert.Equal(2, vm.Charts.Count);
+        Assert.Equal(4, vm.Charts.Count); // histogram + chi-square card per fit (Inter-arrival, Screening)
         Assert.StartsWith("Inter-arrival", vm.Charts[0].Title);
+        Assert.Equal("Chi-square: Inter-arrival", vm.Charts[1].Title);
         Assert.True(vm.Charts[0].HasSeries);
         Assert.False(vm.Charts[0].ShowEmptyState);
         var chart = Assert.IsType<CartesianChart>(vm.Charts[0].ChartContent);
@@ -166,8 +167,8 @@ public class Phase6c2HistogramTests
         Assert.True(main.InputAnalysis.IsEmpty, "fresh window: input analysis is empty");
 
         main.Config.ApplyLoadedFile(SamplePath(SampleCsv));
-        Assert.True(await WaitForAsync(() => main.InputAnalysis.Charts.Count == 2),
-            "loading a usable file must populate the Inter-arrival + Screening cards");
+        Assert.True(await WaitForAsync(() => main.InputAnalysis.Charts.Count == 4),
+            "loading a usable file must populate the histogram + chi-square cards for Inter-arrival and Screening");
         Assert.False(main.InputAnalysis.IsEmpty);
 
         main.Config.InterArrivalDistribution = "Lognormal";
@@ -180,12 +181,16 @@ public class Phase6c2HistogramTests
             "clear-all must drop the input-analysis charts back to the empty state");
     }
 
-    private static IReadOnlyList<HistogramChartData> Prepare(DataBindingResult binding)
+    private static IReadOnlyList<IInputChartData> Prepare(DataBindingResult binding)
     {
-        var charts = new System.Collections.Generic.List<HistogramChartData>();
+        var charts = new System.Collections.Generic.List<IInputChartData>();
         foreach (var fit in InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05))
         {
             charts.Add(InputAnalysisService.BuildHistogram(fit));
+            if (fit.ChiSquare is not null)
+            {
+                charts.Add(InputAnalysisService.BuildChiSquareChart(fit));
+            }
         }
         return charts;
     }

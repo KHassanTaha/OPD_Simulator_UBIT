@@ -99,31 +99,48 @@ public partial class InputAnalysisViewModel : ObservableObject
 
     /// <summary>
     /// Applies already-prepared chart data onto the cards (UI thread). Also
-    /// supersedes any in-flight background apply so the sync path wins.
+    /// supersedes any in-flight background apply so the sync path wins. Each
+    /// data item builds the matching chart control into the same card slot:
+    /// histogram data → column + fitted-line chart, chi-square data → paired
+    /// observed/expected bars (6c.3).
     /// </summary>
-    public void ApplyPrepared(IReadOnlyList<HistogramChartData> charts)
+    public void ApplyPrepared(IReadOnlyList<IInputChartData> charts)
     {
         ++_generation;
         Charts.Clear();
         foreach (var data in charts)
         {
-            var chart = ChartControlBuilder.Build(data);
+            var chart = data switch
+            {
+                HistogramChartData histogram => ChartControlBuilder.Build(histogram),
+                ChiSquareChartData chiSquare => ChartControlBuilder.BuildChiSquareChart(chiSquare),
+                _ => null,
+            };
             Charts.Add(new InputAnalysisChartViewModel(data.Title, data.Caption, data.HasSeries, chart));
         }
         IsEmpty = Charts.Count == 0;
     }
 
-    /// <summary>Pure, backgroundable projection: fits + histogram data, no UI types.</summary>
-    private static IReadOnlyList<HistogramChartData> Prepare(
+    /// <summary>
+    /// Pure, backgroundable projection: fits + chart data, no UI types. Each
+    /// fit yields its histogram card (6c.2) followed by its chi-square card
+    /// (6c.3); a fit that produced no chi-square verdict — where fitting
+    /// itself failed — emits only the histogram card's empty state.
+    /// </summary>
+    private static IReadOnlyList<IInputChartData> Prepare(
         DataBindingResult? binding,
         string interArrivalFamily,
         string serviceFamily,
         double alpha)
     {
-        var charts = new List<HistogramChartData>();
+        var charts = new List<IInputChartData>();
         foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamily, alpha))
         {
             charts.Add(InputAnalysisService.BuildHistogram(fit));
+            if (fit.ChiSquare is not null)
+            {
+                charts.Add(InputAnalysisService.BuildChiSquareChart(fit));
+            }
         }
         return charts;
     }

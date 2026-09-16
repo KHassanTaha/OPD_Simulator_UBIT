@@ -2,7 +2,119 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
-## Resume — 2026-09-16 07:20 — reconciled: 0 findings (clean 6c.2 working tree on `feat/milestone-6c-input-analysis-charts`, HEAD `ec83231`, all 6c.2 src/tests/docs present uncommitted)
+### Session Handoff — 2026-09-16 07:35
+Branch: `feat/milestone-6c-input-analysis-charts`
+Status: Clean (committed, uncommitted = none)
+Done
+6c.3 — Chi-square observed vs expected bars (TODO 6c.3 → [x]; commit + push this session, hash in Git State)
+
+In Progress
+None
+
+What is complete: 6c.3 fully built, verified, committed, and pushed. Grouped
+side-by-side columns use the LiveCharts default (two plain `ColumnSeries`
+sharing coords; `StackedColumnSeries` deliberately avoided) — confirmed against
+the official 2.0.5 docs. `IInputChartData` + dispatch lets the same ChartCard
+slot host either chart kind. Full suite 278 green (App 100, +6:
+`Phase6c3ChiSquareTests` 5 content facts + `Phase6c3Screenshot`). Real launch
+18 s alive, crash logs unchanged. Docs synced (D-120, TODO, DEV_LAUNCH
+§1/§6/§12, USER_MANUAL §4/§12, REQUIREMENTS FR-UI-4).
+
+What remains: owner review of the 6c.3 branch, then "go" for 6c.4 (per-server
+utilisation bars + imbalance flag).
+
+Blocked
+None
+
+Git State
+Commits made this session: `207187d` (6c.2, prior gate) + the 6c.3 commit (hash reported in chat at wrap time)
+Pushed to origin: Yes
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS (0 warnings / 0 errors)
+dotnet test: PASS — 278 passed, 0 failed
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/InputAnalysisService.cs: added `IInputChartData` + `ChiSquareChartData` + `BuildChiSquareChart`
+src/OpdSimulator.App/Services/ChartControlBuilder.cs: extracted shared `CreateChart`, added `BuildChiSquareChart`
+src/OpdSimulator.App/ViewModels/InputAnalysisViewModel.cs: `ApplyPrepared` dispatches on `IInputChartData`; `Prepare` emits histogram + chi-square per fit
+tests/OpdSimulator.App.Tests/Phase6c2HistogramTests.cs: expected cards 2 → 4 (helper + wiring + layout asserts)
+tests/OpdSimulator.App.Tests/Phase6c2Screenshot.cs: expected 4 cards
+tests/OpdSimulator.App.Tests/Phase6c3ChiSquareTests.cs: added (5 facts)
+tests/OpdSimulator.App.Tests/Phase6c3Screenshot.cs: added (evidence PNG)
+docs/DECISIONS.md (D-120), docs/TODO.md (+6c.3), docs/PROGRESS.md, docs/DEV_LAUNCH.md, docs/USER_MANUAL.md, docs/REQUIREMENTS.md
+
+Decisions Made
+D-120 — chi-square cards reuse the verdict's own bins + two side-by-side `ColumnSeries` (DECISIONS.md)
+
+Assumptions Added/Changed
+None (the owner's gate note "272 + 5 = 277" miscounted: the per-phase convention
+counts the screenshot-evidence test, so 6 content tests landed → 278. Flagged
+in TODO 6c.3 + this handoff; not a blocker.)
+
+Notes for Next Session
+6c.4 spec is in InputAnalysisService/BuildChiSquareChart's sibling files region
+of TODO.md (per-server utilisation bar chart, imbalance > 0.15 amber `BrushWarning`,
+tooltip "Above average by {delta:.1%}", screenshot phase-6c4-utilisation.png).
+Await owner "go".
+
+### Resume — 2026-09-16 07:20 — reconciled: 0 findings (clean 6c.2 working tree on `feat/milestone-6c-input-analysis-charts`, HEAD `ec83231`, all 6c.2 src/tests/docs present uncommitted)
+
+### Phase 6c.3 — 2026-09-16 07:25 — chi-square observed-vs-expected bars (`feat/milestone-6c-input-analysis-charts`)
+
+Owner said "go" after the 6c.2 push (`207187d`). Implementation:
+
+1. **Docs-first API confirm (AGENTS rule: don't invent):** the LiveCharts2
+   2.0.5 docs confirm grouping is *default* — multiple `ColumnSeries` sharing a
+   coordinate render side-by-side; stacking needs `StackedColumnSeries`; the
+   `Padding` property tunes in-series spacing and `IgnoresBarPosition` is only
+   for background columns. So observed-vs-expected is literally two
+   `ColumnSeries` — no undocumented API.
+2. **Service:** `InputAnalysisService.BuildChiSquareChart(FitReport)` returns
+   `ChiSquareChartData` (Title "Chi-square: {label}", Caption, HasSeries,
+   Categories, Observed, Expected). Categories = "bin 1"… "bin k" derived from
+   `ChiSquareResult.BinEdges.Count − 1`; Observed/Expected ARE the verdict's
+   arrays (cast only), never recomputed (D-118 principle preserved); Caption =
+   `"χ² = {stat:0.###}, df = {df}, p = {p:0.###} — {Decision}"` invariant —
+   identical wording/format to the ResultsPanel row. Null chi-square → empty
+   card (HasSeries false).
+3. **Builder:** `ChartControlBuilder` — extracted a shared private `CreateChart`
+   shell (categorical X labels / frequency Y axis / theme-resolved paints /
+   legend-top / tooltips) so histogram and chi-square builders differ only in
+   their series lists. `BuildChiSquareChart` = two `ColumnSeries` (Observed =
+   BrushChartSeries1 green, Expected = BrushChartSeries2 teal, MaxBarWidth 22
+   each) grouped side-by-side by the default.
+4. **One slot, two shapes:** both records implement the tiny `IInputChartData`
+   interface (Title/Caption/HasSeries); `InputAnalysisViewModel.ApplyPrepared`
+   dispatches histogram vs chi-square to the matching builder and both fill the
+   same `ChartCard` slot. `Prepare` emits per fit: histogram card then
+   chi-square card (only when the fit produced a chi-square).
+5. **Tests (6 new, broadened existing):** `Phase6c3ChiSquareTests` — same bin
+   count for observed/expected/categories; observed sum == sample size; caption
+   format matches the results-table wording (contains χ²=stat, df =, p =, and
+   the Decision string); categories equal bin index labels from BinEdges;
+   null-fit → empty card. `Phase6c3Screenshot` → `phase-6c3-chi-square.png`.
+   6c.2 tests updated: 2 → 4 cards everywhere (helper, layout assert, wiring
+   await, screenshot count).
+6. **Gate:** build 0/0; **278 green** (Core 85 / Data 58 / Cli 35 / App 100);
+   real launch 18 s alive "Main window created.", crash logs unchanged (2);
+   evidence PNG 38.9 KB (byte-identical to the *regenerated* 6c.2 PNG because
+   both screenshot tests now render the exact same 4-card window — both show
+   the chi-square cards; acceptable, noted in DEV_LAUNCH §6). Count: the owner
+   gate line said "272 + 5 = 277" but 6 tests landed (5 content + 1 screenshot),
+   matching the per-phase convention — flagged.
+7. **Docs:** D-120; TODO 6c.3 → [x]; DEV_LAUNCH §1 (278), §6 (App 100 + 6c.3
+   bullet), §12 changelog row; USER_MANUAL §4 (two cards per series) + §12;
+   REQUIREMENTS FR-UI-4 description updated (D-120); PROGRESS this entry.
+
+Lesson: the two 6c.2/6c.3 screenshots are byte-identical by construction now —
+do not chase "newer PNG looks same" as a defect; the window content is
+identical because 6c.2's evidence test also renders the chi-square cards (both
+tests share the 4-card MainWindow). Visual pixel-verification is unavailable in
+headless; rely on the assertions (4 chart controls, all non-null content) +
+LiveCharts' own rendering path.
 
 ### Phase 6c.2 — 2026-09-16 07:05 — Input Analysis histograms + fitted PDF overlay (`feat/milestone-6c-input-analysis-charts`)
 

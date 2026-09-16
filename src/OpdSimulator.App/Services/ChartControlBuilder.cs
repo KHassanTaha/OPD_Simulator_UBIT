@@ -13,9 +13,9 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 /// <summary>
-/// Builds the <see cref="CartesianChart"/> control for one histogram card
-/// (Phase 6C, 6c.2). Lives in Services, not the view model, because it owns
-/// the LiveCharts — UI — types; view models hold the built control. Called on
+/// Builds the <see cref="CartesianChart"/> controls for the Input Analysis
+/// cards (Phase 6C). Lives in Services, not the view model, because it owns
+/// the LiveCharts — UI — types; view models hold the built controls. Called on
 /// the UI thread (G5): LiveCharts controls are Avalonia controls and cannot be
 /// created on the background thread.
 /// </summary>
@@ -24,6 +24,8 @@ using SkiaSharp;
 /// views); the hex constants below are only the headless-test fallbacks that
 /// match those exact theme colors (1B7A4C / 0B7285 / C9D1CC / 44504A / A4B3A9 /
 /// FFFFFF / 1A2320). LiveCharts legend/tooltip are Paint objects set per chart.
+/// Multi-column series sharing a coordinate render side-by-side (grouped) by
+/// default — stacking would require the separate <c>StackedColumnSeries</c>.
 /// </remarks>
 public static class ChartControlBuilder
 {
@@ -44,13 +46,6 @@ public static class ChartControlBuilder
 
         var observedColor = BrushColor("BrushChartSeries1", new SKColor(0x1B, 0x7A, 0x4C));
         var fittedColor = BrushColor("BrushChartSeries2", new SKColor(0x0B, 0x72, 0x85));
-        var gridColor = BrushColor("BrushChartGrid", new SKColor(0xC9, 0xD1, 0xCC));
-        var axisTextColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
-        var tickColor = BrushColor("BrushChartAxisTicks", new SKColor(0xA4, 0xB3, 0xA9));
-        var legendTextColor = BrushColor("BrushChartLegendText", new SKColor(0x44, 0x50, 0x4A));
-        var legendBackgroundColor = BrushColor("BrushChartLegendBackground", new SKColor(0xFF, 0xFF, 0xFF));
-        var tooltipTextColor = BrushColor("BrushChartTooltipText", new SKColor(0x1A, 0x23, 0x20));
-        var tooltipBackgroundColor = BrushColor("BrushChartTooltipBackground", new SKColor(0xFF, 0xFF, 0xFF));
 
         var observed = new ColumnSeries<double>
         {
@@ -69,14 +64,65 @@ public static class ChartControlBuilder
             LineSmoothness = 0,
         };
 
+        return CreateChart(new ISeries[] { observed, fitted }, data.Categories);
+    }
+
+    /// <summary>
+    /// Creates the paired observed-vs-expected bar chart for one chi-square
+    /// card. The two column series share every bin coordinate, so LiveCharts
+    /// draws them grouped side-by-side (never stacked). Returns null for a
+    /// seriesless card.
+    /// </summary>
+    public static CartesianChart? BuildChiSquareChart(ChiSquareChartData data)
+    {
+        if (!data.HasSeries)
+        {
+            return null;
+        }
+
+        var observedColor = BrushColor("BrushChartSeries1", new SKColor(0x1B, 0x7A, 0x4C));
+        var expectedColor = BrushColor("BrushChartSeries2", new SKColor(0x0B, 0x72, 0x85));
+
+        var observed = new ColumnSeries<double>
+        {
+            Name = "Observed",
+            Values = data.Observed,
+            Fill = new SolidColorPaint(observedColor),
+            MaxBarWidth = 22,
+        };
+        var expected = new ColumnSeries<double>
+        {
+            Name = "Expected",
+            Values = data.Expected,
+            Fill = new SolidColorPaint(expectedColor),
+            MaxBarWidth = 22,
+        };
+
+        return CreateChart(new ISeries[] { observed, expected }, data.Categories);
+    }
+
+    /// <summary>
+    /// Shared shell for every card's chart: categorical X labels, a frequency
+    /// Y axis, and theme-resolved axis/legend/tooltip paints.
+    /// </summary>
+    private static CartesianChart CreateChart(IReadOnlyList<ISeries> series, IReadOnlyList<string> xCategories)
+    {
+        var gridColor = BrushColor("BrushChartGrid", new SKColor(0xC9, 0xD1, 0xCC));
+        var axisTextColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
+        var tickColor = BrushColor("BrushChartAxisTicks", new SKColor(0xA4, 0xB3, 0xA9));
+        var legendTextColor = BrushColor("BrushChartLegendText", new SKColor(0x44, 0x50, 0x4A));
+        var legendBackgroundColor = BrushColor("BrushChartLegendBackground", new SKColor(0xFF, 0xFF, 0xFF));
+        var tooltipTextColor = BrushColor("BrushChartTooltipText", new SKColor(0x1A, 0x23, 0x20));
+        var tooltipBackgroundColor = BrushColor("BrushChartTooltipBackground", new SKColor(0xFF, 0xFF, 0xFF));
+
         return new CartesianChart
         {
-            Series = new ObservableCollection<ISeries> { observed, fitted },
+            Series = new ObservableCollection<ISeries>(series),
             XAxes = new ObservableCollection<Axis>
             {
                 new()
                 {
-                    Labels = data.Categories.ToArray(),
+                    Labels = xCategories.ToArray(),
                     LabelsPaint = new SolidColorPaint(axisTextColor),
                     TicksPaint = new SolidColorPaint(tickColor),
                 },

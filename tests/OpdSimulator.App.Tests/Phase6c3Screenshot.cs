@@ -13,16 +13,16 @@ using Xunit;
 namespace OpdSimulator.App.Tests;
 
 /// <summary>
-/// Phase 6c.2 gate evidence (feat/milestone-6c-input-analysis-charts): the real
+/// Phase 6c.3 gate evidence (feat/milestone-6c-input-analysis-charts): the real
 /// <see cref="MainWindow"/> with the Input Analysis tab selected, fed the real
-/// sample dataset through the Data / fit pipeline, showing the Inter-arrival and
-/// Screening histogram cards — observed columns plus the fitted-density overlay —
-/// saved as <c>logs/screenshots/phase-6c2-histograms.png</c>.
+/// sample dataset, showing per fit a histogram card followed by its chi-square
+/// paired observed-vs-expected bar card, saved as
+/// <c>logs/screenshots/phase-6c3-chi-square.png</c>.
 /// </summary>
-public class Phase6c2Screenshot
+public class Phase6c3Screenshot
 {
     [AvaloniaFact]
-    public void Render_InputAnalysisHistograms_SavePhase6c2Screenshot()
+    public void Render_HistogramsAndChiSquareBars_SavePhase6c3Screenshot()
     {
         var window = new MainWindow();
         window.Show();
@@ -36,8 +36,10 @@ public class Phase6c2Screenshot
             }
 
             main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
-            Assert.Equal(4, main.InputAnalysis.Charts.Count);
-            Assert.False(main.InputAnalysis.IsEmpty);
+            Assert.Equal(4, main.InputAnalysis.Charts.Count); // histogram + chi-square per fit (Inter-arrival, Screening)
+            Assert.Equal("Chi-square: Inter-arrival", main.InputAnalysis.Charts[1].Title);
+            Assert.Equal("Chi-square: Screening service", main.InputAnalysis.Charts[3].Title);
+            Assert.All(main.InputAnalysis.Charts, c => Assert.NotNull(c.ChartContent));
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
             tabs.SelectedIndex = 1; // Input Analysis
@@ -47,11 +49,11 @@ public class Phase6c2Screenshot
                 ?? throw new InvalidOperationException("headless pipeline produced no frame");
             var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
-            var shotPath = Path.Combine(shotDir, "phase-6c2-histograms.png");
+            var shotPath = Path.Combine(shotDir, "phase-6c3-chi-square.png");
             frame.Save(shotPath);
 
             Assert.True(File.Exists(shotPath) && new FileInfo(shotPath).Length >= 512,
-                "histogram frame missing or suspiciously small");
+                "chi-square frame missing or suspiciously small");
         }
         finally
         {

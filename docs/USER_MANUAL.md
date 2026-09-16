@@ -113,8 +113,8 @@ The **Input Analysis** tab shows distribution-fit charts for the loaded data.
 Until a data file is loaded it shows a hint instead:
 *"Load a data file to see fit analysis."*
 
-Once a data file is loaded, the tab shows one **chart card** per fitted
-series:
+Once a data file is loaded, the tab shows **two chart cards** per fitted
+series, in fit order:
 
 - A **histogram** of the observed values (green columns) with the **fitted
   distribution curve** (teal line) drawn over it. The curve is the fitted
@@ -124,6 +124,12 @@ series:
 - A **caption** under each chart title restating the fit: which family was
   fitted, its parameters, the chi-square statistic (χ²), degrees of freedom,
   the p-value, and the verdict ("Fail to reject" / "Reject").
+- A **chi-square card** ("Chi-square: …") with the same observed bins as
+  green columns next to the **expected** frequencies (teal columns) the test
+  predicted. The bars sit side by side so you can see each bin's
+  observed-vs-expected gap — the gaps that add up to the χ² statistic. Its
+  caption repeats the verdict exactly as the results table shows it
+  (χ² = …, df = …, p = … — Reject / Fail to reject).
 
 The cards update automatically whenever you load (or clear) a data file and
 whenever you change the Inter-arrival or Service distribution or the
@@ -489,6 +495,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | Phase 6c.3: each fitted series now shows a second card in the **Input Analysis** tab — a chi-square card ("Chi-square: …") plotting the observed (green) vs expected (teal) frequencies per bin side by side, with the verdict caption repeated exactly as the results table shows it (§4) |
 | 2026-09-16 | Phase 6c.2: the **Input Analysis** tab now plots the loaded data — one histogram card per fitted series (observed columns + fitted-PDF overlay, bins shared with the chi-square verdict) with a fit/χ² caption, updating automatically on data load/clear and on distribution / significance-level changes (§4) |
 | 2026-09-16 | Phase 6c.1: the **Input Analysis** tab is no longer a placeholder — it now shows a themed hint ("Load a data file to see fit analysis.") until a data file is loaded; distribution-fit charts replace this hint in Phase 6C (see §4) |
 | 2026-09-16 | GUI run flow live (rebuild Phase 5): three run modes — Clinic day / Multi-day / **Diagnostic trace** — in the Horizon section; welcome card on first launch; results widgets (metrics, chi-square, trace, data preview) with a "Customise results" toggle; refused runs show an explanation banner instead of failing silently |

@@ -2074,3 +2074,46 @@ impact (positive and negative), alternatives considered.
   directly (rejected — couples data analysis to the tab and skips distribution
   changes); re-evaluate every `PropertyChanged` (rejected — noisy, re-fits on
   unrelated fields).
+
+### D-120 — chi-square cards reuse the verdict's own bins and two side-by-side columns (6c.3) — 2026-09-16
+
+- **Decision:** Each fitted series gets a second Input Analysis card below its
+  histogram: a paired observed-vs-expected bar chart. The categories are the
+  bin indices ("bin 1", "bin 2", …) derived from `ChiSquareResult.BinEdges` — no
+  re-binning, no recomputation; Observed and Expected are the exact arrays the
+  verdict was computed from. The bars are two ordinary `ColumnSeries` sharing
+  every coordinate, which LiveCharts2 renders **grouped side-by-side by
+  default** (stacking would require `StackedColumnSeries`). The card's caption
+  restates the ResultsPanel chi-square row verbatim
+  (`χ² = {stat}, df = {df}, p = {p} — {Decision}`, same `0.###` invariant
+  format, `Decision` copied as-is), so the verdict is readable on the card
+  without cross-checking the table. A fit with no chi-square renders only its
+  histogram empty-state — no fabricated second card.
+- **Rationale:** the whole point of the bar chart is to *show* whether the
+  observed bins track the expected frequencies (the χ² statistic is their
+  aggregate). Reusing the verdict's bins/arrays is the only way the bars and
+  the goodness-of-fit table can never disagree. Grouped columns, not stacked,
+  because observed-vs-expected is a comparison, not a composition; side-by-side
+  makes the gap per bin the visible signal. The verbatim caption makes the card
+  self-explanatory during the viva.
+- **Implementation:** `InputAnalysisService.BuildChiSquareChart(FitReport)`
+  returns `ChiSquareChartData` (Title "Chi-square: {label}", Caption, HasSeries,
+  Categories, Observed, Expected); `ChartControlBuilder.BuildChiSquareChart`
+  emits two `ColumnSeries` (Observed = BrushChartSeries1, Expected =
+  BrushChartSeries2) via a shared `CreateChart` shell factored out of the
+  histogram builder (categorical X labels, frequency Y axis, theme-resolved
+  paints). `InputAnalysisChartViewModel` already hosts any `ChartContent`, so
+  the common `IInputChartData` interface lets `ApplyPrepared` dispatch on the
+  concrete record to the right builder — one card slot, either chart kind.
+  `Prepare` emits histogram then chi-square per fit, in fit order. Covered by
+  `Phase6c3ChiSquareTests` (same bin count, observed sum = n, caption format,
+  categories from BinEdges, null-fit empty state) + `Phase6c3Screenshot`.
+- **Impact:** (+) every verdict is verifiable at a glance on the same tab that
+  chose the distribution; (+) single source of bin truth eliminates a whole
+  class of chart-vs-table drift bugs; (−) two cards per series makes the list
+  longer — mitigated because the Input Analysis list is short (≤ a handful of
+  fitted series).
+- **Alternatives considered:** re-bin the samples independently for the chart
+  (rejected — two binning rules = two disagreeing pictures); `StackedColumnSeries`
+  (rejected — stacks hide the per-bin gap); print χ² into a static label only
+  (rejected — the owner asked for the paired bars).
