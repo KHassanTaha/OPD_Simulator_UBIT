@@ -43,11 +43,11 @@ public sealed record RunOutcome(
 /// before the topology is built, because the fitted value is known.
 /// </para>
 /// <para>
-/// Run dispatch (G5/D-105): <see cref="RunMode.DiagnosticTrace"/> is the only
-/// mode that records a trace — it runs the plain minutes-horizon overload with
-/// a real <see cref="ITraceSink"/>; the calendar day modes run the
-/// calendar-aware overload with no sink (the engine's calendar path emits no
-/// trace events).
+/// Run dispatch (5c.3): every mode records a trace through a
+/// <see cref="CollectionTraceSink"/> — the calendar day modes forward the
+/// sink via the calendar <c>Engine.Run</c> overload (D-110). DiagnosticTrace
+/// remains the recommended hand-walk mode (D-105), but ClinicDay/MultiDay now
+/// populate the event-trace widget too.
 /// </para>
 /// </remarks>
 public static class SimulationCoordinator
@@ -118,7 +118,7 @@ public static class SimulationCoordinator
             SimulationResult result = parameters.RunMode == RunMode.DiagnosticTrace
                 ? engine.Run(topology, parameters.Seed, parameters.HorizonMinutes, sink)
                 : engine.Run(topology, new ClinicCalendar(startDayOfWeek: parameters.StartDay),
-                    parameters.GeneratorDays, parameters.Seed, parameters.DailyCap);
+                    parameters.GeneratorDays, parameters.Seed, parameters.DailyCap, sink);
 
             status?.Invoke(string.Empty);
             return new RunOutcome(result, fits, sink.Lines, exitProbability, null);

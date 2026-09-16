@@ -213,15 +213,9 @@
                     CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
                 <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Event trace"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource BrushTextPrimary}"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="Only the Diagnostic trace mode records events (D-105)"
-                                   FontSize="{DynamicResource FontSizeCaption}"
-                                   Foreground="{DynamicResource BrushTextMuted}"/>
-                    </Grid>
+                    <TextBlock Text="Event trace"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
                     <ScrollViewer MaxHeight="360"
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Auto">

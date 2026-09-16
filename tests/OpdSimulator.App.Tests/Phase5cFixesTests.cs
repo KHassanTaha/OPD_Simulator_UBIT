@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
@@ -97,6 +98,31 @@ public class Phase5cFixesTests
         {
             window.Close();
         }
+    }
+
+    [Fact]
+    public void TraceViewer_PopulatesAfterClinicDayRun()
+    {
+        // 5c.3 (D-110): the calendar Engine.Run overload forwards an optional
+        // ITraceSink, so a ClinicDay run collects a trace exactly like the
+        // DiagnosticTrace mode instead of leaving the widget empty.
+        var config = new ConfigPanelViewModel();
+        config.ParametersIsOptionalEnabled = true;
+        config.ManualLambda.Value = "0.4";
+        config.ManualMuPerStage.Value = "0.8, 0.5, 0.4"; // one μ per default stage (3)
+        var vm = new ResultsPanelViewModel(null);
+
+        var outcome = SimulationCoordinator.Run(config.TryBuildRunParameters()!, binding: null);
+
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Result);
+        Assert.Equal(RunMode.ClinicDay, config.TryBuildRunParameters()!.RunMode);
+        Assert.NotEmpty(outcome.TraceLines);
+        Assert.Contains(outcome.TraceLines, line => line.Contains("ARRIVAL"));
+
+        vm.StartRun();
+        vm.CompleteRun(outcome);
+        Assert.True(vm.TraceText.Contains("ARRIVAL"), "trace widget must show ClinicDay events");
     }
 
     [Fact]

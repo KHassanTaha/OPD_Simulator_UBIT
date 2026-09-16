@@ -83,6 +83,58 @@ public class Phase5cScreenshot
         }
     }
 
+    [AvaloniaFact]
+    public void Render_FreshLaunchWelcome_SavesWelcomeSnapshot()
+    {
+        // FR-UI-5 evidence: on a fresh launch the results column shows the
+        // welcome card (logos + course identity) before any run. Hosts the
+        // ResultsPanelViewModel directly with all-on preferences so the frame
+        // is deterministic regardless of the per-user ui.json (FR-UI-14).
+        var prefs = new WidgetPreferences(Path.Combine(Path.GetTempPath(), $"opdsim-welcome-{Guid.NewGuid():N}.json"));
+        prefs.VisibleWidgets = new() { "metrics", "chiSquare", "trace" };
+        var welcomeVm = new WelcomeCardViewModel();
+
+        var host = new Window
+        {
+            Width = 920,
+            Height = 660,
+            Content = new ResultsPanel { DataContext = new ResultsPanelViewModel(prefs) },
+        };
+        host.Show();
+
+        try
+        {
+            host.UpdateLayout();
+
+            var welcome = host.GetVisualDescendants().OfType<WelcomeCard>().SingleOrDefault();
+            Assert.NotNull(welcome);
+            Assert.True(welcome!.IsEffectivelyVisible, "FR-UI-5: welcome card must render on fresh launch");
+
+            // The template fully instantiated: the members card with its
+            // "Group members" heading is part of WelcomeCard.axaml.
+            Assert.Contains(
+                host.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text),
+                t => t == "Group members");
+
+            var frame = host.CaptureRenderedFrame()
+                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+
+            var root = FindRepoRoot(AppContext.BaseDirectory);
+            var shotDir = Path.Combine(root, "logs", "screenshots");
+            Directory.CreateDirectory(shotDir);
+            var path = Path.Combine(shotDir, "phase-5c-welcome.png");
+            frame.Save(path);
+
+            Assert.True(File.Exists(path), $"screenshot missing: {path}");
+            Assert.True(new FileInfo(path).Length >= 256,
+                $"screenshot suspiciously small: {new FileInfo(path).Length} bytes");
+        }
+        finally
+        {
+            host.Close();
+        }
+    }
+
     /// <summary>Same diagnostic-run configuration the Phase 5 gate screenshot used.</summary>
     internal static void ConfigFixture(ConfigPanelViewModel config)
     {

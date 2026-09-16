@@ -177,12 +177,14 @@ public sealed class Engine
     /// <param name="generatorDays">Number of calendar-day blocks over which arrivals are generated.</param>
     /// <param name="seed">Random seed for reproducibility (FR-VAL-3, default 42).</param>
     /// <param name="dailyCap">Maximum admissions per day block; null = unlimited.</param>
+    /// <param name="traceSink">Optional sink that receives the human-readable
+    /// event trace (<see cref="ITraceSink"/>); null disables tracing.</param>
     /// <returns>The collected statistics of the run, including <see cref="SimulationResult.AdmittedPerDay"/>.</returns>
     /// <exception cref="ArgumentNullException">If <paramref name="topology"/> or <paramref name="calendar"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">If <paramref name="generatorDays"/> &lt; 1 or <paramref name="dailyCap"/> &lt; 1.</exception>
     /// <exception cref="UnstableSystemException">If any stage has ρ ≥ 1 (FR-VAL-1).</exception>
     public SimulationResult Run(NetworkTopology topology, ClinicCalendar calendar, int generatorDays,
-        int seed = SeededRandomSource.DefaultSeed, int? dailyCap = null)
+        int seed = SeededRandomSource.DefaultSeed, int? dailyCap = null, ITraceSink? traceSink = null)
     {
         if (topology is null)
             throw new ArgumentNullException(nameof(topology));
@@ -193,9 +195,9 @@ public sealed class Engine
         if (dailyCap is < 1)
             throw new ArgumentOutOfRangeException(nameof(dailyCap), dailyCap, "The daily cap must be at least 1.");
 
-        // The calendar run has no trace output: the trace feature targets the
-        // plain horizon run so its file is a single continuous story.
-        return RunCore(topology, seed, horizonMinutes: 0, calendar, generatorDays, dailyCap, traceSink: null, maxCompletedPatients: null);
+        // The trace sink is forwarded (default null keeps calendar runs
+        // trace-free exactly as before), matching the horizon overload.
+        return RunCore(topology, seed, horizonMinutes: 0, calendar, generatorDays, dailyCap, traceSink, maxCompletedPatients: null);
     }
 
     private SimulationResult RunCore(

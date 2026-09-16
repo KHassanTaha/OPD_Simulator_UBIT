@@ -1724,3 +1724,34 @@ impact (positive and negative), alternatives considered.
 - **Note (ID reallocation):** 5c/5d decision IDs shifted — welcome card is
   now D-109; the coming 5c.3 Core traceSink change takes D-110, and the 5d
   entries (previously planned as D-109..D-112) become D-111..D-114 in order.
+
+### D-110 — Calendar Engine.Run overload forwards an optional traceSink (5c.3) — 2026-09-16
+
+- **Decision:** the calendar `Engine.Run` overload gained a final optional
+  `ITraceSink? traceSink = null` parameter (forwarded to `RunCore`), mirroring
+  the minutes-horizon overload which already took a sink. Owner-approved (the
+  "Do NOT touch Core" rule protects against GUI-driven churn, not additive
+  seams; the change is byte-compatible).
+- **Rationale:** with a real sink the App can collect the event trace for
+  ClinicDay/MultiDay runs — `SimulationCoordinator` now forwards its
+  `CollectionTraceSink` in **every** run mode — so the event-trace widget
+  populates after a normal clinic-day run instead of only in DiagnosticTrace.
+  Default `null` keeps every existing Core/CLI/test caller unchanged, proven
+  by the Core suite: **85 green before AND after** the edit.
+- **Implementation:** one parameter (Engine.cs) + one forwarded line; the
+  removed `traceSink: null` literal and its "The calendar run has no trace
+  output" comment are the same edit site. App side: `SimulationCoordinator`
+  calendar branch passes `sink`; the transient ResultsPanel placeholder
+  "Only the Diagnostic trace mode records events (D-105)" was removed.
+  Tests: `TraceViewer_PopulatesAfterClinicDayRun` (new); the old
+  `Assert.Empty(outcome.TraceLines)` assertions in
+  `ClinicDay_IsOneSessionCalendarRun_WithNoTrace` and
+  `MultiDay_GeneratesExactlyTheRequestedDays` were updated to Assert.NotEmpty
+  (renamed the first to `ClinicDay_IsOneSessionCalendarRun_RecordsTrace`).
+- **Impact:** (+) trace evidence for the modes a clinic user actually runs;
+  (+) Core surface stays backward-compatible. (−) none observed.
+- **Alternatives considered:** keeping calendar runs sink-less (rejected — a
+  trace widget that ignores the modes a clinic user actually runs); a second
+  overload (rejected — one additive optional parameter is the minimal
+  surface). D-105's "only DiagnosticTrace records events" wording is
+  superseded; DiagnosticTrace remains the recommended hand-walk mode.

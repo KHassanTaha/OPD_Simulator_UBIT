@@ -2,6 +2,31 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Phase 5c, part 2 — 2026-09-16 05:10 — traceSink forwards through the calendar Engine.Run (5c.3)
+
+- Owner approved the minimal Core change (byte-compatible additive seam).
+  `Engine.cs` calendar `Run` gained `ITraceSink? traceSink = null`, forwarded
+  to `RunCore`; the minutes-horizon overload already had one (D-110).
+- **Core byte-compatibility proven: 85 green BEFORE the edit AND 85 green AFTER.**
+- App side: `SimulationCoordinator` now passes its `CollectionTraceSink` in
+  EVERY run mode; the "Only the Diagnostic trace mode records events (D-105)"
+  placeholder was removed from ResultsPanel.axaml.
+- Test fallout handled: the failing new test (`TraceViewer_PopulatesAfterClinicDayRun`)
+  was a TEST-DATA bug — `ManualMuPerStage` set one μ for the default 3-stage
+  config, so `BuildStageSpecs` refused with "Stage has no service rate…".
+  Fixed to `"0.8, 0.5, 0.4"` (one μ per stage), matching the screenshot
+  fixture. Two EXISTING Phase5RunFlowTests assertions
+  (`Assert.Empty(outcome.TraceLines)` on ClinicDay/MultiDay) were updated to
+  reflect the new reality — calendar runs now populate the trace.
+- Fresh-launch FR-UI-5 evidence: `Phase5cScreenshot.Render_FreshLaunchWelcome_
+  SavesWelcomeSnapshot` captures `logs/screenshots/phase-5c-welcome.png`
+  (welcome card with logos + "Group members" card, asserted in-test).
+- Gate: Release build 0/0; **full suite 236 green** (Core 85 / Data 58 / Cli 35
+  / App 58 — one more than the owner's 235 estimate because of the welcome
+  screenshot test); real launch smoke "Main window created." with crash log
+  unchanged (0 new entries); `phase-5c-results.png` regenerated (60.9 KB) +
+  `phase-5c-welcome.png` new (48.5 KB).
+
 ### Phase 5c — 2026-09-16 03:20 — post-review fixes (5c.1 + 5c.2 done, 5c.3 blocked, checkpoint reached)
 
 Implemented and (mostly) gate-evidenced the first two Phase-5c fixes plus a
@@ -30,10 +55,7 @@ because 5c.3 needs a Core decision (B-008).
   not deleted. This made all window-based UI tests run with hidden widgets;
   the screenshot test now hosts its own `ResultsPanelViewModel` with explicit
   temp-file preferences to stay hermetic.
-- **5c.3 — BLOCKED (B-008):** trace in ALL run modes needs a minimal Core
-  change (calendar `Engine.Run` overload Engine.cs:184 has no
-  `traceSink` parameter, hardcodes null at 198) — frozen-Core rule forbids it
-  without owner sign-off. Options in BLOCKERS.md.
+- **5c.3 — RESOLVED (B-008 → option (a)):** see the "Phase 5c, part 2" entry above — calendar `Engine.Run` now forwards an optional `ITraceSink` (D-110, Core 85 green before AND after); `SimulationCoordinator` collects a trace in every run mode; `TraceViewer_PopulatesAfterClinicDayRun` green. (Historical record below captured the blocked state for the viva's bug-fix narrative.)
 - **Gate evidence collected:** Release build 0/0; full suite **233 green**
   (App +3 = 55); real launch smoke (3:18) 15 s alive "Main window created." +
   crash-*.log unchanged; `logs/screenshots/phase-5c-results.png` (65 KB,
