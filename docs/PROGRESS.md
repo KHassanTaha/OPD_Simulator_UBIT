@@ -2,6 +2,52 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 08:28
+Branch: `docs/deep-dive-ch1-6`
+Status: Clean (committed, pushed, uncommitted = none)
+
+Done
+Project deep-dive Session C — chapters 10–11 of `docs/PROJECT_DEEP_DIVE.md` (TODO deep-dive row updated: Session C DONE, committed `docs: deep dive, chapters 10-11`; Document Status row C → "written 2026-09-16"): ch. 10 App deep walk (64 files = 42 cs + 22 axaml; Program/App crash-handler stack, MainViewModel background-run + generation counter, ConfigPanel 6-collapsible-section layout and TryBuildRunParameters, ResultsPanel lifecycle, SimulationCoordinator G3/G4 banners, DataAnalyzer/InputAnalysisService/ChartControlBuilder, single-theme token rule, threading table, 11 controls, honest placeholders for Token Generator + Help tabs, missing-preset-system and USER_MANUAL-embedded-but-not-rendered notes), ch. 11 Tests deep walk (4 projects, per-class executed counts, theory-multiplication explanation, `[AvaloniaFact]` headless stack via TestAppBuilder, screenshot-evidence tests, 278-green traceability table).
+
+In Progress
+Project deep-dive — Sessions D–E (ch. 12–18 + PDF) await owner "go".
+
+What is complete: chapters 10–11 written with file:line citations; every cited line re-read in this session (App services, view models, models, MainWindow/ConfigPanel/ResultsPanel/DataPreviewTable XAML, Theme/Motion/ChartTheme/ControlStyles tokens, TestAppBuilder, all test sources); test counts verified by running `dotnet test -c Release` (85/58/35/100 = 278, all green); the 248-attribute-vs-278-executed discrepancy resolved (theories multiply; App has NO `[Theory]`, uses `[AvaloniaFact]` 100/100); discovered App csproj HAS `InternalsVisibleTo` (correcting the earlier "none anywhere" digest claim); flagged the `FontMono` dangling theme key (DataPreviewTable.axaml:66 vs Theme.axaml:99) and the stale `DEV_LAUNCH.md:177` "272 tests pass" prose.
+
+What remains: Session D (ch. 12–15: workflows, algorithms, invariants, decision summary) and Session E (ch. 16–18 + PDF via wkhtmltopdf + `docs/DEEP_DIVE_BUILD.md`), both gated on owner "go". `DEV_LAUNCH.md:177` count-text correction still awaits owner approval.
+
+Next Session Should Start With
+Session D — chapters 12–15 of `docs/PROJECT_DEEP_DIVE.md` (insert before `---` / `## Incremental Update Rule`; the verified "Chapters 12–15" block pattern is established), after owner says "go"; then commit `docs: deep dive, chapters 12-15`, push, report.
+Session E — chapters 16–18 + PDF via wkhtmltopdf, then `docs/DEEP_DIVE_BUILD.md`.
+Blocked
+None.
+
+Git State
+Commits made this session: `56011a2` docs: deep dive, chapters 10-11 (App, Tests deep walks).
+Pushed to origin: No — pushed after the handoff commit below.
+
+Uncommitted changes: docs/TODO.md (Session C DONE row) + this PROGRESS.md handoff.
+
+Build & Test
+dotnet build: PASS (Release, this session).
+dotnet test: PASS — 278 passed (Core 85 / Data 58 / Cli 35 / App 100), 0 failed, verified 2026-09-16.
+
+Warnings: 0 compiler warnings.
+
+Files Touched
+docs/PROJECT_DEEP_DIVE.md: modified (+553 lines — chapters 10–11, verified-against block, Document Status row C written).
+docs/TODO.md: modified (Session C DONE).
+docs/PROGRESS.md: modified (this handoff).
+
+Decisions Made
+None new — chapters cite D-104, D-105, D-107, D-110, D-112, D-113, D-114 (existing entries).
+
+Assumptions Added/Changed
+None — the no-preset-store and no-Markdig-guide observations were recorded as viva notes in ch. 10.0, not as new assumptions.
+
+Notes for Next Session
+Chapter 10.0 and 10.5.1 state honestly that Token Generator + Help tabs are Phase-6 placeholders and AGENTS §17.2's PresetStore is absent from source — if the owner later adds these, the catch-up rule (Incremental Update Rule) applies. When Session D starts, re-run `dotnet test -c Release` for the Build & Test line per protocol.
+
 ### Session Handoff — 2026-09-16 09:05
 Branch: `docs/deep-dive-ch1-6`
 Status: Clean (committed, pushed, uncommitted = none)
