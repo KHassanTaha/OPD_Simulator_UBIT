@@ -12,7 +12,7 @@ sessions.
 |---------|----------|-------|
 | A | 1–6 (cover, executive summary, architecture, repo map, packages, build/run/test) | **written** 2026-09-16 |
 | B | 7–9 (Core, Data, Cli) | **written** 2026-09-16 |
-| C | 10–11 (App, Tests) | awaiting session |
+| C | 10–11 (App, Tests) | **written** 2026-09-16 |
 | D | 12–15 (workflows, algorithms, invariants, decision summary) | awaiting session |
 | E | 16–18 (viva bank, limitations, glossary) + PDF | awaiting session |
 
@@ -1205,6 +1205,557 @@ cross-checked against `DECISIONS.md` (D-004, D-006, D-007, D-008, D-009,
 D-015, D-017, D-018, D-033, D-034, D-035, D-037, D-038, D-039, D-040, D-041,
 D-042, D-043, D-044, D-046, D-048, D-049, D-050, D-051, D-052, D-053, D-054,
 D-055, D-056, D-057, D-058, D-059).
+
+# 10. OpdSimulator.App — the Avalonia GUI
+
+## 10.0 Second-floor map
+
+**64 files: 42 `.cs` + 22 `.axaml`** (glob-confirmed 2026-09-16). The App
+depends on Core + Data (`OpdSimulator.App.csproj:13-15`) — the reverse
+dependency never exists, which is exactly why Core's DES loop (ch. 7) is
+unit-testable without any UI.
+
+| Folder | `.cs` | `.axaml` | Role |
+|---|---|---|---|
+| `Program.cs` + `App.axaml(.cs)` | 2 | 1 | Process entry, Serilog, global crash handlers |
+| `Models/` | 4 | — | Flat data-seam records (RunMode, SimulationParameters, FitReport, DataBindingResult) |
+| `Services/` | 8 | — | Run/fit/analyse/preferences/crash coordination |
+| `ViewModels/` | 9 | — | MVVM state (CommunityToolkit.Mvvm, `ObservableObject`) |
+| `Views/` | 7 | 6 | Window + tab views |
+| `Controls/` | 11 + 1 models | 11 | Reusable controls (AGENTS §16.5) |
+| `Assets/` | — | 4 | Theme.axaml, Motion.axaml, ChartTheme.axaml, ControlStyles.axaml (+ 2 logos `.png`) |
+
+Packages (`OpdSimulator.App.csproj:18-25`): Avalonia 11.3.3, Avalonia.Desktop,
+Avalonia.Themes.Fluent, CommunityToolkit.Mvvm 8.4.2, LiveChartsCore
+.SkiaSharpView.Avalonia 2.0.5, Serilog + Console + File sinks. There is no
+`Markdig` reference and no preset store: `docs/USER_MANUAL.md` is embedded as
+an Avalonia resource (`OpdSimulator.App.csproj:37-40`) but not rendered
+in-app, and AGENTS §17.2's `PresetStore` does not exist in source (the only
+per-user persistence is `WidgetPreferences`, §10.6).
+
+## 10.1 Process entry and crash handling
+
+### 10.1.1 Program.cs (68 lines)
+
+`internal static class Program` — `[STAThread]` (Win32 requirement for the
+Avalonia lifetime) `Main(string[] args)` at `Program.cs:18-19`:
+
+1. `ConfigureLogging()` (:21), then start Avalonia inside `try/finally`.
+2. `BuildAvaloniaApp().StartWithClassicDesktopLifetime(args)` (:24) — `.UsePlatformDetect()` chooses X11/Wayland/Win32 by OS (:38), `.LogToTrace()` (:39) routes Avalonia's own log to Serilog's Debug trace.
+3. `Log.CloseAndFlush()` in `finally` (:28) so buffered file lines survive shutdown.
+
+**`ConfigureLogging()` (:47-67)** — AGENTS §12.1 exactly:
+
+- `logs/` directory = `Path.Combine(Environment.CurrentDirectory, "logs")`, created on demand (:49-50) — the *working directory*, not the exe, so the app runs from a fresh clone the same way the CLI does.
+- Minimum level **Debug** (:53), console sink (:54), rolling `app-.log` with 7-day retention and `shared: true` (:55-59).
+- A **sub-logger** filtered to `Level >= Warning` writes `errors-.log` (:60-65) — the error-only file the viva cites as "the debugging evidence" (AGENTS §12.6).
+
+### 10.1.2 App.axaml (29 lines)
+
+`RequestedThemeVariant="Light"` (:4), `FluentTheme` (:6), merges
+`ControlStyles.axaml` (:9) and a global `ToolTip.ShowDelay = 500` (:11-13) —
+the mandatory hover-delay of AGENTS §16.2. The resource dictionary merges
+**Theme.axaml, Motion.axaml, ChartTheme.axaml** (:23-26): "hex values appear
+in exactly one file" is enforced by this merge point.
+
+### 10.1.3 App.axaml.cs (74 lines) — the crash-handler install point
+
+`App : Application`, with a **static constructor** that installs the two
+process-wide handlers (AGENTS §12.3) *before any window exists*:
+
+- `AppDomain.CurrentDomain.UnhandledException` → `CrashReporter.Report(ex, "AppDomain")` (`App.axaml.cs:23-27`).
+- `TaskScheduler.UnobservedTaskException` (:29-44) — with the special case at :35-40: **D-107** admits that the missing Ubuntu global-menu service raises a benign `com.canonical.AppMenu.Registrar` DBus error on Wayland builds. That quirk is *not* a crash: it is marked observed and logged as Information, never surfaced.
+- `Initialize()` (:48-60) loads the XAML and hooks `Dispatcher.UIThread.UnhandledException` → Report + `e.Handled = true` (`:52-59`).
+- `OnFrameworkInitializationCompleted()` (:63-73): for a `IClassicDesktopStyleApplicationLifetime`, creates `MainWindow` (:67) and logs start/exit.
+
+> **Viva box (10.1).** Q: Why a *static* constructor in `App`, not an instance one? A: `Application.Initialize` runs after type ctor but the handlers must be live before *any* task can fault; static ctor is the earliest seat in the class. Q: Why is `Report`'s dialog wrapped in its own catch? A: it may run while the app is already unwinding (`CrashReporter.cs:47-51`) — the log has already been written, so a failed dialog must not cause a second failure.
+
+### 10.1.4 CrashReporter.cs (157 lines)
+
+`internal static class CrashReporter` (`Services/CrashReporter.cs:16`):
+
+- `Report(exception, source, simulationState = "N/A …")` (:27-53): writes the log, then posts a dialog via `Dispatcher.UIThread.Post` so it can be called from any thread.
+- **Log format (AGENTS §12.5)** in `WriteCrashLog` (:84-103): app version (assembly), full command line, `Environment.OSVersion` / .NET version, the simulation-state snapshot, then the whole exception; appended to `logs/crash-YYYYMMDD.log`, never truncated (:101).
+- `IsIgnorableWaylandQuirk` (:63-82) walks the inner chain and returns true only if the message names `com.canonical.AppMenu.Registrar` **and** the CLR type is `ServiceUnknown` or the full `org.freedesktop.DBus.Error.ServiceUnknown` name appears — deliberately narrow so a *real* DBus failure is still reported.
+- `BuildDialog` (:117-156): a plain non-resizable `Window` (640×260) showing the message and the crash-log path — user-friendly, never a stack trace on screen.
+
+## 10.2 View models (MVVM)
+
+The App uses **CommunityToolkit.Mvvm**: `[ObservableProperty]` fields generate
+change notifications; `[RelayCommand]` turns methods into `ICommand`. Views are
+declared XAML with `x:DataType` so **compiled bindings** are on
+(`AvaloniaUseCompiledBindingsByDefault=true`, `OpdSimulator.App.csproj:9`) —
+a binding typo becomes a build error, not a silent blank.
+
+### 10.2.1 MainViewModel.cs (129 lines) — the window-level orchestrator
+
+Exposes three panels: `Config` (`MainViewModel.cs:19`), `Results`
+(:22, constructed with `WidgetPreferences.Load()` so FR-UI-14 visibility
+restores), `InputAnalysis` (:25).
+
+**Start-click flow** (`OnRunRequested`, :89-128):
+
+1. `Config.TryBuildRunParameters()` (:91) — if null, post a clean banner (defence in depth; normally unreachable because Start is gated).
+2. `Results.StartRun()` (:102) hides the welcome card and shows the busy spinner; `SetChiSquareAlpha` (:103) stamps the α into the chi-square caption; `SetPreview` (:104) feeds the data-preview widget.
+3. **`Task.Run(...)`** (:106-127) runs the fit + engine on a *worker thread*; every UI touch is marshalled with `Dispatcher.UIThread.Post` (:112, :126). Refusals return as an outcome; a genuinely unexpected exception is `Log.Error`'d and converted into a clean banner (:119-123) — the UI never sees an unhandled exception (G3/G4).
+
+**Live Input-Analysis refresh**: changing a distribution dropdown (:41-45), the data binding (:49), or α (:55-61) calls `SyncInputAnalysis()` (:68-73), which projects the current binding + distribution choices into the Input Analysis tab.
+
+**Clear All** (`ResetAll`, :82-87): `Config.ResetToDefaults()` + `Results.Reset()` — the FR-UI-21 fresh-launch state.
+
+### 10.2.2 ConfigFieldViewModel.cs (68 lines) — the validated-field wrapper
+
+One class for every numeric/text input. The `Value` setter (:27-39) clears any
+pending error **immediately** (FR-UI-17 "error clears the moment the field
+becomes valid") and raises `ValueChanged` so live derived output (e.g. the ρ
+summary) recomputes. `SetError`/`ClearError` (:56-67) drive `HasError` +
+`ErrorMessage`, which `ValidatedField.axaml` binds.
+
+### 10.2.3 ConfigPanelViewModel.cs (1038 lines) — the config brain
+
+Options it owns:
+
+| Thing | Value | Source |
+|---|---|---|
+| Distribution dropdowns | Exponential, Poisson, Normal, Uniform | `ConfigPanelViewModel.cs:29-30` |
+| Start days | Mon–Thu, Sat | :33-34 |
+| Trace levels | None, Events, State, Rng | :37-38 |
+| Default stage names | Reception, Screening, Doctor | :26 |
+| Default stages | 3 | :54 |
+
+Events that the *view* resolves (file picker, dialogs): `UploadRequested` (:57),
+`ClearAllRequested` (:60), `RunRequested` (:67, `[RelayCommand] StartCalculation`
+:70-71). `ApplyLoadedFile(filePath)` (:545-567) calls `DataAnalyzer.Analyze`,
+sets the status line (loaded-rows / not-loadable / issue count) and refreshes
+stage labels + mismatch state.
+
+**Stage/data mismatch warning (5d.3, D-114)** — `RecomputeStagesMismatch`
+(:575-604): when the *configured* stage count differs from the *detected* one,
+an amber banner explains the consequence ("…will have no service rate" vs
+"…will be ignored"); `SyncStagesToData` (:611-630) replaces the stage list with
+the data's after user confirmation.
+
+**`ResetToDefaults` (:644-683)** resets every field to the factory default —
+seed 42, Exponential/Exponential, α 0.05, rate-wise, 3 default stages, trace
+State, days 1 — and clears every field's error via `AllFieldErrors` (:685-700).
+
+**`TryBuildRunParameters()` (:905-989)** is the whole config → run seam:
+
+- Guards: stage count 1–5 (:907), horizon ≥ 1 (:912).
+- **Mode conversion** (:917-918): `Convert(v)` = `v` if rate-wise else `1/v` — mean-wise λ and μ enter as minutes and come out as rates.
+- Manual μ is a **single comma list** (:928-934): blank entries become null (fitted fallback). This is **D-112** — the per-row μ inputs were removed in 5d.1; stages are topology only.
+- Server counts parsed per row (:945-950); p_exit parsed into `[0, 1)` (:955-958); run mode/day/horizon/cap/seed/trace resolved (:960-988) — then the `SimulationParameters` record is constructed (:973-988).
+
+The nested **`StageRow`** (:1006-1038) owns a `Servers` field (default "1"),
+its name, and a read-only `ServiceRateLabel` ("(from data)" / "(manual)" /
+"μ = — (no source)"). Phrasing contract: the *effective μ source* is shown, the
+μ *value* lives in Parameters.
+
+### 10.2.4 ResultsPanelViewModel.cs (348 lines)
+
+Drives the Simulation-tab results column. Row records: `MetricRow`
+(`ResultsPanelViewModel.cs:12`), `StageMetricRow` (:15-24), `ChiSquareRow`
+(:27-33). Lifecycle:
+
+- `StartRun()` (:73-80) — welcome card off, busy on, "Running simulation…".
+- `CompleteRun(outcome)` (:84-111) — busy off, banner text set from
+  `outcome.Error` (:91), chi-square rows rebuilt (:97-104), trace text joined
+  (:106-108), metrics recomputed via `SetMetrics` (:143-172: 6 system metrics —
+  served / average wait / average queue / avg system time / throughput /
+  operating time — plus one `StageMetricRow` per stage incl. ρ and stage
+  utilisation).
+- `Reset()` (:122-141) — back to the welcome state, everything wiped.
+- Widget visibility (FR-UI-14): 4 flags (:284-294), a `ToggleWidget(key)` (:306-323), and persistence: any change raises `WidgetVisibilityChanged` and saves via `_preferences.Save()` (:338-342). Default visible set: `["metrics", "chiSquare", "trace"]` (:346-347).
+
+### 10.2.5 InputAnalysisViewModel.cs (147 lines)
+
+The Input Analysis tab (Phase 6C). **Empty state** text asserted verbatim by a
+UI test: `"Load a data file to see fit analysis."` (:33).
+
+The critical threading trick is the **generation counter** (:51, :67): every
+`ApplyAsync` (background `Task.Run`, then UI-thread apply — G5) bumps
+`_generation`, and the posted apply is dropped unless `generation == _generation`
+(:73-80). A stale background fit can never overwrite a newer refresh.
+`Prepare` (:130-146) is pure projection (fits → chart data, no UI types);
+`ApplyPrepared` (:107-122) builds LiveCharts controls **on the UI thread** via
+`ChartControlBuilder`. A synchronous `Apply` (tests / immediate updates) also
+works (:90-98).
+
+### 10.2.6 WelcomeCardViewModel.cs (46 lines) + CourseInfo.cs (41 lines)
+
+The welcome card (FR-UI-5, AGENTS §16.6) reads everything from the single
+`CourseInfo` constants file (`CourseInfo.cs:9-41`): course name "Simulation &
+Modelling", code "CS-577", professor "Dr. Shaista Rais" (:17), six member names
+(:23-31), and the two `avares://` logo URIs (:37-40). `WelcomeCardViewModel`
+resolves logos lazily but *eagerly enough* to log a warning if an asset is
+missing (:15-27) — the card degrades to text, it never crashes at render time.
+
+The other two view models/records (`ControlsDemoViewModel.cs`, `ToastItem.cs`,
+`InputAnalysisChartViewModel.cs`) back the controls showroom and the chart
+cards respectively.
+
+## 10.3 Services — the coordination layer
+
+### 10.3.1 SimulationCoordinator.cs (243 lines) — the run, in one place
+
+`RunOutcome` record (`SimulationCoordinator.cs:21-26`): engine report + fits +
+rendered trace + effective exit probability + clean error string (null on
+success). **This is the GUI twin of the CLI `simulate-network` stage (D-104).**
+
+`Run(parameters, binding, status, significanceLevel)` (:77-139) order of
+operations:
+
+1. fits first (:79-80) — the status callback feeds the progress line;
+2. resolve p_exit (manual > fitted > default `0.4`), with the **p_exit = 1.0
+   special case** (:84-92) — only a *fitted* value can be 1.0 (manual is
+   validated `< 1`), so the banner explains the real meaning: *every data row
+   exits after Screening, no downstream route* (`FittedPExitEqualsOneMessage`,
+   :67-68);
+3. arrival-rate guard (:95-99) — banner `MissingArrivalRateMessage` (:59-60);
+4. per-stage specs (:101-106) — a stage with neither manual nor fitted μ names
+   itself in `MissingServiceRateMessage` (:63-64, **5d.1/5d.2, D-112/D-113**);
+5. **topology built *inside* the try** (:113-115) — G4: a
+   `NetworkTopology` ctor failure (fitted p_exit = 1.0 →
+   `ArgumentOutOfRangeException("exitProbability")`) becomes a banner, never an
+   unobserved exception;
+6. trace level + `CollectionTraceSink` (:117-118); engine chosen by run mode
+   (:121-124): `DiagnosticTrace` → the minutes-horizon overload; ClinicDay /
+   MultiDay → the calendar overload (D-110) — **all three modes now record a
+   trace** through the shared sink (5c.3);
+7. `catch (UnstableSystemException)` (:129-133) keeps the Core message verbatim
+   (ρ ≥ 1 refusal lists λᵢ, cᵢ, μᵢ, ρᵢ per unstable stage) and
+   `catch (ArgumentOutOfRangeException) when (ParamName == "exitProbability")`
+   (:134-138) surfaces Core's wording too.
+
+Helpers: `BuildFits` (:141-162, labels "Inter-arrival" + "<stage> service"),
+`BuildStageSpecs` (:170-194, manual-or-fitted per stage), `FittedRateFor`
+(:196-211), `Refused` (:213-214), and the internal pure functions
+`ResolveExitProbability` (:220-233) and `TraceLevelFromName` (:235-242).
+
+> **Viva box (10.3).** Q: Why build the topology inside the try after already
+> checking p_exit ≥ 1? A: the fitted p_exit = 1.0 case is rejected early with a
+> *data-meaning* banner; the ctor's own guard stays as belt-and-braces so no
+> topology failure can ever escape as an exception (G4, `SimulationCoordinator.cs:35-44`).
+
+### 10.3.2 FitsService.cs (47 lines)
+
+`Fit(label, samples, familyName, alpha = 0.05)` (:22-46) wraps
+`DistributionFitterFactory` + `ChiSquareTest.Run` so any failure
+(empty samples :24-27, unknown family :29-32, degenerate fit :40-45) yields a
+`FitReport` with null results — the results panel renders "fit unavailable"
+instead of crashing. Supplying α at run start is 5d.2/D-113.
+
+### 10.3.3 DataAnalyzer.cs (97 lines) — upload → binding
+
+`Analyze(path)` (:22-96) mirrors the CLI's `simulate-data` stage:
+
+1. missing file → clean error binding (:24-30);
+2. parse via `DataLoaderFactory` (:35-36), parse failure → clean error (:38-45);
+3. `DataValidator.ValidateReturningIssues` (:47);
+4. λ₀ = `1 / mean(inter-arrival)` from the parsed `arrival_time`s, when ≥ 2 arrivals exist (`DataAnalyzer.cs:49-58`);
+5. stage detection + μ per stage via `StagePairDetector`, `ClinicStageOrder.Flow`, `ServiceTimeCalculator` (:60-72), NaN where a stage has no timings (:70);
+6. p_exit via `PExitCalculator.Compute`, with `DataValidationException` swallowed to null (:74-90, D-104 default fallback);
+7. returns the `DataBindingResult` (:92-95).
+
+### 10.3.4 InputAnalysisService.cs (189 lines)
+
+Every chart derives **only** from the `ChiSquareResult`'s own arrays — "the
+chart and the chi-square table can never disagree":
+
+- `IInputChartData` (:11-21) keeps cards UI-free.
+- `HistogramChartData` (:37-43) / `ChiSquareChartData` (:57-63) carry the exact
+  bin edges, observed counts and expected counts the verdict used.
+- `BuildHistogram` (:118-149): observed bars + fitted density
+  `density(midpoint) × binWidth × N` — equal-probability bins have *different
+  widths*, so each bin uses its own (:141).
+- `BuildChiSquareChart` (:160-185): paired observed/expected columns,
+  category labels "bin 1…".
+
+### 10.3.5 ChartControlBuilder.cs (160 lines)
+
+Builds LiveCharts `CartesianChart` controls **on the UI thread only** (G5,
+:17-21). `ChartHeight = 220` (:33). `Build`/`BuildChiSquareChart` (:40-68,
+:76-102) return null for seriesless cards so the card shows its empty state.
+`BrushColor` (:149-159) tries the ChartTheme `DynamicResource` first and falls
+back to hard-coded `SKColor`s that *match the theme hex* — the only hex in a
+`.cs` file, and only as headless-test fallback (declared in the header comment
+:23-29).
+
+### 10.3.6 CollectionTraceSink.cs (64 lines) and WidgetPreferences.cs (83 lines)
+
+- **CollectionTraceSink** (`Services/CollectionTraceSink.cs:11`): in-memory
+  `ITraceSink` rendering via `TraceFormatter` with a **50,000-line cap**
+  dropping the oldest (:18, :52-55) so long diagnostic runs never exhaust
+  memory (D-104/D-105).
+- **WidgetPreferences** (`Services/WidgetPreferences.cs:11`): the *only*
+  per-user persisted state (AGENTS §16.11). File: Linux
+  `~/.config/OpdSimulator/ui.json`, Windows `%APPDATA%\OpdSimulator\ui.json`
+  (:34-38) — under ApplicationData, never next to the exe. Persists
+  `VisibleWidgets` (:41) + `CollapsedSections` (:44) only; a corrupt file logs
+  a warning and falls back to defaults (:53-67). Configuration, data files and
+  results are deliberately **not** persisted (FR-UI-21).
+
+## 10.4 Models — the GUI↔engine data seam
+
+| Record | File | Purpose |
+|---|---|---|
+| `RunMode` | `Models/RunMode.cs:9-22` | `ClinicDay = 0`, `MultiDay = 1`, `DiagnosticTrace = 2` (D-105). |
+| `SimulationParameters` | `Models/SimulationParameters.cs:28-43` | 15-field flat record of validated inputs — GUI and coordinator share it, no UI types anywhere. |
+| `FitReport` | `Models/FitReport.cs:12-16` | label + samples + fitted + chi-square verdict. |
+| `DataBindingResult` | `Models/DataBindingResult.cs:22-39` | dataset + issues + fitted λ₀/μs/p_exit + samples; `IsUsable => DataSet not null && ErrorMessage null && Issues.Count == 0` (:38). |
+
+`SimulationParameters` carries `Mode` (rate-wise vs mean-wise) in case the
+coordinator needs to know how the manual numbers are stated; the values have
+**already** been mode-converted to rates (`ConfigPanelViewModel.cs:917-918`).
+
+## 10.5 Views — XAML layout
+
+### 10.5.1 MainWindow.axaml (108 lines)
+
+Window 1200×760 (min 1100×700), maximised, centre-screen (`MainWindow.axaml:8-14`).
+Layout contract comment at :21-29: the **only focusable shell content is the
+TabControl** (`TabIndex="0"`, :52-54); the four tabs:
+
+| Tab | Line | Content |
+|---|---|---|
+| Simulation | :58-81 | `Grid ColumnDefinitions="380,6,*"` — 380-px config column (ConfigPanel), 6-px GridSplitter, fill results column with `MinWidth="540"` (:73, 5c.1) |
+| Input Analysis | :83-88 | `InputAnalysisView` |
+| Token Generator | :90-96 | `PlaceholderContent` — "Phase 6" placeholder, **not implemented** |
+| Help | :98-104 | `PlaceholderContent` — "Phase 6" placeholder, **not implemented** |
+
+Honest viva note: Token Generator and Help are placeholders at the current
+phase (6c.3). Milestone 6 is the advertised plan, not yet built.
+
+### 10.5.2 ConfigPanel.axaml (321 lines) and ResultsPanel.axaml (234 lines)
+
+ConfigPanel = **six `CollapsibleSection`s**: 1·Data (:23, Upload button + the
+D-114 mismatch warning strip), 2·Model (:66, distribution dropdowns + α field),
+3·Parameters (:112, λ, single μ comma list, p_exit override), 4·Stages (:164,
+count + per-stage rows), 5·Horizon (:217, single/multi-day, day count, start
+day, cap, minutes), 6·Advanced (:278, seed, trace level) — pinned under a
+`PinnedFooterBar` with Start Calculation / Clear All (:307-314).
+
+ResultsPanel = welcome card (`ResultsPanel.axaml:17`) → once a run starts
+(`IsVisible="{Binding HasRun}"`, :28): run header + customise toggle (:31-53),
+scrollable widget area (:73, 5c.1), busy progress (:81), the G3/G4 refusal
+`ErrorBanner` (:89-92), then the four toggleable widgets — metrics (:94),
+chi-square (:155), data preview (:191-207), event trace (:209, mono scrollable
+selectable text).
+
+### 10.5.3 WelcomeCard.axaml (62 lines)
+
+Two 96×96 logos (:18-19), "University of Karachi", `{Binding CourseCode} — {Binding CourseName}`, professor, per-line members — all bound, no hard-coded course text (AGENTS §16.6).
+
+## 10.6 Reusable controls (11 + `DataPreviewTableModels.cs`)
+
+| Control | File | What it enforces |
+|---|---|---|
+| `SearchableDropdown` | `Controls/SearchableDropdown.axaml` (86) | Type-to-filter + ×-clear + keyboard nav (FR-UI-6) |
+| `ValidatedField` | `Controls/ValidatedField.axaml` (74) | Label + placeholder + tooltip + inline error in one unit (FR-UI-17) |
+| `CollapsibleSection` | `Controls/CollapsibleSection.axaml` (156) | Chevron, `IsExpanded`/`SessionKey` (FR-UI-12, persisted) |
+| `PinnedFooterBar` | `Controls/PinnedFooterBar.axaml` (34) | Always-visible primary action |
+| `ErrorBanner` | `Controls/ErrorBanner.axaml` (38) | Clean refusal/error surface, never a stack trace |
+| `ThemedDialog` | `Controls/ThemedDialog.axaml` (52) | Confirmations/errors, never OS-native |
+| `ThemedToast` | `Controls/ThemedToast.axaml` (53) | Notifications |
+| `InfoIcon` | `Controls/InfoIcon.axaml` (20) | "?" contextual help (docs/CONTEXT.md) |
+| `ChartCard` | `Controls/ChartCard.axaml` (37) | Input Analysis card shell |
+| `DataPreviewTable` | `Controls/DataPreviewTable.axaml` (80) | FR-UI-20 read-only preview |
+| `PlaceholderContent` | `Controls/PlaceholderContent.axaml` (27) | Phase-6 placeholder cards |
+
+**DataPreviewTable** is the case study for the performance contract (FR-UI-20,
+NFR-10): headers are generated from the loaded file's columns (:31-35, sorted
+cycle asc→desc→original), rows render in a **virtualising** ListBox with
+`VirtualizingStackPanel` (:48-52), cells are `SelectableTextBlock` for Ctrl+C
+(:63-69), invalid rows get the FR-UI-17 red treatment with a reason tooltip,
+and load failures swap the table for an `ErrorBanner` (:20-21).
+*Known dangle:* line :66 requests `{DynamicResource FontMono}`, but Theme.axaml
+defines only `FontFamilyMono` (`Theme.axaml:99`) — the key silently falls back
+to the inherited font. Cosmetic; a candidate one-line fix in a future phase.
+
+## 10.7 Assets — single-theme rule (AGENTS §16.3)
+
+- **Theme.axaml** — **85 `x:Key` tokens**, hex only here. Contract comment at
+  :19-29: fonts Default/Heading/Mono, font sizes 18/14/12, spacing 4/8/12/16/24,
+  radii 4/8/12, two shadows, `BrushFocusRing` + `ThicknessFocusRing(2)` +
+  `ThicknessFocusRingOffset(1)`. Brand green `#1B7A4C` (:30).
+- **Motion.axaml** — 5 durations `MotionDuration{Slow,Normal,Medium,Fast,Reduced}`
+  (reduced = reduced-motion accessibility).
+- **ChartTheme.axaml** — 13 `BrushChart…` keys (series colours 1–4, grid, axis,
+  ticks, legend, tooltip).
+- **ControlStyles.axaml** — style *classes* only, zero new colours: `PrimaryButton`
+  (:9-27, hover/pressed/drawn to `BrandGreenDark`), `GhostButton` (:30-40),
+  `TextBlock.Caption` (:43-46), `Border.DemoCard`/`PanelCard` (:49-64).
+
+Every control resolves `{DynamicResource …}`; ViewModels never hold hex. One
+file change restyles the app.
+
+## 10.8 Threading model (G5) — the single most visible GUI design
+
+| Thread | Work | Marshalling |
+|---|---|---|
+| UI thread | config edits, blur validation, built LiveCharts controls, `Results.CompleteRun` | always `Dispatcher.UIThread.Post` from workers |
+| Background `Task.Run` | `InputAnalysisViewModel.ApplyAsync` fit (:68), `MainViewModel.OnRunRequested` engine run (:106) | generation counter guards staleness (`InputAnalysisViewModel.cs:67-80`) |
+| Any thread | `CrashReporter.Report` | posts the dialog on the UI thread |
+
+The engine itself is single-threaded DES (ch. 7.5) — the *fits* (MathNet) and
+the run both block, so they live on background threads and only results cross
+back. LiveCharts Avalonia controls cannot be created off the UI thread; that is
+why `ChartControlBuilder` is called inside the posted apply
+(`InputAnalysisViewModel.cs:111-120`).
+
+> **Chapter 10 take-away:** the App is a *thin, well-behaved shell*. Its two
+> scan-worthy contracts are (1) the **`SimulationParameters` /
+> `DataBindingResult` seam** — the GUI never touches Core/Data types directly
+> and never lets an exception reach the UI (every failure is a banner), and
+> (2) the **background-run + single-writer threading** that keeps the UI
+> responsive while DES runs. Everything else is bookkeeping around that core.
+
+# 11. The Test Projects
+
+## 11.0 The truth about the counts
+
+`docs/DEV_LAUNCH.md:6` records the last verified gate: **278 green**. Measured
+today (2026-09-16, Release on Ubuntu, `dotnet test`):
+
+| Project | Executed & green | Classes | Files |
+|---|---|---|---|
+| OpdSimulator.Core.Tests | 85 | 13 | 14 (incl. GlobalUsings + 1 fixture) |
+| OpdSimulator.Data.Tests | 58 | 8 | 9 |
+| OpdSimulator.Cli.Tests | 35 | 6 | 8 |
+| OpdSimulator.App.Tests | 100 | 20 (11 behavioural + 9 screenshot) | 22 |
+| **Total** | **278** | **47** | **53** |
+
+**Why attribute counts lie:** counting `[Fact]`/`[Theory]` attributes gives 248
+(Core 77, Data 48, Cli 23, App 100) — but xUnit executes one test **per theory
+data row**, so Core/Data/Cli run higher than their attribute count
+(85/58/35). App *behaves* differently: no `[Theory]` at all, and its 100 tests
+are 100 `[AvaloniaFact]` attributes. The authoritative number is the executed
+count, and it is 278. (Note: `DEV_LAUNCH.md:177` still says "272 tests pass" —
+stale prose, flagged 2026-09-16, awaiting owner approval to correct.)
+
+All test projects are `net8.0`, xUnit-based, with `ImplicitUsings` + nullable
+enabled. There is **no `InternalsVisibleTo` in the Core/Data/Cli test projects**;
+the App *does* expose one — `OpdSimulator.App.csproj:33` — so the App tests can
+reach `SimulationCoordinator.ResolveExitProbability` and
+`TraceLevelFromName` (both `internal`, `SimulationCoordinator.cs:220,235`).
+There is no shared test-infra project; each test project is self-contained.
+
+## 11.1 OpdSimulator.Core.Tests — 85 green
+
+Runs against pure Core (no UI, no data layer). Per-class executed counts
+(`--list-tests`, 2026-09-16):
+
+| Class | Tests | What it pins |
+|---|---|---|
+| `EventTests` | 4 | the `Event` tie-break order — time → **type → patientId**, the JSON payloads, equality (D-033). |
+| `FELTests` | 4 | priority-queue semantics: pop order, timestamp ties, FIFO within a tie, capacity behaviour. |
+| `QueueTests` | 5 | `Queue<T>` — enqueue order, FIFO-dequeue, counts, the empty-state contract. |
+| `ServerTests` | 6 | idle/busy transition guard, state flags, utilisation accounting. |
+| `PatientTests` | 3 | patient identity, stage cursor, routing transitions. |
+| `ClinicCalendarTests` | 15 | the **theory-heavy** day model: open days (Mon–Thu+Sat), window bounds 495/660 (08:15/11:00), day indexing, `FormatClock` — 10 `InlineData` rows (`ClinicCalendarTests.cs`). |
+| `ExponentialSamplerTests` | 3 | the `double.Epsilon` clamp (never `−ln(U)/λ` with U=0 → +∞), seeded determinism. |
+| `SeededRandomSourceTests` | 4 | DEFAULT_SEED=42 reproducibility, `SetSeed` reseeding, value ranges. |
+| `NetworkTopologyTests` | 7 | effective λᵢ = λ₀·Π(1−p_exit) (D-007), ρᵢ, validation, single-stage factory. |
+| `EngineTests` | 21 | the DES loop: FEL advance, arrival scheduling, service-end routing, calendar gating, daily cap, counter correctness. |
+| `StabilityTests` | 4 | ρ ≥ 1 → `UnstableSystemException` naming each unstable stage (D-034). |
+| `EventTraceTests` | 2 | `EventTrace`/sink plumbing. |
+| `TraceRegressionTests` | 7 | **golden-trace guard**: seed 42 serves 29,892 patients with average wait 0.724 min; the event stream at `Fixtures/trace-5-patients.txt` must match byte-for-byte (D-054). |
+
+The regression triple (seed 42 → 29,892 / 0.724) is the *reason* the default
+seed is 42 and the RNG is a fixed `SeededRandomSource` — any engine change that
+reorders RNG draws trips it.
+
+## 11.2 OpdSimulator.Data.Tests — 58 green
+
+| Class | Tests | What it pins |
+|---|---|---|
+| `LoaderTests` | 7 | `DataLoaderFactory` dispatch + CSV/XLSX parse correctness; dirty files surface as issues, not exceptions. |
+| `DataValidatorTests` | 12 | the rule battery incl. the D-008/D-038 split: `departure_stage="Reception"` is an *anomaly warning*, not an exit; missing columns; out-of-range values. |
+| `PreprocessTests` | 6 | column detection, stage pair detection, normalisation. |
+| `TimeParserTests` | 15 | 13 `InlineData` rows over the time formats (HH:mm, HH:mm:ss, HH:mm AM/PM, Excel fraction-of-day — D-039). |
+| `FittingTests` | 6 | MLE/MoM fits: Exponential λ = 1/mean, Normal/Lognormal n-denominator variance (D-043), Gamma MoM (D-041), uniform. |
+| `ChiSquareTests` | 4 | equal-probability binning `k=ceil(√n)` clamped [5,20] (D-040), p-value from MathNet `ChiSquared.CDF`, the Eᵢ ≥ 1 fail-loud guard (D-044), df = k−1−p. |
+| `ModeValidatorTests` | 5 | rate-wise vs mean-wise consistency (warn, never hard-block). |
+| `FixtureTests` | 3 | the bundled `Fixtures/dirty_missing.xlsx` — schema/validation integrity of the fixture itself. |
+
+## 11.3 OpdSimulator.Cli.Tests — 35 green
+
+**End-to-end**: each test invokes `Program.Main` / the dispatcher and asserts
+stdout, exit code, and file output. The two theory classes explain the big
+attribute→executed jump (Cli has 23 attributes → 35 executed, via `MemberData`
+rows):
+
+| Class | Tests | What it pins |
+|---|---|---|
+| `CliDataCommandTests` | 5 | `data` subcommand: fit output, chi-square verdict, export. |
+| `CliSimulateNetworkTests` | 12 | **theory** (MemberData-driven) network modes, param parsing, ρ refusal exit code 2. |
+| `CliSimulateDataNetworkTests` | 3 | data-driven network run end-to-end. |
+| `CliSimulateParamsTests` | 1 | rate/mean-wise param interpretation. |
+| `CliTraceTests` | 13 | **theory** (MemberData): `trace --patients 5 --level state` output matches `Fixtures/trace-5-patients.txt`; `--level` filtering; `--patients` early stop. |
+| `CliRefusalTests` | 1 | the clean single-line refusal + exit code (D-037) for ρ ≥ 1. |
+
+## 11.4 OpdSimulator.App.Tests — 100 green
+
+**Headless Avalonia** via `TestAppBuilder.cs:17-20`:
+`AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })`.
+It boots the *real* `App` on the headless platform so every test exercises the
+actual startup path (XAML load, merged Theme/Motion/ChartTheme, lifetime) with
+no display server — CI-friendly. Tests are marked `[AvaloniaFact]` (runs on the
+headless dispatcher), the source of the 100 = 100 equivalence.
+
+**Behavioural classes** (90 tests):
+
+| Class | Tests | Phase |
+|---|---|---|
+| `Phase1SmokeTests` | 6 | window/shell renders, welcome card present. |
+| `ControlsSmokeTests` | 11 | every reusable control instantiates and interacts. |
+| `Phase3ShellTests` | 5 | tab shell + placeholder navigation. |
+| `Phase4ConfigTests` | 13 | config fields, blur validation, μ/λ parsing, reset defaults. |
+| `Phase4bConfigTests` | 5 | significance + mode toggle + ρ summary. |
+| `Phase5RunFlowTests` | 8 | Start → background run → metrics populate; refusal banners. |
+| `Phase5cFixesTests` | 7 | known-issue regressions from the 5c review round. |
+| `Phase5dConfigTests` | 16 | stage-count edits, mismatch warning, single-μ source (D-112), preset-free startup. |
+| `Phase6c1InputAnalysisTests` | 4 | empty state text verbatim, chart card population. |
+| `Phase6c2HistogramTests` | 10 | histogram binning ↔ chi-square bins agree (chart can't disagree with the table). |
+| `Phase6c3ChiSquareTests` | 5 | χ² caption/rows at run start (D-113). |
+
+**Screenshot evidence tests** (10): `Phase{1,3,5,5c,5d,6c1,6c2,6c3,ControlsDemo}Screenshot`
+— one test each (Phase5c has 2) that renders a frame and saves it as CI
+evidence. They are *deterministic render captures*, not pixel assertions: the
+assertion is "this view renders without throwing and produces an image".
+
+> **Viva box (11.4).** Q: Why `UseHeadlessDrawing = false`? A: only the
+> highest-fidelity software rasteriser reproduces the exact vectors the app
+> renders on a real desktop; headless-drawing mode shortcuts parts of the
+> pipeline and can hide render bugs the screenshots are meant to surface.
+
+## 11.5 What 278 tests protect (traceability)
+
+| Threat | Test that stops it |
+|---|---|
+| Engine refactor breaks a working scenario | `TraceRegressionTests` golden trace + metrics (seed 42, 29,892/0.724) |
+| RNG ordering changes between releases | `SeededRandomSourceTests` + same regression |
+| Unstable config runs anyway | `StabilityTests`, `CliRefusalTests`, Engine refusal path |
+| Wrong p_exit/routing arithmetic | `NetworkTopologyTests` (D-007), `Phase5dConfigTests` |
+| Dirty data slips through | `DataValidatorTests`, `LoaderTests`, `FixtureTests` |
+| GUI refuses-but-means-something-else | `Phase5RunFlowTests` banner wording, `SimulationCoordinator` G3/G4 paths |
+| Charts lie about the verdict | `Phase6c2HistogramTests` / `Phase6c3ChiSquareTests` (shared `ChiSquareResult` arrays) |
+| Startup is not empty / restores secrets | `Phase5dConfigTests` (FR-UI-21, no auto-restore) |
+| Mission-critical timing (08:15/11:00) breaks | `ClinicCalendarTests` 15 cases |
+
+**Chapter 11 take-away:** the suite is layered the way the product is — Core
+proves the *math* (determinism, tie-breaks, ρ, golden trace), Data proves the
+*pipeline* (parse → validate → fit → verdict), Cli proves the *contracts*
+(exit codes, clean refusals, identical trace bytes), App proves the *behaviour*
+(headless-booted real UI, banners, chart/table agreement, render evidence).
+
+**Chapters 10–11 verified against:** all 42 App `.cs` sources, all 22 App
+`.axaml` assets (spot-read for each cited line), the App `.csproj`, and all 53
+test sources; executed-test counts measured via `dotnet test -c Release`
+(session run, 2026-09-16, Ubuntu: 85/58/35/100 = 278, all green). Decision IDs
+cross-checked: D-104, D-105, D-107, D-110, D-112, D-113, D-114 (plus D-007,
+D-008, D-018, D-033, D-034, D-037, D-038, D-039, D-040, D-041, D-043, D-044,
+D-054, D-058, D-059 from earlier chapters).
 
 ---
 
