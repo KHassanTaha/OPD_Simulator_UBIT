@@ -2,6 +2,51 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 08:20
+Branch: `docs/deep-dive-ch1-6`
+Status: Clean (committed, pushed, uncommitted = none)
+Done
+Project deep-dive Session A — chapters 1–6 of `docs/PROJECT_DEEP_DIVE.md` (TODO deep-dive row → IN PROGRESS, session A component done): cover page (phases 1–6c.3), executive summary, system architecture (dependency graph, why Core is UI-free), repository map, package inventory (all pinned versions + "why this one" with alternatives), build/run/test. Verified against csproj projections, `OpdSimulator.sln`, `global.json`, DEV_LAUNCH.last-verified, D-001..D-005/D-013/D-019/D-021/D-026/D-082/D-086/D-116.
+
+In Progress
+Project deep-dive — Sessions B–E (ch. 7–18 + PDF) await owner "go".
+
+What is complete: chapters 1–6 written with file:line citations throughout; NOTE — `docs/DEV_LAUNCH.md:177` still says "272 tests pass" in one heading place but the §6 catalogue and §1 Last-verified say 278; the chapter-6 table cites 278 per the Last-verified line (DEV_LAUNCH:6) and TODO 6c.3 gate. Flagging rather than silently editing DEV_LAUNCH (docs-only session; owner merge of 6c branch pending).
+
+What remains: Sessions B–E (ch. 7 Core/Data/Cli, ch. 10–11 App/Tests, ch. 12–15, ch. 16–18 + PDF), each gated by owner "go"; PDF renderer = wkhtmltopdf (pandoc/xelatex/weasyprint all absent; no sudo-permitted installs).
+
+Next Session Should Start With
+Session B — chapters 7–9 (Core, Data, Cli) per the task brief; commit "docs: deep dive, chapters 7–9", push, wait for "go".
+
+Blocked
+None.
+
+Git State
+Commits made this session: (pending commit of docs/PROJECT_DEEP_DIVE.md + TODO + PROGRESS, listed in report)
+Pushed to origin: pending owner "go" check — feature branch `docs/deep-dive-ch1-6` will be pushed by the agent at owner go-gate.
+
+Uncommitted changes: docs/PROJECT_DEEP_DIVE.md (new), docs/TODO.md, docs/PROGRESS.md
+
+Build & Test
+dotnet build: PASS (0 warnings/errors, verified this session before docs work — 6c.3 gate)
+dotnet test: PASS — 278 green (Core 85 / Data 58 / Cli 35 / App 100) per 6c.3 gate result (DEV_LAUNCH:6)
+
+Warnings: 0
+
+Files Touched
+docs/PROJECT_DEEP_DIVE.md: added (ch. 1–6)
+docs/TODO.md: modified (deep-dive row → IN PROGRESS)
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+None (docs-only session; no decision recorded).
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+DEV_LAUNCH.md line 177 says "272 tests pass" but §6 catalogue + §1 say 278 — reconcile on a docs pass, do NOT edit in Session B without owner OK (DEV_LAUNCH has a 6c.3 row already).
+
 ### Session Handoff — 2026-09-16 07:35
 Branch: `feat/milestone-6c-input-analysis-charts`
 Status: Clean (committed, uncommitted = none)
