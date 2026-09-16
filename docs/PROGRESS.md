@@ -2,6 +2,52 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### Session Handoff — 2026-09-16 08:52
+Branch: `docs/deep-dive-ch1-6`
+Status: Clean (committed, pushed, uncommitted = none)
+
+Done
+Project deep-dive Session D — chapters 12–15 of `docs/PROJECT_DEEP_DIVE.md` (TODO deep-dive row updated: Session D DONE, committed `docs: deep dive, chapters 12-15`; Document Status row D → "written 2026-09-16"): ch. 12 three demo workflows with exact CLI commands and exit codes (`Program.cs:17-41,95-102`), ch. 13 algorithm walkthrough with source-anchored steps (DES loop `Engine.cs:265-467`, FEL tie-break `Event.cs:44-57`, arrival window + CalendarGate `Engine.cs:413-435,617-709`, MLE fitting, chi-square binning `ChiSquareTest.cs:43-74`, RNG determinism, stability refusal `NetworkTopology.cs:41-125`), ch. 14 invariants table (9 engine + 5 trace/stats + 5 data + 6 GUI + reproducibility, each with enforcement cite and test evidence), ch. 15 decision index grouping all 120 decisions (D-001…D-120) from `docs/DECISIONS.md` by concern with chapter pointers + three recommended viva defence picks.
+
+In Progress
+Project deep-dive Session E — chapters 16–18 (viva Q&A bank, limitations, glossary) + PDF via wkhtmltopdf + `docs/DEEP_DIVE_BUILD.md`, awaits owner "go".
+
+What is complete: chapters 12–15 inserted with file:line citations (all line numbers re-verified this session by grep/read); Document Status row D updated; TODO Session D DONE; build + test fresh (0 warnings, 278 green = Cli 35 / Data 58 / Core 85 / App 100); no code touched.
+
+What remains: Session E only — ch. 16–18 + PDF generation + `docs/DEEP_DIVE_BUILD.md`. `DEV_LAUNCH.md:177` stale "272" count-text correction still awaits owner approval.
+
+Next Session Should Start With
+Session E — chapters 16–18 of `docs/PROJECT_DEEP_DIVE.md` + PDF via `wkhtmltopdf`, after owner says "go"; then commit the markdown chapter commit, then the PDF commit.
+
+Blocked
+None.
+
+Git State
+Commits made this session: `52eb016` docs: deep dive, chapters 12-15 (workflows, algorithms, invariants, decisions).
+Pushed to origin: Yes (with the handoff commit below).
+
+Uncommitted changes: docs/TODO.md (Session D DONE row) + this PROGRESS.md handoff.
+
+Build & Test
+dotnet build: PASS (Release, 0 warnings, 0 errors).
+dotnet test: PASS — 278 passed (Cli 35 / Data 58 / Core 85 / App 100), 0 failed, verified 2026-09-16.
+
+Warnings: 0 compiler warnings.
+
+Files Touched
+docs/PROJECT_DEEP_DIVE.md: modified (+469 lines — chapters 12–15, verified-against block, Document Status row D written).
+docs/TODO.md: modified (Session D DONE).
+docs/PROGRESS.md: modified (this handoff).
+
+Decisions Made
+None new — chapters index the existing D-001…D-120.
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+Non-NEGOTIABLE ch. 16–18 content: viva Q&A bank (professor-style questions + 2–3 line model answers, mirror the 13 viva boxes already embedded), limitations (section 8 honest list — no presets/help GUI, Token Generator placeholder, no multi-server statistical validation beyond chi-square, exponential default), glossary (consolidate CONTEXT §9 plus project-specific abbreviations — FEL, GOF, p_exit, ρᵢ, DailyCap, D-xxx). PDF must be ≤ 40 MB and committed to the repo; record the exact wkhtmltopdf command in `docs/DEEP_DIVE_BUILD.md`. Run `dotnet test -c Release` once more in Session E for the Build & Test line.
+
 ### Session Handoff — 2026-09-16 08:28
 Branch: `docs/deep-dive-ch1-6`
 Status: Clean (committed, pushed, uncommitted = none)
