@@ -51,7 +51,7 @@ to avoid inventing policy**; awaiting the owner's text.
 
 ### Session Handoff — 2026-09-18 01:32
 Branch: `feat/milestone-7-model-driven`
-Status: In-Progress (awaiting commit/push + AGENTS §19 text)
+Status: Clean (only `AGENTS.md` §19 text outstanding — B-009)
 
 Done
 - Phase 7C — two-path configuration marked `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 348 green (Core 85 / Data 58 / Cli 35 / App 170, +16), evidence `logs/screenshots/phase-7c-manual-mode.png`; D-128 logged.
@@ -76,9 +76,9 @@ Blocked
 - `AGENTS.md` §19 text — owner input required (see BLOCKERS.md B-009 if raised).
 
 Git State
-Commits made this session: pending at time of writing (feat commit + handoff docs commit).
-Pushed to origin: pending.
-Uncommitted changes: all Phase 7C code, tests and docs (see Files Touched).
+Commits made this session: `fb1b272` — `feat: two-path configuration (fit-from-data + enter-manually) (Phase 7C)`; plus the docs follow-up commit that carries this handoff.
+Pushed to origin: Yes — `c4cf833..fb1b272` (and the follow-up) on `feat/milestone-7-model-driven`.
+Uncommitted changes: None.
 
 Build & Test
 dotnet build: PASS (0 warnings, 0 errors).
