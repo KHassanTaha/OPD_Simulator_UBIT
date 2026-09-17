@@ -64,6 +64,63 @@ New tests (`tests/OpdSimulator.App.Tests/Phase7BTests.cs`, exactly 17):
 `StageRow_AdvancedMode_SkipsModelSync`, `ConfigPanel_EachStage_HasModelDropdown`,
 `ConfigPanel_AdvancedToggle_RevealsTwoDistributions`.
 
+### Session Handoff — 2026-09-18 00:43
+Branch: `feat/milestone-7-model-driven`
+Status: Clean
+
+Done
+- Phase 7B — per-stage model notation marked `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 332 green (Core 85 / Data 58 / Cli 35 / App 154, +17), real launch 18 s alive "Main window created." + crash logs unchanged, evidence `logs/screenshots/phase-7b-stage-models.png`.
+
+In Progress
+- None.
+
+What is complete:
+- `Services/ModelNotationParser` (Kendall `A/S/c` grammar + 11-model `StandardModels`); `StageRow` model/advanced fields + model→family/server sync; `ConfigPanel.axaml` per-stage Model dropdown + Advanced toggle + two family dropdowns; `TryBuildRunParameters` first-stage family wiring; `Phase7BTests.cs` (17 tests).
+- Docs: DECISIONS D-126/D-127, TODO 7B `[x]`, DEV_LAUNCH §1/§6/§12, USER_MANUAL "Per-stage model setup" + changelog, PROGRESS (this entry + handoff).
+
+What remains:
+- Owner to eyeball `logs/screenshots/phase-7b-stage-models.png` (470×900) and review/merge the branch per §11.5.
+- Do NOT start Phase 7C until instructed.
+
+Next Session Should Start With
+- Await the owner's "go" for Phase 7C (scope per PRD/TODO — not started; STOP enforced at the 7B boundary).
+- If 7C starts, re-run the §14.1 reconciliation first (git + TODO + PROGRESS + BLOCKERS + DECISIONS).
+
+Blocked
+- None.
+
+Git State
+Commits made this session: `d14a111` — `feat: per-stage model notation and distribution selectors (Phase 7B)` (7A docs commit `912a76e` was the resume HEAD).
+Pushed to origin: Yes — `912a76e..d14a111` on `feat/milestone-7-model-driven`.
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors).
+dotnet test: PASS — 332 green (Core 85 / Data 58 / Cli 35 / App 154).
+Warnings: 0. One full-suite run flaked once on the pre-existing `Phase5Screenshot` headless render; it passed in isolation and on re-run (charted as a known flake, not a 7B regression).
+
+Files Touched
+src/OpdSimulator.App/Services/ModelNotationParser.cs: added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (StageRow + TryBuildRunParameters)
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified (stage-row controls)
+tests/OpdSimulator.App.Tests/Phase7BTests.cs: added
+docs/DECISIONS.md: modified (D-126, D-127)
+docs/DEV_LAUNCH.md: modified (§1 verified line, §6 counts, §12 changelog)
+docs/USER_MANUAL.md: modified ("Per-stage model setup" + §12 changelog)
+docs/TODO.md: modified (7B row `[x]`)
+docs/PROGRESS.md: modified (7B narrative + this handoff)
+
+Decisions Made
+- D-126 — per-stage Kendall notation is a UI convenience; families flow from the FIRST stage; per-stage service override deferred.
+- D-127 — `Deterministic`/`General` are display-only placeholders (engine still exponential, null fit report).
+
+Assumptions Added/Changed
+- None (the `D`/`G` limitation is recorded as D-127, a decision).
+
+Notes for Next Session
+- Three findings surfaced, not silently fixed: (a) all stages share the first stage's service family in the engine (flat `SimulationParameters`); (b) `Deterministic`/`General` behave like `M` (D-127); (c) a stage's Advanced "Service distribution" label duplicates the existing Model-section dropdown label — flagged for the owner, not renamed.
+- `logs/` is gitignored; the 7B screenshot was produced by a temporary harness that was removed after capture (matching the 7A evidence pattern).
+
 ## Phase 7A — Time-unit selector, parameter-mode relocation, time-span presets (2026-09-18, `feat/milestone-7-model-driven`)
 
 First phase of the owner's Phase 7 model-driven input series (STOP before 7B
