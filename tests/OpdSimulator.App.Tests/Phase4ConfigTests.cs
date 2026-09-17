@@ -87,7 +87,9 @@ public class Phase4ConfigTests
     public void PExit_ValueOne_SetsInlineError_AndBlocksStart()
     {
         var vm = NewVm();
-        Assert.True(vm.StartIsEnabled, "a default valid config must start enabled");
+        // D-128 supersedes 5d.1's "runnable in principle" contract: an empty
+        // fit-mode config is incomplete (no usable file) and Start is disabled.
+        Assert.False(vm.StartIsEnabled, "an empty fit-mode config is not complete (D-128)");
 
         // Manual overrides must be in use for the inline error to gate Start;
         // the Parameters section is OFF at factory ground, and an OFF section's
@@ -112,8 +114,9 @@ public class Phase4ConfigTests
 
         Assert.False(vm.PExit.HasError);
         Assert.Null(vm.PExit.ErrorMessage);
-        Assert.True(vm.StartIsEnabled);
-        Assert.True(vm.StartCalculationCommand.CanExecute(null));
+        // D-128: a valid p_exit alone does not complete the config (no file / λ / μ).
+        Assert.False(vm.StartIsEnabled);
+        Assert.False(vm.StartCalculationCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -182,7 +185,8 @@ public class Phase4ConfigTests
         Assert.Equal("", vm.DailyCap.Value);
         Assert.Equal("42", vm.Seed.Value);
         Assert.Equal("State", vm.TraceLevel);
-        Assert.True(vm.StartIsEnabled);
+        // D-128: a reset returns to an empty fit-mode config, which is not startable.
+        Assert.False(vm.StartIsEnabled);
     }
 
     [AvaloniaFact]
@@ -229,11 +233,14 @@ public class Phase4ConfigTests
 
         Assert.False(vm.PExit.HasError, "turning an optional section OFF must clear the errors of its fields");
         Assert.Null(vm.PExit.ErrorMessage);
-        Assert.True(vm.StartIsEnabled, "with the section OFF its (now-cleared) fields must not block Start");
+        // D-128: the cleared p_exit is not what blocks Start — the config simply
+        // has no data file yet. The gate names the real blocker, not p_exit.
+        Assert.False(vm.StartIsEnabled);
+        Assert.DoesNotContain("p_exit", vm.StartBlockedMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [AvaloniaFact]
-    public void OptionalSection_ToggledOff_DoesNotBlockStart()
+    public void OptionalSection_ToggledOff_InvalidLambda_IsNotTheBlocker()
     {
         var vm = NewVm();
         vm.ParametersIsOptionalEnabled = true;
@@ -244,8 +251,11 @@ public class Phase4ConfigTests
 
         vm.ParametersIsOptionalEnabled = false;
 
-        Assert.True(vm.StartIsEnabled, "an OFF section's fields must be skipped in Start gating");
         Assert.False(vm.ManualLambda.HasError, "the error must be cleared, not merely ignored");
+        // D-128: an OFF section's fields are skipped, so λ is not the blocker —
+        // the empty fit-mode config is.
+        Assert.False(vm.StartIsEnabled);
+        Assert.DoesNotContain("λ", vm.StartBlockedMessage);
     }
 
     [AvaloniaFact]
@@ -264,7 +274,9 @@ public class Phase4ConfigTests
         vm.ParametersIsOptionalEnabled = true;
 
         Assert.False(vm.PExit.HasError, "turning the section back ON must wait for the next blur, not re-flag old text");
-        Assert.True(vm.StartIsEnabled, "Start must re-evaluate with no pending errors");
+        // D-128: no pending p_exit error, but the config still lacks data.
+        Assert.False(vm.StartIsEnabled);
+        Assert.DoesNotContain("p_exit", vm.StartBlockedMessage, StringComparison.OrdinalIgnoreCase);
 
         vm.ValidatePExit();
         Assert.True(vm.PExit.HasError, "blurring out of p_exit = 1 must re-flag and block again");

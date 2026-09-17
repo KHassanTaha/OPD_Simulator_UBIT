@@ -2,6 +2,118 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 7C — Two-path configuration (fit-from-data / enter-manually) (2026-09-18, `feat/milestone-7-model-driven`)
+
+Third phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
+8A enforced). Two explicit configuration paths selected by a new top-level
+**Data source** dropdown; Start became a completeness gate after the owner
+confirmed A′ and directed that 5d.1's "runnable in principle" contract be
+superseded (D-128).
+
+1. **Mode model** (7C.1–7C.2): new `Models/DataSourceMode.cs`
+   (`FitFromData`/`EnterManually`). `ConfigPanelViewModel` gained `SourceMode`
+   (default FitFromData) with a string-backed `SourceModeSelection` bridge for
+   the existing `SearchableDropdown`, `IsDataSectionVisible` /
+   `IsManualMuEditable` / `IsCommaListMuVisible`, a `0.4` p_exit seed on
+   switching to manual, and the Parameters toggle locked on in manual mode.
+2. **Per-stage μ** (7C.3–7C.5): `StageRow` gained
+   `MuValue`/`MuHasError`/`MuError`/`IsMuVisible` + blur `ValidateMu()`
+   ("μ must be a positive number…", routed via `ValidationKey="stage-mu"`).
+   The new "Service rate μ" `ValidatedField` is visible in manual mode
+   always, and in fit mode only for stages with no fitted rate. Fit-mode
+   `ManualServiceRates` now prefers fitted → comma list → per-stage fallback
+   (fitted wins — reverses 5d.1's manual-over-fitted order).
+3. **Completeness gate** (7C.6): `RecomputeBlockingState()` now runs
+   `CollectServerGaps` + per-mode `CollectManualModeGaps` /
+   `CollectFitModeGaps`, sets `StartIsEnabled` and `StartBlockedMessage`, and
+   drives the new FR-UI-9 `ErrorBanner` above the pinned footer. A real bug
+   was found in-gate: `SyncStagesToData` renamed rows but never recomputed the
+   gate, so the message stayed stale ("Reception has no μ" after adopting a
+   Screening-only file) — fixed by recomputing in `ApplyLoadedFile` and
+   `SyncStagesToData`.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **348 green**
+(Core 85 / Data 58 / Cli 35 / App 170, +16 `Phase7CTests`; the 5d.1
+Start-enabled assertions were updated in place, not deleted). Evidence
+`logs/screenshots/phase-7c-manual-mode.png` (470×1000 headless render:
+EnterManually, Data section hidden, per-stage μ 0.8/0.6/0.4, servers 1/2/3,
+Start enabled — D-089 method; temporary harness removed after capture).
+`Phase5dScreenshot` was updated to the new fitted-wins label order. Docs:
+DECISIONS D-128, TODO 7C `[x]` + polish backlog additions, USER_MANUAL
+"Data source — two ways to configure" + "Service rate" rewrite + §5 steps +
+changelog, DEV_LAUNCH §1/§6/§12, REQUIREMENTS FR-UI-9 `[x]` / FR-UI-7 `[~]`,
+CONTEXT §5.7. Pushed to `feat/milestone-7-model-driven`, awaiting owner
+review/merge per §11.5; **do not start Phase 8A until instructed**.
+
+Open item: `AGENTS.md` §19 "Two-Path Configuration Contract" was requested with
+the owner's exact text, which was not available in this session — **not written
+to avoid inventing policy**; awaiting the owner's text.
+
+### Session Handoff — 2026-09-18 01:32
+Branch: `feat/milestone-7-model-driven`
+Status: In-Progress (awaiting commit/push + AGENTS §19 text)
+
+Done
+- Phase 7C — two-path configuration marked `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 348 green (Core 85 / Data 58 / Cli 35 / App 170, +16), evidence `logs/screenshots/phase-7c-manual-mode.png`; D-128 logged.
+
+In Progress
+- None (code + tests + docs complete; commit/push pending at time of writing).
+
+What is complete:
+- `Models/DataSourceMode.cs`; `ConfigPanelViewModel` mode region + per-mode gate + `StartBlockedMessage` + `CollectServerGaps`/`CollectManualModeGaps`/`CollectFitModeGaps`; `StageRow` μ fields + `ValidateMu`; `ConfigPanel.axaml` Data-source dropdown / gated Data section / per-stage μ field / ErrorBanner; `ConfigPanel.axaml.cs` "stage-mu" routing; `Phase7CTests.cs` (16 tests); 5d.1 Start-gate test flips (D-128).
+- Docs: DECISIONS D-128, TODO 7C `[x]` + 3 polish-backlog rows, DEV_LAUNCH §1/§6/§12, USER_MANUAL "Data source"/"Service rate"/§5/changelog, REQUIREMENTS (FR-UI-9 `[x]`, FR-UI-7 `[~]`, coverage 49/70 = 70.0%), CONTEXT §5.7.
+
+What remains:
+- Owner to supply the exact `AGENTS.md` §19 "Two-Path Configuration Contract" text; then append it.
+- Owner to eyeball `logs/screenshots/phase-7c-manual-mode.png` (470×1000) and review/merge the branch per §11.5.
+- Do NOT start Phase 8A until instructed.
+
+Next Session Should Start With
+- Add `AGENTS.md` §19 once the owner supplies the exact text (nothing else outstanding for 7C).
+- If 8A starts, re-run the §14.1 reconciliation first (git + TODO + PROGRESS + BLOCKERS + DECISIONS).
+
+Blocked
+- `AGENTS.md` §19 text — owner input required (see BLOCKERS.md B-009 if raised).
+
+Git State
+Commits made this session: pending at time of writing (feat commit + handoff docs commit).
+Pushed to origin: pending.
+Uncommitted changes: all Phase 7C code, tests and docs (see Files Touched).
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors).
+dotnet test: PASS — 348 green (Core 85 / Data 58 / Cli 35 / App 170).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App/Models/DataSourceMode.cs: added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (mode region, StageRow μ, per-mode gate, SyncStages/ApplyLoaded recalc, TryBuildRunParameters)
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified (Data-source dropdown, gated Data section, per-stage μ field, ErrorBanner row)
+src/OpdSimulator.App/Views/ConfigPanel.axaml.cs: modified ("stage-mu" blur routing)
+tests/OpdSimulator.App.Tests/Phase7CTests.cs: added (16 tests)
+tests/OpdSimulator.App.Tests/Phase4ConfigTests.cs: modified (5d.1 Start-gate flips, D-128 comments)
+tests/OpdSimulator.App.Tests/Phase5dConfigTests.cs: modified (rename + flips, defence-in-depth comment)
+tests/OpdSimulator.App.Tests/Phase5dScreenshot.cs: modified (fitted-wins label assertions)
+docs/DECISIONS.md: modified (D-128)
+docs/TODO.md: modified (7C `[x]`, polish backlog)
+docs/DEV_LAUNCH.md: modified (§1, §6, §12)
+docs/USER_MANUAL.md: modified (Data source / Service rate / §5 / changelog)
+docs/REQUIREMENTS.md: modified (FR-UI-7/9, coverage)
+docs/CONTEXT.md: modified (§5.7)
+docs/PROGRESS.md: modified (7C narrative + this handoff)
+
+Decisions Made
+- D-128 — Start button is a completeness gate; supersedes 5d.1's "runnable in principle" contract (A′, owner-confirmed).
+
+Assumptions Added/Changed
+- CONTEXT §5.7 [VERIFIED] — two configuration paths; fit-mode μ precedence fitted → comma → per-stage; Start gate (D-128).
+
+Notes for Next Session
+- `AGENTS.md` §19 was explicitly requested "with the owner's exact text"; that text is not in the repo or this session — do not write a substitute.
+- The fit-mode μ precedence change (fitted wins) is a deliberate reversal of 5d.1; `Phase5dScreenshot` was updated accordingly.
+- `logs/` is gitignored; the 7C screenshot came from a temporary harness removed after capture.
+
+
 ## Phase 7B — Per-stage Kendall model notation (2026-09-18, `feat/milestone-7-model-driven`)
 
 Second phase of the owner's Phase 7 model-driven input series (owner "go"

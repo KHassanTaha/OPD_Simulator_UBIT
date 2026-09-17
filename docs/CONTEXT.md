@@ -275,6 +275,20 @@ engine defines as the mean of its per-server utilisations (D-121).
 > D-100's "blank means fitted" intent is preserved with one canonical entry
 > point (D-112).
 
+> **[VERIFIED — owner A′, 2026-09-18 — D-128 / Phase 7C]** Configuration now
+> has **two explicit paths**, chosen by the top-level **Data source** dropdown:
+> **Fit from an uploaded data file** (default) or **Enter parameters manually**.
+> In manual mode the per-stage **Service rate μ (per server)** field is
+> re-introduced and is the single entry point; the Parameters comma list is
+> hidden. In fit mode the comma list remains the bulk override and the
+> per-stage field appears only for a stage the data does not cover. **Precedence
+> in fit mode: fitted rate → comma list → per-stage fallback** (a fitted rate
+> wins — this reverses 5d.1's manual-over-fitted order). **Start is a
+> completeness gate**: it stays disabled until the chosen path is complete, and
+> a banner names the missing input; the coordinator's run-time μ refusal is
+> retained as defence in depth but is no longer GUI-reachable (D-128,
+> supersedes the 5d.1 "runnable in principle" contract).
+
 ---
 
 ## 6. Visual Output Analysis

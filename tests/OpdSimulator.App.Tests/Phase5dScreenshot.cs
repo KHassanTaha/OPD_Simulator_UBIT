@@ -35,8 +35,12 @@ public class Phase5dScreenshot
 
         Assert.True(vm.IsStageMismatchWarningVisible,
             "fixture must produce the stage-count mismatch warning");
-        Assert.All(vm.StageRows, row =>
-            Assert.EndsWith("(manual)", row.ServiceRateLabel, StringComparison.Ordinal));
+        // Phase 7C ruling 5: a fitted rate wins over the comma-list override, so
+        // Screening (the one stage present in the sample data) reports the fitted
+        // source; Reception and Doctor fall back to the manual comma list.
+        Assert.EndsWith("(manual)", vm.StageRows[0].ServiceRateLabel, StringComparison.Ordinal);
+        Assert.EndsWith("(from data)", vm.StageRows[1].ServiceRateLabel, StringComparison.Ordinal);
+        Assert.EndsWith("(manual)", vm.StageRows[2].ServiceRateLabel, StringComparison.Ordinal);
 
         var host = new Window
         {

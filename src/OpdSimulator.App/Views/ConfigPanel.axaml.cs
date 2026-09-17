@@ -217,6 +217,9 @@ public partial class ConfigPanel : UserControl
             case "servers":
                 (field.DataContext as StageRow)?.ValidateServers();
                 break;
+            case "stage-mu":
+                (field.DataContext as StageRow)?.ValidateMu();
+                break;
         }
     }
 }

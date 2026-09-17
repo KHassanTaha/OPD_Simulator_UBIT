@@ -11,7 +11,7 @@
          PinnedFooterBar pinned under the scroll area (D-XXX, DECISIONS.md).
          Tab order per section follows visual order; each ValidatedField is a
          single tab stop (its inner TextBox) and validates on blur (FR-UI-17). -->
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="*,Auto,Auto">
 
         <ScrollViewer Grid.Row="0"
                       VerticalScrollBarVisibility="Auto"
@@ -19,8 +19,19 @@
 
             <StackPanel Spacing="{DynamicResource SpaceM}">
 
+                <!-- Phase 7C: top-level data-source selector. Fit the
+                     distributions from an uploaded file, or enter the rates
+                     by hand; exactly one path is active (D-128). -->
+                <controls:SearchableDropdown Label="Data source"
+                                             Placeholder="Choose how to configure…"
+                                             Tooltip="Fit the distributions from an uploaded data file, or enter the arrival and service rates manually"
+                                             Items="{Binding SourceModeOptions}"
+                                             SelectedItem="{Binding SourceModeSelection, Mode=TwoWay}"
+                                             HelpAnchor="data-source"/>
+
                 <!-- ───── 1 · Data ─────────────────────────────────────── -->
                 <controls:CollapsibleSection Title="1 · Data"
+                                             IsVisible="{Binding IsDataSectionVisible}"
                                              IsExpanded="True"
                                              HelpText="Upload the patient data file. The row preview lives in the Results panel (Phase 5) — it is deliberately not duplicated here.">
                     <StackPanel Spacing="{DynamicResource SpaceXs}">
@@ -135,6 +146,7 @@
                                                  Watermark="e.g., 0.8, 0.6, 0.4"
                                                  Tooltip="Comma-separated per-stage service rates. Blank uses the fitted values."
                                                  Unit="/ min"
+                                                 IsVisible="{Binding IsCommaListMuVisible}"
                                                  Value="{Binding ManualMuPerStage.Value, Mode=TwoWay}"
                                                  HasError="{Binding ManualMuPerStage.HasError}"
                                                  ErrorMessage="{Binding ManualMuPerStage.ErrorMessage}"
@@ -230,15 +242,30 @@
                                                                          SelectedItem="{Binding ServiceFamily, Mode=TwoWay}"
                                                                          IsVisible="{Binding UseAdvancedSetup}"
                                                                          HelpAnchor="stage-service-distribution"/>
-                                            <StackPanel Spacing="2">
+                                            <StackPanel Spacing="2"
+                                                        IsVisible="{Binding $parent[ItemsControl].DataContext.IsCommaListMuVisible}">
                                                 <TextBlock Text="Service rate μ"
                                                            FontSize="{DynamicResource FontSizeCaption}"
                                                            Foreground="{DynamicResource BrushTextSecondary}"/>
                                                 <TextBlock Text="{Binding ServiceRateLabel}"
                                                            Classes="Caption"
                                                            TextWrapping="Wrap"
-                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing — the run is refused until a source exists"/>
+                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
                                             </StackPanel>
+                                            <!-- Phase 7C: the editable per-stage μ. Always
+                                                 shown in manual mode; in fit mode it appears
+                                                 only when the data has no fitted rate for this
+                                                 stage (7C.4/7C.5). -->
+                                            <controls:ValidatedField Label="Service rate μ"
+                                                                     Watermark="e.g., 0.8"
+                                                                     Tooltip="Manual service rate for this stage, interpreted by the Parameter mode and Time unit; only needed when the data does not supply one"
+                                                                     Unit="/ min"
+                                                                     IsVisible="{Binding IsMuVisible}"
+                                                                     Value="{Binding MuValue, Mode=TwoWay}"
+                                                                     HasError="{Binding MuHasError}"
+                                                                     ErrorMessage="{Binding MuError}"
+                                                                     HelpAnchor="stage-mu"
+                                                                     views:ConfigPanelValidation.ValidationKey="stage-mu"/>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -356,8 +383,15 @@
             </StackPanel>
         </ScrollViewer>
 
+        <!-- FR-UI-9 / D-128: names exactly which required input is missing
+             while Start is disabled. Hides itself when nothing is missing. -->
+        <controls:ErrorBanner Grid.Row="1"
+                              Margin="{DynamicResource ThicknessWindowPadding}"
+                              Message="{Binding StartBlockedMessage}"
+                              ToolTip.Tip="Shows which required inputs are missing before the simulation can start"/>
+
         <!-- Pinned primary action: stays visible while the config scrolls. -->
-        <controls:PinnedFooterBar Grid.Row="1"
+        <controls:PinnedFooterBar Grid.Row="2"
                                   PrimaryText="Start Calculation"
                                   PrimaryCommand="{Binding StartCalculationCommand}"
                                   PrimaryIsEnabled="{Binding StartIsEnabled}"

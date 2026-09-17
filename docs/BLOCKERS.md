@@ -5,7 +5,14 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
-*(none — current resolutions on file)*
+- **B-009:** Phase 7C docs — `AGENTS.md` §19 "Two-Path Configuration Contract" requires the owner's exact text.
+  - Owner: Taha
+  - Impact: The 7C documentation set is complete except for this requested `AGENTS.md` section. The text was described as "the owner's exact text" but does not exist in the repo or this session, so it was **not written** (writing policy wording unilaterally would violate AGENTS §2/§9.5).
+  - Needed action: Paste the exact §19 text; it will be appended verbatim as a docs follow-up commit.
+  - Linked tasks: `docs/TODO.md` Phase 7C row; `docs/DECISIONS.md` D-128.
+  - Status: Blocked on owner text
+
+*(B-001..B-008 as below)*
 
 ## Resolved
 

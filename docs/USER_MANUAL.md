@@ -142,6 +142,24 @@ a chart.
 The subsections below are the targets of the "?" help icons on every
 configuration field (press **F1** anytime or click a "?" icon to jump here).
 
+### Data source — two ways to configure
+
+At the top of the configuration panel, a **Data source** dropdown chooses how
+the simulation gets its parameters:
+
+- **Fit from an uploaded data file** (default) — upload a file; the app fits
+  λ and each stage's μ from it. The **Data** section and the **Manual μ per
+  stage** comma-list override are shown.
+- **Enter parameters manually** — no file needed. The Data section is hidden,
+  the per-stage **Service rate μ** fields become editable, and p_exit defaults
+  to **0.4** (you can change it).
+
+Both paths are complete configurations. **Start Calculation stays disabled
+until the chosen path is complete**, and the banner above the Start button
+names exactly what is missing (for example *"Cannot start: upload a usable
+data file, Reception has no μ."*). Switching the dropdown back and forth does
+not lose values you already typed.
+
 ### Arrival rate
 
 The arrival rate λ₀ (patients per minute) arriving at **Reception**. In
@@ -190,15 +208,22 @@ Service rate μ per server per stage (patients per minute). With **c** servers
 in parallel the stage capacity is `c × μ`, so keep ρᵢ = λᵢ/(cᵢ·μᵢ) below 1 —
 the app refuses to run an unstable stage (FR-VAL-1).
 
-Since Phase 5d the **Stages section is topology only** (names + servers): each
-row shows a read-only label telling you where its μ comes from:
+Where μ comes from depends on the **Data source** you chose. In every case the
+stage row shows a read-only label telling you the source:
+
 - **`μ = 0.50 (from data)`** — fitted from the uploaded file's
   `<stage>_start`/`<stage>_end` times.
-- **`μ = 0.50 (manual)`** — taken from the single **Parameters** comma list,
-  in stage order (apply menu toggles rate-wise 1/μ vs mean-wise μ).
-- **`μ = — (no source)`** — neither available: the run is refused with a
-  banner naming the stage until you upload data covering it or enable
-  Parameters and enter a μ for it.
+- **`μ = 0.50 (manual)`** — taken from the **Manual μ per stage** comma list,
+  in stage order (rate-wise or mean-wise per the parameter mode).
+- **`μ = 0.50 (per-stage)`** — typed into that row's **Service rate μ** field.
+- **`μ = — (no source)`** — none available; Start stays disabled and the
+  banner names the stage until you supply one.
+
+In **Fit from an uploaded data file** mode the comma list is the bulk override,
+and a fitted rate wins over a comma-list entry for the same stage; a row whose
+stage the data does not cover shows an editable **Service rate μ** field as a
+fallback. In **Enter parameters manually** mode the per-stage **Service rate
+μ** fields are the single entry point and the comma list is hidden.
 
 ### Significance level (α)
 
@@ -278,9 +303,10 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
 
 ## 5. Step-by-Step: Run a Simulation
 
-1. **Choose parameter mode.**
-   Select **Rate-wise** (λ, μ) or **Mean-wise** (1/λ, 1/μ). This must match the
-   data you are about to upload.
+1. **Choose the data source, then the parameter mode.**
+   At the top, pick **Fit from an uploaded data file** (default) or **Enter
+   parameters manually** (no file needed). Then select **Rate-wise** (λ, μ) or
+   **Mean-wise** (1/λ, 1/μ). This must match the data you are about to upload.
 
 2. **Select the inter-arrival distribution.**
    Default: **Exponential** (recommended for arrivals).
@@ -297,17 +323,22 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    - Screening: `2`
    - Doctor: `3`
    Each stage row also shows a read-only **service-rate μ label** — "(from
-   data)", "(manual)", or "— (no source)" — telling you where its rate will
-   come from (see *Service rate* above).
+   data)", "(manual)", "(per-stage)", or "— (no source)" — telling you where
+   its rate will come from (see *Service rate* above). In **Enter parameters
+   manually** mode each row also shows an editable **Service rate μ** field.
 
-6. **(Optional) Enter a manual λ.**
+6. **(Optional in Fit mode) Enter a manual λ.**
    If you enter a value, the simulator will still fit the data and show both
-   results side by side. The manual value is used in the simulation.
+   results side by side. The manual value is used in the simulation. In
+   **Enter parameters manually** mode λ is **required** — Start stays disabled
+   until it is a positive number.
 
-7. **(Optional) Enter manual service rates μ.**
-   A single comma-separated list in the **Parameters** section, in stage
-   order (rate-wise or mean-wise per the mode toggle; a trailing blank uses
-   the fitted value). Every stage label updates to "(manual)".
+7. **(Optional in Fit mode) Enter manual service rates μ.**
+   In **Fit from an uploaded data file** mode this is a single comma-separated
+   list in the **Parameters** section, in stage order (rate-wise or
+   mean-wise per the mode toggle; a trailing blank uses the fitted value). In
+   **Enter parameters manually** mode the comma list is hidden — type each
+   stage's μ into its row's **Service rate μ** field instead.
 
 8. **Click "Upload Data"** and choose your Excel file.
    The file must contain one row per patient with columns:
@@ -668,6 +699,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Phase 7C: a **Data source** dropdown at the top chooses between **Fit from an uploaded data file** (default — Data section + comma-list μ override shown) and **Enter parameters manually** (Data section hidden; per-stage **Service rate μ** fields become editable; p_exit defaults to 0.4). **Start Calculation is now a completeness gate** — it stays disabled and a banner names exactly what is missing (D-128, supersedes the old "runnable in principle" behaviour). See §Config fields → "Data source" and "Service rate" |
 | 2026-09-18 | Phase 7B: each stage row now has a **Model** dropdown (Kendall shortcuts like M/M/2, M/D/1, G/G/1) that sets the row's server count and distribution families, plus an **Advanced** toggle that reveals independent **Arrival distribution** / **Service distribution** dropdowns (§Config fields → "Per-stage model setup"). Deterministic/General are notation-only placeholders — the engine still samples exponentially |
 | 2026-09-18 | Phase 7A: manual λ/μ inputs now take a **Time unit** selector (per minute/second/hour) with the **Parameter mode** radios moved next to them at the top of the Parameters section, and the Horizon section gained a **Time span** preset (15 min / 1 hour / 1 day / 1 week / 1 month / custom days) covering §Config fields → "Time unit" / "Horizon" |
 | 2026-09-17 | Phase 6c.4: the **Simulation** tab's results now include a **Per-server utilisation** widget (§6.4) — one bar per server, amber when a server deviates from its stage's average utilisation by more than 0.15, with a thin stage-average reference line. It appears once a run finishes ("Run a simulation to see utilisation." before that) and is toggleable via "Customise results" (§6) |
