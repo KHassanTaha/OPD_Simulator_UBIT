@@ -2,6 +2,62 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-18 04:32
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8A — retain RNG-generated samples in `SimulationResult` (8A.1–8A.3)
+
+In Progress
+- None
+
+What is complete:
+- `SimulationResult` exposes `GeneratedInterArrivalSamples` and `GeneratedServiceSamplesByStage` (init-only, `Array.Empty` defaults).
+- `Engine.RunCore` records the drawn inter-arrival times (only when the next arrival is scheduled) and the per-stage service times (indexed by `patient.StageIndex`) in two per-run buffers, projects them into the result, then releases them.
+- Private helper signatures, existing public properties/methods/constructors, and both `Run` overloads are unchanged.
+- `GeneratedSamplesTests.cs` (5 tests) added; Core 85 → 90.
+
+What remains:
+- Phase 8B (chi-square on simulation output) — do NOT start until instructed.
+
+Next Session Should Start With
+- Phase 8B — simulation-verification histograms + chi-square over the retained samples (await owner "go").
+- Phase 8C, then 8D; Phase 6 (Help + presets) comes after 8D.
+
+Blocked
+- None
+
+Git State
+Commits made this session: 1500f2e feat: retain generated samples in SimulationResult (Phase 8A)
+Pushed to origin: Yes — `feat/milestone-7-model-driven` at 1500f2e
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release)
+dotnet test: PASS — 393 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 210)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Engine/SimulationResult.cs: modified (+2 init-only properties)
+src/OpdSimulator.Core/Engine/Engine.cs: modified (2 buffers + append/project/release)
+tests/OpdSimulator.Core.Tests/GeneratedSamplesTests.cs: added (5 tests)
+docs/DECISIONS.md: modified (D-135)
+docs/DEV_LAUNCH.md: modified (§1 counts, §6 counts, §12 changelog)
+docs/PROGRESS.md: modified (Phase 8A entry + this handoff)
+docs/TODO.md: modified (Phase 8A → [x])
+
+Decisions Made
+- D-135 — `SimulationResult` retains RNG-generated inter-arrival and per-stage service samples
+
+Assumptions Added/Changed
+- None
+
+Notes for Next Session
+- `Run_CalendarMode_RetainsSamples` deliberately does NOT assert `count == TotalPatientsServed − 1`: retained inter-arrival samples include draws that landed in closed periods and were gated out, so the count is not tied to patients served. It asserts both streams are populated and every stage produced service samples. Flagged in PROGRESS and D-135.
+- 8A was Core-only: no UI/launch smoke was needed or run; the 7D launch evidence stands.
+- Memory cost of always retaining: ≈128 KB at 4000 patients × 3 stages (accepted, D-135).
+
 ## Phase 8A — Retain RNG-generated samples in `SimulationResult` (2026-09-18, `feat/milestone-7-model-driven`)
 
 First phase of the owner's Phase 8 simulation-verification series (owner "go";
