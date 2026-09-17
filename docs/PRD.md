@@ -1,6 +1,6 @@
 # Product Requirements Document – OPD Clinic Queue Simulator
 
-**Version:** v1.4.0
+**Version:** v1.5.0
 **Date:** 2026-09-14
 **Author:** Taha Hassan
 **Course:** Simulation & Modelling
@@ -364,6 +364,15 @@ To load a previously saved configuration, the user explicitly:
 
 Once loaded, the fields populate from the preset. The Presets dropdown then shows the loaded preset name.
 
+**FR-UI-22 (Time Unit Selector)**
+The Parameters section SHALL provide a searchable dropdown for the user to declare whether entered rates (λ, μ) or means (1/λ, 1/μ) are expressed per minute, per second, or per hour. The engine SHALL convert all values to minutes internally at parameter-build time. The chosen unit SHALL appear in any results-panel captions that display a rate.
+
+**FR-UI-23 (Parameter Mode Relocation)**
+The rate-wise / mean-wise parameter-mode selector SHALL live at the top of the Parameters section, adjacent to the time-unit selector and the manual λ/μ entries, so the user declares the interpretation and the unit together.
+
+**FR-UI-24 (Time-Span Presets)**
+The Horizon section SHALL offer a time-span preset selector (15 minutes, 1 hour, 1 day, 1 week, 1 month, or custom days). Sub-day presets SHALL bound the minutes horizon; day-or-longer presets SHALL resolve to a generator-day count (1 week → 6 open days, 1 month → 26 open days); custom days SHALL be a validated numeric entry.
+
 ### 5.2 Data Handling
 
 **FR-DATA-1:** Accept `.xlsx` (primary) or `.csv` (fallback).
@@ -515,3 +524,4 @@ The data preview table SHALL remain responsive (scroll, sort, selection) with da
 | v1.2.0 | 2026-09-13 | Per-server utilisation: new FR-DATA-10 (optional server-ID columns → historical per-server validation, never rejects); new FR-STAT-7 (simulated per-server utilisation always available, stage-level = mean of per-server, imbalance flag when max−min > 0.15 on both sources, random-among-idle assignment); operating time defined as first-arrival → last-service-end per day; CONTEXT §5.7; decisions D-016..D-018. | §4, §5, §10 |
 | v1.3.0 | 2026-09-13 | Charts: new FR-UI-4 (LiveCharts2 charts in results panel: histogram + fitted PDF, chi-square bars, per-server utilisation bars, P2 queue-over-time + waiting-time histogram; presentation layer only); new FR-STAT-8 (visual output for fits, histogram bin count = chi-square bin count); new NFR-6 (chart render < 500 ms / 10k points, downsampling, non-blocking); success criteria + §4.1 bullets; CONTEXT §6 Visual Output Analysis added, later CONTEXT sections renumbered (SPSS→§7, Validation→§8, Glossary→§9, References→§10); decision D-019. Charts belong to M5, with M1 statistics collector and M2 fitting exposing the binned/PDF/series data. | §4, §5, §6, §7, §10 |
 | v1.4.0 | 2026-09-14 | New M5 UI/UX requirements: FR-UI-5..21 (welcome panel, searchable dropdowns, disabled-field treatment, tooltips, accessibility feedback, themed dialogs/toasts, scrollable+collapsible config panel, clear-all, customisable results panel, full tab navigation, labels+placeholders, invalid-field highlighting, in-program guide, presets, data preview table, empty startup) and NFR-7..10 (accessibility baseline, consistency, preset portability, preview performance). Decisions D-060..D-076. | §5.1, §6, §8 |
+| v1.5.0 | 2026-09-18 | New FR-UI-22/23/24 for time unit, parameter mode, and time-span presets (Phase 7A). FR-UI-22 marked `[~]` pending results-caption unit display. | §5.1, §6 |

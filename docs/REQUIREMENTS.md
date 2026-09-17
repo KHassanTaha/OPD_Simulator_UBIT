@@ -6,7 +6,7 @@ spec → code → test → decision.
 **Source of truth:** `PRD.md` (master). If this file disagrees with PRD.md,
 PRD.md wins.
 
-**Last synced with PRD.md:** 2026-09-14 (v1.4.0)
+**Last synced with PRD.md:** 2026-09-18 (v1.5.0)
 
 **Status vocabulary:** `[ ]` TODO · `[~]` IN PROGRESS · `[x]` DONE ·
 `[?]` BLOCKED · `[-]` CANCELLED
@@ -38,6 +38,9 @@ PRD.md wins.
 | FR-UI-19 | Preset save/load/import/export; schemaVersion JSON | [x] | Services/PresetStore.cs, Preset.cs, PresetConfig.cs, PresetNaming.cs, Views/PresetManagerDialog.cs | PresetStoreTests (App.Tests) | D-083 |
 | FR-UI-20 | Selected data preview table (read-only, virtualised, sortable) | [x] | Controls/DataPreviewTable.axaml + Services/DataPreviewStore.cs + Models/DataBindingResult.cs (src/OpdSimulator.App) + Views/ResultsPanel.axaml (preview widget) | DataPreviewStoreTests (App.Tests) | D-080, D-081, D-104 |
 | FR-UI-21 | Empty startup; explicit preset selection; no auto-restore | [x] | ConfigPanelViewModel factory defaults, ResultsPanelViewModel (welcome card shown until first run), MainWindow (no _lastSession.json read) | Phase5RunFlowTests.WelcomeCard_VisibleInitially_ReplacedByFirstRunAttempt (no auto-restore, no auto-load) | D-083, D-104 |
+| FR-UI-22 | Time unit selector (min/sec/hr) with conversion to minutes at parameter-build time. Results-panel captions that display a rate SHALL reflect the user's chosen unit. | [~] — declaration + conversion implemented; results-panel unit display pending | Models/TimeUnit.cs, Controls/TimeUnitSelector.axaml, ViewModels/ConfigPanelViewModel.cs (ToPerMinute) | Phase7ATests.TimeUnit_Default_IsMinutes, ToPerMinute_Seconds_MultipliesBy60, ToPerMinute_Hours_DividesBy60, TimeUnitSelector_BindsToViewModel | D-125 |
+| FR-UI-23 | Parameter mode (Rate-wise / Mean-wise) toggle in the Parameters section | [x] | ViewModels/ConfigPanelViewModel.cs (ParameterMode), Views/ConfigPanel.axaml | Phase7ATests (ParameterMode_Default_IsRateWise, RateWise_LambdaPassesThrough, MeanWise_LambdaIsInverseOfMean, MeanWise_SecondsMean_ConvertsCorrectly) | D-125 |
+| FR-UI-24 | Time-span presets (15 min / 1 hr / 1 day / 1 week / 1 month / custom days) | [x] | ViewModels/ConfigPanelViewModel.cs (TimeSpanPreset, ResolveGeneratorDays), Views/ConfigPanel.axaml | Phase7ATests (TimeSpan_FifteenMinutes_ReturnsHorizonMinutes15, TimeSpan_OneHour_ReturnsHorizonMinutes60, TimeSpan_OneDay_ReturnsGeneratorDays1, TimeSpan_OneWeek_ReturnsGeneratorDays6, TimeSpan_OneMonth_ReturnsGeneratorDays26, TimeSpan_CustomDays_ParsesFieldValue) | D-125 |
 
 ## Functional Requirements — Data
 
@@ -114,14 +117,14 @@ PRD.md wins.
 
 ## Coverage Summary
 
-- Total requirements: 67
-- `[x]` DONE: 29
-- `[~]` IN PROGRESS: 3
-- `[ ]` TODO: 35
+- Total requirements: 70
+- `[x]` DONE: 48
+- `[~]` IN PROGRESS: 8
+- `[ ]` TODO: 14
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 43.3% (29/67)
+**Coverage:** 68.6% (48/70)
 
 > M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
 > NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
@@ -163,6 +166,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Phase 7A traceability: registered FR-UI-22 (time unit, `[~]`), FR-UI-23 (parameter mode, `[x]`), FR-UI-24 (time-span presets, `[x]`) — authority PRD v1.5.0, decision D-125. Coverage block recomputed from the actual matrix (the prior block was stale at 29/67): now 48/70 = 68.6%. |
 | 2026-09-14 | M5 view layer landed + tested: FR-UI-1/3/4/5/6/8/10/11/12/14/16/18/19/20/21 → `[x]` with Source + Test + Decision (D-077..D-085); FR-UI-9/15/17 stay `[~]` (banner/escape wired, live-region + keyboard-acceptance rows open); FR-UI-2/7/13 still `[ ]`. Coverage now 65.7% (44/67 `[x]`, 7 `[~]`) — authority: PRD v1.4.0 |
 | 2026-09-14 | M5: 21 new rows registered for the M5 UI/UX batch — FR-UI-5..21 and NFR-7..10, all `[ ]` (captured, no source/test yet). PRD bumped to v1.4.0; decisions D-060..D-076; M5_UI_SPEC.md added. Coverage recomputed: 29/67 = 43.3% (35 `[ ]` now open because M5 work is not started) |
 | 2026-09-14 | M4: FR-VAL-4 Source/Test/Decision refreshed — the first-class deterministic trace (Trace/ namespace + `trace` CLI, D-055) supersedes the Serilog Debug channel as the implementation; tests now TraceRegressionTests (golden fixture, draw-by-draw RNG parity, stats cross-check) + CliTraceTests + EventTraceTests; coverage summary block recomputed from 50.0% to the actual 63.0% (constituting stale from M3) |

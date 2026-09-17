@@ -1,6 +1,6 @@
 # TODO.md
 
-Last updated: 2026-09-16
+Last updated: 2026-09-18
 
 > **Completion rule:** A task that adds/removes a feature is not `[x] DONE`
 > until `DEV_LAUNCH.md` reflects the change (if build/launch affected) and
@@ -65,6 +65,11 @@ Last updated: 2026-09-16
 > phase; a row here is never `[x] DONE` until the fix lands.
 - [x] Manual service-rate inputs are duplicated: the per-stage `ServiceRate` field is authoritative and Parameters' `ManualMuPerStage` list only backfills blanks (D-106) — consolidate into one input path. **FIXED in Phase 5d.1 (D-112), 2026-09-16**: the per-stage field is gone (rows are topology only with a read-only μ-source label); the Parameters comma list is the single manual entry point.
 - [ ] Trace widget renders the full collected trace text with no virtualization; very long DiagnosticTrace runs (thousands of events) can be slow to scroll — cap/paginate or virtualise in the polish phase.
+
+### Phase 8D polish (capture-only — 2026-09-18)
+> Same capture-only rule as Post-Phase-5 polish (above): visual / UX nits are
+> **logged here, not fixed**. A row here is never `[x] DONE` until the fix lands.
+- [ ] Results-panel captions: show rate values in the user's chosen time unit (min/sec/hr). Required by FR-UI-22 as currently marked `[~]` (declaration + conversion landed in Phase 7A; D-125).
 
 ## Upcoming
 
