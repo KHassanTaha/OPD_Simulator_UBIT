@@ -84,6 +84,9 @@ Last updated: 2026-09-18
 - [ ] **Unify μ entry around the per-stage fields (7C interim)**: 7C made per-stage μ authoritative in manual mode but left the comma-list `ManualMuPerStage` as the fit-mode override. Two μ entry surfaces still coexist (comma list + per-stage) with fitted-wins precedence; a future cleanup should decide one canonical input path (cf. the 5d.1 consolidation in D-112).
 - [ ] **Document the D-128 supersession in the deep-dive document**: the deep-dive chapters must record that 5d.1's Start contract was superseded — chapter 10 (ViewModels/gating), chapter 15 (Decision log summary), chapter 16 (Viva question bank). Owner will supply/point at the deep-dive file.
 - [x] **§19.6 tab-naming refresh after Phase 7D** merges Input Analysis + Data section into a single Input tab (AGENTS §19.6 forward note): when 7D lands, update the tab names in `AGENTS.md` §19.6, §16.12, and the USER_MANUAL/DEV_LAUNCH references so "Input Analysis tab" / "Data section" become the single "Input tab". **DONE in Phase 7D (2026-09-18)**: AGENTS §16.12 + §19.6, USER_MANUAL, DEV_LAUNCH and the Phase3ShellTests header all updated in the 7D commit.
+- [ ] **Remove orphaned SyncStagesRequested / KeepStageMismatchRequested commands** (7D finding): `ConfigPanelViewModel` still exposes these but the panel no longer raises them after the D-114 relocation. Remove during a cleanup pass if nothing else consumes them.
+- [ ] **Reconcile legacy "M5 — GUI" backlog rows** (~TODO.md lines 240–251): still show `[ ]` for work shipped in 6C (charts, LiveCharts2 package, Input tab, event-log rendering). Archive or retire during 8D's final docs pass.
+- [ ] **Phase order check** (agent note correction): the next phase after 7D is 8A (Core: retain generated samples), then 8B, 8C, 8D. Phase 6 (Help + presets) comes after 8D. The handoff note "Post-merge: Phase 6" was incorrect.
 
 ## Upcoming
 

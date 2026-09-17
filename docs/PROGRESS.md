@@ -77,7 +77,7 @@ In Progress
 
 Next Session Should Start With
 - Await owner review/merge of `feat/milestone-7-model-driven` (§11.5); do not start Phase 8A until instructed.
-- Post-merge: Phase 6 (Help tab + preset system) per PRD phase order.
+- Post-merge: Phase 8A (Core: retain generated samples), then 8B, 8C, 8D; Phase 6 (Help tab + preset system) follows 8D.
 
 Blocked
 - None.
@@ -120,6 +120,8 @@ Assumptions Added/Changed
 Notes for Next Session
 - `ConfigPanelViewModel.SyncStagesRequested`/`KeepStageMismatchRequested` remain but are no longer raised by the panel (its buttons were removed) — cleanup candidate, not dead code.
 - The §19.6 tab-name refresh TODO row is now done (AGENTS §19.6/§16.12, USER_MANUAL, DEV_LAUNCH updated in this change).
+
+> Phase order clarification (7D handoff fix): next phase after 7D is 8A, not Phase 6. Phase 6 follows 8D.
 
 ### AGENTS.md §18 + §19 — 2026-09-18
 
