@@ -1064,3 +1064,194 @@ Minimum tests for the in-program guide:
   markdown and render it.
 - Do NOT auto-load the last preset. Startup is empty by design
   (FR-UI-21).
+
+## 18. UI Completion Criterion (Non-Negotiable)
+
+A UI requirement is NOT `[x] DONE` because:
+  - Tests pass
+  - Code exists
+  - The file was committed
+
+A UI requirement is `[x] DONE` only when:
+  1. The developer has launched the app manually, OR — where
+     the host environment cannot drive a display (D-089) —
+     performed a headless walkthrough with the same click
+     sequence.
+  2. Executed the exact click sequence the FR describes.
+  3. Observed the expected result.
+  4. Documented the verification in PROGRESS.md:
+       "FR-UI-XX verified on YYYY-MM-DD by <agent|owner>:
+        clicked [sequence], observed [result], screenshot at
+        logs/screenshots/fr-ui-XX.png"
+  5. Attached a screenshot when practical.
+
+If the verification was not performed, the requirement is `[~]`
+in progress, NOT `[x]`.
+
+The same discipline extends to whole phases: a phase is not `[x]`
+in `TODO.md` until its PROGRESS.md entry contains a verification
+table listing every requirement the phase touched and how each
+was verified.
+
+This rule exists because M5 shipped with 15 FR-UI rows marked
+[x] that were not functionally verified. The failure was
+discovered only when the owner launched the app manually.
+
+Never again mark a UI requirement, or a phase, complete without
+a documented verification step.
+
+## 19. Two-Path Configuration Contract
+
+The simulator supports two independent configuration paths. Both
+converge on the same `SimulationParameters` object and run the
+same engine. Neither path is deprecated. Neither path is optional
+in the codebase — both must always work.
+
+### 19.1 The two paths
+
+**Path A — Fit from data.**
+The user uploads a CSV or XLSX file. The Data layer parses and
+validates it. The Fitting layer computes λ, per-stage μ, and
+p_exit via MLE. The user may override λ, μ, or p_exit through the
+Parameters section. Input-side chi-square and histograms
+(Input Analysis tab) verify that the fitted distributions are
+reasonable models of the historical data.
+
+**Path B — Enter manually.**
+The user does not upload a file. They enter λ, per-stage μ, and
+p_exit directly in the Parameters and Stages sections. Model
+notation (M/M/1, M/M/2, …) may supply distribution families and
+server counts as shortcuts. Output-side chi-square and histograms
+(Simulation verification widget) confirm the engine generates
+values matching the configured distributions.
+
+### 19.2 Convergence point
+
+Both paths produce a `SimulationParameters` instance carrying the
+same fields:
+
+    ArrivalRate                      (double, per minute)
+    ManualServiceRates               (IReadOnlyList<double?>,
+                                      per stage, per minute)
+    ExitProbability                  (double, in [0, 1))
+    StageSpecs[]                     (Name, Servers,
+                                      ServiceDistribution)
+    Seed                             (int)
+    RunMode                          (ClinicDay | MultiDay |
+                                      DiagnosticTrace)
+    HorizonMinutes / GeneratorDays   (per run mode)
+    TraceLevel                       (None | Events | State | Rng —
+                                      renamed to Minimal | Standard |
+                                      Detailed | Debug in Phase 8D)
+
+If a future change adds a field to `SimulationParameters`, it
+must be populated by BOTH paths. A field populated only by one
+path is a bug.
+
+### 19.3 μ precedence in Path A
+
+When a file is loaded, per-stage μ is resolved by
+`ConfigPanelViewModel.EffectiveMu` in this order — the first
+non-null wins (fitted wins; ruling 5 / D-128):
+
+  1. FittedRateFor(stage)   (MLE fit from the loaded file)
+  2. ManualMuPerStage       (comma-list fallback, FitFromData
+                             mode — used when no fit exists
+                             for this stage)
+  3. per-stage row field    (fallback, used only for a stage the
+                             file does not cover)
+
+The resolved values are what `ConfigPanelViewModel` puts into
+`ManualServiceRates`. The coordinator then applies
+`ManualServiceRates[i] ?? FittedRateFor(stage)` and never sees
+`ManualMuPerStage` directly — the comma list is folded INTO
+`ManualServiceRates`, it is not a peer of it. Do not duplicate
+the chain elsewhere.
+
+### 19.4 μ precedence in Path B
+
+When no file is loaded and SourceMode is EnterManually:
+
+  ManualServiceRates[i]     the per-stage row field is
+                            authoritative (it flows through
+                            `EffectiveMu` into
+                            `ManualServiceRates[i]`)
+  ManualMuPerStage          is hidden (`IsCommaListMuVisible` is
+                            false in EnterManually mode) and is
+                            not a source of truth.
+
+### 19.5 Start gating (D-128)
+
+The Start button is a completeness gate, not a try-then-banner
+gate.
+
+  FitFromData:  Start enabled iff a validated file is loaded
+                AND every stage has a resolvable μ
+                AND every field is valid.
+
+  EnterManually: Start enabled iff λ is valid
+                 AND every stage μ is present and > 0
+                 AND p_exit ∈ [0, 1)
+                 AND every other field is valid.
+
+When Start is disabled, a tooltip or inline banner must name the
+missing field(s). Per FR-UI-7, a disabled control must explain
+itself.
+
+The coordinator's runtime μ refusal is retained as defence in
+depth — reached from the CLI and from unit tests, not from the
+GUI. See D-128.
+
+### 19.6 Tab semantics
+
+  Simulation tab      — configuration and run output.
+  Input Analysis tab  — uploaded data, preview, validation, and
+                        the distribution-fit analysis derived
+                        from that data.
+  Token Generator tab — token issuance and estimated waits.
+  Help tab            — the in-program guide.
+
+Input-analysis charts on the Input Analysis tab describe the
+LOADED FILE. Simulation-verification charts in the Results panel
+describe the RUN. Do not mix the two — a chart about the file
+must not depend on a run, and a chart about the run must not
+depend on a file (except in Path A, where the file supplied the
+parameters).
+
+> After Phase 7D, the Input Analysis tab content merges
+> with the Data upload UI (currently the Simulation tab's
+> Data section) into a single Input tab. The Simulation
+> tab's Data section becomes a status strip linking to it.
+> The semantic split survives unchanged: Input holds
+> data-side content; the Results panel holds run-side
+> content.
+
+### 19.7 What this contract forbids
+
+- Merging the two paths into one code path. They exist to
+  demonstrate two methodologies side-by-side.
+- Making Path A required. A user who never uploads a file must
+  be able to run a complete simulation.
+- Making Path B required. A user who uploads a file must not be
+  forced to type any parameter.
+- Allowing the GUI to reach the coordinator's runtime μ refusal.
+  The GUI's Start gate exists precisely to prevent this.
+
+### 19.8 Testing requirements
+
+Every path-dependent feature must have tests for:
+
+- The Path A behaviour (file-loaded).
+- The Path B behaviour (manual entry).
+- The convergence: `BothModes_ProduceValidSimulationParameters`
+  and its future siblings.
+
+A feature that only tests one path is not complete.
+
+---
+
+**Note on section numbering.** §15 and §18 were never
+present in earlier revisions of this file; the 14→16 and
+17→19 jumps are historical. §18 was restored on 2026-09-18
+to codify the UI completion discipline that had been
+enforced in practice. §15 is intentionally skipped.

@@ -2,6 +2,17 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+### AGENTS.md §18 + §19 — 2026-09-18
+
+§18 "UI Completion Criterion" restored — it had never been present despite
+governing the verification discipline across phases 7A–7C. §19 "Two-Path
+Configuration Contract" added with text reconciled to code (precedence order
+corrected, precedence location corrected, tab names corrected, Phase 7D merge
+note added; the `TraceLevel` line is a forward reference to the Phase 8D
+rename — the current enum values `None | Events | State | Rng` are named
+alongside their future `Minimal | Standard | Detailed | Debug` names).
+Section numbering gaps 14→16 and 17→19 documented. B-009 closed.
+
 ## Phase 7C — Two-path configuration (fit-from-data / enter-manually) (2026-09-18, `feat/milestone-7-model-driven`)
 
 Third phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
