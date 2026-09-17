@@ -72,6 +72,13 @@ Last updated: 2026-09-18
 > **logged here, not fixed**. A row here is never `[x] DONE` until the fix lands.
 - [ ] Results-panel captions: show rate values in the user's chosen time unit (min/sec/hr). Required by FR-UI-22 as currently marked `[~]` (declaration + conversion landed in Phase 7A; D-125).
 
+### Polish backlog (post-7D cleanup — 2026-09-18)
+> Captured Phase 7B findings for a later cleanup pass (owner instruction, FIX-BACK, 2026-09-18). Same capture-only rule as the two sections above: logged, **not fixed here**. A row is never `[x] DONE` until the fix lands.
+- [ ] **Stage service families are currently global** (7B finding a): all stages use the FIRST stage's service family. If a user configures Reception M/M/1 and Screening M/D/2, the D is ignored — the engine still generates exponential service for every stage. Requires `SimulationParameters` to carry per-stage distribution families, or a Core change. Defer until after 8D.
+- [ ] **Deterministic and General are display placeholders** (7B finding b, D-127): the dropdown offers D and G but the engine generates exponential for every stage. The viva-safe answer is "offered as notation, treated as M until implemented." Either implement or remove D/G from the dropdown before final acceptance.
+- [ ] **Duplicate "Service distribution" labels** (7B finding c): the Model section has a global Service distribution dropdown (from 6C), and each stage's Advanced setup also has one (7B). Two controls with the same label, different scopes. Decide: keep both with renaming ("Default service distribution" vs per-stage), or remove the global one so per-stage is authoritative. Owner decision required.
+- [ ] **Phase5Screenshot headless flake** (7B handoff): full-suite runs occasionally flake on the Phase 5 screenshot render; passes in isolation. Same class of bare-control-dispatcher issue we fixed for the chart tests in 6c.5. Address in 8D by aligning the `Phase5Screenshot` harness to the window-based pattern used by `Phase6c5Screenshot`.
+
 ## Upcoming
 
 ## M5 — GUI (see PRD §5.1, AGENTS §16–17)
