@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
@@ -43,10 +42,7 @@ public class Phase5Screenshot
 
             vm.Results.StartRun();
             vm.Results.CompleteRun(outcome);
-            window.UpdateLayout();
-
-            var frame = window.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(window);
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");

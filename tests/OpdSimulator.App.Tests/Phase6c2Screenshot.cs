@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Services;
@@ -43,8 +42,7 @@ public class Phase6c2Screenshot
             tabs.SelectedIndex = 1; // Input Analysis
             window.UpdateLayout();
 
-            var frame = window.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(window);
             var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
             var shotPath = Path.Combine(shotDir, "phase-6c2-histograms.png");

@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
@@ -71,10 +70,7 @@ public class Phase6c5Screenshot
                 ?? throw new InvalidOperationException("QueueLengthChart must be a CartesianChart");
             Assert.Equal(3, queueChart.Series.Count());
 
-            window.UpdateLayout();
-
-            var frame = window.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(window);
             var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
             var shotPath = Path.Combine(shotDir, "phase-6c5-charts.png");

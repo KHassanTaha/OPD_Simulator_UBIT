@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
@@ -64,8 +63,7 @@ public class Phase5cScreenshot
             Assert.True(outer.Extent.Height > outer.Viewport.Height + 1,
                 $"widget content must overflow the viewport (extent {outer.Extent.Height:0} > viewport {outer.Viewport.Height:0})");
 
-            var frame = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(host);
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");
@@ -116,8 +114,7 @@ public class Phase5cScreenshot
                 host.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text),
                 t => t == "Group members");
 
-            var frame = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(host);
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");

@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.ViewModels;
@@ -58,9 +57,7 @@ public class Phase5dScreenshot
             var shotDir = Path.Combine(root, "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
 
-            host.UpdateLayout();
-            var frame = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(host);
             frame.Save(Path.Combine(shotDir, "phase-5d-config.png"));
 
             vm.ResetToDefaults();
@@ -68,8 +65,7 @@ public class Phase5dScreenshot
             scroll.Offset = new Vector(0, scroll.Extent.Height);
             host.UpdateLayout();
 
-            var cleared = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var cleared = HeadlessScreenshot.Capture(host);
             cleared.Save(Path.Combine(shotDir, "phase-5d-cleared.png"));
 
             var configPath = Path.Combine(shotDir, "phase-5d-config.png");

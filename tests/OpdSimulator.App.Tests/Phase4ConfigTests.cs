@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
@@ -291,8 +290,7 @@ public class Phase4ConfigTests
 
         try
         {
-            var frame = window.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(window);
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");

@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using LiveChartsCore.SkiaSharpView.Avalonia;
@@ -65,10 +64,7 @@ public class Phase6c4Screenshot
             var expectedSeries = expectedBars + outcome.Result.StageMetrics.Count;
             Assert.Equal(expectedSeries, chart.Series.Count());
 
-            window.UpdateLayout();
-
-            var frame = window.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(window);
             var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
             var shotPath = Path.Combine(shotDir, "phase-6c4-utilisation.png");

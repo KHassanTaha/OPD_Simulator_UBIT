@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using LiveChartsCore.SkiaSharpView;
@@ -310,8 +309,7 @@ if (window.DataContext is not MainViewModel main)
 
     private static long Capture(Window window, string fileName)
     {
-        var frame = window.CaptureRenderedFrame()
-            ?? throw new InvalidOperationException("headless pipeline produced no frame");
+        var frame = HeadlessScreenshot.Capture(window);
         var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
         Directory.CreateDirectory(shotDir);
         var shotPath = Path.Combine(shotDir, fileName);
