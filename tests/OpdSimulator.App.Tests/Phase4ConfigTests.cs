@@ -12,11 +12,12 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 4 gate — ConfigPanel behaviour (feat/gui-rebuild). Verification intent:
-/// the panel exposes the six documented sections + pinned footer; the stage
-/// list resizes live; p_exit is shown only for 2+ stages and enforces the Core
-/// [0,1) exposure-rule (value 1 blocks Start with an inline cause+remedy); and
-/// Clear All returns every field to its factory default (FR-UI-21 — no
-/// last-used state is ever restored).
+/// the panel exposes the five documented sections (the Data section became a
+/// status strip in Phase 7D) + pinned footer; the stage list resizes live;
+/// p_exit is shown only for 2+ stages and enforces the Core [0,1) exposure-rule
+/// (value 1 blocks Start with an inline cause+remedy); and Clear All returns
+/// every field to its factory default (FR-UI-21 — no last-used state is ever
+/// restored).
 /// </summary>
 public class Phase4ConfigTests
 {
@@ -31,14 +32,14 @@ public class Phase4ConfigTests
     }
 
     [AvaloniaFact]
-    public void ConfigPanel_HasSixSections_And_Footer()
+    public void ConfigPanel_HasFiveSections_And_Footer()
     {
         var panel = new ConfigPanel { DataContext = NewVm() };
         var window = Host(panel);
 
         try
         {
-            Assert.Equal(6, window.GetVisualDescendants().OfType<CollapsibleSection>().Count());
+            Assert.Equal(5, window.GetVisualDescendants().OfType<CollapsibleSection>().Count());
             var footer = window.GetVisualDescendants().OfType<PinnedFooterBar>().Single();
             Assert.Equal("Start Calculation", footer.PrimaryText);
         }

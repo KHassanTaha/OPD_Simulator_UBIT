@@ -552,6 +552,46 @@ public partial class ConfigPanelViewModel : ObservableObject
     [RelayCommand]
     private void KeepCurrentStages() => KeepStageMismatchRequested?.Invoke(this, EventArgs.Empty);
 
+    // ── Phase 7D: Simulation-tab data status strip ───────────────────────
+
+    /// <summary>One-line status of the active configuration path, shown in the Simulation tab's data strip.</summary>
+    [ObservableProperty]
+    private string configSourceStatus = "No data — enter manually or upload in the Input tab.";
+
+    /// <summary>The strip's full display text.</summary>
+    public string ConfigSourceText => $"Data source: {ConfigSourceStatus}";
+
+    partial void OnConfigSourceStatusChanged(string value) => OnPropertyChanged(nameof(ConfigSourceText));
+
+    /// <summary>Alias of <see cref="IsStageMismatchWarningVisible"/> for the strip's one-line indicator.</summary>
+    public bool HasStageMismatch => IsStageMismatchWarningVisible;
+
+    partial void OnIsStageMismatchWarningVisibleChanged(bool value) => OnPropertyChanged(nameof(HasStageMismatch));
+
+    /// <summary>Raised when the strip's "Manage input →" button asks the shell to open the Input tab.</summary>
+    public event EventHandler? NavigateToInputTabRequested;
+
+    /// <summary>Opens the Input tab (handled by <see cref="MainViewModel"/>, Phase 7D).</summary>
+    [RelayCommand]
+    private void NavigateToInputTab() => NavigateToInputTabRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Unloads the current data file without resetting the configuration fields
+    /// (Phase 7D: the Input tab's Clear File action). Mirrors the file-related
+    /// part of <see cref="ResetToDefaults"/> and raises
+    /// <see cref="DataBindingChanged"/> so the Input tab clears too.
+    /// </summary>
+    public void ClearLoadedFile()
+    {
+        Binding = null;
+        LoadedFileName = null;
+        DataStatus = "No file loaded";
+        IsStageMismatchWarningVisible = false;
+        StageMismatchMessage = "";
+        RecomputeBlockingState();
+        RaiseDataBindingChanged();
+    }
+
     /// <summary>Random seed the run will use (42 while the Advanced section is off).</summary>
     public int EffectiveSeed =>
         AdvancedIsOptionalEnabled && int.TryParse(Seed.Value, out var seed) ? seed : 42;

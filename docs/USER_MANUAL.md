@@ -88,7 +88,8 @@ useful if you want to see exactly what happened.
 
 ## 4. The Main Screen
 
-The window has two panels:
+The window has a header and four tabs — **Simulation | Input | Token
+Generator | Help**. The **Simulation** tab is split into two panels:
 
 ```
 +----------------------------+--------------------------------+
@@ -99,17 +100,18 @@ The window has two panels:
 |  - Service dist.           |  - Queue-length-over-time chart |
 |  - Servers per stage       |  - Waiting-time histogram (one stage) |
 |  - Manual λ (optional)     |  - Chi-square results          |
-|  - [Upload Data]           |  - Data preview                 |
-|  - Time horizon            |  - Event log (scrollable)       |
+|  - Data source status      |  - Event log (scrollable)       |
+|  - Time horizon            |                                |
 |  - Random seed             |                                |
 |  - Daily cap (optional)    |                                |
 |  - [Run Simulation]        |                                |
 +----------------------------+--------------------------------+
 ```
 
-The **Input Analysis** tab shows distribution-fit charts for the loaded data.
-Until a data file is loaded it shows a hint instead:
-*"Load a data file to see fit analysis."*
+The **Input** tab holds everything about the loaded data: the **Upload Data**
+button, the **data preview** table, the validation banner, and the
+distribution-fit charts. Until a data file is loaded the charts show a hint
+instead: *"Load a data file to see fit analysis."*
 
 Once a data file is loaded, the tab shows **two chart cards** per fitted
 series, in fit order:
@@ -147,12 +149,14 @@ configuration field (press **F1** anytime or click a "?" icon to jump here).
 At the top of the configuration panel, a **Data source** dropdown chooses how
 the simulation gets its parameters:
 
-- **Fit from an uploaded data file** (default) — upload a file; the app fits
-  λ and each stage's μ from it. The **Data** section and the **Manual μ per
-  stage** comma-list override are shown.
-- **Enter parameters manually** — no file needed. The Data section is hidden,
-  the per-stage **Service rate μ** fields become editable, and p_exit defaults
-  to **0.4** (you can change it).
+- **Fit from an uploaded data file** (default) — upload a file on the
+  **Input** tab; the app fits λ and each stage's μ from it. The Simulation
+  tab's **Data source** strip shows *"Using file: …"* and a **Manage input →**
+  link to that tab, and the **Manual μ per stage** comma-list override is shown.
+- **Enter parameters manually** — no file needed. The comma-list μ override is
+  hidden, the per-stage **Service rate μ** fields become editable, and p_exit
+  defaults to **0.4** (you can change it). The strip reads *"Entering
+  parameters manually"*.
 
 Both paths are complete configurations. **Start Calculation stays disabled
 until the chosen path is complete**, and the banner above the Start button
@@ -340,7 +344,13 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    **Enter parameters manually** mode the comma list is hidden — type each
    stage's μ into its row's **Service rate μ** field instead.
 
-8. **Click "Upload Data"** and choose your Excel file.
+8. **Open the "Input" tab and click "Upload Data"**, then choose your Excel
+   or CSV file. The **Input** tab is the data workspace: it holds the upload
+   button, the **data preview** table, any validation banner, the
+   distribution-fit charts, and (when the file's stages differ from the
+   configured list) the stage-mismatch warning. The Simulation tab's
+   **Data source** strip shows which file is in use and links back here with
+   **Manage input →**.
    The file must contain one row per patient with columns:
    - `arrival_time`
    - `<stage>_start`
@@ -351,10 +361,11 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    list them and ask you to clean the data.
 
    If the file's stages differ from the configured list, an amber warning
-   appears with two buttons — **Sync stages from data** (adopt the file's
-   stage names and count) or **Keep current stages** (dismiss the warning;
-   uncovered stages keep "— (no source)" and the run is refused until they
-   gain a rate).
+   appears on the Input tab with two buttons — **Sync stages from data**
+   (adopt the file's stage names and count) or **Keep current stages**
+   (dismiss the warning; uncovered stages keep "— (no source)" and the run is
+   refused until they gain a rate). The Simulation strip shows a one-line
+   *"Stages differ from data — see the Input tab."* reminder until you decide.
 
 9. **Choose a time span and run mode.**
    The **Horizon** section starts with the **Time span** dropdown
@@ -411,9 +422,10 @@ calculation. If the run was refused, an error banner explains exactly why.
 The widget selector (a "Customise results" toggle at the top of the right
 panel) shows or hides the individual Results widgets below it: the **metrics
 table**, the **per-server utilisation chart**, the **queue-length-over-time
-chart**, the **waiting-time distribution**, the **chi-square results**, the
-**data preview**, and the **event trace**. Your choice is remembered between
-sessions.
+chart**, the **waiting-time distribution**, the **chi-square results**, and
+the **event trace**. Your choice is remembered between sessions. (The **data
+preview** moved to the **Input** tab in Phase 7D and is no longer a Results
+widget.)
 
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
@@ -460,7 +472,7 @@ How to read it:
   average out to "looks fine".
 
 The utilisation chart is a **Results** widget: it describes a run, so it
-lives on the Simulation tab next to the metrics, not on the Input Analysis
+lives on the Simulation tab next to the metrics, not on the Input
 tab with the data-derived figures.
 
 ### 6.5 Queue-Length-over-Time Chart
@@ -499,7 +511,7 @@ How to read it:
   absence, not a zero.
 
 Both widgets are **Results** widgets: they describe a run, so they live on
-the Simulation tab next to the metrics, never on the Input Analysis tab
+the Simulation tab next to the metrics, never on the Input tab
 (which shows the data-derived fit charts instead).
 
 ### 6.7 Reading the Charts — Data-Derived vs Run-Derived
@@ -509,31 +521,31 @@ exactly one tab:
 
 | Chart | Tab | Describes | Where the numbers come from |
 |-------|-----|-----------|-----------------------------|
-| Inter-arrival / per-stage service histogram + fitted PDF | Input Analysis | the **loaded data** | MLE fit + chi-square bins (§7.3) |
-| Chi-square observed-vs-expected bars | Input Analysis | the **loaded data** | the goodness-of-fit test (§6.2) |
+| Inter-arrival / per-stage service histogram + fitted PDF | Input | the **loaded data** | MLE fit + chi-square bins (§7.3) |
+| Chi-square observed-vs-expected bars | Input | the **loaded data** | the goodness-of-fit test (§6.2) |
 | Per-server utilisation bars | Results | a **run** | `logs`/engine last run (§6.4) |
 | Queue length over time | Results | a **run** | engine last run (§6.5) |
 | Waiting-time distribution | Results | a **run** | engine last run (§6.6) |
 
-So: if a figure describes the file you uploaded, it is on **Input Analysis**;
+So: if a figure describes the file you uploaded, it is on **Input**;
 if it describes what the simulator just did, it is on **Results**. The
-Results tab's "Customise results" selector never hides Input Analysis charts —
+Results tab's "Customise results" selector never hides Input charts —
 that set is fixed by the data and always shown together.
 
-**Histogram + fitted PDF (Input Analysis).** The bars are the observed
+**Histogram + fitted PDF (Input).** The bars are the observed
 frequencies in the same bins the chi-square test uses. The smooth curve is the
 fitted probability density scaled onto the same axis: the closer the curve
 tracks the bar tops, the better the chosen distribution fits. A curve sitting
 well above the bars on one side and below on the other warns you *before* you
 read the p-value that the fit is poor.
 
-**Chi-square observed-vs-expected bars (Input Analysis).** One pair of bars
+**Chi-square observed-vs-expected bars (Input).** One pair of bars
 per bin — observed (O) and expected (E) frequency. Large gaps in a few bins
 are what drive the χ² statistic up; a flat, evenly matched profile is a good
 fit. The verdict text under the chart repeats the p-value decision from §6.2,
 so the picture and the number always agree.
 
-**Blank/placeholder states.** Before a file is loaded the Input Analysis tab
+**Blank/placeholder states.** Before a file is loaded the Input tab
 says *"Load a data file to see fit analysis."* Before a run the three Results
 charts each show their own *"Run a simulation to see …"* message. If a chart
 cannot be drawn, the widget falls back to that same text rather than crashing
@@ -543,7 +555,7 @@ the run — the numbers in the metrics table are always present.
 
 ## 7. Loading Real Data (from an Excel or CSV file)
 
-The graphical interface can upload a data file in the **Data** section and fit
+The graphical interface can upload a data file on the **Input** tab and fit
 it from there. The same operations are available from the terminal — validated,
 distribution-fitted, goodness-of-fit checked, and simulated — without opening
 the GUI, which is useful for testing and for the viva.
@@ -699,6 +711,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Phase 7D: the **Data** section and the old **Input Analysis** tab are merged into one **Input** tab (tabs are now **Simulation \| Input \| Token Generator \| Help**). The upload button, data preview table, validation banner, distribution-fit charts and the stage-mismatch warning all live on the Input tab. The **data preview** is no longer a Results widget (the "Customise results" list drops it). The Simulation tab's Data section becomes a **Data source status strip** showing which file is in use (or "Entering parameters manually") with a **Manage input →** link to the Input tab, plus a one-line reminder when the file's stages differ from the configured list. §4, §5 step 8, §6 and the "Data source" field description updated |
 | 2026-09-18 | Phase 7C: a **Data source** dropdown at the top chooses between **Fit from an uploaded data file** (default — Data section + comma-list μ override shown) and **Enter parameters manually** (Data section hidden; per-stage **Service rate μ** fields become editable; p_exit defaults to 0.4). **Start Calculation is now a completeness gate** — it stays disabled and a banner names exactly what is missing (D-128, supersedes the old "runnable in principle" behaviour). See §Config fields → "Data source" and "Service rate" |
 | 2026-09-18 | Phase 7B: each stage row now has a **Model** dropdown (Kendall shortcuts like M/M/2, M/D/1, G/G/1) that sets the row's server count and distribution families, plus an **Advanced** toggle that reveals independent **Arrival distribution** / **Service distribution** dropdowns (§Config fields → "Per-stage model setup"). Deterministic/General are notation-only placeholders — the engine still samples exponentially |
 | 2026-09-18 | Phase 7A: manual λ/μ inputs now take a **Time unit** selector (per minute/second/hour) with the **Parameter mode** radios moved next to them at the top of the Parameters section, and the Horizon section gained a **Time span** preset (15 min / 1 hour / 1 day / 1 week / 1 month / custom days) covering §Config fields → "Time unit" / "Horizon" |

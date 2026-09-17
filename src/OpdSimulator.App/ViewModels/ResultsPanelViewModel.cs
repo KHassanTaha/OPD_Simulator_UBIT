@@ -37,10 +37,11 @@ public sealed record ChiSquareRow(
 /// Drives the Simulation-tab results panel (Phase 5): the welcome card until a
 /// run starts, then the chosen widgets — metrics table, per-server utilisation
 /// chart (Phase 6c.4), queue-length-over-time chart and waiting-time histogram
-/// (Phase 6c.5), chi-square table, the scrollable event trace, the data
-/// preview — plus the run-refusal banner with its clean message (G3/G4, 5-F).
-/// Widget visibility follows <see cref="WidgetPreferences"/> (FR-UI-14),
-/// seeded to all-on.
+/// (Phase 6c.5), chi-square table and the scrollable event trace — plus the
+/// run-refusal banner with its clean message (G3/G4, 5-F). Widget visibility
+/// follows <see cref="WidgetPreferences"/> (FR-UI-14), seeded to all-on.
+/// Phase 7D removed the data-preview widget: the preview now lives on the
+/// Input tab.
 /// </summary>
 public partial class ResultsPanelViewModel : ObservableObject
 {
@@ -85,7 +86,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         ShowMetrics = visible.Contains("metrics");
         ShowChiSquare = visible.Contains("chiSquare");
         ShowTrace = visible.Contains("trace");
-        ShowDataPreview = visible.Contains("dataPreview");
         ShowUtilisation = visible.Contains("utilisation");
         ShowQueueLength = visible.Contains("queueLength");
         ShowWaitHistogram = visible.Contains("waitHistogram");
@@ -158,10 +158,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         SystemMetrics.Clear();
         StageRows.Clear();
         ChiSquareRows.Clear();
-        PreviewColumnTitles = null;
-        PreviewRows = null;
-        PreviewInvalidRows = null;
-        PreviewError = null;
         UtilisationChart = null;
         QueueLengthChart = null;
         WaitHistogram = null;
@@ -311,34 +307,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Feeds the data-preview widget from the current data binding.</summary>
-    /// <param name="binding">Binding result of the last loaded file, or null.</param>
-    public void SetPreview(DataBindingResult? binding)
-    {
-        if (binding?.DataSet is not { } dataSet)
-        {
-            PreviewColumnTitles = null;
-            PreviewRows = null;
-            PreviewInvalidRows = null;
-            PreviewError = binding?.ErrorMessage;
-            return;
-        }
-
-        PreviewColumnTitles = dataSet.Columns.ToList();
-        PreviewRows = dataSet.Rows
-            .Select(row => (IReadOnlyList<string?>)row.Values.Select(v => (string?)v).ToList())
-            .ToList();
-
-        // RowNumber is 1-based data-row number (row 1 = first data row below
-        // the header); the preview widget uses 0-based indices.
-        PreviewInvalidRows = binding.Issues
-            .Where(i => i.RowNumber > 0)
-            .GroupBy(i => i.RowNumber - 1)
-            .ToDictionary(g => g.Key, g => (string?)g.First().Reason);
-        PreviewError = binding.ErrorMessage;
-        ShowDataPreview = binding.IsUsable;
-    }
-
     // ── Header / banner ───────────────────────────────────────────────────
 
     /// <summary>True while the welcome card is shown (before any run attempt).</summary>
@@ -402,22 +370,6 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <summary>Rendered trace lines of the diagnostic run, joined for the log widget.</summary>
     [ObservableProperty]
     private string _traceText = string.Empty;
-
-    /// <summary>Data-preview column titles from the loaded file.</summary>
-    [ObservableProperty]
-    private IEnumerable<string>? _previewColumnTitles;
-
-    /// <summary>Data-preview raw rows (each an ordered list of cell strings or nulls).</summary>
-    [ObservableProperty]
-    private IEnumerable<IReadOnlyList<string?>>? _previewRows;
-
-    /// <summary>Preview row index → validator reason for invalid rows.</summary>
-    [ObservableProperty]
-    private IReadOnlyDictionary<int, string?>? _previewInvalidRows;
-
-    /// <summary>Load-failure summary that replaces the preview table (FR-UI-9).</summary>
-    [ObservableProperty]
-    private string? _previewError;
 
     /// <summary>Built per-server utilisation chart (Phase 6c.4), or null before the first run.</summary>
     [ObservableProperty]
@@ -515,9 +467,6 @@ public partial class ResultsPanelViewModel : ObservableObject
     private bool _showTrace = true;
 
     [ObservableProperty]
-    private bool _showDataPreview;
-
-    [ObservableProperty]
     private bool _showUtilisation = true;
 
     [ObservableProperty]
@@ -532,8 +481,6 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowTraceChanged(bool value) => OnWidgetVisibilityChanged();
 
-    partial void OnShowDataPreviewChanged(bool value) => OnWidgetVisibilityChanged();
-
     partial void OnShowUtilisationChanged(bool value) => OnWidgetVisibilityChanged();
 
     partial void OnShowQueueLengthChanged(bool value) => OnWidgetVisibilityChanged();
@@ -541,7 +488,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     partial void OnShowWaitHistogramChanged(bool value) => OnWidgetVisibilityChanged();
 
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "dataPreview", "utilisation", "queueLength", "waitHistogram").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram").</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -554,9 +501,6 @@ public partial class ResultsPanelViewModel : ObservableObject
                 break;
             case "trace":
                 ShowTrace = !ShowTrace;
-                break;
-            case "dataPreview":
-                ShowDataPreview = !ShowDataPreview;
                 break;
             case "utilisation":
                 ShowUtilisation = !ShowUtilisation;
@@ -579,7 +523,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (ShowMetrics) { visible.Add("metrics"); }
         if (ShowChiSquare) { visible.Add("chiSquare"); }
         if (ShowTrace) { visible.Add("trace"); }
-        if (ShowDataPreview) { visible.Add("dataPreview"); }
         if (ShowUtilisation) { visible.Add("utilisation"); }
         if (ShowQueueLength) { visible.Add("queueLength"); }
         if (ShowWaitHistogram) { visible.Add("waitHistogram"); }

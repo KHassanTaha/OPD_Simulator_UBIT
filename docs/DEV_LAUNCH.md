@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-18 — restore/build/test/CLI-run all pass from a clean state on **Ubuntu 24.04** (.NET SDK 8.0.131), Phase 7C (two-path configuration — fit-from-data / enter-manually): Release build 0 warnings/0 errors, full suite **348 green** (Core 85, Data 58, Cli 35, App 170) including the 16 new `Phase7CTests` (mode selector default/hide-show/string bridge, per-stage μ visibility, EnterManually λ/μ/p_exit gate, FitFromData no-file/usable-file gate, both paths produce valid `SimulationParameters`) plus the updated 5d.1 Start-gate tests (D-128), real Linux launch 18 s alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-7c-manual-mode.png` (real ConfigPanel — EnterManually: Data section hidden, per-stage μ fields 0.8/0.6/0.4, servers 1/2/3, Start enabled), plus the earlier 7B/7A/6c PNGs (`phase-7b-stage-models.png`, `phase-7a-units.png`, `phase-6c-input-analysis.png`, `phase-6c-results-all.png`, `phase-6c-widget-toggled.png`, `phase-6c1-empty.png`, `phase-6c2-histograms.png`, `phase-6c3-chi-square.png`, `phase-6c4-utilisation.png`, `phase-6c5-charts.png`). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
+**Last verified:** 2026-09-18 — restore/build/test/CLI-run all pass from a clean state on **Ubuntu 24.04** (.NET SDK 8.0.131), Phase 7D (merged Input tab — upload + preview + fit analysis on one tab; Simulation | Input | Token Generator | Help): Release build 0 warnings/0 errors, full suite **388 green** (Core 85, Data 58, Cli 35, App 210) including the 36 new `Phase7DTests` (preview projection + invalid-row mapping + severity + truncation, InputTab VM intent events, rendered empty/loaded/validation/mismatch states, config status strip, Results panel loses the preview + legacy `dataPreview` key still parses, four-tab order, MainViewModel routing) and the 4 new `Phase7DScreenshots` frames, real Linux launch alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-7d-input-empty.png`, `phase-7d-input-loaded.png`, `phase-7d-input-mismatch.png`, `phase-7d-config-strip.png`, plus the earlier 7C/7B/7A/6c PNGs (`phase-7c-manual-mode.png`, `phase-7b-stage-models.png`, `phase-7a-units.png`, `phase-6c-input-analysis.png`, `phase-6c-results-all.png`, `phase-6c-widget-toggled.png`, `phase-6c1-empty.png`, `phase-6c2-histograms.png`, `phase-6c3-chi-square.png`, `phase-6c4-utilisation.png`, `phase-6c5-charts.png`). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -159,9 +159,11 @@ dotnet run --project src\OpdSimulator.App
 - `scripts/run.ps1` — Windows launcher
 
 > Both scripts invoke `src/OpdSimulator.App`. The full M5 GUI landed 2026-09-14:
-> left config panel (parameter mode, distributions, servers, upload, horizon,
-> seed, presets), right results panel (metrics, chi-square, charts, trace,
-> data preview, token), in-program guide (F1), toasts and themed dialogs.
+> left config panel (parameter mode, distributions, servers, horizon, seed,
+> presets), right results panel (metrics, chi-square, charts, trace, token),
+> a four-tab shell (Simulation | Input | Token Generator | Help — the data
+> upload, preview and distribution-fit analysis live on the Input tab since
+> Phase 7D), in-program guide (F1), toasts and themed dialogs.
 > The CLI remains the headless/scripting path (§7).
 
 The window should open within ~5 seconds. If it does not, see **Troubleshooting** below.
@@ -174,7 +176,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-18 **348 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-18 **388 tests pass**:
 - `OpdSimulator.Core.Tests` (85) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**.
@@ -185,7 +187,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **348 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (170, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d, 6c.1, 6c.2, 6c.3, 6c.4, 6c.5, 6c.6, 7A, 7B, 7C) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (206, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d, 6c.1, 6c.2, 6c.3, 6c.4, 6c.5, 6c.6, 7A, 7B, 7C, 7D) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -280,9 +282,10 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **348 tests pass**:
   the log-axis swap is proven in a window-based test driven through the real VM
   `IsWaitLogScale` path. Evidence `logs/screenshots/phase-6c5-charts.png` (real
   3-stage run, both widgets populated).
-  **Phase 6c.6 completion gate (9 tests):** widget selector lists exactly the 7
-  Results widgets (metrics, chi-square, trace, data preview, utilisation,
-  queue-over-time, wait histogram). All Results charts have empty-state
+  **Phase 6c.6 completion gate (9 tests):** widget selector lists exactly the 6
+  Results widgets (metrics, chi-square, trace, utilisation, queue-over-time,
+  wait histogram — the data preview was removed from the Results panel in
+  Phase 7D). All Results charts have empty-state
   messages. NFR-6 background preparation measured and asserted. REQUIREMENTS
   FR-UI-4 and NFR-6 flipped to [x] with source files and test names. Evidence:
   `logs/screenshots/phase-6c-input-analysis.png`,
@@ -303,9 +306,10 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **348 tests pass**:
   `logs/screenshots/phase-7a-units.png`.
   **Phase 7C two-path configuration (16 tests):** `Phase7CTests` covers the
   "Data source" mode selector (`Models/DataSourceMode.cs`; default FitFromData,
-  string-backed dropdown bridge), the Data section hiding/showing as the mode
-  changes (real rendered `CollapsibleSection`), the comma-list μ field hiding in
-  EnterManually and showing in FitFromData, the `0.4` p_exit seed on switching
+  string-backed dropdown bridge), the always-on data status strip (the "1 · Data"
+  section became a strip in Phase 7D — the mode test now asserts the strip stays
+  visible and the comma-list μ field hides in EnterManually / returns in
+  FitFromData), the `0.4` p_exit seed on switching
   to manual, the EnterManually gate (empty λ, missing/invalid per-stage μ,
   p_exit = 1 all block Start with a named `StartBlockedMessage`), the
   FitFromData gate (no file blocked / usable sample file enabled), the per-stage
@@ -314,6 +318,25 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **348 tests pass**:
   5d.1): the 5d.1-era Start-enabled assertions were updated in place and the
   coordinator's runtime μ refusal is retained as defence in depth (its unit/CLI
   tests carry that load). Evidence `logs/screenshots/phase-7c-manual-mode.png`.
+  **Phase 7D merged Input tab (36 tests + 4 screenshots):** the Data section and
+  the Input Analysis tab became one **Input** tab. `Phase7DTests` covers
+  `InputPreviewViewModel` (column/row projection, 1-based→0-based invalid-row
+  mapping, load-failure vs row-warning severity, the five-issue truncation
+  summary, clear), the `InputTabViewModel` intent events (upload / clear /
+  use-for-simulation / sync-stages / keep-stages) and `SetLoadedFile` /
+  `ApplyStageMismatch` / `Clear`, the rendered tab (empty state, "Clear File"
+  hidden until a file loads, preview + fit-analysis both visible after a load,
+  the FR-UI-9 banner, the D-114 warning), the config status strip (no `1 · Data`
+  section; "Manage input →"; the one-line mismatch indicator), the Results panel
+  losing the preview and the legacy `dataPreview` preference key still parsing,
+  the four-tab order (Simulation | Input | Token Generator | Help), and the
+  `MainViewModel` routing (use-for-simulation → FitFromData + tab 0; sync-stages
+  → `SyncStagesToData`; clear → config unload; both Upload buttons reach the one
+  picker). `Phase7DScreenshots` renders `phase-7d-input-empty.png`,
+  `phase-7d-input-loaded.png`, `phase-7d-input-mismatch.png` and
+  `phase-7d-config-strip.png`. `Phase3ShellTests` header renamed "Input Analysis"
+  → "Input"; `Phase4ConfigTests` 6→5 sections; `Phase7CTests` mode test updated
+  for the strip. D-130..D-134.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -588,6 +611,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-18 | **Phase 7D — merged Input tab (upload + preview + fit analysis)** (`feat/milestone-7-model-driven`): the Simulation tab's "1 · Data" `CollapsibleSection` and the separate Input Analysis tab become one **Input** tab (tab 2 of four: Simulation \| Input \| Token Generator \| Help). New `ViewModels/InputPreviewViewModel.cs` (preview projection + invalid-row map + severity + 5-issue truncation summary, RULING 1/D-130) and `ViewModels/InputTabViewModel.cs` (upload/clear/use-for-simulation/sync-stages/keep-stages intent events, `SetLoadedFile`, `ApplyStageMismatch`, `Clear`); new `Views/InputTab.axaml`(+`.cs`) hosting the reused `InputAnalysisView` behind an `IsVisible="{Binding HasFile}"` border; `MainWindow` gains `MainTabs` + `TabSelectionChanged` + `PickDataFileAsync`, `MainViewModel` routes tab selection and the single picker (`SetSelectedTabIndex`, D-131); the Data section is replaced by a `PanelCard` status strip (`ConfigSourceText`, "Manage input →", one-line D-114 mismatch indicator; `ConfigPanelViewModel` gains `ConfigSourceStatus`/`HasStageMismatch`/`NavigateToInputTab`/`ClearLoadedFile`, dead Upload/Sync/Keep handlers removed); the data-preview widget + `ShowDataPreview` are removed from `ResultsPanelViewModel`/`ResultsPanel.axaml` (the `dataPreview` preference key still parses); one picker / one load path (RULING 3, D-132); the D-114 Sync/Keep warning moves to the Input tab with Sync routed straight to `SyncStagesToData` (RULING 4, D-133); tab 2 renamed "Input" in place (D-134). 36 new `Phase7DTests` + 4 `Phase7DScreenshots`; stale Data-section tests updated. Baseline 348 → **388** (Core 85 / Data 58 / Cli 35 / App 210). Evidence `phase-7d-input-empty.png`, `phase-7d-input-loaded.png`, `phase-7d-input-mismatch.png`, `phase-7d-config-strip.png`; duplication check passed (ConfigPanel −18, ResultsPanel −17, ResultsPanelViewModel −57; `InputTab.axaml` new). | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 388 green; headless Linux launch alive "Main window created." + exit 0; crash logs unchanged since 2026-09-16 |
 | 2026-09-18 | **Phase 7C — two-path configuration (fit-from-data / enter-manually)** (`feat/milestone-7-model-driven`): new `Models/DataSourceMode.cs` enum; `ConfigPanelViewModel` gains `SourceMode` (default FitFromData) + string-backed dropdown bridge, `IsDataSectionVisible`/`IsManualMuEditable`/`IsCommaListMuVisible`, `0.4` p_exit seed on switching to manual, Parameters-toggle lock; `ConfigPanel.axaml` adds a "Data source" dropdown above `1 · Data`, gates the Data section, hides the comma-list `ManualMuField` in manual mode, adds a per-stage "Service rate μ" `ValidatedField` (manual mode always; fit mode only for stages with no fitted rate), and binds a new `ErrorBanner` to `StartBlockedMessage`; `StageRow` gains `MuValue`/`MuHasError`/`MuError`/`IsMuVisible` + blur `ValidateMu()`; fit-mode `ManualServiceRates` now prefers fitted → comma list → per-stage (fitted wins, superseding 5d.1 manual-over-fitted); `RecomputeBlockingState()` is a per-mode completeness gate (D-128) also invoked from `ApplyLoadedFile`/`SyncStagesToData` (stale-name bug fixed in-gate). 16 new `Phase7CTests`; 5d.1 Start-gate tests updated in place. Baseline 348 (Core 85 / Data 58 / Cli 35 / App 170). Evidence `logs/screenshots/phase-7c-manual-mode.png`. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 348 green; real Linux launch 18 s alive "Main window created." + exit 0; crash logs unchanged since 2026-09-16 |
 | 2026-09-18 | **Phase 7B — per-stage model notation** (`feat/milestone-7-model-driven`): new pure `Services/ModelNotationParser` (Kendall `A/S/c`; `M`→Exponential, `D`→Deterministic, `G`→General, c 1–5; throws with an actionable message otherwise; `StandardModels` = 11 entries M/M/1..5, M/D/1..3, D/M/1..2, G/G/1); `StageRow` gains `SelectedModel`/`UseAdvancedSetup`/`ArrivalFamily`/`ServiceFamily` + `OnSelectedModelChanged` (sets families and `Servers.Value`, skipped while Advanced is on); `ConfigPanel.axaml` stage row adds a Model dropdown, an Advanced toggle, and two revealed family dropdowns; `TryBuildRunParameters` sources the arrival/service family from the FIRST stage (per-stage service deferred — single family in the record, D-126); `Deterministic`/`General` are display-only placeholders (engine still exponential, null fit report — D-127). 17 new `Phase7BTests`; baseline 332 (Core 85 / Data 58 / Cli 35 / App 154). Evidence `logs/screenshots/phase-7b-stage-models.png`. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 332 green; real Linux launch 18 s alive "Main window created." + exit 0; crash logs unchanged since 2026-09-16 |
 | 2026-09-18 | **Phase 7A — model-driven inputs** (`feat/milestone-7-model-driven`): new `Models/TimeUnit` (Minutes/Seconds/Hours) + reusable `Controls/TimeUnitSelector`; parameter-mode radio moved to the top of the Parameters section alongside the unit selector; Horizon gains a `TimeSpanPreset` dropdown (15 min / 1 h / 1 d / 1 wk / 1 mo / custom days); `TryBuildRunParameters` converts manual λ/μ to per-minute (engine stays minutes-only, D-125) and resolves short spans to a bounded horizon / day+ spans to generator days (week→6, month→26). 15 new `Phase7ATests`; baseline 315 (Core 85 / Data 58 / Cli 35 / App 137). Evidence `logs/screenshots/phase-7a-units.png`. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 315 green; real Linux launch 18 s alive "Main window created." + exit 0; crash logs unchanged since 2026-09-16 |

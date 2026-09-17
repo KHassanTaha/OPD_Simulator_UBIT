@@ -1,17 +1,22 @@
+using System;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using Serilog;
 
 namespace OpdSimulator.App.ViewModels;
 
 /// <summary>
-/// Window-level view model: owns the config and results panels and bridges the
-/// user's Start click to a background simulation run (Phase 5). The engine
-/// runs on a worker thread; every UI update is marshalled back through
-/// <see cref="Dispatcher.UIThread"/>. Refusals and errors surface as clean
-/// banners on the results panel — never as exceptions in the UI.
+/// Window-level view model: owns the config, results and Input-tab panels and
+/// bridges the user's Start click to a background simulation run (Phase 5). It
+/// also routes the Input tab's intent events (upload, clear, use-for-run,
+/// stage-sync) to the one data path and the config panel (Phase 7D, RULING 3).
+/// The engine runs on a worker thread; every UI update is marshalled back
+/// through <see cref="Dispatcher.UIThread"/>. Refusals and errors surface as
+/// clean banners on the results panel — never as exceptions in the UI.
 /// </summary>
 public partial class MainViewModel : ObservableObject
 {
@@ -21,20 +26,47 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Results panel state (Simulation tab, right column). Persisted widget visibility is restored (FR-UI-14).</summary>
     public ResultsPanelViewModel Results { get; } = new(WidgetPreferences.Load());
 
-    /// <summary>Input Analysis tab state (P1 input charts, Phase 6C).</summary>
+    /// <summary>Input Analysis state (P1 input charts, Phase 6C) — shared with the Input tab (Phase 7D).</summary>
     public InputAnalysisViewModel InputAnalysis { get; } = new();
+
+    /// <summary>Merged Input tab state (upload + preview + fit analysis, Phase 7D).</summary>
+    public InputTabViewModel InputTab { get; }
+
+    /// <summary>Raised when the view model asks the shell to select a tab index (RULING 2, Phase 7D).</summary>
+    public event EventHandler<int>? TabSelectionChanged;
+
+    /// <summary>
+    /// Set by the root view to open the OS file picker. The single load path
+    /// (RULING 3, Phase 7D): both Upload buttons route here.
+    /// </summary>
+    public Func<Task<string?>>? PickDataFileAsync { get; set; }
 
     public MainViewModel()
     {
+        InputTab = new InputTabViewModel(InputAnalysis);
+
         Config.RunRequested += OnRunRequested;
         Config.PropertyChanged += OnConfigPropertyChanged;
         Config.DataBindingChanged += OnConfigDataBindingChanged;
         Config.SignificanceLevel.PropertyChanged += OnSignificanceLevelChanged;
+
+        // One picker, one load path: both the config panel's Upload and the
+        // Input tab's Upload converge on PickAndLoadDataFileAsync (RULING 3).
+        Config.UploadRequested += OnUploadRequested;
+        Config.NavigateToInputTabRequested += OnNavigateToInputTabRequested;
+        InputTab.UploadFileRequested += OnUploadRequested;
+        InputTab.ClearFileRequested += OnClearFileRequested;
+        InputTab.UseForSimulationRequested += OnUseForSimulationRequested;
+        InputTab.StageMismatchSyncRequested += OnStageMismatchSyncRequested;
+        InputTab.StageMismatchKeepRequested += OnStageMismatchKeepRequested;
+
+        UpdateConfigSourceStatus();
     }
 
     /// <summary>
     /// Refreshes the Input Analysis charts whenever the config's distribution
-    /// choices change (user switches a dropdown).
+    /// choices change (user switches a dropdown), and keeps the data strip and
+    /// the Input tab's mismatch warning in sync with the config.
     /// </summary>
     private void OnConfigPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -43,10 +75,36 @@ public partial class MainViewModel : ObservableObject
         {
             SyncInputAnalysis();
         }
+
+        if (e.PropertyName == nameof(ConfigPanelViewModel.SourceMode))
+        {
+            UpdateConfigSourceStatus();
+        }
+
+        if (e.PropertyName is nameof(ConfigPanelViewModel.IsStageMismatchWarningVisible)
+            or nameof(ConfigPanelViewModel.StageMismatchMessage))
+        {
+            SyncStageMismatchToInputTab();
+        }
     }
 
     /// <summary>Refreshes the Input Analysis charts when a data file is loaded or cleared.</summary>
-    private void OnConfigDataBindingChanged(object? sender, EventArgs e) => SyncInputAnalysis();
+    private void OnConfigDataBindingChanged(object? sender, EventArgs e)
+    {
+        SyncInputAnalysis();
+
+        if (Config.Binding is { } binding)
+        {
+            InputTab.SetLoadedFile(binding);
+        }
+        else
+        {
+            InputTab.Clear();
+        }
+
+        UpdateConfigSourceStatus();
+        SyncStageMismatchToInputTab();
+    }
 
     /// <summary>
     /// The significance level feeds the chi-square verdict captions on the
@@ -71,6 +129,65 @@ public partial class MainViewModel : ObservableObject
             Config.InterArrivalDistribution ?? "Exponential",
             Config.ServiceDistribution ?? "Exponential",
             Config.SignificanceLevelForRun);
+
+    /// <summary>Mirrors the config panel's stage-mismatch state into the Input tab's warning.</summary>
+    private void SyncStageMismatchToInputTab()
+        => InputTab.ApplyStageMismatch(Config.IsStageMismatchWarningVisible, Config.StageMismatchMessage);
+
+    /// <summary>Derives the Simulation-tab strip's one-line status from the active data path.</summary>
+    private void UpdateConfigSourceStatus()
+        => Config.ConfigSourceStatus = Config.LoadedFileName is { Length: > 0 } file
+            ? $"Using file: {file}"
+            : Config.SourceMode == DataSourceMode.EnterManually
+                ? "Entering parameters manually"
+                : "No data — enter manually or upload in the Input tab.";
+
+    private void OnNavigateToInputTabRequested(object? sender, EventArgs e) => SetSelectedTabIndex(1);
+
+    /// <summary>Asks the shell to select a tab (handled by the root view, RULING 2, Phase 7D).</summary>
+    public void SetSelectedTabIndex(int index) => TabSelectionChanged?.Invoke(this, index);
+
+    private void OnUseForSimulationRequested(object? sender, EventArgs e)
+    {
+        Config.SourceMode = DataSourceMode.FitFromData;
+        SetSelectedTabIndex(0);
+    }
+
+    private void OnStageMismatchSyncRequested(object? sender, EventArgs e) => Config.SyncStagesToData();
+
+    private void OnStageMismatchKeepRequested(object? sender, EventArgs e) => Config.DismissStageMismatchWarning();
+
+    private void OnClearFileRequested(object? sender, EventArgs e) => Config.ClearLoadedFile();
+
+    private async void OnUploadRequested(object? sender, EventArgs e) => await PickAndLoadDataFileAsync();
+
+    /// <summary>
+    /// The one data-file load path (RULING 3, Phase 7D): both Upload buttons
+    /// reach here, the shell's picker resolves a path, and the file is applied
+    /// once to the config panel — which then pushes the binding to every
+    /// subscriber through <see cref="ConfigPanelViewModel.DataBindingChanged"/>.
+    /// </summary>
+    public async Task PickAndLoadDataFileAsync()
+    {
+        if (PickDataFileAsync is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string? path = await PickDataFileAsync();
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                Config.ApplyLoadedFile(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            // AGENTS §12.4: never swallow; the picker is the only failure point.
+            Log.Error(ex, "Data-file picker failed");
+        }
+    }
 
     /// <summary>
     /// Full reset to the fresh-launch state (Phase 5c.4): clears every config
@@ -101,7 +218,6 @@ public partial class MainViewModel : ObservableObject
 
         Results.StartRun();
         Results.SetChiSquareAlpha(Config.SignificanceLevelForRun);
-        Results.SetPreview(Config.Binding);
 
         Task.Run(() =>
         {

@@ -22,12 +22,12 @@ namespace OpdSimulator.App.Tests;
 /// <see cref="MainViewModel"/> uses and saves one frame into
 /// <c>logs/screenshots/</c>:
 /// <list type="bullet">
-/// <item><c>phase-6c-input-analysis.png</c> — Input Analysis tab: histogram +
+/// <item><c>phase-6c-input-analysis.png</c> — Input tab: histogram +
 /// fitted-PDF card and chi-square observed-vs-expected card per fit.</item>
 /// <item><c>phase-6c-results-all.png</c> — Simulation tab after a real engine
-/// run with the sample multi-stage clinic loaded: all seven widgets (metrics,
-/// utilisation, queue length, waiting-time histogram, chi-square, data preview,
-/// trace) in one frame.</item>
+/// run with the sample multi-stage clinic loaded: all six widgets (metrics,
+/// utilisation, queue length, waiting-time histogram, chi-square, trace) in one
+/// frame.</item>
 /// <item><c>phase-6c-widget-toggled.png</c> — same run with the "Customise
 /// results" picker open and one widget (waiting-time history) switched off.</item>
 /// </list>
@@ -50,6 +50,9 @@ public class Phase6c6Screenshots
 
             var binding = DataAnalyzer.Analyze(SamplePath("sample_patients.csv"));
             Assert.True(binding.IsUsable, "the sample CSV must analyse cleanly for the screenshot");
+            // Phase 7D: the fit analysis lives inside the Input tab, which only
+            // renders it once a file is loaded.
+            main.InputTab.SetLoadedFile(binding);
             main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
             Assert.Equal(4, main.InputAnalysis.Charts.Count); // histogram + chi-square per fit
             Assert.Equal("Chi-square: Inter-arrival", main.InputAnalysis.Charts[1].Title);
@@ -57,7 +60,7 @@ public class Phase6c6Screenshots
             Assert.All(main.InputAnalysis.Charts, c => Assert.NotNull(c.ChartContent));
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 1; // Input Analysis
+            tabs.SelectedIndex = 1; // Input
             window.UpdateLayout();
 
             var frame = Capture(window, "phase-6c-input-analysis.png");
@@ -70,7 +73,7 @@ public class Phase6c6Screenshots
     }
 
     [AvaloniaFact]
-    public void Render_ResultsAllSevenWidgetsFromRealRun_SavePhase6cResultsAllPng()
+    public void Render_ResultsAllSixWidgetsFromRealRun_SavePhase6cResultsAllPng()
     {
         var window = new MainWindow();
         window.Width = 1200;
@@ -83,21 +86,17 @@ public class Phase6c6Screenshots
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
-            string[] originalWidgets = ForceAllSevenVisible(main.Results);
+            string[] originalWidgets = ForceAllSixVisible(main.Results);
             try
             {
-                (var outcome, var binding) = RunRealThreeStage(main);
+                (var outcome, _) = RunRealThreeStage(main);
 
                 // Scroll-viewer content realises during layout; the widget stack
                 // is not in the visual tree until a layout pass runs.
                 window.UpdateLayout();
 
-                // Data preview needs the loaded file — the seventh widget.
-                main.Results.SetPreview(binding);
-                Assert.True(main.Results.ShowDataPreview, "the data-preview widget turns on once a file loads");
-
                 AssertWidgetsFromRealRun(main, outcome);
-                AssertAllSevenInsideOneFrame(window);
+                AssertAllSixInsideOneFrame(window);
 
                 long frame = Capture(window, "phase-6c-results-all.png");
                 Assert.True(frame >= 512, "results-all frame missing or suspiciously small");
@@ -127,7 +126,7 @@ if (window.DataContext is not MainViewModel main)
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
-            string[] originalWidgets = ForceAllSevenVisible(main.Results);
+            string[] originalWidgets = ForceAllSixVisible(main.Results);
             try
             {
                 (var outcome, _) = RunRealThreeStage(main);
@@ -169,18 +168,18 @@ if (window.DataContext is not MainViewModel main)
 
     private static readonly string[] WidgetKeys =
     {
-        "metrics", "chiSquare", "trace", "dataPreview",
+        "metrics", "chiSquare", "trace",
         "utilisation", "queueLength", "waitHistogram",
     };
 
     /// <summary>
-    /// The results screenshots must show a stable all-seven frame regardless of
+    /// The results screenshots must show a stable all-six frame regardless of
     /// the developer machine's real <c>ui.json</c> (FR-UI-14 preferences are
     /// persisted per-user and MainViewModel loads them), so this test forces
     /// every widget visible for the capture and restores the original set in
     /// <c>finally</c> — leaving the machine's preferences exactly as they were.
     /// </summary>
-    private static string[] ForceAllSevenVisible(ResultsPanelViewModel results)
+    private static string[] ForceAllSixVisible(ResultsPanelViewModel results)
     {
         string[] original = results.VisibleWidgets.ToArray();
         foreach (string key in WidgetKeys)
@@ -234,9 +233,9 @@ if (window.DataContext is not MainViewModel main)
     }
 
     /// <summary>
-    /// Proves every one of the seven widgets carries real, non-empty content
-    /// after the run + preview wiring (the screenshot is evidence, the asserts
-    /// are the proof).
+    /// Proves every one of the six widgets carries real, non-empty content
+    /// after the run wiring (the screenshot is evidence, the asserts are the
+    /// proof). Phase 7D removed the data-preview widget from this panel.
     /// </summary>
     private static void AssertWidgetsFromRealRun(MainViewModel main, RunOutcome outcome)
     {
@@ -270,15 +269,11 @@ if (window.DataContext is not MainViewModel main)
         // 5. Chi-square table: Inter-arrival + one row per stage (4 fits).
         Assert.Equal(4, r.ChiSquareRows.Count);
 
-        // 6. Data preview from the loaded file.
-        Assert.NotNull(r.PreviewColumnTitles);
-        Assert.NotNull(r.PreviewRows);
-
-        // 7. Event trace is populated at State level.
+        // 6. Event trace is populated at State level.
         Assert.False(string.IsNullOrWhiteSpace(r.TraceText));
 
-        // And the FR-UI-14 contract: all seven widgets are visible together.
-        Assert.Equal(new[] { "metrics", "chiSquare", "trace", "dataPreview",
+        // And the FR-UI-14 contract: all six widgets are visible together.
+        Assert.Equal(new[] { "metrics", "chiSquare", "trace",
             "utilisation", "queueLength", "waitHistogram" }, r.VisibleWidgets);
     }
 
@@ -288,7 +283,7 @@ if (window.DataContext is not MainViewModel main)
     /// clipped. The event trace is the last widget in the stack, so if its card
     /// bottom fits inside the window, every widget above it does too.
     /// </summary>
-    private static void AssertAllSevenInsideOneFrame(Window window)
+    private static void AssertAllSixInsideOneFrame(Window window)
     {
         var panel = window.GetVisualDescendants().OfType<ResultsPanel>().Single();
         var headers = panel.GetVisualDescendants().OfType<TextBlock>()

@@ -34,6 +34,9 @@ public class Phase6c3Screenshot
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
+            // Phase 7D: the fit analysis lives inside the Input tab, which only
+            // renders it once a file is loaded.
+            main.InputTab.SetLoadedFile(binding);
             main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
             Assert.Equal(4, main.InputAnalysis.Charts.Count); // histogram + chi-square per fit (Inter-arrival, Screening)
             Assert.Equal("Chi-square: Inter-arrival", main.InputAnalysis.Charts[1].Title);
@@ -41,7 +44,7 @@ public class Phase6c3Screenshot
             Assert.All(main.InputAnalysis.Charts, c => Assert.NotNull(c.ChartContent));
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 1; // Input Analysis
+            tabs.SelectedIndex = 1; // Input
             window.UpdateLayout();
 
             var frame = HeadlessScreenshot.Capture(window);

@@ -2,11 +2,9 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.ViewModels;
-using Serilog;
 
 namespace OpdSimulator.App.Views;
 
@@ -34,8 +32,10 @@ public sealed class ConfigPanelValidation
 
 /// <summary>
 /// Phase-4 configuration panel. Owns no simulation logic: it forwards blur
-/// validation to the <see cref="ConfigPanelViewModel"/>, opens the data-file
-/// picker on Upload, and confirms "Clear All" through a themed dialog.
+/// validation to the <see cref="ConfigPanelViewModel"/> and confirms "Clear
+/// All" through a themed dialog. Phase 7D moved the data-file picker to
+/// <see cref="MainWindow"/> (one picker path) and the stage-mismatch actions
+/// to the Input tab.
 /// </summary>
 public partial class ConfigPanel : UserControl
 {
@@ -55,63 +55,13 @@ public partial class ConfigPanel : UserControl
     {
         if (_vm is not null)
         {
-            _vm.UploadRequested -= OnUploadRequested;
             _vm.ClearAllRequested -= OnClearAllRequested;
-            _vm.SyncStagesRequested -= OnSyncStagesRequested;
-            _vm.KeepStageMismatchRequested -= OnKeepStageMismatchRequested;
         }
 
         _vm = DataContext as ConfigPanelViewModel;
         if (_vm is not null)
         {
-            _vm.UploadRequested += OnUploadRequested;
             _vm.ClearAllRequested += OnClearAllRequested;
-            _vm.SyncStagesRequested += OnSyncStagesRequested;
-            _vm.KeepStageMismatchRequested += OnKeepStageMismatchRequested;
-        }
-    }
-
-    private async void OnUploadRequested(object? sender, EventArgs e)
-    {
-        var topLevel = this.GetVisualRoot() as TopLevel;
-        if (topLevel is null || _vm is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select patient data file",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("Patient data (.xlsx / .csv)")
-                    {
-                        Patterns = new[] { "*.xlsx", "*.csv" },
-                    },
-                },
-            });
-
-            if (files.Count == 0)
-            {
-                return;
-            }
-
-            var path = files[0].TryGetLocalPath() ?? files[0].Path.ToString();
-            _vm.ApplyLoadedFile(path);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "File picker failed");
-            if (VisualRoot is Window owner)
-            {
-                await ThemedDialog.ShowMessageAsync(
-                    owner,
-                    "Could not open file picker",
-                    "A system error prevented the file dialog from opening. See logs/errors-*.log for details.");
-            }
         }
     }
 
@@ -145,34 +95,6 @@ public partial class ConfigPanel : UserControl
             // Standalone host (controls demo / tests without a MainWindow): config only.
             _vm.ResetToDefaults();
         }
-    }
-
-    private async void OnSyncStagesRequested(object? sender, EventArgs e)
-    {
-        if (_vm is null || _vm.Binding is not { } binding)
-        {
-            return;
-        }
-
-        var owner = this.GetVisualRoot() as Window;
-        var result = await ThemedDialog.ShowMessageAsync(
-            owner,
-            "Sync stages to the data?",
-            $"Replace the configured stage list with the {binding.StageNames.Count} stage(s) found in the loaded data?",
-            "Sync",
-            "Cancel");
-
-        if (result == ThemedDialogResult.Primary)
-        {
-            _vm.SyncStagesToData();
-        }
-    }
-
-    private void OnKeepStageMismatchRequested(object? sender, EventArgs e)
-    {
-        // Non-destructive: no confirmation needed, the warning is merely
-        // dismissed for the session (5d.3).
-        _vm?.DismissStageMismatchWarning();
     }
 
     private void OnFieldLostFocus(object? sender, RoutedEventArgs e)

@@ -177,9 +177,11 @@ public class Phase5cFixesTests
         Assert.Empty(main.Results.ChiSquareRows);
         // FR-UI-21: widget VISIBILITY is a persisted preference (it survives
         // Clear All); the reset contract is that widget CONTENT is dropped.
-        Assert.Null(main.Results.PreviewRows);
-        Assert.Null(main.Results.PreviewColumnTitles);
-        Assert.Null(main.Results.PreviewError);
+        // Phase 7D: the data preview now lives on the Input tab.
+        Assert.Null(main.InputTab.Preview.Rows);
+        Assert.Null(main.InputTab.Preview.ColumnTitles);
+        Assert.Null(main.InputTab.Preview.LoadErrorSummary);
+        Assert.False(main.InputTab.HasFile);
 
         // The config side also lands at factory ground.
         Assert.False(config.ParametersIsOptionalEnabled);

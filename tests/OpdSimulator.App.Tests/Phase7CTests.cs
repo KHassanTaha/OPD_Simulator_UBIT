@@ -15,12 +15,13 @@ namespace OpdSimulator.App.Tests;
 /// <summary>
 /// Phase 7C gate (feat/milestone-7-model-driven): the two-path data-source
 /// configuration. Verification intent: the mode selector defaults to
-/// FitFromData; EnterManually hides the Data section and the comma-list μ
-/// field, seeds p_exit = 0.4 and requires λ + every per-stage μ + p_exit
-/// before Start; FitFromData requires a usable file with a resolvable μ for
-/// every stage; and both paths build valid <see cref="SimulationParameters"/>.
-/// Start is a completeness gate per D-128, which supersedes 5d.1's "runnable
-/// in principle" contract.
+/// FitFromData; EnterManually hides the comma-list μ field, seeds p_exit = 0.4
+/// and requires λ + every per-stage μ + p_exit before Start; FitFromData
+/// requires a usable file with a resolvable μ for every stage; and both paths
+/// build valid <see cref="SimulationParameters"/>. Start is a completeness gate
+/// per D-128, which supersedes 5d.1's "runnable in principle" contract.
+/// (Phase 7D replaced the collapsible Data section with an always-on status
+/// strip; the data UI itself moved to the Input tab.)
 /// </summary>
 public class Phase7CTests
 {
@@ -79,7 +80,7 @@ public class Phase7CTests
     }
 
     [AvaloniaFact]
-    public void ModeSelector_SwitchToManual_HidesDataSection()
+    public void ModeSelector_SwitchToManual_KeepsStatusStripVisible()
     {
         var vm = NewVm();
         var panel = new ConfigPanel { DataContext = vm };
@@ -87,14 +88,16 @@ public class Phase7CTests
 
         try
         {
-            var dataSection = window.GetVisualDescendants().OfType<CollapsibleSection>()
-                .Single(s => s.Title == "1 · Data");
-            Assert.True(dataSection.IsVisible, "fit mode must show the Data section");
+            // Phase 7D replaced the collapsible Data section with an always-on
+            // status strip; the mode selector no longer hides data UI here.
+            var manage = window.GetVisualDescendants().OfType<Button>()
+                .Single(b => (b.Content?.ToString() ?? "") == "Manage input →");
+            Assert.True(manage.IsVisible, "the data status strip must show in fit mode");
 
             vm.SourceMode = DataSourceMode.EnterManually;
             window.UpdateLayout();
 
-            Assert.False(dataSection.IsVisible, "manual mode must hide the Data section");
+            Assert.True(manage.IsVisible, "the data status strip stays visible in manual mode too (Phase 7D)");
         }
         finally
         {
@@ -103,7 +106,7 @@ public class Phase7CTests
     }
 
     [AvaloniaFact]
-    public void ModeSelector_SwitchBackToFit_ShowsDataSection()
+    public void ModeSelector_SwitchBackToFit_RestoresCommaListMu()
     {
         var vm = NewVm();
         vm.SourceMode = DataSourceMode.EnterManually;
@@ -112,14 +115,14 @@ public class Phase7CTests
 
         try
         {
-            var dataSection = window.GetVisualDescendants().OfType<CollapsibleSection>()
-                .Single(s => s.Title == "1 · Data");
-            Assert.False(dataSection.IsVisible);
+            var commaMu = window.GetVisualDescendants().OfType<ValidatedField>()
+                .Single(f => f.Label == "Manual μ per stage (per minute)");
+            Assert.False(commaMu.IsVisible, "manual mode owns per-stage μ — the comma list hides");
 
             vm.SourceMode = DataSourceMode.FitFromData;
             window.UpdateLayout();
 
-            Assert.True(dataSection.IsVisible, "returning to fit mode must restore the Data section");
+            Assert.True(commaMu.IsVisible, "returning to fit mode must restore the comma-list μ override");
         }
         finally
         {

@@ -314,7 +314,7 @@ chart failure never blocks the results.
 
 > **[VERIFIED — 2026-09-17, Phase 6C complete]** The chart suite landed in
 > Phase 6C in two groups by data source, and a figure appears on exactly one
-> tab (AGENTS §16.12): **Input Analysis** (data-derived) holds the
+> tab (AGENTS §16.12): the **Input** tab (data-derived) holds the
 > inter-arrival / per-stage-service histograms with the fitted-PDF overlay and
 > the paired chi-square observed-vs-expected bars — both built from the
 > verdict's own bins, never recomputed (D-118); **Results** (run-derived)
@@ -324,6 +324,14 @@ chart failure never blocks the results.
 > times + per-stage `QueueLengthSeries` + `WaitingTimeSamples`, and M2
 > supplied binned data + fitted PDF points, so no engine rework was needed.
 > The 6C completion gate is D-124 (Phase 6c.6).
+>
+> **[VERIFIED — 2026-09-18, Phase 7D]** The data-derived charts and the data
+> upload/preview UI now share one **Input** tab (tab 2 of four:
+> Simulation | Input | Token Generator | Help). The Simulation tab's former
+> "1 · Data" section is a status strip linking to it, and the data preview is
+> no longer a Results widget. The tab/content split is unchanged in meaning:
+> data-side content on Input, run-side content on the Results panel
+> (D-130..D-134).
 
 ---
 

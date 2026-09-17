@@ -7,11 +7,38 @@ not survive the view-layer replacement (see `docs/M5_FAILURES.md`).
 
 ---
 
+## Phase 7D — merged Input tab (2026-09-18)
+
+### Q: Why merge the Data upload section into the Input Analysis tab instead of keeping them separate?
+
+**Answer:** They answer the same question — "what data did I load, and is it
+usable?" — so splitting them forced the user across two surfaces to do one job
+(upload, check the preview, read the fit). Phase 7D makes one **Input** tab
+(tab 2 of four: Simulation | Input | Token Generator | Help) that holds upload,
+preview, validation banner, stage-mismatch warning, and the fit charts
+together. The semantic split from AGENTS §16.12 survives: data-derived figures
+live on Input; run-derived figures live on the Results panel. The Simulation
+tab's Data section collapses to a status strip ("Using file: …" /
+"Entering parameters manually") with a **Manage input →** link, so the config
+panel still tells you the data source at a glance (D-130..D-134).
+
+### Q: Two buttons can both open a file picker — how do you know they don't load twice?
+
+**Answer:** They don't own a picker each. `ConfigPanelViewModel` and the Input
+tab both *raise an intent* — `UploadRequested` / `UploadFileRequested` — and
+`MainViewModel.PickAndLoadDataFileAsync` is the single place that shows the
+OS picker, loads, validates, and mirrors the result into both the config panel
+and the Input tab (RULING 3, D-132). One path means one validation, one log
+line, one preview. The test `InputTab_UploadRequested_UsesTheSinglePickerPath`
+pins that both intents converge on the same handler.
+
+---
+
 ## Phase 6C — chart suite (2026-09-17)
 
 ### Q: How do the charts prove the fitted distribution actually fits the data?
 
-**Answer:** The Input Analysis histogram draws the observed frequencies in
+**Answer:** The Input tab histogram draws the observed frequencies in
 exactly the same bins the chi-square test uses, and overlays the fitted PDF
 (density × bin width × n, so curve and bars are on one scale). You see the
 fit *before* the p-value. The chi-square widget then draws observed vs
@@ -32,7 +59,7 @@ the exact gap in its tooltip (D-121). FR-STAT-7's analytical rule stays
 max − min > 0.15; the widget is the per-server visual variant because max−min
 only tells you the two extremes and never *which other* server is off
 (CONTEXT §5.7 documents both). This is a run-derived figure, so it lives on
-the Results tab, never Input Analysis.
+the Results tab, never the Input tab.
 
 ### Q: The queue-length chart plots a run with hundreds of thousands of samples. How is it not unusable?
 

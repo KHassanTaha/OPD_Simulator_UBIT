@@ -10,9 +10,9 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 6c.1 gate evidence (feat/milestone-6c-input-analysis-charts): the real
-/// <see cref="MainWindow"/> with the Input Analysis tab selected, showing the new
-/// tab scaffold — the themed empty state ("Load a data file to see fit
-/// analysis.") — saved as <c>logs/screenshots/phase-6c1-empty.png</c>.
+/// <see cref="MainWindow"/> with the Input tab selected, showing the merged
+/// tab's empty state — saved as <c>logs/screenshots/phase-6c1-empty.png</c>.
+/// (Phase 7D merged the old Input Analysis tab into the Input tab.)
 /// </summary>
 public class Phase6c1Screenshot
 {
@@ -24,7 +24,7 @@ public class Phase6c1Screenshot
         try
         {
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 1; // Input Analysis
+            tabs.SelectedIndex = 1; // Input
             window.UpdateLayout();
 
             var frame = HeadlessScreenshot.Capture(window);

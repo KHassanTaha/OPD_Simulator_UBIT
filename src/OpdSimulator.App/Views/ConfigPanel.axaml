@@ -29,49 +29,31 @@
                                              SelectedItem="{Binding SourceModeSelection, Mode=TwoWay}"
                                              HelpAnchor="data-source"/>
 
-                <!-- ───── 1 · Data ─────────────────────────────────────── -->
-                <controls:CollapsibleSection Title="1 · Data"
-                                             IsVisible="{Binding IsDataSectionVisible}"
-                                             IsExpanded="True"
-                                             HelpText="Upload the patient data file. The row preview lives in the Results panel (Phase 5) — it is deliberately not duplicated here.">
+                <!-- Phase 7D: the Data section is now a compact status strip.
+                     Upload, preview and the stage-mismatch actions live in the
+                     Input tab; this strip only reports the active source and
+                     offers a link across. -->
+                <Border Classes="PanelCard" Padding="{DynamicResource ThicknessSpaceS}">
                     <StackPanel Spacing="{DynamicResource SpaceXs}">
-                        <Button Content="Upload Data"
-                                Command="{Binding UploadDataCommand}"
-                                Classes="PrimaryButton"
-                                HorizontalAlignment="Stretch"
-                                ToolTip.Tip="Opens a file picker for an .xlsx or .csv patient data file"/>
-                        <TextBlock Text="{Binding DataStatus}"
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{Binding ConfigSourceText}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
+                                       ToolTip.Tip="Where this run's parameters come from. Manage the file in the Input tab."/>
+                            <Button Grid.Column="1"
+                                    Content="Manage input →"
+                                    Command="{Binding NavigateToInputTabCommand}"
+                                    Classes="GhostButton"
+                                    ToolTip.Tip="Open the Input tab to upload a data file, review the preview, or handle a stage mismatch"/>
+                        </Grid>
+                        <TextBlock Text="Stages differ from data — see the Input tab."
+                                   IsVisible="{Binding HasStageMismatch}"
                                    Classes="Caption"
-                                   TextWrapping="Wrap"/>
-                        <!-- Phase 5d stage-count mismatch (D-114): amber warning
-                             + Sync/Keep actions when the data's stages differ
-                             from the configured list. -->
-                        <Border IsVisible="{Binding IsStageMismatchWarningVisible}"
-                                Background="{DynamicResource BrushWarningBackground}"
-                                BorderBrush="{DynamicResource BrushWarning}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource CornerRadiusM}"
-                                Padding="{DynamicResource ThicknessSpaceS}">
-                            <StackPanel Spacing="{DynamicResource SpaceS}">
-                                <TextBlock Text="{Binding StageMismatchMessage}"
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource BrushWarning}"
-                                           FontSize="{DynamicResource FontSizeCaption}"/>
-                                <StackPanel Orientation="Horizontal"
-                                            Spacing="{DynamicResource SpaceXs}">
-                                    <Button Content="Sync stages from data"
-                                            Command="{Binding SyncStagesFromDataCommand}"
-                                            Classes="PrimaryButton"
-                                            ToolTip.Tip="Replace the configured stages with the stages found in the loaded data"/>
-                                    <Button Content="Keep current stages"
-                                            Command="{Binding KeepCurrentStagesCommand}"
-                                            Classes="GhostButton"
-                                            ToolTip.Tip="Keep the configured stages for this session; the warning is dismissed"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BrushWarning}"/>
                     </StackPanel>
-                </controls:CollapsibleSection>
+                </Border>
 
                 <!-- ───── 2 · Model ────────────────────────────────────── -->
                 <controls:CollapsibleSection Title="2 · Model"

@@ -10,7 +10,8 @@
          welcome card until any run is attempted; afterwards the chosen widgets
          inside a scrollable stack. Widget order is stable: metrics →
          utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
-         (6c.5) → chi-square → data preview → trace. -->
+         (6c.5) → chi-square → trace (the data preview moved to the Input tab
+         in Phase 7D). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -65,7 +66,6 @@
                         <CheckBox IsChecked="{Binding ShowMetrics, Mode=TwoWay}" Content="Metrics"/>
                         <CheckBox IsChecked="{Binding ShowChiSquare, Mode=TwoWay}" Content="Chi-square"/>
                         <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
-                        <CheckBox IsChecked="{Binding ShowDataPreview, Mode=TwoWay}" Content="Data preview"/>
                         <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
                         <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
                         <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
@@ -75,7 +75,8 @@
             </StackPanel>
 
             <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square,
-                 preview, trace scroll together; the selector row above stays pinned. -->
+                 trace scroll together; the selector row above stays pinned. The
+                 data preview moved to the Input tab in Phase 7D. -->
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -273,24 +274,6 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!-- Data preview widget (FR-UI-20): only visible once a file was analysed. -->
-            <Border IsVisible="{Binding ShowDataPreview}"
-                    Background="{DynamicResource BrushBackgroundPanel}"
-                    BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource CornerRadiusM}"
-                    Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <TextBlock Text="Uploaded data preview"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <controls:DataPreviewTable ColumnTitles="{Binding PreviewColumnTitles}"
-                                               Rows="{Binding PreviewRows}"
-                                               InvalidRows="{Binding PreviewInvalidRows}"
-                                               LoadErrorSummary="{Binding PreviewError}"/>
                 </StackPanel>
             </Border>
 

@@ -891,7 +891,7 @@ Anti-patterns:
 The two analysis tabs answer different questions, and a widget appears on
 exactly one of them based on what it describes:
 
-- **Input Analysis tab** = everything that describes the LOADED DATA:
+- **Input tab** = everything that describes the LOADED DATA:
   inter-arrival and service-time histograms, the fitted PDFs, the chi-square
   goodness-of-fit verdicts, the data preview, and the stage/service counts
   implied by the uploaded columns.
@@ -902,11 +902,11 @@ exactly one of them based on what it describes:
 Rules:
 
 - The customise-results selector (FR-UI-14) only controls Results-tab widgets.
-  Input Analysis is intentionally NOT customisable — its widget set is fixed
+  Input is intentionally NOT customisable — its widget set is fixed
   by the data and always shown together.
 - Data-derived figures (histograms, fitted parameters, chi-square) never
   appear on the Results tab; run-derived figures (utilisation, wait times,
-  queue lengths) never appear on the Input Analysis tab.
+  queue lengths) never appear on the Input tab.
 - The per-server utilisation widget is a Results widget: it needs a finished
   simulation run and shows "Run a simulation to see utilisation." until one
   exists (Phase 6c.4, D-121).
@@ -1205,26 +1205,26 @@ GUI. See D-128.
 ### 19.6 Tab semantics
 
   Simulation tab      — configuration and run output.
-  Input Analysis tab  — uploaded data, preview, validation, and
+  Input tab           — upload, preview, validation, and
                         the distribution-fit analysis derived
-                        from that data.
+                        from the data.
   Token Generator tab — token issuance and estimated waits.
   Help tab            — the in-program guide.
 
-Input-analysis charts on the Input Analysis tab describe the
+Data-analysis charts on the Input tab describe the
 LOADED FILE. Simulation-verification charts in the Results panel
 describe the RUN. Do not mix the two — a chart about the file
 must not depend on a run, and a chart about the run must not
 depend on a file (except in Path A, where the file supplied the
 parameters).
 
-> After Phase 7D, the Input Analysis tab content merges
-> with the Data upload UI (currently the Simulation tab's
-> Data section) into a single Input tab. The Simulation
-> tab's Data section becomes a status strip linking to it.
-> The semantic split survives unchanged: Input holds
-> data-side content; the Results panel holds run-side
-> content.
+> **Phase 7D landed (2026-09-18).** The former Input Analysis
+> tab and the Simulation tab's Data section are now a single
+> **Input** tab (tab 2 of four: Simulation | Input | Token
+> Generator | Help). The Simulation tab's Data section is a
+> status strip linking to it. The semantic split survives
+> unchanged: Input holds data-side content; the Results panel
+> holds run-side content.
 
 ### 19.7 What this contract forbids
 

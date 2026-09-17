@@ -2,6 +2,125 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 7D — Merged Input tab (upload + preview + fit analysis) (2026-09-18, `feat/milestone-7-model-driven`)
+
+Fourth phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
+8A enforced). The Simulation tab's "1 · Data" section and the separate "Input
+Analysis" tab merged into one **Input** tab; the data-preview widget left the
+Results panel; the config panel's data UI became a compact status strip; and the
+D-114 stage-mismatch warning relocated to the Input tab (AGENTS §19.6 / §16.12).
+
+1. **Preview state split** (7D.1, D-130): new `InputPreviewViewModel` owns
+   `ColumnTitles`/`Rows`/`InvalidRows`/`LoadErrorSummary` plus the computed
+   `HasValidationIssues`/`HasValidationErrors`/`Severity`/`BannerMessage`/
+   `IssueSummary`/`HasRows` and `SetPreview`/`Clear`. The shared
+   `DataPreviewTable` control was **not modified** (reference-assigned flat
+   projections, not an `ObservableCollection`).
+2. **Input tab VM + view** (7D.1–7D.2): new `InputTabViewModel` (upload / clear /
+   use-for-simulation / sync-stages / keep-stages intent events, `SetLoadedFile`,
+   `ApplyStageMismatch`, `Clear`) and `Views/InputTab.axaml` + code-behind
+   (`Upload Data` / `Clear File`, FR-UI-9 banner, preview, D-114 warning,
+   "Use for simulation →", separator, "Distribution fit", the shared
+   `InputAnalysisView`, empty state).
+3. **Shell wiring** (7D.3, D-131/D-132): tab 2 renamed `"Input"`; `MainWindow`
+   gained `x:Name="MainTabs"`, the `TabSelectionChanged` subscription and the
+   `PickDataFileAsync` picker delegate; `MainViewModel` owns the two-way routing
+   (`SetSelectedTabIndex`, `PickAndLoadDataFileAsync`, `UpdateConfigSourceStatus`,
+   `SyncStageMismatchToInputTab`).
+4. **Config strip** (7D.4, D-133): the "1 · Data" `CollapsibleSection` became a
+   `PanelCard` status strip (`ConfigSourceText` + "Manage input →" + the
+   one-line `"Stages differ from data — see the Input tab."` indicator);
+   `ConfigPanel.axaml.cs` lost its dead upload/sync/keep handlers;
+   `ConfigPanelViewModel` gained `ConfigSourceStatus`/`ConfigSourceText`/
+   `HasStageMismatch`/`NavigateToInputTabRequested`/`ClearLoadedFile()`.
+5. **Results panel cleanup** (7D.5): the four preview members, `SetPreview`,
+   `ShowDataPreview` and the "Data preview" widget/checkbox were removed from
+   `ResultsPanelViewModel`/`ResultsPanel.axaml`; `WidgetPreferences` keeps the
+   legacy `dataPreview` key parseable (forward-compatible).
+6. **Tests** (7D.7): new `Phase7DTests` (36 tests) + `Phase7DScreenshots`
+   (4 frames); `Phase3ShellTests` header rename; `Phase4ConfigTests` 6→5
+   sections; `Phase7CTests`, `Phase5cFixesTests`, `Phase6c1/2/3Screenshot`,
+   `Phase6c6Screenshots`, `Phase6c6WidgetSelectorTests` updated in place.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **388 green**
+(Core 85 / Data 58 / Cli 35 / App 210, +40); headless Linux launch alive
+`"Main window created."` exit 0, crash logs unchanged since 2026-09-16; evidence
+`logs/screenshots/phase-7d-input-empty.png` (35 KB), `phase-7d-input-loaded.png`
+(137 KB), `phase-7d-input-mismatch.png` (101 KB), `phase-7d-config-strip.png`
+(113 KB) — D-089 headless method. Docs: DECISIONS D-130..D-134, TODO 7D `[x]` +
+6C flip, AGENTS §19.6/§16.12 tab-name refresh, DEV_LAUNCH §1/§6 + changelog,
+USER_MANUAL merge, VIVA_ANSWERS. Pushed to `feat/milestone-7-model-driven`,
+awaiting owner review/merge per §11.5; **do not start Phase 8A until instructed**.
+
+### Phase 7D verification (AGENTS §18)
+
+| Requirement / contract | How verified |
+|---|---|
+| FR-UI-9 (inline validation banner) | `InputTab_ValidationIssues_RenderAsBanner` (AvaloniaFact): row issues render the `ErrorBanner` with the issue text in the merged tab; screenshot `phase-7d-input-loaded.png`. |
+| FR-UI-14 / §16.12 (Results widgets are run-derived only) | `ResultsPanel_NoLongerContainsDataPreview`, `ResultsPanel_View_HasNoDataPreviewTable`, `WidgetPreferences_LegacyDataPreviewKey_StillParses`; `phase-6c6WidgetSelectorTests` six-widget contract. |
+| FR-UI-20 / NFR-10 (preview surface) | `Preview_SetPreview_ProjectsColumnsAndRows`, `Preview_SetPreview_MapsInvalidRowsToZeroBasedIndices`, `Preview_IssueSummary_TruncatesAfterFive`; `InputTab_AfterLoad_AnalysisSectionVisible` asserts the virtualised table is shown. |
+| FR-UI-7 (disabled control explains itself) / D-114 | `InputTab_StageMismatchWarning_VisibleWhenSet`, `ConfigPanel_StatusStrip_MismatchIndicator_VisibleOnMismatch`, `InputTab_StageSync_ReplacesConfigStages`; screenshot `phase-7d-input-mismatch.png`. |
+| §19.6 two-path contract (both paths still work) | `InputTab_UseForSimulation_SwitchesToFitAndSelectsSimulation` (Path B → A) and `InputTab_ClearFile_UnloadsConfigFile` (A → unload), plus the unchanged `Phase7CTests`. |
+| RULING 1–4 (owner 7D rulings) | D-130..D-134; `InputTab_AfterLoad_AnalysisSectionVisible`, `ConfigPanel_ManageInputButton_NavigatesToInputTab`, `InputTab_UploadRequested_UsesTheSinglePickerPath`, `InputTab_StageSync_ReplacesConfigStages`. |
+| Tab order (§16.7 / §19.6) | `Phase3ShellTests.MainWindow_HasFourTabs_InExpectedOrder` (header renamed), `Phase7DTests.Shell_Tabs_AreSimulationInputTokenHelp` + `TabIndex_*`; `ArrowKeys_MoveTabSelection_WhenHeaderFocused`. |
+| D-089 headless launch method | `timeout 20 dotnet run --project src/OpdSimulator.App -c Release` → `Application started. Main window created.`, exit 0; 4 screenshots regenerated by `Phase7DScreenshots`. |
+
+### Session Handoff — 2026-09-18 03:35
+Branch: `feat/milestone-7-model-driven`
+Status: Clean
+
+Done
+- Phase 7D — merged Input tab (upload + preview + fit analysis) `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 388 green (Core 85 / Data 58 / Cli 35 / App 210, +40); D-130..D-134 logged.
+
+In Progress
+- None.
+
+Next Session Should Start With
+- Await owner review/merge of `feat/milestone-7-model-driven` (§11.5); do not start Phase 8A until instructed.
+- Post-merge: Phase 6 (Help tab + preset system) per PRD phase order.
+
+Blocked
+- None.
+
+Git State
+- Commits made this session: (this commit) `feat: merged Input tab (upload + preview + fit analysis) (Phase 7D)`.
+- Pushed to origin: Yes (feature branch).
+- Uncommitted changes: None.
+
+Build & Test
+- dotnet build: PASS (0 warnings, 0 errors)
+- dotnet test: PASS — 388 passed, 0 failed
+- Warnings: 0
+
+Files Touched
+- src/OpdSimulator.App/ViewModels/InputPreviewViewModel.cs: added
+- src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: added
+- src/OpdSimulator.App/Views/InputTab.axaml (+ .axaml.cs): added
+- src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+- src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+- src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified
+- src/OpdSimulator.App/Views/MainWindow.axaml (+ .axaml.cs): modified
+- src/OpdSimulator.App/Views/ConfigPanel.axaml (+ .axaml.cs): modified
+- src/OpdSimulator.App/Views/ResultsPanel.axaml: modified
+- tests/OpdSimulator.App.Tests/Phase7DTests.cs: added
+- tests/OpdSimulator.App.Tests/Phase7DScreenshots.cs: added
+- tests/OpdSimulator.App.Tests/Phase3ShellTests.cs, Phase4ConfigTests.cs, Phase5cFixesTests.cs, Phase6c1Screenshot.cs, Phase6c2Screenshot.cs, Phase6c3Screenshot.cs, Phase6c6Screenshots.cs, Phase6c6WidgetSelectorTests.cs, Phase7CTests.cs: modified
+- docs/DECISIONS.md, docs/PROGRESS.md, docs/TODO.md, AGENTS.md, docs/DEV_LAUNCH.md, docs/USER_MANUAL.md, docs/VIVA_ANSWERS.md: modified
+
+Decisions Made
+- D-130 — preview extracted into `InputPreviewViewModel`; control untouched.
+- D-131 — navigation via `MainViewModel.SetSelectedTabIndex`/`TabSelectionChanged`.
+- D-132 — one picker / one load path for both Upload buttons.
+- D-133 — D-114 warning relocates to the Input tab; Sync calls `SyncStagesToData` directly.
+- D-134 — tab header 2 renamed "Input Analysis" → "Input" in place.
+
+Assumptions Added/Changed
+- None new.
+
+Notes for Next Session
+- `ConfigPanelViewModel.SyncStagesRequested`/`KeepStageMismatchRequested` remain but are no longer raised by the panel (its buttons were removed) — cleanup candidate, not dead code.
+- The §19.6 tab-name refresh TODO row is now done (AGENTS §19.6/§16.12, USER_MANUAL, DEV_LAUNCH updated in this change).
+
 ### AGENTS.md §18 + §19 — 2026-09-18
 
 §18 "UI Completion Criterion" restored — it had never been present despite

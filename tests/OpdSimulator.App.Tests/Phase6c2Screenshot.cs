@@ -34,12 +34,15 @@ public class Phase6c2Screenshot
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
+            // Phase 7D: the fit analysis lives inside the Input tab, which only
+            // renders it once a file is loaded.
+            main.InputTab.SetLoadedFile(binding);
             main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
             Assert.Equal(4, main.InputAnalysis.Charts.Count);
             Assert.False(main.InputAnalysis.IsEmpty);
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 1; // Input Analysis
+            tabs.SelectedIndex = 1; // Input
             window.UpdateLayout();
 
             var frame = HeadlessScreenshot.Capture(window);
