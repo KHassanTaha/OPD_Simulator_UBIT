@@ -298,10 +298,18 @@ The simulator uses LiveCharts2. Charts are a presentation layer: the
 underlying numbers are always available in the metrics table, so a
 chart failure never blocks the results.
 
-> Charts are an M5 (GUI) feature. The groundwork happens earlier: the M1
-> statistics collector exposes per-server busy times and waiting-time
-> samples, and the M2 fitting module exposes binned data and fitted PDF
-> curve points — so chart consumers never need the engine reworked.
+> **[VERIFIED — 2026-09-17, Phase 6C complete]** The chart suite landed in
+> Phase 6C in two groups by data source, and a figure appears on exactly one
+> tab (AGENTS §16.12): **Input Analysis** (data-derived) holds the
+> inter-arrival / per-stage-service histograms with the fitted-PDF overlay and
+> the paired chi-square observed-vs-expected bars — both built from the
+> verdict's own bins, never recomputed (D-118); **Results** (run-derived)
+> holds the per-server utilisation bars (D-121), the queue-length-over-time
+> lines (min-max decimated to ≤ 2000 pts, D-122) and the one-stage
+> waiting-time histogram (D-123). The M1 collector supplied per-server busy
+> times + per-stage `QueueLengthSeries` + `WaitingTimeSamples`, and M2
+> supplied binned data + fitted PDF points, so no engine rework was needed.
+> The 6C completion gate is D-124 (Phase 6c.6).
 
 ---
 

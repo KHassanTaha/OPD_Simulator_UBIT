@@ -308,9 +308,14 @@ members, professor). It is replaced by the results the moment you start a
 calculation. If the run was refused, an error banner explains exactly why.
 
 The widget selector (a "Customise results" toggle at the top of the right
-panel) shows or hides the individual widgets below it: the **metrics table**,
-the **per-server utilisation chart**, the **chi-square results**, the **data
-preview**, and the **event trace**.
+panel) shows or hides the individual Results widgets below it: the **metrics
+table**, the **per-server utilisation chart**, the **queue-length-over-time
+chart**, the **waiting-time distribution**, the **chi-square results**, the
+**data preview**, and the **event trace**. Your choice is remembered between
+sessions.
+
+The charts live on two tabs and answer two different questions — see §6.7 for
+how to tell them apart and read the data-derived ones.
 
 ### 6.1 Metrics Table
 For each stage:
@@ -395,6 +400,43 @@ How to read it:
 Both widgets are **Results** widgets: they describe a run, so they live on
 the Simulation tab next to the metrics, never on the Input Analysis tab
 (which shows the data-derived fit charts instead).
+
+### 6.7 Reading the Charts — Data-Derived vs Run-Derived
+
+The five charts answer two different questions, and each one appears on
+exactly one tab:
+
+| Chart | Tab | Describes | Where the numbers come from |
+|-------|-----|-----------|-----------------------------|
+| Inter-arrival / per-stage service histogram + fitted PDF | Input Analysis | the **loaded data** | MLE fit + chi-square bins (§7.3) |
+| Chi-square observed-vs-expected bars | Input Analysis | the **loaded data** | the goodness-of-fit test (§6.2) |
+| Per-server utilisation bars | Results | a **run** | `logs`/engine last run (§6.4) |
+| Queue length over time | Results | a **run** | engine last run (§6.5) |
+| Waiting-time distribution | Results | a **run** | engine last run (§6.6) |
+
+So: if a figure describes the file you uploaded, it is on **Input Analysis**;
+if it describes what the simulator just did, it is on **Results**. The
+Results tab's "Customise results" selector never hides Input Analysis charts —
+that set is fixed by the data and always shown together.
+
+**Histogram + fitted PDF (Input Analysis).** The bars are the observed
+frequencies in the same bins the chi-square test uses. The smooth curve is the
+fitted probability density scaled onto the same axis: the closer the curve
+tracks the bar tops, the better the chosen distribution fits. A curve sitting
+well above the bars on one side and below on the other warns you *before* you
+read the p-value that the fit is poor.
+
+**Chi-square observed-vs-expected bars (Input Analysis).** One pair of bars
+per bin — observed (O) and expected (E) frequency. Large gaps in a few bins
+are what drive the χ² statistic up; a flat, evenly matched profile is a good
+fit. The verdict text under the chart repeats the p-value decision from §6.2,
+so the picture and the number always agree.
+
+**Blank/placeholder states.** Before a file is loaded the Input Analysis tab
+says *"Load a data file to see fit analysis."* Before a run the three Results
+charts each show their own *"Run a simulation to see …"* message. If a chart
+cannot be drawn, the widget falls back to that same text rather than crashing
+the run — the numbers in the metrics table are always present.
 
 ---
 

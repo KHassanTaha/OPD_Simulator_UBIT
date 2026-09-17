@@ -7,6 +7,47 @@ not survive the view-layer replacement (see `docs/M5_FAILURES.md`).
 
 ---
 
+## Phase 6C — chart suite (2026-09-17)
+
+### Q: How do the charts prove the fitted distribution actually fits the data?
+
+**Answer:** The Input Analysis histogram draws the observed frequencies in
+exactly the same bins the chi-square test uses, and overlays the fitted PDF
+(density × bin width × n, so curve and bars are on one scale). You see the
+fit *before* the p-value. The chi-square widget then draws observed vs
+expected per bin, so you can point at the specific bins that drive χ². The
+picture and the verdict are guaranteed consistent because both are produced
+from the same `ChiSquareResult` — the histogram never re-bins the data
+(`Phase6c2HistogramTests.BuildHistogram_ReusesTheChiSquareBins_NeverRecomputes`).
+"Fail to reject" is not "the distribution is correct"; we always report the
+p-value, and the chart is the intuition behind it.
+
+### Q: Why show one bar per server instead of a single stage-utilisation number?
+
+**Answer:** Stage utilisation is the *mean* of its servers, and a mean hides
+imbalance — one doctor at 90% plus one at 30% averages to a comfortable-looking
+60%. The per-server chart exposes that: each bar is a real engine server, and
+a bar turns amber when it deviates from its stage mean by more than 0.15, with
+the exact gap in its tooltip (D-121). FR-STAT-7's analytical rule stays
+max − min > 0.15; the widget is the per-server visual variant because max−min
+only tells you the two extremes and never *which other* server is off
+(CONTEXT §5.7 documents both). This is a run-derived figure, so it lives on
+the Results tab, never Input Analysis.
+
+### Q: The queue-length chart plots a run with hundreds of thousands of samples. How is it not unusable?
+
+**Answer:** Two things. First, the series is prepared off the UI thread, so
+prep over 10,000 samples stays well under the 100 ms budget and the window
+never freezes (`Phase6c6Nfr6Tests`, NFR-6). Second, the plotted series is
+min-max bucket-decimated to at most 2000 points per stage (D-122): each
+bucket keeps its first, last, minimum and maximum, so the tallest peaks and
+the visible trend survive while the point count is bounded — O(n) in one pass.
+The caption says "downsampled from N samples" when reduction happened, so the
+number is never hidden. Full-fidelity data is still in the metrics; the chart
+is a presentation layer.
+
+---
+
 ## Phase 5d — config refinements (2026-09-16)
 
 ### Q: Why is the μ field gone from the Stages section?

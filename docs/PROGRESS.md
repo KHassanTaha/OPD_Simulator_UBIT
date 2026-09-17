@@ -2,6 +2,45 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 6c.6 — 6C completion gate (2026-09-17)
+
+Verification + docs only (D-124); no App/Core/Data/Cli source change. Four new
+test files (9 tests) close the 6C chart suite: `Phase6c6WidgetSelectorTests`
+(rendered picker lists exactly the 7 Results widgets in order; VM `ToggleWidget`
+key set matches the XAML; unknown key no-op), `Phase6c6EmptyStateTests` (three
+chart widgets show + keep empty states pre-run and after a refused run; a
+widget toggled off persists across a fresh window for pre-6c.4 keys; the
+post-6c.4 migration is pinned to unconditional-restore), `Phase6c6Nfr6Tests`
+(queue-length prep over 10,000 samples on a thread-pool thread, < 100 ms,
+deterministic — NFR-6), `Phase6c6Screenshots` (3 consolidated frames +
+all-seven-widgets containment assert + ui.json normalise/restore).
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **300 green**
+(Core 85 / Data 58 / Cli 35 / App 122); real Linux launch 18 s alive
+"Application started. Main window created." + exit 0; crash logs unchanged.
+Evidence: `logs/screenshots/phase-6c-input-analysis.png` 1200×2000,
+`phase-6c-results-all.png` 1200×3200 (all 7 widgets), `phase-6c-widget-toggled.png`.
+
+### §18 walkthrough — a–i (automated where headless; on-display keyboard pass remains owner-required, host is Wayland)
+
+| Step | Result | How verified |
+|------|--------|--------------|
+| (a) Welcome card on fresh launch | Pass | Phase-5c welcome tests + `phase-5c-welcome.png` (fresh VM, no run) |
+| (b) Load `sample_3stage_clinic.csv` | Pass | `Phase6c6Screenshots` runs the real `DataAnalyzer` on the file (4 fits, usable binding) |
+| (c) Input Analysis histograms + chi-square | Pass | `Render_InputAnalysisOneFrame` — 4 cards, screenshot |
+| (d) Run a simulation | Pass | `RunRealThreeStage` → `SimulationCoordinator.Run` → `RunOutcome` with non-null `Result` |
+| (e) All seven Results widgets | Pass | `AssertWidgetsFromRealRun` + `AssertAllSevenInsideOneFrame` (containment within the 1200×3200 frame) |
+| (f) Toggle a widget off via Customise; restart → persisted | Pass (automated) | picker test + `WidgetVisibility_ToggledOff_PersistsAcrossRestart`; real-display click owner-required |
+| (g) Wait-histogram stage selector changes data | Pass | `Phase6c5ChartTests` (Reception→Doctor rebuild) + `SelectedWaitStage` asserted in the results-all frame |
+| (h) Clear All → fresh-launch state | Pass | Phase-4/5d Clear All reset tests + `phase-5d-cleared.png` |
+| (i) Reload + rerun → no crash / no new crash log | Pass | every AvaloniaFact = full fresh window + run; launch smoke exit 0; `logs/crash-*` unchanged since 2026-09-16 |
+
+### Findings surfaced (no behaviour changed — verification phase)
+
+- **D-124:** a `ui.json` missing a post-6c.4 widget key (`utilisation`/`queueLength`/`waitHistogram`) is restored to `VisibleWidgets` on **every** load, not once; D-121's "restored once" wording is optimistic. Pinned by `Post64Widget_MissingFromPreferences_RestoredToVisibleOnLoad`; flagged to the owner as a candidate follow-up (add a schema marker) — not fixed here.
+- **Deviation:** the 6c.6.2 note said chart-render failure should degrade to a "text-only summary + themed toast"; the implemented (and tested) fallback is the widget's empty-state text + a Serilog warning, no toast. Kept as-is (G5: a chart failure never crashes the run); raised for owner review.
+- **Not a bug:** the results-all run header shows "Effective exit probability (after Screening): 0.7" because `sample_3stage_clinic.csv` has mixed departure stages (6 rows exit at Doctor) → fitted p_exit ≈ 0.7, which is correct.
+
 ### Session Handoff — 2026-09-17 02:58
 Branch: `feat/milestone-6c-input-analysis-charts`
 Status: In-Progress (6c.5 done & tested; commit+push pending the owner's look at the screenshot)
