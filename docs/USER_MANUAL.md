@@ -149,6 +149,28 @@ The arrival rate λ₀ (patients per minute) arriving at **Reception**. In
 minutes). In **Mean-wise** mode enter the mean inter-arrival time in minutes
 (e.g. 2), which the app converts via λ = 1/mean.
 
+### Parameter mode
+
+How you write the numbers you type into the manual λ/μ fields:
+
+- **Rate-wise** — λ and μ as events per unit time (the default).
+- **Mean-wise** — 1/λ and 1/μ as time per event; the app inverts them
+  internally (rate = 1/mean).
+
+The radio now sits at the top of the **Parameters** section, directly above
+the **Time unit** selector and the manual λ/μ fields, so the mode and the
+units you are typing in are chosen together. Enabling the Parameters toggle
+turns both on.
+
+### Time unit
+
+The unit your manual λ/μ entries are written in: **Minutes** (default),
+**Seconds**, or **Hours**. It applies to the manual Parameters fields only —
+the simulation engine always works in per-minute values, so the app converts
+your input at the parameter boundary (Seconds are multiplied by 60, Hours
+divided by 60, per event; in Mean-wise mode the mean is inverted first, then
+converted). Values fitted from an uploaded file are unaffected.
+
 ### Inter-arrival distribution
 
 The probability distribution fitted to the inter-arrival times of the
@@ -192,9 +214,22 @@ experiment (e.g. an M/M/1 baseline single stage).
 
 ### Horizon
 
-How long to simulate. **Days** mode runs whole clinic days (Mon–Thu and Sat,
-9:00–11:00 with arrivals from 8:15). **Minutes** mode runs a raw window of
-minutes from the start of arrival generation.
+How long to simulate. Pick a **Time span** preset:
+
+- **15 minutes** / **1 hour** — a short window inside one clinic day (the
+  run-mode stays **Single day**).
+- **1 day** — one full clinic operating session.
+- **1 week** — six consecutive operating days (Mon/Tue/Wed/Thu/Sat plus the
+  following Monday, so a full clinic week runs).
+- **1 month** — 26 operating days (30 calendar days at five operating days
+  per week, with a small buffer).
+- **Custom days** — type the number of consecutive clinic days in the
+  **Custom days** field that appears.
+
+Day+ spans automatically switch the run to **Multi-day** and set the day
+count; **Single day** uses the short-span window. The **Diagnostic trace**
+run mode is separate: it runs a raw window of minutes from the start of
+arrival generation (the **Horizon (minutes)** field).
 
 ### Seed
 
@@ -259,17 +294,21 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    uncovered stages keep "— (no source)" and the run is refused until they
    gain a rate).
 
-9. **Choose a run mode.**
-   The **Horizon** section is a run-mode picker with three options:
+9. **Choose a time span and run mode.**
+   The **Horizon** section starts with the **Time span** dropdown
+   (15 minutes / 1 hour / 1 day / 1 week / 1 month / custom days). Day-or-longer
+   spans switch the run to Multi-day and set the day count automatically
+   (1 week = 6 operating days, 1 month = 26); a custom span shows a
+   **Custom days** field. Below it is the run-mode picker with three options:
    - **Clinic day** — one operating session (Monday–Thursday or Saturday,
      08:15 start, services continue past 11:00 until they finish). *Default.*
    - **Multi-day** — N consecutive operating days (Friday/Sunday are skipped).
      Shows the fields **Days**, **Start day**, and **Daily patient cap**.
    - **Diagnostic trace** — a fixed-length run in minutes, used to walk
       DES correctness line by line. Shows **Horizon (minutes)** (default
-      `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
-      Clinic-day and multi-day runs also record an event trace — it appears in
-      the right panel's **Event trace** widget, most detailed in diagnostic mode.
+     `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
+     Clinic-day and multi-day runs also record an event trace — it appears in
+     the right panel's **Event trace** widget, most detailed in diagnostic mode.
 
 10. **(Diagnostic trace only) Set the trace level.**
     "State" records arrivals, service start/end, routes and queue changes;

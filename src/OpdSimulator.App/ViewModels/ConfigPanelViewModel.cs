@@ -114,11 +114,31 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private bool _isMeanWise;
 
+    /// <summary>Rate-wise or Mean-wise interpretation of the manual λ and per-stage μ values.</summary>
+    [ObservableProperty]
+    private ParameterMode parameterMode = ParameterMode.RateWise;
+
+    /// <summary>The unit used for rate/mean input.</summary>
+    [ObservableProperty]
+    private TimeUnit timeUnit = TimeUnit.Minutes;
+
+    /// <summary>
+    /// Canonical rate-vs-mean flag (Phase 7A): the radio-backed booleans stay in
+    /// sync with it so the single source of truth is the enum, not a pair of
+    /// flags that could disagree.
+    /// </summary>
+    partial void OnParameterModeChanged(ParameterMode value)
+    {
+        IsRateWise = value == ParameterMode.RateWise;
+        IsMeanWise = value == ParameterMode.MeanWise;
+    }
+
     partial void OnIsRateWiseChanged(bool value)
     {
         if (value)
         {
             IsMeanWise = false;
+            ParameterMode = ParameterMode.RateWise;
         }
 
         RecomputeRho();
@@ -130,6 +150,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         if (value)
         {
             IsRateWise = false;
+            ParameterMode = ParameterMode.MeanWise;
         }
 
         RecomputeRho();
@@ -190,6 +211,110 @@ public partial class ConfigPanelViewModel : ObservableObject
         : IsMultiDay ? RunMode.MultiDay
         : RunMode.ClinicDay;
 
+    // ── Time-span presets (Phase 7A) ──────────────────────────────────────
+
+    /// <summary>Time-span labels offered by the Horizon dropdown, in dropdown order (D-125).</summary>
+    public IReadOnlyList<string> TimeSpanOptions { get; } =
+        new[] { "15 minutes", "1 hour", "1 day", "1 week", "1 month", "Custom days…" };
+
+    /// <summary>Currently selected span preset (the label drives the dropdown via <see cref="TimeSpanSelection"/>).</summary>
+    [ObservableProperty]
+    private TimeSpanPreset timeSpan = TimeSpanPreset.OneDay;
+
+    /// <summary>The dropdown's committed label, kept in sync with <see cref="TimeSpan"/> (string-based SearchableDropdown seam).</summary>
+    [ObservableProperty]
+    private string timeSpanSelection = "1 day";
+
+    /// <summary>Whether the "Custom days" field is shown — only while that span is selected.</summary>
+    [ObservableProperty]
+    private bool isCustomDaysVisible;
+
+    /// <summary>Custom generator-days input, visible only for <see cref="TimeSpanPreset.CustomDays"/>.</summary>
+    [ObservableProperty]
+    private ConfigFieldViewModel customDays = new();
+
+    partial void OnTimeSpanSelectionChanged(string value)
+    {
+        var preset = ParseTimeSpanPreset(value);
+        if (preset != TimeSpan)
+        {
+            TimeSpan = preset;
+        }
+    }
+
+    partial void OnTimeSpanChanged(TimeSpanPreset value)
+    {
+        string label = TimeSpanLabel(value);
+        if (!string.Equals(TimeSpanSelection, label, StringComparison.Ordinal))
+        {
+            TimeSpanSelection = label;
+        }
+
+        IsCustomDaysVisible = value == TimeSpanPreset.CustomDays;
+        ApplyTimeSpanToRunMode();
+        RecomputeBlockingState();
+    }
+
+    /// <summary>
+    /// Resolves the span to a number of generator days, per D-125: the short
+    /// presets still span one operating day (bounded by their minute horizon);
+    /// "1 day" = one full operating day; "1 week" = 6 operating days
+    /// (Mon/Tue/Wed/Thu/Sat/Mon within a 7-day span); "1 month" ≈ 26 operating
+    /// days (30 × 5/7 ≈ 21.4 → 22, × 1.2 buffer → 26); Custom days = the
+    /// validated field value (0 when it does not parse — a multi-day run then
+    /// refuses at build time).
+    /// </summary>
+    public int ResolveGeneratorDays() =>
+        TimeSpan switch
+        {
+            TimeSpanPreset.FifteenMinutes => 1,
+            TimeSpanPreset.OneHour => 1,
+            TimeSpanPreset.OneDay => 1,
+            TimeSpanPreset.OneWeek => 6,
+            TimeSpanPreset.OneMonth => 26,
+            TimeSpanPreset.CustomDays => int.TryParse(CustomDays.Value, out var days) && days >= 1 ? days : 0,
+            _ => 1,
+        };
+
+    /// <summary>
+    /// Applies the selected span to the run-mode's driving field when the mode
+    /// consumes it (D-125): multi-day takes GeneratorDays from the span;
+    /// single-day stays one full calendar day (the short presets bound it via
+    /// the effective horizon at build time instead). Diagnostic-trace mode is
+    /// deliberately untouched — its horizon stays the user's field.
+    /// </summary>
+    private void ApplyTimeSpanToRunMode()
+    {
+        if (IsMultiDay)
+        {
+            Days.Value = ResolveGeneratorDays().ToString();
+        }
+    }
+
+    private static string TimeSpanLabel(TimeSpanPreset preset) =>
+        preset switch
+        {
+            TimeSpanPreset.FifteenMinutes => "15 minutes",
+            TimeSpanPreset.OneHour => "1 hour",
+            TimeSpanPreset.OneDay => "1 day",
+            TimeSpanPreset.OneWeek => "1 week",
+            TimeSpanPreset.OneMonth => "1 month",
+            TimeSpanPreset.CustomDays => "Custom days…",
+            _ => "1 day",
+        };
+
+    private static TimeSpanPreset ParseTimeSpanPreset(string label) =>
+        label switch
+        {
+            "15 minutes" => TimeSpanPreset.FifteenMinutes,
+            "1 hour" => TimeSpanPreset.OneHour,
+            "1 day" => TimeSpanPreset.OneDay,
+            "1 week" => TimeSpanPreset.OneWeek,
+            "1 month" => TimeSpanPreset.OneMonth,
+            "Custom days…" => TimeSpanPreset.CustomDays,
+            _ => TimeSpanPreset.OneDay,
+        };
+
     /// <summary>Arrival-window minutes for a diagnostic run (int ≥ 1, default 10000; D-105).</summary>
     public ConfigFieldViewModel HorizonMinutes { get; } = new() { Value = "10000" };
 
@@ -225,6 +350,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         // Daily-cap participates only in multi-day mode: leaving the mode
         // drops any stale inline error with the hidden field (D-105).
         DailyCap.ClearError();
+        ApplyTimeSpanToRunMode();
         RecomputeBlockingState();
     }
 
@@ -234,6 +360,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             IsMultiDay = false;
             IsDiagnosticTrace = false;
+            ApplyTimeSpanToRunMode();
             RecomputeBlockingState();
         }
     }
@@ -464,6 +591,22 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
+    /// <summary>Blur validation for the custom-days span field (integer &gt; 0; only shown while that span is selected).</summary>
+    public void ValidateCustomDays()
+    {
+        var value = CustomDays.Value;
+        if (int.TryParse(value, out var n) && n >= 1)
+        {
+            CustomDays.ClearError();
+        }
+        else
+        {
+            CustomDays.SetError($"Days must be a whole number of at least 1. You entered \"{value}\".");
+        }
+
+        RecomputeBlockingState();
+    }
+
     /// <summary>Blur validation for the optional daily cap (integer ≥ 1; blank = unlimited).</summary>
     public void ValidateDailyCap()
     {
@@ -651,6 +794,8 @@ public partial class ConfigPanelViewModel : ObservableObject
         SignificanceLevel.Value = "0.05";
         IsRateWise = true;
         IsMeanWise = false;
+        ParameterMode = ParameterMode.RateWise;
+        TimeUnit = TimeUnit.Minutes;
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
         PExit.Value = "";
@@ -664,6 +809,8 @@ public partial class ConfigPanelViewModel : ObservableObject
         IsDiagnosticTrace = false;
         IsSingleDay = true;
         StartDay = "Monday";
+        TimeSpan = TimeSpanPreset.OneDay;
+        CustomDays.Value = "";
         HorizonMinutes.Value = "10000";
         Days.Value = "1";
         DailyCap.Value = "";
@@ -692,6 +839,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return Days;
         yield return DailyCap;
         yield return HorizonMinutes;
+        yield return CustomDays;
         yield return Seed;
         foreach (var row in StageRows)
         {
@@ -887,6 +1035,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             || SignificanceLevel.HasError
             || (IsMultiDay && (Days.HasError || DailyCap.HasError))
             || (IsDiagnosticTrace && HorizonMinutes.HasError)
+            || (TimeSpan == TimeSpanPreset.CustomDays && CustomDays.HasError)
             || StageRows.Any(row => row.HasErrors)
             || (parametersInUse && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))
             || (advancedInUse && Seed.HasError);
@@ -909,13 +1058,30 @@ public partial class ConfigPanelViewModel : ObservableObject
             return null;
         }
 
-        if (!int.TryParse(HorizonMinutes.Value, out var horizonMinutes) || horizonMinutes < 1)
+        // The short span presets bound the arrival window to 15 or 60 minutes
+        // (D-125); every other span uses the user's horizon field. The calendar
+        // run modes ignore this record field, so the override is harmless there.
+        int horizonMinutes;
+        if (TimeSpan is TimeSpanPreset.FifteenMinutes)
+        {
+            horizonMinutes = 15;
+        }
+        else if (TimeSpan is TimeSpanPreset.OneHour)
+        {
+            horizonMinutes = 60;
+        }
+        else if (!int.TryParse(HorizonMinutes.Value, out horizonMinutes) || horizonMinutes < 1)
         {
             return null;
         }
 
-        var mode = IsMeanWise ? ParameterMode.MeanWise : ParameterMode.RateWise;
-        double? Convert(double? value) => value is { } v ? mode == ParameterMode.RateWise ? v : 1.0 / v : null;
+        var mode = ParameterMode;
+        // Rate-wise values convert straight to per-minute; mean-wise values are
+        // inverted (rate = 1 / mean) BEFORE the unit conversion. Both paths
+        // then land in the engine's native minutes (D-125).
+        double? Convert(double? value) => value is { } v
+            ? ToPerMinute(mode == ParameterMode.MeanWise ? 1.0 / v : v, TimeUnit)
+            : null;
         double? ParsePositive(ConfigFieldViewModel field) =>
             !ParametersSupplied || string.IsNullOrWhiteSpace(field.Value) || !double.TryParse(field.Value, out var v) || !(v > 0)
                 ? null
@@ -988,6 +1154,19 @@ public partial class ConfigPanelViewModel : ObservableObject
             EffectiveTraceLevel);
     }
 
+    /// <summary>
+    /// Converts a user-entered rate or inverted mean to the engine's native
+    /// per-minute scale (D-125): seconds × 60, hours ÷ 60, minutes unchanged.
+    /// </summary>
+    private static double ToPerMinute(double value, TimeUnit unit) =>
+        unit switch
+        {
+            TimeUnit.Minutes => value,
+            TimeUnit.Seconds => value * 60.0,
+            TimeUnit.Hours => value / 60.0,
+            _ => throw new ArgumentOutOfRangeException(nameof(unit)),
+        };
+
     private static bool AllPartsPositive(string value) =>
         value.Split(',')
             .Select(part => part.Trim())
@@ -1036,4 +1215,19 @@ public partial class StageRow : ObservableObject
             Servers.SetError($"Servers must be a whole number of at least 1. You entered \"{value}\".");
         }
     }
+}
+
+/// <summary>
+/// Time-span presets for the Horizon section (Phase 7A, D-125). Short presets
+/// bound a run to a minute horizon; day+ presets drive a calendar run's
+/// generator-day count through <see cref="ConfigPanelViewModel.ResolveGeneratorDays"/>.
+/// </summary>
+public enum TimeSpanPreset
+{
+    FifteenMinutes,
+    OneHour,
+    OneDay,
+    OneWeek,
+    OneMonth,
+    CustomDays,
 }

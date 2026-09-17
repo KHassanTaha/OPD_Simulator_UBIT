@@ -202,6 +202,9 @@ public partial class ConfigPanel : UserControl
             case "days":
                 _vm.ValidateDays();
                 break;
+            case "custom-days":
+                _vm.ValidateCustomDays();
+                break;
             case "daily-cap":
                 _vm.ValidateDailyCap();
                 break;

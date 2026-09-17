@@ -2,6 +2,67 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 7A — Time-unit selector, parameter-mode relocation, time-span presets (2026-09-18, `feat/milestone-7-model-driven`)
+
+First phase of the owner's Phase 7 model-driven input series (STOP before 7B
+formally issued after this gate). Three changes, all in `OpdSimulator.App`
+only — Core / Data / Cli and all Phase-6C chart code frozen (owner: "no
+touch"):
+
+1. **Time-unit selector** (7A.1–7A.2): new `Models/TimeUnit.cs` enum
+   (Minutes/Seconds/Hours), new reusable `Controls/TimeUnitSelector.axaml(.cs)`
+   wrapping the existing string-based `SearchableDropdown` via a two-way
+   value-converter binding (`SelectedUnit` StyledProperty, default Minutes).
+2. **Input model consolidation** (7A.3–7A.4): the parameter-mode radio
+   (Rate-wise/Mean-wise) moved from the Model section into the Parameters
+   section top, immediately above the new `TimeUnitSelector` and the manual
+   λ/μ fields — the modal D-102 optional section is auto-enabled; both
+   radios and the unit selector are two-way ObservableProperties.
+3. **Time-span presets** (7A.5–7A.6): Horizon gains a `TimeSpanPreset`
+   dropdown (15 minutes / 1 hour / 1 day / 1 week / 1 month / custom days)
+   above the run-mode radio; `TryBuildRunParameters` converts every manual
+   parameter to **per-minute** via a private `ToPerMinute` seam (Seconds
+   ×60, Hours ÷60, Minutes passthrough — Mean-wise inverts 1/mean first),
+   and resolves short spans to a bounded minutes-horizon vs day+ spans to a
+   generator-day count (OneWeek→6, OneMonth→26, D-125); Multi-day run mode
+   forces `Days.Value`.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **315
+green** (Core 85 / Data 58 / Cli 35 / App 137, +15 `Phase7ATests.cs` names
+below); real Linux launch 18 s alive "Application started. Main window
+created." + exit 0, crash logs unchanged since 2026-09-16. Evidence
+`logs/screenshots/phase-7a-units.png` (headless render of the real
+ConfigPanel: Parameters section with the moved radios + TimeUnitSelector
+showing "Seconds", Horizon section with the "Custom days" span selected —
+D-089 method; owner to eyeball).
+
+New tests (`tests/OpdSimulator.App.Tests/Phase7ATests.cs`, exactly 15, one
+new test FILE per 7A.7): `TimeUnit_Default_IsMinutes`,
+`ParameterMode_Default_IsRateWise`, `ToPerMinute_Minutes_ReturnsUnchanged`,
+`ToPerMinute_Seconds_MultipliesBy60`, `ToPerMinute_Hours_DividesBy60`,
+`RateWise_LambdaPassesThrough`, `MeanWise_LambdaIsInverseOfMean`,
+`MeanWise_SecondsMean_ConvertsCorrectly`, `TimeSpan_FifteenMinutes_ReturnsHorizonMinutes15`,
+`TimeSpan_OneHour_ReturnsHorizonMinutes60`, `TimeSpan_OneDay_ReturnsGeneratorDays1`,
+`TimeSpan_OneWeek_ReturnsGeneratorDays6`, `TimeSpan_OneMonth_ReturnsGeneratorDays26`,
+`TimeSpan_CustomDays_ParsesFieldValue`, `TimeUnitSelector_BindsToViewModel`
+(AvaloniaFact). Docs: DECISIONS D-125, USER_MANUAL "Time unit"/"Parameter
+mode" subsections, DEV_LAUNCH §1 last-verified + §6 count + changelog.
+Awaiting owner review/merge per §11.5; **Phase 7B is NOT to be started**.
+
+### §18 walkthrough — Phase 7A (automated where headless; on-display keyboard pass remains owner-required, host is Wayland)
+
+| Step | Result | How verified |
+|------|--------|--------------|
+| Time unit defaults to Minutes | Pass | `TimeUnit_Default_IsMinutes` |
+| Seconds unit scales manual λ by ×60 | Pass | `ToPerMinute_Seconds_MultipliesBy60` + `MeanWise_SecondsMean_ConvertsCorrectly` reached through `TryBuildRunParameters` |
+| Hours unit scales manual μ by ÷60 | Pass | `ToPerMinute_Hours_DividesBy60` |
+| Mean-wise inverts before unit conversion | Pass | `MeanWise_LambdaIsInverseOfMean` |
+| Parameter-mode radio moved to Parameters top | Pass | `Phase7ATests` + `phase-7a-units.png` (Parameters section frame) |
+| Time unit selector is two-way | Pass | `TimeUnitSelector_BindsToViewModel` (AvaloniaFact) |
+| Span presets resolve to horizons / generator days | Pass | `TimeSpan_FifteenMinutes_*` … `TimeSpan_CustomDays_ParsesFieldValue` (6 tests) |
+| Fresh launch → defaults, no auto-restore | Pass | `TimeUnit_Default_IsMinutes` + `ParameterMode_Default_IsRateWise` (factory defaults, FR-UI-21) |
+| Real launch + no new crash log | Pass | 18 s alive "Application started. Main window created.", exit 0; `logs/crash-*` unchanged since 2026-09-16 |
+
 ## Phase 6c.6 — 6C completion gate (2026-09-17)
 
 Verification + docs only (D-124); no App/Core/Data/Cli source change. Four new

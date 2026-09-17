@@ -88,6 +88,20 @@
                                                  ErrorMessage="{Binding SignificanceLevel.ErrorMessage}"
                                                  HelpAnchor="significance-level"
                                                  views:ConfigPanelValidation.ValidationKey="significance-level"/>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 3 · Parameters ───────────────────────────────── -->
+                <controls:CollapsibleSection Title="3 · Parameters"
+                                             IsExpanded="True"
+                                             IsOptional="True"
+                                             IsEnabledToggle="{Binding ParametersIsOptionalEnabled, Mode=TwoWay}"
+                                             HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <!-- Phase 7A: the parameter-mode radio lives here (was
+                             in Model) alongside the unit of the λ / μ entries,
+                             so "how the numbers are written" and "what the
+                             numbers mean" sit together above the manual fields. -->
                         <StackPanel Spacing="{DynamicResource SpaceXs}">
                             <TextBlock Text="Parameter mode"
                                        FontSize="{DynamicResource FontSizeBody}"
@@ -105,16 +119,7 @@
                                              IsChecked="{Binding IsMeanWise, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </controls:CollapsibleSection>
-
-                <!-- ───── 3 · Parameters ───────────────────────────────── -->
-                <controls:CollapsibleSection Title="3 · Parameters"
-                                             IsExpanded="True"
-                                             IsOptional="True"
-                                             IsEnabledToggle="{Binding ParametersIsOptionalEnabled, Mode=TwoWay}"
-                                             HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
-                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:TimeUnitSelector SelectedUnit="{Binding TimeUnit, Mode=TwoWay}"/>
                         <controls:ValidatedField x:Name="ManualLambdaField"
                                                  Label="Manual λ (per minute)"
                                                  Watermark="e.g., 0.5"
@@ -218,6 +223,25 @@
                                              IsExpanded="True"
                                              HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <!-- Phase 7A: time-span presets above the run-mode radio.
+                             Short spans bound the window (15 / 60 minutes); day+
+                             spans drive the generator-day count (D-125). -->
+                        <controls:SearchableDropdown Label="Time span"
+                                                     Placeholder="Choose a span…"
+                                                     Tooltip="Length of the simulated window: 15 minutes, 1 hour, one full clinic day, a full clinic week (Mon/Tue/Wed/Thu/Sat), ≈ one month, or a custom number of days"
+                                                     Items="{Binding TimeSpanOptions}"
+                                                     SelectedItem="{Binding TimeSpanSelection, Mode=TwoWay}"
+                                                     HelpAnchor="time-span"/>
+                        <controls:ValidatedField x:Name="CustomDaysField"
+                                                 Label="Custom days"
+                                                 Watermark="e.g., 10"
+                                                 Tooltip="Number of consecutive clinic days to simulate (integer ≥ 1)"
+                                                 IsVisible="{Binding IsCustomDaysVisible}"
+                                                 Value="{Binding CustomDays.Value, Mode=TwoWay}"
+                                                 HasError="{Binding CustomDays.HasError}"
+                                                 ErrorMessage="{Binding CustomDays.ErrorMessage}"
+                                                 HelpAnchor="custom-days"
+                                                 views:ConfigPanelValidation.ValidationKey="custom-days"/>
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{DynamicResource SpaceM}">
                             <RadioButton GroupName="RunMode"
