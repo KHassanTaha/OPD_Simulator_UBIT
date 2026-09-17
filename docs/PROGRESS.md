@@ -2,6 +2,68 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 7B — Per-stage Kendall model notation (2026-09-18, `feat/milestone-7-model-driven`)
+
+Second phase of the owner's Phase 7 model-driven input series (owner "go"
+after the 7A docs follow-up was committed). Scope locked to the Stages
+section; the Server count field, Stage name field, p_exit location, all
+Phase-6C chart code, and Core / Data / Cli were frozen.
+
+1. **Notation parser** (7B.1): new pure `Services/ModelNotationParser.cs`
+   — `Parse("A/S/c")` maps `M`→"Exponential", `D`→"Deterministic",
+   `G`→"General", server count 1–5, and throws `ArgumentException` with an
+   actionable message otherwise; `StandardModels` is the 11-entry option
+   list (M/M/1..5, M/D/1..3, D/M/1..2, G/G/1), also consumed by the tests.
+2. **Row model / advanced fields** (7B.2): `StageRow` gained
+   `SelectedModel` (default "M/M/1"), `UseAdvancedSetup`, `ArrivalFamily`,
+   `ServiceFamily`, plus `OnSelectedModelChanged` which applies the
+   shortcut to the families and to `Servers.Value` (the field is a string
+   `ConfigFieldViewModel`, so this is `Servers.Value = parse.ServerCount`
+   `.ToString()`; the existing rho recompute fires). While Advanced is on
+   the handler returns early so it never clobbers explicit families.
+3. **UI** (7B.3): each stage row now shows `Server count → Model ▼ →
+   Advanced toggle → [arrival/service family ▼ ▼, revealed by Advanced] →
+   μ source label`. The shortcut is hidden in Advanced mode and vice versa.
+4. **Run wiring** (7B.4): `TryBuildRunParameters` pulls
+   `InterArrivalDistribution`/`ServiceDistribution` from
+   `StageRows[0].ArrivalFamily`/`.ServiceFamily` (arrivals are one external
+   stream; the record carries a single service family, so per-stage service
+   override is deferred — D-126).
+5. **Tests** (7B.5): exactly one new file `Phase7BTests.cs` with the 17
+   named tests (10 parser, 5 `StageRow`, 2 rendered `ConfigPanel`).
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **332
+green** (Core 85 / Data 58 / Cli 35 / App 154, +17). Evidence
+`logs/screenshots/phase-7b-stage-models.png` (470×900 headless render:
+Reception set to M/M/2 with Servers=2, Screening in Advanced mode showing
+both family dropdowns, Doctor with the default shortcut — D-089 method;
+owner to eyeball). One full-suite run flaked once on the pre-existing
+`Phase5Screenshot` render (headless dispatcher contention under load); it
+passed in isolation and on the re-run, and the committed suite is green.
+Docs: DECISIONS D-126/D-127, TODO 7B `[x]`, USER_MANUAL "Per-stage model
+setup", DEV_LAUNCH §6 + changelog.
+
+Findings surfaced (not silently fixed): (a) **all stages share the first
+stage's service family** in the engine until per-stage service is modelled;
+(b) **`Deterministic`/`General` are display-only** — the engine still
+samples exponentially and `FitsService` returns a null report for them
+(D-127); (c) the stage Advanced **"Service distribution" label duplicates**
+the existing Model-section dropdown label — flagged to the owner rather
+than renamed unilaterally. Pushed to `feat/milestone-7-model-driven`,
+awaiting owner review/merge per §11.5; **do not start Phase 7C until
+instructed**.
+
+New tests (`tests/OpdSimulator.App.Tests/Phase7BTests.cs`, exactly 17):
+`Parser_MM1_ReturnsExponentialExponential1`, `Parser_MM3_ReturnsExponentialExponential3`,
+`Parser_MD2_ReturnsExponentialDeterministic2`, `Parser_DM1_ReturnsDeterministicExponential1`,
+`Parser_GG1_ReturnsGeneralGeneral1`, `Parser_Invalid_MissingSlash_Throws`,
+`Parser_Invalid_BadServerCount_Throws`, `Parser_Invalid_UnknownLetter_Throws`,
+`Parser_StandardModels_HasExactly11Entries`, `Parser_StandardModels_AllParse`,
+`StageRow_DefaultModel_IsMM1`, `StageRow_ChangeModel_FillsArrivalFamily`,
+`StageRow_ChangeModel_FillsServiceFamily`, `StageRow_ChangeModel_UpdatesServerCount`,
+`StageRow_AdvancedMode_SkipsModelSync`, `ConfigPanel_EachStage_HasModelDropdown`,
+`ConfigPanel_AdvancedToggle_RevealsTwoDistributions`.
+
 ## Phase 7A — Time-unit selector, parameter-mode relocation, time-span presets (2026-09-18, `feat/milestone-7-model-driven`)
 
 First phase of the owner's Phase 7 model-driven input series (STOP before 7B

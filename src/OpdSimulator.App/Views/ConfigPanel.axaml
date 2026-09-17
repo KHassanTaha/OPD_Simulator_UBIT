@@ -201,6 +201,35 @@
                                                                      ErrorMessage="{Binding Servers.ErrorMessage}"
                                                                      HelpAnchor="servers"
                                                                      views:ConfigPanelValidation.ValidationKey="servers"/>
+                                            <!-- Phase 7B: Kendall model shortcut
+                                                 (M = exponential, D = deterministic,
+                                                 G = general; final digit = servers).
+                                                 Advanced reveals independent family
+                                                 dropdowns and hides the shortcut. -->
+                                            <controls:SearchableDropdown Label="Model"
+                                                                         Placeholder="e.g., M/M/2"
+                                                                         Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
+                                                                         Items="{Binding ModelOptions}"
+                                                                         SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                                                         IsVisible="{Binding !UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-model"/>
+                                            <ToggleSwitch Content="Advanced"
+                                                          IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
+                                                          ToolTip.Tip="Set the arrival and service distribution families independently"/>
+                                            <controls:SearchableDropdown Label="Arrival distribution"
+                                                                         Placeholder="e.g., Exponential"
+                                                                         Tooltip="Distribution family for the time between arrivals at this stage"
+                                                                         Items="{Binding DistributionFamilies}"
+                                                                         SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
+                                                                         IsVisible="{Binding UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-arrival-distribution"/>
+                                            <controls:SearchableDropdown Label="Service distribution"
+                                                                         Placeholder="e.g., Exponential"
+                                                                         Tooltip="Distribution family for this stage's service times"
+                                                                         Items="{Binding DistributionFamilies}"
+                                                                         SelectedItem="{Binding ServiceFamily, Mode=TwoWay}"
+                                                                         IsVisible="{Binding UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-service-distribution"/>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Service rate μ"
                                                            FontSize="{DynamicResource FontSizeCaption}"

@@ -1136,10 +1136,15 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var startDay);
 
+        // Phase 7B: the per-stage model notation is now the source of the
+        // distribution families. Arrivals are external, so they take the
+        // FIRST stage's arrival family; services take the first stage's
+        // service family — SimulationParameters carries a single service
+        // family, so per-stage service override is deferred (D-126).
         return new SimulationParameters(
             mode,
-            InterArrivalDistribution ?? "Exponential",
-            ServiceDistribution ?? "Exponential",
+            StageRows[0].ArrivalFamily,
+            StageRows[0].ServiceFamily,
             manualLambda,
             names,
             serverCounts,
@@ -1198,6 +1203,53 @@ public partial class StageRow : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _serviceRateLabel = "μ = — (no source)";
+
+    /// <summary>
+    /// Kendall-notation shortcut chosen for this stage (Phase 7B), e.g.
+    /// "M/M/2". Ignored while <see cref="UseAdvancedSetup"/> is on.
+    /// </summary>
+    [ObservableProperty]
+    private string _selectedModel = "M/M/1";
+
+    /// <summary>
+    /// When false the arrival/service families and the server count are derived
+    /// from <see cref="SelectedModel"/>; when true the two family dropdowns are
+    /// revealed and edited independently (Phase 7B).
+    /// </summary>
+    [ObservableProperty]
+    private bool _useAdvancedSetup = false;
+
+    /// <summary>Arrival distribution family ("Exponential", "Deterministic" or "General").</summary>
+    [ObservableProperty]
+    private string _arrivalFamily = "Exponential";
+
+    /// <summary>Service distribution family ("Exponential", "Deterministic" or "General").</summary>
+    [ObservableProperty]
+    private string _serviceFamily = "Exponential";
+
+    /// <summary>Kendall model shortcuts offered by the per-stage model dropdown.</summary>
+    public IReadOnlyList<string> ModelOptions => ModelNotationParser.StandardModels;
+
+    /// <summary>Distribution families offered when Advanced setup is on.</summary>
+    public IReadOnlyList<string> DistributionFamilies { get; } =
+        new[] { "Exponential", "Deterministic", "General" };
+
+    /// <summary>
+    /// Applies a model-notation shortcut to the row: arrival family, service
+    /// family and server count. Skipped while Advanced setup owns those fields.
+    /// </summary>
+    partial void OnSelectedModelChanged(string value)
+    {
+        if (UseAdvancedSetup)
+        {
+            return;
+        }
+
+        var parsed = ModelNotationParser.Parse(value);
+        ArrivalFamily = parsed.ArrivalFamily;
+        ServiceFamily = parsed.ServiceFamily;
+        Servers.Value = parsed.ServerCount.ToString();
+    }
 
     /// <summary>True while this row's servers field is invalid.</summary>
     public bool HasErrors => Servers.HasError;

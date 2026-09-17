@@ -212,6 +212,37 @@ The number of parallel servers c at each stage. The clinic reference model
 uses **Reception 1, Screening 2, Doctor 3**, but you can change them to
 experiment (e.g. an M/M/1 baseline single stage).
 
+### Per-stage model setup (Kendall notation)
+
+Each stage row has a **Model** dropdown with the standard Kendall shortcuts.
+Picking one fills the row in for you — no separate typing:
+
+| Code | Meaning | Sets |
+|---|---|---|
+| **M** | exponential (Markovian) | the arrival or service family |
+| **D** | deterministic | the arrival or service family |
+| **G** | general | the arrival or service family |
+| **/c** | server count | the row's **Servers** field |
+
+Example: choosing **M/M/2** sets exponential arrivals, exponential service
+and **Servers = 2**. The 11 shortcuts are M/M/1–M/M/5, M/D/1–M/D/3, D/M/1,
+D/M/2 and G/G/1.
+
+**Advanced** (the toggle on the same row) turns the shortcut off and reveals
+two extra dropdowns — **Arrival distribution** and **Service distribution** —
+so you can set the two families independently. Turn it back off to return to
+the single Model shortcut.
+
+Two things to know (current behaviour, not a fault):
+
+- Arrivals come from one stream, so the whole network uses the **first
+  stage's** arrival family; and today all stages **share one service
+  family** — changing a later stage's family is remembered in the form but
+  does not yet change the engine's service sampling.
+- **Deterministic** and **General** are offered for notation completeness.
+  The engine currently samples **exponentially** for every stage, so an
+  M/D/1 or G/G/1 run behaves like M/M/1.
+
 ### Horizon
 
 How long to simulate. Pick a **Time span** preset:
@@ -637,6 +668,8 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Phase 7B: each stage row now has a **Model** dropdown (Kendall shortcuts like M/M/2, M/D/1, G/G/1) that sets the row's server count and distribution families, plus an **Advanced** toggle that reveals independent **Arrival distribution** / **Service distribution** dropdowns (§Config fields → "Per-stage model setup"). Deterministic/General are notation-only placeholders — the engine still samples exponentially |
+| 2026-09-18 | Phase 7A: manual λ/μ inputs now take a **Time unit** selector (per minute/second/hour) with the **Parameter mode** radios moved next to them at the top of the Parameters section, and the Horizon section gained a **Time span** preset (15 min / 1 hour / 1 day / 1 week / 1 month / custom days) covering §Config fields → "Time unit" / "Horizon" |
 | 2026-09-17 | Phase 6c.4: the **Simulation** tab's results now include a **Per-server utilisation** widget (§6.4) — one bar per server, amber when a server deviates from its stage's average utilisation by more than 0.15, with a thin stage-average reference line. It appears once a run finishes ("Run a simulation to see utilisation." before that) and is toggleable via "Customise results" (§6) |
 | 2026-09-16 | Phase 6c.3: each fitted series now shows a second card in the **Input Analysis** tab — a chi-square card ("Chi-square: …") plotting the observed (green) vs expected (teal) frequencies per bin side by side, with the verdict caption repeated exactly as the results table shows it (§4) |
 | 2026-09-16 | Phase 6c.2: the **Input Analysis** tab now plots the loaded data — one histogram card per fitted series (observed columns + fitted-PDF overlay, bins shared with the chi-square verdict) with a fit/χ² caption, updating automatically on data load/clear and on distribution / significance-level changes (§4) |
