@@ -2,6 +2,43 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 8A — Retain RNG-generated samples in `SimulationResult` (2026-09-18, `feat/milestone-7-model-driven`)
+
+First phase of the owner's Phase 8 simulation-verification series (owner "go";
+STOP before 8B enforced). Phase 8B needs the simulation **output** (not the
+input data) to be chi-square tested against the configured distributions, so
+the engine must stop discarding the inter-arrival and service times it draws.
+
+1. **Result shape** (8A.1, D-135): `SimulationResult` gains two init-only
+   properties — `GeneratedInterArrivalSamples` (`IReadOnlyList<double>`) and
+   `GeneratedServiceSamplesByStage` (`IReadOnlyList<IReadOnlyList<double>>`),
+   both defaulting to `Array.Empty<…>`. No existing property, method, or
+   constructor signature changed.
+2. **Engine retention** (8A.2): two new per-run instance buffers
+   (`_generatedInterArrivals` / `_generatedServiceSamples`) mirror the existing
+   chart-buffer lifecycle — allocated in `RunCore`, appended in `HandleArrival`
+   (only inside the `nextArrivalTime < stopTime` block, so a discarded
+   beyond-window draw is not retained) and in `StartService` (indexed by
+   `patient.StageIndex`), projected into the result, then released. Private
+   helper signatures untouched; both `Run` overloads (horizon + calendar)
+   converge on the same `RunCore` path, so both retain samples.
+3. **Tests** (8A.3): new `GeneratedSamplesTests.cs`, 5 tests —
+   `Run_HorizonMode_RetainsInterArrivalSamples_CountMatches` (count = served − 1),
+   `Run_HorizonMode_RetainsServiceSamples_PerStage`,
+   `Run_CalendarMode_RetainsSamples`, `Run_SameSeed_ProducesIdenticalSamples`,
+   `Run_DifferentSeed_ProducesDifferentSamples`.
+
+**GATE passed (2026-09-18):** Release build **0 warnings / 0 errors**; full
+suite **393 green** — Core **85 → 90** (+5), Data 58, Cli 35, App 210. Core-only
+change, so no launch/alive smoke was required. Docs: DECISIONS D-135, TODO,
+DEV_LAUNCH §6 + changelog.
+
+> **Note on `Run_CalendarMode_RetainsSamples`:** retained inter-arrival samples
+> are the arrivals the engine *scheduled*, which includes draws that landed in
+> closed periods and were gated out; they are therefore not tied to
+> `TotalPatientsServed`. The test asserts the streams are populated and every
+> stage produced service samples, not a patient-count equality.
+
 ## Phase 7D — Merged Input tab (upload + preview + fit analysis) (2026-09-18, `feat/milestone-7-model-driven`)
 
 Fourth phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
