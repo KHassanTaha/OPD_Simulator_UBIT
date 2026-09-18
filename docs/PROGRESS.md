@@ -2,6 +2,75 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-18 06:18
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8C — analytical M/M/c validation widget (8C.1–8C.4), with the Option-2 steady-state horizon guard (D-137)
+
+In Progress
+- None
+
+What is complete:
+- `Services/AnalyticalValidationService.cs` — pure Erlang-C `ComputeForStage` (textbook M/M/1 + M/M/2 verified; null for λ≤0/μ≤0/c<1/ρ≥1) and `Compare(result, arrivalFamily, serviceFamilies, stageInputs)`, which returns one `ComparisonRow` per stage only when exponential arrivals + every stage exponential + every ρ<1 + `result.OperatingTimeMinutes >= MinimumSteadyStateMinutes` (100,000). The horizon guard reads **`SimulationResult.OperatingTimeMinutes`**.
+- `ViewModels/AnalyticalValidationViewModel.cs` — empty-until-run; `Apply`/`ApplyRows` (sync, tests) + `ApplyAsync` (Task.Run prep, `Dispatcher.UIThread.Post` apply, generation guard); `Clear`; long `EmptyMessage` naming all three conditions.
+- Eighth Results key `analyticalValidation`: `ResultsPanelViewModel` (Show*/ToggleWidget/VisibleWidgets 8 keys/migration), `WidgetPreferences` default seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyAnalyticalValidation` in the posted run-completion path, `ResultsPanel.axaml` eighth card (6-column table) + picker checkbox.
+- `Phase8CValidationTests.cs` (12 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` and `Phase8BVerificationTests` updated in place 7→8.
+
+What remains:
+- Phase 8D, then Phase 6 (Help + presets). Do NOT start 8D until instructed.
+
+Next Session Should Start With
+- Phase 8D — await owner "go".
+- Phase 6 (Help + presets) after 8D.
+
+Blocked
+- None
+
+Git State
+Commits made this session: fda0231 feat: analytical M/M/c validation widget (Phase 8C)
+Pushed to origin: No — push follows this docs-handoff commit (per §13 the handoff is its own commit)
+Uncommitted changes: None (this handoff commit pending)
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 414 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 231)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/AnalyticalValidationService.cs: added
+src/OpdSimulator.App/ViewModels/AnalyticalValidationViewModel.cs: added
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (8th widget key)
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified (shared VM + ApplyAnalyticalValidation)
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified (8th card + checkbox)
+src/OpdSimulator.App/Services/WidgetPreferences.cs: modified (default seed)
+tests/OpdSimulator.App.Tests/Phase8CValidationTests.cs: added (12 tests)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs: modified (7→8 in place)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs: modified (7→8, renames, 6200 px height, analytical card asserted empty on the transient run)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs: modified (7→8 in place)
+docs/DECISIONS.md: modified (D-137)
+docs/REQUIREMENTS.md: modified (FR-STAT-5 → [x]; coverage 50/70 = 71.4%)
+docs/DEV_LAUNCH.md: modified (§1 last-verified, §6 counts, changelog)
+docs/USER_MANUAL.md: modified (§6 widget list, new §6.9 Analytical validation)
+docs/VIVA_ANSWERS.md: modified (Phase 8C sentence; test count 230 → 414)
+docs/TODO.md: modified (Phase 8C → [x]; §8D polish backlog line)
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-137 — Phase 8C: the analytical-validation widget is guarded by a steady-state horizon threshold
+
+Assumptions Added/Changed
+- None (the 100,000-minute threshold is a decision, not a domain assumption)
+
+Notes for Next Session
+- **Horizon property for the guard: `SimulationResult.OperatingTimeMinutes`.** For a diagnostic/horizon run it is the elapsed simulated minutes; for a calendar run it is the summed open-day block time (so a clinic day stays far below 100,000 and is correctly refused).
+- **The brief said "FR-STAT-11", which does not exist in the PRD.** Phase 8C maps to the existing **FR-STAT-5** ("Auto compare vs analytical M/M/c"); adding FR-STAT-11 would have been an orphan row (AGENTS §9.7). Flagged to the owner in the handoff.
+- **The 6C all-widgets screenshot now shows the analytical card in its empty state** — that run is a transient λ=0.1 clinic day, so the D-137 guard refuses the comparison. `AssertWidgetsFromRealRun` asserts `IsEmpty` + no rows for widget #8 (the populated case is covered by `Phase8CValidationTests`). Do not "fix" the 6C run to force rows.
+- The 5% gate test is a **200,000-minute DiagnosticTrace** (`HorizonMinutes = "200000"`, `AdvancedIsOptionalEnabled = true`, `Seed.Value = "42"`, `TraceLevel = "None"`, λ=0.5, μ 0.8/0.6/0.4, servers 1/2/3, p_exit 0.4); it also writes `logs/screenshots/phase-8c-analytical.png` by hiding the other seven widgets and restoring them in `finally`.
+- Observed once during the session: `Phase7DScreenshots.Render_InputTabEmpty_SavePhase7dInputEmptyPng` flaked once under full-suite headless load, then passed in isolation and in 3 consecutive full App runs. Not caused by 8C; watch for headless-screenshot flakiness in CI.
+- `Phase6c6Screenshots` results-in-one-frame window height is now 6200 px (was 5600) to fit the eighth widget.
+
 Session Handoff — 2026-09-18 05:32
 Branch: feat/milestone-7-model-driven
 Status: Clean
