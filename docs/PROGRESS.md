@@ -2,6 +2,78 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-18 06:59
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8D — final polish: Results-panel group headings (8D.1)
+- Phase 8D — `TraceLevel` rename Minimal/Standard/Detailed/Debug, ordinals preserved (8D.2, D-138)
+- Phase 8D — config Collapse All / Expand All (8D.3)
+- Phase 8D — three reference docs created: DEFINITION_OF_DONE.md, WORKFLOW_DIAGRAM.md, RESULTS_PANEL_STRUCTURE.md (8D.4)
+
+In Progress
+- None
+
+What is complete:
+- `src/OpdSimulator.App/Views/ResultsPanel.axaml`: seven group headings (Overview, Server Performance, Charts, Statistical Validation, Simulation Verification, Analytical Validation, Event Trace) inside the `HasRun` region only (welcome card unchanged); no separate "Stage Performance" heading (per-stage table shares the metrics card); "Charts" follows physical widget order (queue + wait before chi-square); stale `FR-STAT-11` comment → `FR-STAT-5`; layout-contract comment updated.
+- `src/OpdSimulator.Core/Trace/TraceLevel.cs`: members `Minimal(0)/Standard(1)/Detailed(2)/Debug(3)` (was `None/Events/State/Rng`), ordinals and `>=` comparisons untouched; `Minimal` still collects nothing. Updated `TraceFormatter`, `TextWriterTraceSink`, `CollectionTraceSink`, `SimulationCoordinator`, `TraceCommand` (`--level minimal|standard|detailed|debug`, default `detailed`), `ConfigPanelViewModel` (list/default/effective/reset), `SimulationParameters` doc, `ConfigPanel.axaml` tooltip; docs `AGENTS.md` §19.2, `DEV_LAUNCH.md` §7.6, `USER_MANUAL.md`, `REQUIREMENTS.md` FR-VAL-4, `VIVA_ANSWERS.md`.
+- `src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs` + `Views/ConfigPanel.axaml`: five `IsXSectionExpanded` bools (all default true) + `CollapseAll`/`ExpandAll` commands; each `CollapsibleSection.IsExpanded` bound two-way; "Expand all"/"Collapse all" ghost buttons above `§2 · Model`.
+- `docs/DEFINITION_OF_DONE.md`, `docs/WORKFLOW_DIAGRAM.md`, `docs/RESULTS_PANEL_STRUCTURE.md` created; `README.md` Documentation table links all three.
+- Tests: new `tests/OpdSimulator.App.Tests/Phase8DTests.cs` (2) + `Phase8DScreenshots.cs` (1, walkthrough a–d); `TraceRegressionTests`, `CliTraceTests`, `Phase5RunFlowTests`, `Phase5Screenshot`, `Phase5cScreenshot`, `Phase4ConfigTests`, `Phase4bConfigTests`, `Phase8CValidationTests` updated for the rename.
+- Docs reconciliation: D-138 logged; legacy M5 chart/event-log backlog rows (event log, LiveCharts2, five charts, Input Analysis tab, run-event wiring) retired as `[x]`; `Phase7DScreenshots` flake captured as a polish-backlog row.
+
+What remains:
+- Phase 6 (Help + presets) — must not start until instructed (8D is the last phase of the 7–8 batch).
+- Polish backlog: results-panel unit captions (FR-UI-22), steady-state hint, `Phase7DScreenshots` harness alignment, per-stage service families, D/G placeholders, duplicate service-distribution labels, comma-list vs per-stage μ consolidation, orphaned sync commands.
+
+Next Session Should Start With
+- Await owner "go" for Phase 6 (Help + presets).
+- Address polish-backlog rows as directed.
+
+Blocked
+- None
+
+Git State
+Commits made this session: `chore: results panel grouping, trace rename, docs additions (Phase 8D)` (single commit: code, tests, docs and this handoff)
+Pushed to origin: Yes — pushed with this commit (per §11.4)
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 417 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 234)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Trace/TraceLevel.cs: renamed enum members (ordinals preserved)
+src/OpdSimulator.Core/Trace/TraceFormatter.cs, TextWriterTraceSink.cs: rename refs
+src/OpdSimulator.App/Services/CollectionTraceSink.cs, SimulationCoordinator.cs: rename refs
+src/OpdSimulator.Cli/Commands/TraceCommand.cs: `--level` tokens + usage/error text
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: trace names + section-expansion properties/commands
+src/OpdSimulator.App/Views/ConfigPanel.axaml: section bindings + buttons
+src/OpdSimulator.App/Views/ResultsPanel.axaml: seven group headings
+src/OpdSimulator.App/Models/SimulationParameters.cs: trace-level doc
+tests/OpdSimulator.App.Tests/Phase8DTests.cs: added (2 tests)
+tests/OpdSimulator.App.Tests/Phase8DScreenshots.cs: added (1 walkthrough + screenshot)
+tests/.../{TraceRegressionTests,CliTraceTests,Phase5RunFlowTests,Phase5Screenshot,Phase5cScreenshot,Phase4ConfigTests,Phase4bConfigTests,Phase8CValidationTests}.cs: rename updates
+docs/DEFINITION_OF_DONE.md, docs/WORKFLOW_DIAGRAM.md, docs/RESULTS_PANEL_STRUCTURE.md: added
+docs/DECISIONS.md: D-138
+docs/TODO.md: Phase 8D `[x]`, legacy M5 rows retired, flake row added
+docs/DEV_LAUNCH.md: Last verified + §6 (417) + Phase 8D test paragraph + changelog
+docs/USER_MANUAL.md, docs/REQUIREMENTS.md, AGENTS.md, VIVA_ANSWERS.md: trace-rename refs
+README.md: links the three new docs
+
+Decisions Made
+D-138 — `TraceLevel` renamed Minimal/Standard/Detailed/Debug as a pure ordinal-preserving relabel
+
+Assumptions Added/Changed
+None
+
+Notes for Next Session
+- Two 8D.1 deviations to be aware of: (1) no "Stage Performance" heading (the per-stage table is merged into the metrics card); (2) the "Charts" heading follows the physical widget order, which differs from the brief's listed order.
+- The 8D.1–8D.3 walkthrough "a–d" text was truncated in the owner instruction; the sequence actually exercised is defined in `Phase8DScreenshots.cs` (real run → four renamed levels → Collapse All → Expand All + screenshot).
+- 8D is the final phase in the 7–8 batch. Do not start Phase 6 until the owner says "go".
+
 Session Handoff — 2026-09-18 06:18
 Branch: feat/milestone-7-model-driven
 Status: Clean

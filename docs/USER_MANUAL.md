@@ -379,14 +379,16 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
      Shows the fields **Days**, **Start day**, and **Daily patient cap**.
    - **Diagnostic trace** — a fixed-length run in minutes, used to walk
       DES correctness line by line. Shows **Horizon (minutes)** (default
-     `10000`) and the **Trace level** dropdown (None / Events / State / RNG).
+     `10000`) and the **Trace level** dropdown (Minimal / Standard / Detailed / Debug).
      Clinic-day and multi-day runs also record an event trace — it appears in
      the right panel's **Event trace** widget, most detailed in diagnostic mode.
 
 10. **(Diagnostic trace only) Set the trace level.**
-    "State" records arrivals, service start/end, routes and queue changes;
-    "RNG" also prints every random-number draw, so you can replay any run
-    by hand. Same seed → same bytes.
+    "Minimal" records nothing; "Standard" records arrivals, service start/end,
+    routes and queue changes with core columns; "Detailed" (default) adds the
+    serving server and the exit/next-stage destination; "Debug" also prints
+    every random-number draw, so you can replay any run by hand. Same seed →
+    same bytes.
 
 11. **(Multi-day only) Set the horizon and cap.**
     Days, start day, and an optional daily patient cap (blank = no cap).
@@ -452,7 +454,7 @@ Shows how well the chosen distribution fits the data:
 ### 6.3 Event Log
 Chronological trace of every event, rendered only by a **Diagnostic trace**
 run (§5 step 7). Choose the trace level in the Horizon section to include
-queue-state snapshots and (at `RNG`) random-number draws.
+queue-state snapshots and (at `Debug`) random-number draws.
 
 ### 6.4 Per-Server Utilisation Chart
 Shows what the engine's own servers actually did during a run (one bar per
@@ -726,7 +728,7 @@ dotnet run --project src/OpdSimulator.Cli -- trace --lambda 3 --mu 4 --servers 1
 
 Reruns the network you configure and prints one line per event — arrival, service
 start/end, route, exit — stopping after `--patients` have fully left the system.
-Use `--level rng` to also print every random-number draw with its sampled value
+Use `--level debug` to also print every random-number draw with its sampled value
 (`draw#1 U=0.6681 → service time 0.101 min`); same seed → same bytes (FR-VAL-3).
 By default the trace prints to the terminal; add `--output trace.txt` to save it
 to a file instead. The full flag list is in **DEV_LAUNCH §7.6**.

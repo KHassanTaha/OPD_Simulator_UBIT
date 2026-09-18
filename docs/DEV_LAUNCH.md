@@ -3,7 +3,7 @@
 **Purpose:** Launch this project from a dead state (fresh clone, no build artifacts)
 with zero errors. Follow this file literally.
 
-**Last verified:** 2026-09-18 — restore/build/test/CLI-run all pass from a clean state on **Ubuntu 24.04** (.NET SDK 8.0.131), Phase 8C (App-only: the Results panel gains an eighth widget — analytical M/M/c validation, guarded to steady-state runs of ≥ 100,000 simulated minutes, D-137; on top of Phase 8B App-only simulation-output chi-square verification, D-136, and Phase 8A Core-only `SimulationResult` sample retention, D-135) on top of Phase 7D (merged Input tab — upload + preview + fit analysis on one tab; Simulation | Input | Token Generator | Help): Release build 0 warnings/0 errors, full suite **414 green** (Core 90, Data 58, Cli 35, App 231) including the 12 new `Phase8CValidationTests`, the 9 new `Phase8BVerificationTests`, the 5 `GeneratedSamplesTests` and the 36 new `Phase7DTests` (preview projection + invalid-row mapping + severity + truncation, InputTab VM intent events, rendered empty/loaded/validation/mismatch states, config status strip, Results panel loses the preview + legacy `dataPreview` key still parses, four-tab order, MainViewModel routing) and the 4 new `Phase7DScreenshots` frames, real Linux launch alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-8c-analytical.png`, `phase-8b-verification.png`, `phase-7d-input-empty.png`, `phase-7d-input-loaded.png`, `phase-7d-input-mismatch.png`, `phase-7d-config-strip.png`, plus the earlier 7C/7B/7A/6c PNGs (`phase-7c-manual-mode.png`, `phase-7b-stage-models.png`, `phase-7a-units.png`, `phase-6c-input-analysis.png`, `phase-6c-results-all.png`, `phase-6c-widget-toggled.png`, `phase-6c1-empty.png`, `phase-6c2-histograms.png`, `phase-6c3-chi-square.png`, `phase-6c4-utilisation.png`, `phase-6c5-charts.png`). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
+**Last verified:** 2026-09-18 — restore/build/test/CLI-run all pass from a clean state on **Ubuntu 24.04** (.NET SDK 8.0.131), Phase 8D (App-only polish: Results-panel group headings, `TraceLevel` rename to Minimal/Standard/Detailed/Debug, config Collapse/Expand all, three reference docs) on top of Phase 8C (App-only: the Results panel gains an eighth widget — analytical M/M/c validation, guarded to steady-state runs of ≥ 100,000 simulated minutes, D-137; on top of Phase 8B App-only simulation-output chi-square verification, D-136, and Phase 8A Core-only `SimulationResult` sample retention, D-135) on top of Phase 7D (merged Input tab — upload + preview + fit analysis on one tab; Simulation | Input | Token Generator | Help): Release build 0 warnings/0 errors, full suite **417 green** (Core 90, Data 58, Cli 35, App 234) including the 3 new Phase 8D tests (2 `Phase8DTests` collapse/expand + 1 `Phase8DScreenshots` final-layout walkthrough), the 12 new `Phase8CValidationTests`, the 9 new `Phase8BVerificationTests`, the 5 `GeneratedSamplesTests` and the 36 new `Phase7DTests` (preview projection + invalid-row mapping + severity + truncation, InputTab VM intent events, rendered empty/loaded/validation/mismatch states, config status strip, Results panel loses the preview + legacy `dataPreview` key still parses, four-tab order, MainViewModel routing) and the 4 new `Phase7DScreenshots` frames, real Linux launch alive with "Main window created." and crash logs unchanged; headless evidence `logs/screenshots/phase-8d-final-layout.png`, `phase-8c-analytical.png`, `phase-8b-verification.png`, `phase-7d-input-empty.png`, `phase-7d-input-loaded.png`, `phase-7d-input-mismatch.png`, `phase-7d-config-strip.png`, plus the earlier 7C/7B/7A/6c PNGs (`phase-7c-manual-mode.png`, `phase-7b-stage-models.png`, `phase-7a-units.png`, `phase-6c-input-analysis.png`, `phase-6c-results-all.png`, `phase-6c-widget-toggled.png`, `phase-6c1-empty.png`, `phase-6c2-histograms.png`, `phase-6c3-chi-square.png`, `phase-6c4-utilisation.png`, `phase-6c5-charts.png`). M1 headless CLI verified: stable run (ρ 0.75) and clean unstable refusal (single-line stderr, no stack trace, exit 1 — ρ 1.25). M2 data CLI verified: `verify` (clean file → exit 0; dirty fixture → exit 1 listing all 5 issues), `fit` (prints params + chi-square, writes `logs/fit-*.json`), `simulate-data --servers 1,2,3` (three runs, exit 0), `export`. M3 `simulate-network` verified (incl. `--days 5 --cap 80 --verbose`). M4 `trace` verified against the frozen golden fixture (state/rng/events; `--output`; unstable refusal). **M5/Rebuild GUI verified: ava headless renders of MainWindow (phase-1 + controls-demo PNGs in `logs/screenshots/`); real-display launch/keyboard walk is owner-required on a machine with a display (this host is Wayland).** [Windows: TBD]
 **Maintainer:** Coding agent (auto-updated)
 **Audience:** Taha, graders, any developer
 
@@ -176,7 +176,7 @@ The window should open within ~5 seconds. If it does not, see **Troubleshooting*
 dotnet test OpdSimulator.sln
 ```
 
-Expected: `Passed! - Failed: 0`. As of 2026-09-18 **393 tests pass**:
+Expected: `Passed! - Failed: 0`. As of 2026-09-18 **417 tests pass**:
 - `OpdSimulator.Core.Tests` (90) — queue, event/FEL ordering, RNG determinism, exponential
   sampling, server utilisation, engine M/M/1 analytical bound, stability refusal, event trace,
   **M4 trace regression (golden fixture, draw-by-draw RNG parity, stats cross-check, sink passivity)**,
@@ -189,7 +189,7 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **393 tests pass**:
   D-037); `verify` exit 0/1 + issue listing; unknown command → global usage, exit 2;
   `simulate-data` multi-server sweep; non-exponential refusal, exit 2; **M4 `trace` end-to-end
   (golden stdout, levels, refusal exit 1, `--output` mode, usage exit 2)**.
-- `OpdSimulator.App.Tests` (231, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d, 6c.1, 6c.2, 6c.3, 6c.4, 6c.5, 6c.6, 7A, 7B, 7C, 7D, 8B, 8C) — Avalonia.Headless
+- `OpdSimulator.App.Tests` (234, headless Avalonia, GUI rebuild Phase 1–4, 4b, 4c, 5, 5c, 5c.4, 5d, 6c.1, 6c.2, 6c.3, 6c.4, 6c.5, 6c.6, 7A, 7B, 7C, 7D, 8B, 8C, 8D) — Avalonia.Headless
   session via `TestAppBuilder`; Phase-1 smoke/render: window title + Maximized state, theme +
   motion token resolution, screenshot capture; Phase-2 per-control tests: ValidatedField (error
   cause+remedy, clear-on-fix, blur validation), SearchableDropdown (type-to-filter + Enter
@@ -367,6 +367,17 @@ Expected: `Passed! - Failed: 0`. As of 2026-09-18 **393 tests pass**:
   `Phase6c6Screenshots` were updated in place 7→8 (results-in-one-frame window
   grew to 6200 px). The gate frame is saved as
   `logs/screenshots/phase-8c-analytical.png`. D-137.
+  **Phase 8D final polish (2 tests + 1 screenshot):** `Phase8DTests` covers
+  the config section-expansion commands (every section starts expanded;
+  `CollapseAll` sets all five `IsXSectionExpanded` flags false; `ExpandAll`
+  restores them) and `Phase8DScreenshots` walks the gate sequence — a real
+  EnterManually run, the four renamed trace levels
+  (`Minimal/Standard/Detailed/Debug`), Collapse All, then Expand All — and
+  saves the final layout as `logs/screenshots/phase-8d-final-layout.png`
+  (1200×3200). The `ResultsPanel.axaml` group headings (Overview, Server
+  Performance, Charts, Statistical Validation, Simulation Verification,
+  Analytical Validation, Event Trace) are visible only after a run
+  (`HasRun`), so the welcome card is unchanged. D-138.
 
 Default seed 42 is used for reproducibility in every test and demo command.
 
@@ -457,7 +468,7 @@ header, pre-run ρᵢ (0.4/0.4/0.1), three per-stage blocks and network totals
 (124 served); `--days 5 --cap 80 --seed 42` reproduced identical stdout on a
 second run (FR-VAL-3).
 
-### 7.6 `trace --lambda λ --mu μ --servers c [--stages …] [--p-exit p] --patients n [--seed s] [--level events|state|rng] [--output f] [--real-start HH:mm[:ss]]` — deterministic event trace (M4)
+### 7.6 `trace --lambda λ --mu μ --servers c [--stages …] [--p-exit p] --patients n [--seed s] [--level minimal|standard|detailed|debug] [--output f] [--real-start HH:mm[:ss]]` — deterministic event trace (M4)
 
 ```bash
 dotnet run --project src/OpdSimulator.Cli -- trace --lambda 3 --mu 4 --servers 1 --patients 5 --seed 42
@@ -466,9 +477,10 @@ dotnet run --project src/OpdSimulator.Cli -- trace --lambda 3 --mu 4 --servers 1
 Reruns the configured network and prints one line per state-changing point —
 ARRIVAL / START_SVC / END_SVC / ROUTE / EXIT — stopping after `--patients` have
 fully left the system, so a trace stays short and reviewable. Level control:
-`events` (core columns), `state` (default; adds the server id and the
-`→ exit`/`→ next stage` destination), `rng` (adds one RNG row per draw —
-`seed=42`, `draw#k U=0.6681 → service time 0.101 min …`). The wall-clock column is
+`minimal` (no rows), `standard` (core columns), `detailed` (default; adds the
+server id and the `→ exit`/`→ next stage` destination), `debug` (adds one RNG
+row per draw — `seed=42`, `draw#k U=0.6681 → service time 0.101 min …`). The
+wall-clock column is
 hours into the real anchor (default 08:15:00 via `--real-start`). Every number is
 invariant-culture and the RNG stream is untouched (D-057), so the same seed
 reproduces the same bytes and every row can be hand-checked against `−ln(U)/λ`.
@@ -479,10 +491,11 @@ Engine narration goes to the file logs only — stdout carries trace lines alone
 **Verified 2026-09-14 (Ubuntu 24.04):** the example command printed and matched
 the frozen golden fixture `tests/OpdSimulator.Core.Tests/Fixtures/trace-5-patients.txt`
 (draw-by-draw hand-verified against the reference `Random(42)` sequence);
-`--level rng` showed `draw#1 U=0.6681` … and `draw#10 U=0.7613`; `--level events`
+`--level debug` showed `draw#1 U=0.6681` … and `draw#10 U=0.7613`; `--level standard`
 dropped the state columns and RNG rows; `--output /tmp/t.txt` wrote the trace and
 printed the confirmation line; an unstable config (`--lambda 5 --mu 1`) refused
-with exit 1.
+with exit 1. (Level tokens renamed `events|state|rng` → `standard|detailed|debug`
+with `minimal` added in Phase 8D; behaviour unchanged.)
 
 ---
 
@@ -641,6 +654,7 @@ That saves the agent the time of discovering it.
 
 | Date | Change | Verified on |
 |------|--------|-------------|
+| 2026-09-18 | **Phase 8D — final polish (Results grouping, trace rename, collapse/expand, reference docs)** (`feat/milestone-7-model-driven`, App-only + docs): `ResultsPanel.axaml` groups the run widgets under seven headings (Overview, Server Performance, Charts, Statistical Validation, Simulation Verification, Analytical Validation, Event Trace) inside the `HasRun` area only; no separate "Stage Performance" heading (the per-stage table shares the metrics card) and the "Charts" heading follows the existing physical widget order. `TraceLevel` members renamed **`Minimal/Standard/Detailed/Debug` preserving ordinals** (`None/Events/State/Rng`) — pure relabel, `Minimal` still collects nothing; CLI tokens `minimal|standard|detailed|debug` (default `detailed`), App default `Detailed`, `TraceLevelFromName` unknown → `Minimal` (D-138). `ConfigPanelViewModel` gains five section-expansion bools + `CollapseAll`/`ExpandAll` commands; `ConfigPanel.axaml` binds each section two-way and adds "Expand all"/"Collapse all" buttons above `§2 · Model`. New `docs/DEFINITION_OF_DONE.md`, `docs/WORKFLOW_DIAGRAM.md`, `docs/RESULTS_PANEL_STRUCTURE.md`; README links them. New `Phase8DTests.cs` (2) + `Phase8DScreenshots.cs` (1); seven test files updated for the enum rename; legacy M5 chart/event-log backlog rows reconciled. Baseline 414 → **417** (Core 90 / Data 58 / Cli 35 / App **231 → 234**). Evidence `logs/screenshots/phase-8d-final-layout.png` (1200×3200). | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 417 green; headless final-layout frame rendered (D-089) |
 | 2026-09-18 | **Phase 8C — analytical M/M/c validation widget** (`feat/milestone-7-model-driven`, App-only): new pure `Services/AnalyticalValidationService.cs` (`ComputeForStage` Erlang-C; `Compare` returns one `ComparisonRow` per stage, or empty unless exponential arrivals + every stage exponential + every ρ < 1 + `result.OperatingTimeMinutes >= MinimumSteadyStateMinutes` = 100,000 min, D-137) and new `ViewModels/AnalyticalValidationViewModel.cs` (empty-until-run, sync `Apply` + background `ApplyAsync`, generation-guarded, long `EmptyMessage` naming all three conditions). The widget is the eighth Results key `analyticalValidation`: `ResultsPanelViewModel` (show/toggle/visible/migration), `WidgetPreferences` seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyAnalyticalValidation` on completion, `ResultsPanel.axaml` card + picker checkbox. New `Phase8CValidationTests.cs` (12 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` updated in place 7→8. Baseline 402 → **414** (Core 90 / Data 58 / Cli 35 / App **219 → 231**). Evidence `logs/screenshots/phase-8c-analytical.png` (gate: EnterManually, DiagnosticTrace, 200,000-min horizon, λ=0.5, μ 0.8/0.6/0.4, servers 1/2/3, p_exit 0.4, seed 42; every per-stage delta < 5%). No Core/Data/Cli change. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 414 green; headless gate frame rendered (D-089) |
 | 2026-09-18 | **Phase 8B — simulation-output chi-square verification widget** (`feat/milestone-7-model-driven`, App-only): new pure `Services/SimulationVerificationService.cs` (`VerifyAll` → one `VerificationReport` per series; per-series `FitsService.Fit` + shared `InputAnalysisService.BuildHistogram`; Deterministic/General/insufficient-samples handled with an explanatory note, D-136) and new `ViewModels/SimulationVerificationViewModel.cs` (+ `VerificationChartViewModel`; background prep, `Dispatcher.UIThread.Post` chart build, generation-guarded stale-apply). The widget is the seventh Results key `simulationVerification`: `ResultsPanelViewModel` (show/toggle/visible/migration), `WidgetPreferences` seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyVerification` on completion, `ResultsPanel.axaml` card + picker checkbox. New `Phase8BVerificationTests.cs` (9 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` updated in place 6→7. Baseline 393 → **402** (Core 90 / Data 58 / Cli 35 / App **210 → 219**). Evidence `logs/screenshots/phase-8b-verification.png` (gate config: EnterManually λ=0.5, μ 0.8/0.6/0.4, servers 1/2/3, p_exit 0.4, seed 42; 4/4 series histogram + chi-square, p > 0.05). No Core/Data/Cli change. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 402 green; headless gate frame rendered (D-089) |
 | 2026-09-18 | **Phase 8A — retain RNG-generated samples in `SimulationResult`** (`feat/milestone-7-model-driven`, Core-only): `SimulationResult` gains `GeneratedInterArrivalSamples` (`IReadOnlyList<double>`) and `GeneratedServiceSamplesByStage` (`IReadOnlyList<IReadOnlyList<double>>`), both defaulting to `Array.Empty<…>`; `Engine` gains `_generatedInterArrivals` / `_generatedServiceSamples` per-run buffers with the chart-buffer lifecycle — allocated in `RunCore`, appended in `HandleArrival` (only when the next arrival is scheduled) and `StartService` (indexed by `patient.StageIndex`), projected into the result, then released; no existing property/method/constructor signature changed and both `Run` overloads converge on the same path. New `GeneratedSamplesTests.cs` (5 tests). Baseline 388 → **393** (Core **85 → 90** / Data 58 / Cli 35 / App 210). D-135. No UI/launch path touched, so no launch smoke required. | **Ubuntu 24.04** (.NET SDK 8.0.131) — Release build 0/0; full suite 393 green |

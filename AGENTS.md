@@ -1140,9 +1140,8 @@ same fields:
     RunMode                          (ClinicDay | MultiDay |
                                       DiagnosticTrace)
     HorizonMinutes / GeneratorDays   (per run mode)
-    TraceLevel                       (None | Events | State | Rng —
-                                      renamed to Minimal | Standard |
-                                      Detailed | Debug in Phase 8D)
+    TraceLevel                       (Minimal | Standard | Detailed |
+                                      Debug)
 
 If a future change adds a field to `SimulationParameters`, it
 must be populated by BOTH paths. A field populated only by one

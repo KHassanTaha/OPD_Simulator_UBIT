@@ -13,7 +13,11 @@
          utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
          (6c.5) → chi-square → simulation verification (8B) → analytical
          validation (8C) → trace (the data preview moved to the Input tab in
-         Phase 7D). -->
+         Phase 7D). Phase 8D.1 groups the widgets under headings (Overview,
+         Server Performance, Charts, Statistical Validation, Simulation
+         Verification, Analytical Validation, Event Trace); the per-stage table
+         shares the metrics card, so it carries no separate "Stage Performance"
+         heading (8D.1: do not add a redundant heading for a merged table). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -99,6 +103,13 @@
                                   IsVisible="{Binding HasError}"
                                   ToolTip.Tip="The simulator did not run; read the message and adjust the configuration."/>
 
+            <!-- Group heading: Overview (Phase 8D.1). -->
+            <TextBlock Text="Overview"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
             <!-- Metrics widget (FR-STAT-6/7). -->
             <Border IsVisible="{Binding ShowMetrics}"
                     Background="{DynamicResource BrushBackgroundPanel}"
@@ -160,6 +171,13 @@
                 </StackPanel>
             </Border>
 
+            <!-- Group heading: Server Performance (Phase 8D.1). -->
+            <TextBlock Text="Server Performance"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
             <!-- Per-server utilisation widget (FR-STAT-7, Phase 6c.4): bar per
                  server, green or amber by imbalance; thin stage-average reference
                  line; empty state until a run finishes. -->
@@ -184,6 +202,14 @@
                                     Content="{Binding UtilisationChart}"/>
                 </StackPanel>
             </Border>
+
+            <!-- Group heading: Charts (Phase 8D.1) — covers queue length and the
+                 waiting-time histogram below. -->
+            <TextBlock Text="Charts"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
 
             <!-- Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5): one line
                  per stage, downsampled ≤ 2000 points; empty state until a run. -->
@@ -245,6 +271,14 @@
                 </StackPanel>
             </Border>
 
+            <!-- Group heading: Statistical Validation (Phase 8D.1) — the
+                 input-side chi-square table below. -->
+            <TextBlock Text="Statistical Validation"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
             <!-- Chi-square widget (FR-STAT-8). -->
             <Border IsVisible="{Binding ShowChiSquare}"
                     Background="{DynamicResource BrushBackgroundPanel}"
@@ -280,6 +314,14 @@
                     </ItemsControl>
                 </StackPanel>
             </Border>
+
+            <!-- Group heading: Simulation Verification (Phase 8D.1) — the
+                 output-side model-verification widget below. -->
+            <TextBlock Text="Simulation Verification"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
 
             <!-- Simulation verification widget (Phase 8B): output-side chi-square
                  over the samples the engine itself generated, confirming the run
@@ -317,7 +359,15 @@
                 </StackPanel>
             </Border>
 
-            <!-- Analytical validation widget (Phase 8C, FR-STAT-11): the
+            <!-- Group heading: Analytical Validation (Phase 8D.1) — the M/M/c
+                 comparison widget below. -->
+            <TextBlock Text="Analytical Validation"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
+            <!-- Analytical validation widget (Phase 8C, FR-STAT-5): the
                  simulated per-stage wait and queue length against the closed-form
                  M/M/c (Erlang-C) values. Empty (with an explanation) when the
                  M/M/c assumptions do not hold. -->
@@ -365,6 +415,13 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+
+            <!-- Group heading: Event Trace (Phase 8D.1). -->
+            <TextBlock Text="Event Trace"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
 
             <!-- Event trace widget: mono, scrollable, selectable text (M4). -->
             <Border IsVisible="{Binding ShowTrace}"

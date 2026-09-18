@@ -31,7 +31,7 @@ public class Phase5Screenshot
             config.ManualLambda.Value = "0.1";
             config.ManualMuPerStage.Value = "0.8, 0.5, 0.4";
             config.AdvancedIsOptionalEnabled = true;
-            config.TraceLevel = "State";
+            config.TraceLevel = "Detailed";
             config.IsDiagnosticTrace = true;
             config.HorizonMinutes.Value = "1500";
 

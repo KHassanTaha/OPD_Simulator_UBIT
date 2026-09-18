@@ -18,10 +18,10 @@ public sealed class CollectionTraceSink : ITraceSink
     public const int Capacity = 50_000;
 
     /// <summary>Creates the sink.</summary>
-    /// <param name="level">Trace detail to render; <see cref="TraceLevel.None"/> keeps no lines.</param>
+    /// <param name="level">Trace detail to render; <see cref="TraceLevel.Minimal"/> keeps no lines.</param>
     /// <param name="capacity">Maximum retained line count.</param>
     /// <exception cref="ArgumentOutOfRangeException">If the capacity is less than 1.</exception>
-    public CollectionTraceSink(TraceLevel level = TraceLevel.Events, int capacity = Capacity)
+    public CollectionTraceSink(TraceLevel level = TraceLevel.Standard, int capacity = Capacity)
     {
         if (capacity < 1)
         {
@@ -38,7 +38,7 @@ public sealed class CollectionTraceSink : ITraceSink
     /// <inheritdoc/>
     public void Write(TraceEvent evt)
     {
-        if (_level == TraceLevel.None)
+        if (_level == TraceLevel.Minimal)
         {
             return;
         }

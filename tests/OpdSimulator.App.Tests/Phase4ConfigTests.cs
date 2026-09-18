@@ -159,7 +159,7 @@ public class Phase4ConfigTests
         vm.IsMultiDay = true;
         vm.Days.Value = "10";
         vm.DailyCap.Value = "40";
-        vm.TraceLevel = "Rng";
+        vm.TraceLevel = "Debug";
         vm.InterArrivalDistribution = "Poisson";
         vm.ServiceDistribution = "Normal";
         vm.IsMeanWise = true;
@@ -184,7 +184,7 @@ public class Phase4ConfigTests
         Assert.Equal("1", vm.Days.Value);
         Assert.Equal("", vm.DailyCap.Value);
         Assert.Equal("42", vm.Seed.Value);
-        Assert.Equal("State", vm.TraceLevel);
+        Assert.Equal("Detailed", vm.TraceLevel);
         // D-128: a reset returns to an empty fit-mode config, which is not startable.
         Assert.False(vm.StartIsEnabled);
     }

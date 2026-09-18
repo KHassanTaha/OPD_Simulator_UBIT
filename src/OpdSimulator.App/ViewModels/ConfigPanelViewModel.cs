@@ -35,7 +35,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     /// <summary>Trace detail levels offered by the advanced dropdown.</summary>
     public IReadOnlyList<string> TraceLevels { get; } =
-        new[] { "None", "Events", "State", "Rng" };
+        new[] { "Minimal", "Standard", "Detailed", "Debug" };
 
     public ConfigPanelViewModel()
     {
@@ -461,9 +461,9 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>Random seed (default 42) — deterministic runs.</summary>
     public ConfigFieldViewModel Seed { get; } = new();
 
-    /// <summary>Selected trace level (default State).</summary>
+    /// <summary>Selected trace level (default Detailed).</summary>
     [ObservableProperty]
-    private string? _traceLevel = "State";
+    private string? _traceLevel = "Detailed";
 
     // ── Optional-section toggles (Phase 4b, D-101) ──────────────────────
 
@@ -478,7 +478,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     /// <summary>
     /// Enable switch for the optional Advanced section. When off (default),
-    /// the random seed defaults to 42 and the trace level to State.
+    /// the random seed defaults to 42 and the trace level to Detailed.
     /// </summary>
     [ObservableProperty]
     private bool _advancedIsOptionalEnabled;
@@ -527,6 +527,50 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     public bool ParametersSupplied =>
         ParametersIsOptionalEnabled || SourceMode == DataSourceMode.EnterManually;
+
+    // ── Collapsible-section expansion (Phase 8D.3) ──────────────────────
+
+    /// <summary>Whether the "2 · Model" section is expanded.</summary>
+    [ObservableProperty]
+    private bool _isModelSectionExpanded = true;
+
+    /// <summary>Whether the "3 · Parameters" section is expanded.</summary>
+    [ObservableProperty]
+    private bool _isParametersSectionExpanded = true;
+
+    /// <summary>Whether the "4 · Stages" section is expanded.</summary>
+    [ObservableProperty]
+    private bool _isStagesSectionExpanded = true;
+
+    /// <summary>Whether the "5 · Horizon" section is expanded.</summary>
+    [ObservableProperty]
+    private bool _isHorizonSectionExpanded = true;
+
+    /// <summary>Whether the "6 · Advanced" section is expanded.</summary>
+    [ObservableProperty]
+    private bool _isAdvancedSectionExpanded = true;
+
+    /// <summary>Collapses every configuration section to its header (Phase 8D.3).</summary>
+    [RelayCommand]
+    private void CollapseAll()
+    {
+        IsModelSectionExpanded = false;
+        IsParametersSectionExpanded = false;
+        IsStagesSectionExpanded = false;
+        IsHorizonSectionExpanded = false;
+        IsAdvancedSectionExpanded = false;
+    }
+
+    /// <summary>Expands every configuration section (Phase 8D.3).</summary>
+    [RelayCommand]
+    private void ExpandAll()
+    {
+        IsModelSectionExpanded = true;
+        IsParametersSectionExpanded = true;
+        IsStagesSectionExpanded = true;
+        IsHorizonSectionExpanded = true;
+        IsAdvancedSectionExpanded = true;
+    }
 
     // ── Stage-data mismatch warning (Phase 5d, D-114) ─────────────────────
 
@@ -596,8 +640,8 @@ public partial class ConfigPanelViewModel : ObservableObject
     public int EffectiveSeed =>
         AdvancedIsOptionalEnabled && int.TryParse(Seed.Value, out var seed) ? seed : 42;
 
-    /// <summary>Trace level the run will use (State while the Advanced section is off).</summary>
-    public string EffectiveTraceLevel => AdvancedIsOptionalEnabled ? TraceLevel ?? "State" : "State";
+    /// <summary>Trace level the run will use (Detailed while the Advanced section is off).</summary>
+    public string EffectiveTraceLevel => AdvancedIsOptionalEnabled ? TraceLevel ?? "Detailed" : "Detailed";
 
     // ── Footer ──────────────────────────────────────────────────────────
 
@@ -950,7 +994,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         ParametersIsOptionalEnabled = false;
         AdvancedIsOptionalEnabled = false;
         Seed.Value = "42";
-        TraceLevel = "State";
+        TraceLevel = "Detailed";
         IsMultiDay = false;
         IsDiagnosticTrace = false;
         IsSingleDay = true;

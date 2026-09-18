@@ -8,7 +8,7 @@ using OpdSimulator.Core.Calendar;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Row layout (state level, the default):
+/// Row layout (detailed level, the default):
 /// <c>T=&lt;sim time&gt;  &lt;wall clock&gt;  &lt;TYPE&gt;  &lt;P#&gt;  &lt;location&gt;  q=&lt;queue&gt;</c>.
 /// The type column is left-justified to 12 characters and the patient id to 6,
 /// so the story reads as a table. The <c>q=</c> column follows the semantics
@@ -18,9 +18,9 @@ using OpdSimulator.Core.Calendar;
 /// Level filtering is here, not in the engine, so the event stream and the
 /// simulation arithmetic never depend on the display level:
 /// <list type="bullet">
-///   <item>below <see cref="TraceLevel.State"/> the location suffix (server id,
+///   <item>below <see cref="TraceLevel.Detailed"/> the location suffix (server id,
 ///   routing/exit destination) is dropped;</item>
-///   <item>below <see cref="TraceLevel.Rng"/> the RNG draw rows are dropped entirely.</item>
+///   <item>below <see cref="TraceLevel.Debug"/> the RNG draw rows are dropped entirely.</item>
 /// </list>
 /// Numbers are formatted with the invariant culture so a trace file is
 /// byte-identical on any machine/locale (required for the golden-file test).
@@ -52,7 +52,7 @@ public static class TraceFormatter
         if (evt is null)
             throw new ArgumentNullException(nameof(evt));
 
-        if (evt.Type == TraceEventType.Rng && level < TraceLevel.Rng)
+        if (evt.Type == TraceEventType.Rng && level < TraceLevel.Debug)
             return null;
 
         string t = evt.Time.ToString("0.000", CultureInfo.InvariantCulture);
@@ -65,7 +65,7 @@ public static class TraceFormatter
         string patient = evt.PatientId is { } id ? "P" + id.ToString(CultureInfo.InvariantCulture) : "-";
 
         string location = evt.StageName ?? "-";
-        if (level >= TraceLevel.State)
+        if (level >= TraceLevel.Detailed)
         {
             if (evt.ServerId is { } serverId)
                 location += " s" + serverId.ToString(CultureInfo.InvariantCulture);

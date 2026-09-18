@@ -235,9 +235,10 @@ public static class SimulationCoordinator
     internal static TraceLevel TraceLevelFromName(string name)
         => name.Trim().ToUpperInvariant() switch
         {
-            "EVENTS" => TraceLevel.Events,
-            "STATE" => TraceLevel.State,
-            "RNG" => TraceLevel.Rng,
-            _ => TraceLevel.None,
+            "MINIMAL" => TraceLevel.Minimal,
+            "STANDARD" => TraceLevel.Standard,
+            "DETAILED" => TraceLevel.Detailed,
+            "DEBUG" => TraceLevel.Debug,
+            _ => TraceLevel.Minimal,
         };
 }

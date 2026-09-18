@@ -12,7 +12,7 @@ using Serilog;
 /// <c>trace</c>: rerun a network configuration and print a line-by-line,
 /// human-readable event trace (Milestone 4). Each line is one state-changing
 /// point — arrival, service start/end, route, exit — and, at
-/// <c>--level rng</c>, one line per random draw with the sampled value.
+/// <c>--level debug</c>, one line per random draw with the sampled value.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,7 +32,7 @@ using Serilog;
 internal static class TraceCommand
 {
     private const string Usage =
-        "Usage: dotnet run --project src/OpdSimulator.Cli -- trace --lambda 0.5 --mu 2,1.5,1 --servers 1,2,3 [--p-exit 0.4] --patients 5 [--seed 42] [--level state] [--output trace.txt] [--real-start 08:15:00]\n" +
+        "Usage: dotnet run --project src/OpdSimulator.Cli -- trace --lambda 0.5 --mu 2,1.5,1 --servers 1,2,3 [--p-exit 0.4] --patients 5 [--seed 42] [--level detailed] [--output trace.txt] [--real-start 08:15:00]\n" +
         "  --lambda     external arrival rate λ₀, patients/minute (required)\n" +
         "  --mu         one service rate μᵢ per stage, patients/minute/server (required)\n" +
         "  --servers    one server count cᵢ per stage (required)\n" +
@@ -40,7 +40,7 @@ internal static class TraceCommand
         "  --p-exit     probability of exiting after Screening (needs ≥ 3 stages; default 0)\n" +
         "  --patients   stop the run after this many patients have fully exited (required)\n" +
         "  --seed       random seed, default 42 (FR-VAL-3)\n" +
-        "  --level      trace detail: events | state | rng (default state)\n" +
+        "  --level      trace detail: minimal | standard | detailed | debug (default detailed)\n" +
         "  --output     write the trace to this file instead of stdout\n" +
         "  --real-start wall-clock anchor of t = 0, HH:mm or HH:mm:ss (default 08:15:00)";
 
@@ -123,14 +123,15 @@ internal static class TraceCommand
         string? levelText = GetOption(args, "--level");
         TraceLevel level = levelText switch
         {
-            null or "state" => TraceLevel.State,
-            "events" => TraceLevel.Events,
-            "rng" => TraceLevel.Rng,
+            null or "detailed" => TraceLevel.Detailed,
+            "minimal" => TraceLevel.Minimal,
+            "standard" => TraceLevel.Standard,
+            "debug" => TraceLevel.Debug,
             _ => (TraceLevel)(-1),
         };
         if (level == (TraceLevel)(-1))
         {
-            stderr.WriteLine($"Invalid --level '{levelText}' (use events, state or rng).");
+            stderr.WriteLine($"Invalid --level '{levelText}' (use minimal, standard, detailed or debug).");
             stderr.WriteLine(Usage);
             return 2;
         }

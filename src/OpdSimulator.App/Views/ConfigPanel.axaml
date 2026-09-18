@@ -55,9 +55,22 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Phase 8D.3: bulk expand/collapse for the five section groups. -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="{DynamicResource SpaceXs}">
+                    <Button Content="Expand all"
+                            Command="{Binding ExpandAllCommand}"
+                            Classes="GhostButton"
+                            ToolTip.Tip="Open every configuration section"/>
+                    <Button Content="Collapse all"
+                            Command="{Binding CollapseAllCommand}"
+                            Classes="GhostButton"
+                            ToolTip.Tip="Close every configuration section to just its header"/>
+                </StackPanel>
+
                 <!-- ───── 2 · Model ────────────────────────────────────── -->
                 <controls:CollapsibleSection Title="2 · Model"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsModelSectionExpanded, Mode=TwoWay}"
                                              HelpText="Distribution shapes and how the entered numbers are interpreted (rate-wise vs mean-wise, CONTEXT §5.6).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:SearchableDropdown Label="Inter-arrival distribution"
@@ -86,7 +99,7 @@
 
                 <!-- ───── 3 · Parameters ───────────────────────────────── -->
                 <controls:CollapsibleSection Title="3 · Parameters"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsParametersSectionExpanded, Mode=TwoWay}"
                                              IsOptional="True"
                                              IsEnabledToggle="{Binding ParametersIsOptionalEnabled, Mode=TwoWay}"
                                              HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
@@ -161,7 +174,7 @@
 
                 <!-- ───── 4 · Stages (1–5) ─────────────────────────────── -->
                 <controls:CollapsibleSection Title="4 · Stages"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsStagesSectionExpanded, Mode=TwoWay}"
                                              HelpText="Named stages through which every patient flows. The stage list defines topology only (name + server count); the service rate μ comes from the loaded data or the Parameters section (5d.1, D-112).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:ValidatedField x:Name="StageCountField"
@@ -258,7 +271,7 @@
 
                 <!-- ───── 5 · Horizon ──────────────────────────────────── -->
                 <controls:CollapsibleSection Title="5 · Horizon"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsHorizonSectionExpanded, Mode=TwoWay}"
                                              HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <!-- Phase 7A: time-span presets above the run-mode radio.
@@ -338,7 +351,7 @@
 
                 <!-- ───── 6 · Advanced ─────────────────────────────────── -->
                 <controls:CollapsibleSection Title="6 · Advanced"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsAdvancedSectionExpanded, Mode=TwoWay}"
                                              IsOptional="True"
                                              IsEnabledToggle="{Binding AdvancedIsOptionalEnabled, Mode=TwoWay}"
                                              HelpText="Reproducibility and the per-event trace detail written by a diagnostic-trace run (only that run mode records a trace — D-105).">
@@ -354,7 +367,7 @@
                                                  views:ConfigPanelValidation.ValidationKey="seed"/>
                         <controls:SearchableDropdown Label="Trace level"
                                                      Placeholder="Choose a level…"
-                                                     Tooltip="How much per-event detail the diagnostic run logs (None / Events / State / Rng)"
+                                                     Tooltip="How much per-event detail the diagnostic run logs (Minimal / Standard / Detailed / Debug)"
                                                      IsVisible="{Binding TraceLevelVisible}"
                                                      Items="{Binding TraceLevels}"
                                                      SelectedItem="{Binding TraceLevel, Mode=TwoWay}"

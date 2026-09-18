@@ -299,7 +299,7 @@ public class Phase8CValidationTests
             main.Config.HorizonMinutes.Value = "200000";
             main.Config.AdvancedIsOptionalEnabled = true;
             main.Config.Seed.Value = "42";
-            main.Config.TraceLevel = "None";
+            main.Config.TraceLevel = "Minimal";
             main.Config.ManualLambda.Value = "0.5";
             main.Config.StageRows[0].MuValue = "0.8";
             main.Config.StageRows[1].MuValue = "0.6";
