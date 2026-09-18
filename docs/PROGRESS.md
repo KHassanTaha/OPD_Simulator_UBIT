@@ -2,6 +2,71 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-18 05:32
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8B — simulation-output chi-square verification widget (8B.1–8B.4)
+
+In Progress
+- None
+
+What is complete:
+- `Services/SimulationVerificationService.cs` — pure `VerifyAll(result, arrivalFamily, serviceFamilies, α)` returns one `VerificationReport` per series (inter-arrival + one per `result.StageMetrics`, stage order). Per series: a single `FitsService.Fit` + a histogram via the shared `InputAnalysisService.BuildHistogram` (reuses the verdict's own bins, D-118). Deterministic skips with a note; General flattens to Exponential with a note (D-127); < 2 samples yields an insufficient-samples note — never a fabricated verdict.
+- `ViewModels/SimulationVerificationViewModel.cs` (+ `VerificationChartViewModel`) — empty until a run completes; `ApplyAsync` preps on a thread-pool thread and builds charts on the UI thread via `Dispatcher.UIThread.Post`, generation-guarded against stale applies (D-119 pattern); `Clear()`.
+- Seventh Results key `simulationVerification`: `ResultsPanelViewModel` (Show*/ToggleWidget/VisibleWidgets/migration), `WidgetPreferences` default seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyVerification` on run completion, `ResultsPanel.axaml` card + picker checkbox.
+- `Phase8BVerificationTests.cs` (9 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` updated in place 6→7 (`six` helpers/doc renamed).
+
+What remains:
+- Phase 8C (do NOT start until instructed), then 8D; Phase 6 (Help + presets) comes after 8D.
+
+Next Session Should Start With
+- Phase 8C — await owner "go" (8C scope to be confirmed).
+- Phase 8D, then Phase 6.
+
+Blocked
+- None
+
+Git State
+Commits made this session: 559b21e feat: simulation-output chi-square verification widget (Phase 8B)
+Pushed to origin: Yes — `feat/milestone-7-model-driven` at 559b21e (docs handoff commit follows)
+Uncommitted changes: None (this handoff commit pending)
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release)
+dotnet test: PASS — 402 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 219)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/SimulationVerificationService.cs: added
+src/OpdSimulator.App/ViewModels/SimulationVerificationViewModel.cs: added (+ VerificationChartViewModel)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (7th widget key)
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified (shared VM + ApplyVerification)
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified (7th card + checkbox)
+src/OpdSimulator.App/Services/WidgetPreferences.cs: modified (default seed)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs: added (9 tests)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs: modified (6→7 in place)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs: modified (6→7, renames, heights)
+docs/DECISIONS.md: modified (D-136)
+docs/REQUIREMENTS.md: modified (FR-UI-4/FR-UI-14 refreshed)
+docs/DEV_LAUNCH.md: modified (§1 last-verified, §6 counts, changelog)
+docs/USER_MANUAL.md: modified (§6 widget list, §6.7 table, new §6.8)
+docs/VIVA_ANSWERS.md: modified (Phase 8B section)
+docs/TODO.md: modified (Phase 8B → [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-136 — output-side chi-square verification is a seventh Results widget built from `SimulationResult`'s retained samples
+
+Assumptions Added/Changed
+- None
+
+Notes for Next Session
+- The 6C screenshot config (λ=0.1) legitimately leaves the Doctor stage with too few service samples, so its verification card renders an explanatory note, not a histogram; `AssertWidgetsFromRealRun` therefore asserts only the inter-arrival card is drawable, while the 8B gate test uses λ=0.5 and asserts all four cards are. Do not "fix" the 6C run to force a doctor histogram — the note is the correct fail-loud behaviour.
+- `VerificationWidget_PopulatesOnRunCompletion` (Phase8B) also writes the gate screenshot `logs/screenshots/phase-8b-verification.png`; it temporarily hides the other six widgets and restores them in `finally` (machine `ui.json` ends unchanged).
+- `Phase6c6Screenshots` results-in-one-frame window height is now 5600 px (was 3200) to fit the seventh widget.
+
 Session Handoff — 2026-09-18 04:32
 Branch: feat/milestone-7-model-driven
 Status: Clean
