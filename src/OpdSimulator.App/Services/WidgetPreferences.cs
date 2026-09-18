@@ -41,7 +41,7 @@ public sealed class WidgetPreferences
     public List<string> VisibleWidgets { get; set; } = new()
     {
         "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram",
-        "simulationVerification",
+        "simulationVerification", "analyticalValidation",
     };
 
     /// <summary>Collapsible-section keys that are currently collapsed.</summary>

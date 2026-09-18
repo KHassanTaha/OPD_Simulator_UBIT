@@ -25,9 +25,9 @@ namespace OpdSimulator.App.Tests;
 /// <item><c>phase-6c-input-analysis.png</c> — Input tab: histogram +
 /// fitted-PDF card and chi-square observed-vs-expected card per fit.</item>
 /// <item><c>phase-6c-results-all.png</c> — Simulation tab after a real engine
-/// run with the sample multi-stage clinic loaded: all seven widgets (metrics,
+/// run with the sample multi-stage clinic loaded: all eight widgets (metrics,
 /// utilisation, queue length, waiting-time histogram, chi-square, simulation
-/// verification, trace) in one frame.</item>
+/// verification, analytical validation, trace) in one frame.</item>
 /// <item><c>phase-6c-widget-toggled.png</c> — same run with the "Customise
 /// results" picker open and one widget (waiting-time history) switched off.</item>
 /// </list>
@@ -77,7 +77,7 @@ public class Phase6c6Screenshots
     {
         var window = new MainWindow();
         window.Width = 1200;
-        window.Height = 5600; // every widget, including the event trace, fits one frame
+        window.Height = 6200; // every widget, including the event trace, fits one frame
         window.Show();
         try
         {
@@ -117,7 +117,7 @@ public class Phase6c6Screenshots
     {
         var window = new MainWindow();
         window.Width = 1200;
-        window.Height = 5600;
+        window.Height = 6200;
         window.Show();
         try
         {
@@ -170,6 +170,7 @@ if (window.DataContext is not MainViewModel main)
     {
         "metrics", "chiSquare", "trace",
         "utilisation", "queueLength", "waitHistogram", "simulationVerification",
+        "analyticalValidation",
     };
 
     /// <summary>
@@ -238,14 +239,26 @@ if (window.DataContext is not MainViewModel main)
             config.InterArrivalDistribution ?? "Exponential",
             Enumerable.Repeat(config.ServiceDistribution ?? "Exponential", outcome.Result.StageMetrics.Count).ToList(),
             0.05);
+
+        // Phase 8C: exercise the analytical-validation production path too. This
+        // run is transient, so the steady-state guard (D-137) leaves the widget
+        // on its explanatory empty state — which is the assertion below.
+        main.AnalyticalValidation.Apply(
+            outcome.Result,
+            config.InterArrivalDistribution ?? "Exponential",
+            Enumerable.Repeat(config.ServiceDistribution ?? "Exponential", outcome.Result.StageMetrics.Count).ToList(),
+            outcome.Result.StageMetrics.Select(m => (m.ArrivalRate, m.ServiceRate, m.ServerCount)).ToList());
         return (outcome, binding);
     }
 
     /// <summary>
-    /// Proves every one of the seven widgets carries real, non-empty content
-    /// after the run wiring (the screenshot is evidence, the asserts are the
-    /// proof). Phase 7D removed the data-preview widget from this panel;
-    /// Phase 8B added the simulation-verification widget.
+    /// Proves every one of the eight widget cards is realised after the run
+    /// wiring and carries its expected content (the screenshot is evidence, the
+    /// asserts are the proof). Seven carry real data; the analytical-validation
+    /// card intentionally shows its documented empty state because this run is a
+    /// transient clinic day (D-137). Phase 7D removed the data-preview widget
+    /// from this panel; Phase 8B added the simulation-verification widget;
+    /// Phase 8C added the analytical-validation widget.
     /// </summary>
     private static void AssertWidgetsFromRealRun(MainViewModel main, RunOutcome outcome)
     {
@@ -290,9 +303,19 @@ if (window.DataContext is not MainViewModel main)
         Assert.Equal(4, r.SimulationVerification.Charts.Count);
         Assert.NotNull(r.SimulationVerification.Charts[0].ChartContent);
 
-        // And the FR-UI-14 contract: all seven widgets are visible together.
+        // 8. Analytical validation (Phase 8C): this run is a single transient
+        // clinic day (λ=0.1), far below the 100,000-minute steady-state
+        // threshold, so the widget is present but carries its explanatory empty
+        // state — M/M/c is a steady-state result and must not be compared
+        // against a transient run (D-137). The populated-table case is covered
+        // by Phase8CValidationTests, not here.
+        Assert.True(r.AnalyticalValidation.IsEmpty);
+        Assert.Empty(r.AnalyticalValidation.Rows);
+
+        // And the FR-UI-14 contract: all eight widgets are visible together.
         Assert.Equal(new[] { "metrics", "chiSquare", "trace",
-            "utilisation", "queueLength", "waitHistogram", "simulationVerification" }, r.VisibleWidgets);
+            "utilisation", "queueLength", "waitHistogram", "simulationVerification",
+            "analyticalValidation" }, r.VisibleWidgets);
     }
 
     /// <summary>

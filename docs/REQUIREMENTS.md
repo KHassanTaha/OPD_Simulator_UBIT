@@ -80,7 +80,7 @@ PRD.md wins.
 | FR-STAT-2 | α default 0.05, user-selectable | [~] | Cli/Commands/FitCommand.cs hardcodes α = 0.05 (default met, D-044); user selection is the M5 GUI control | ChiSquareTests | — |
 | FR-STAT-3 | Auto bin count | [x] | src/OpdSimulator.Data/Fitting/BinSelector.cs (k = ⌈√n⌉ clamped [5,20]) | ChiSquareTests (k = 5/8/20 bounds) | D-040 |
 | FR-STAT-4 | Display O, E, χ², df, p, decision | [~] | ChiSquareResult carries Observed/Expected arrays (tested); `fit` CLI prints χ², df, p, decision; the O/E table is the M5 GUI | ChiSquareTests | — |
-| FR-STAT-5 | Auto compare vs analytical M/M/c | [ ] | — | — | — |
+| FR-STAT-5 | Auto compare vs analytical M/M/c | [x] | src/OpdSimulator.App/Services/AnalyticalValidationService.cs (`ComputeForStage` Erlang-C, `Compare` guarded by exponential families + ρ < 1 + steady-state horizon ≥ 100,000 min, D-137) + ViewModels/AnalyticalValidationViewModel.cs + Views/ResultsPanel.axaml (eighth Results widget) | Phase8CValidationTests (App.Tests) | D-137 |
 | FR-STAT-6 | Display per-stage ρ (bottleneck) | [x] | src/OpdSimulator.Core/Stages/NetworkTopology.cs (RhoFor, routing λᵢ) + cli/Program.cs PrintNetworkMetrics (`ρ = λᵢ/(c·μ)`) + SimulateNetworkCommand --verbose | CliSimulateNetworkTests.Verbose_PrintsPreRunRho, CliSimulateDataNetworkTests | D-015, D-052, D-053 |
 | FR-STAT-7 | Per-server util + imbalance flag (>0.15) | [x] | src/OpdSimulator.Core/Servers/{IServerSelectionPolicy,RandomIdleSelection}.cs + cli/Program.cs PrintNetworkMetrics per-server lines + src/OpdSimulator.App/Services/UtilisationChartService.cs (per-server |Δ vs stage mean| > 0.15 visual variant, D-121 — analytical max−min rule retained; coexistence documented in CONTEXT §5.7) | EngineTests (balance/utilisation), CliSimulateNetworkTests, Phase6c4UtilisationTests (App.Tests) | D-016, D-050, D-121 |
 | FR-STAT-8 | Histogram + fitted PDF overlay | [x] | Services/InputAnalysisService.cs (BuildHistogram — labels "Inter-arrival" + "<stage> service", bin edges/counts identical to ChiSquareResult), Services/ChartControlBuilder.cs, Views/InputAnalysisView.axaml (6c.6 = gate verified all 4 input histogram cards from a real file load) | Phase6c2HistogramTests.BuildHistogram_ReusesTheChiSquareBins_NeverRecomputes, BuildHistogram_FittedPdfIsDensityTimesBinWidthTimesN + Phase6c6Screenshots.Render_InputAnalysisOneFrame_SavePhase6cInputAnalysisPng (App.Tests) | D-118, D-124 |
@@ -118,13 +118,13 @@ PRD.md wins.
 ## Coverage Summary
 
 - Total requirements: 70
-- `[x]` DONE: 49
+- `[x]` DONE: 50
 - `[~]` IN PROGRESS: 8
-- `[ ]` TODO: 13
+- `[ ]` TODO: 12
 - `[?]` BLOCKED: 0
 - `[-]` CANCELLED: 0
 
-**Coverage:** 70.0% (49/70)
+**Coverage:** 71.4% (50/70)
 
 > M1 (single-stage M/M/1 engine) marked FR-SIM-1/2/3/5/6, FR-VAL-1/2/3/4 and
 > NFR-4 DONE. FR-VAL-4 was briefly `[~]` because it had no automated test; it is
@@ -166,6 +166,7 @@ but no source or test.
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Phase 8C traceability: FR-STAT-5 → `[x]` (analytical M/M/c comparison — `AnalyticalValidationService` + eighth Results widget, `Phase8CValidationTests`, D-137). The brief's "FR-STAT-11" does not exist in the PRD, so the feature maps to the existing FR-STAT-5; no new ID added (bidirectional rule, AGENTS §9.7). Coverage recomputed from the actual matrix: 50/70 = 71.4%. |
 | 2026-09-18 | Phase 8B traceability: FR-UI-4 and FR-UI-14 source/test refreshed — the Results widget picker now lists the **simulation-verification** widget (output-side chi-square on the engine's retained samples, D-136), covered by `Phase8BVerificationTests`. Historical "7 widgets" phrasing in FR-UI-4 updated to "the Results widgets". No new requirement IDs (PRD unchanged). |
 | 2026-09-18 | Phase 7C traceability: FR-UI-9 → `[x]` (ConfigPanel's FR-UI-9 `ErrorBanner` now surfaces `StartBlockedMessage` for blocked Start, tests in `Phase7CTests`) and FR-UI-7 → `[~]` (Start is a completeness gate naming the missing inputs — D-128; dimmed/tooltip audit of remaining disabled controls still open). No new requirement IDs (PRD unchanged). Coverage recomputed from the actual matrix: 49/70 = 70.0%. |
 | 2026-09-18 | Phase 7A traceability: registered FR-UI-22 (time unit, `[~]`), FR-UI-23 (parameter mode, `[x]`), FR-UI-24 (time-span presets, `[x]`) — authority PRD v1.5.0, decision D-125. Coverage block recomputed from the actual matrix (the prior block was stale at 29/67): now 48/70 = 68.6%. |

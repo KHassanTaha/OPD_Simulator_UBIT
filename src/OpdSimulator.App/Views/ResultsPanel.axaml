@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:OpdSimulator.App.Controls"
              xmlns:vm="using:OpdSimulator.App.ViewModels"
+             xmlns:services="using:OpdSimulator.App.Services"
              xmlns:views="using:OpdSimulator.App.Views"
              x:DataType="vm:ResultsPanelViewModel"
              x:Class="OpdSimulator.App.Views.ResultsPanel">
@@ -10,8 +11,9 @@
          welcome card until any run is attempted; afterwards the chosen widgets
          inside a scrollable stack. Widget order is stable: metrics →
          utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
-         (6c.5) → chi-square → simulation verification (8B) → trace (the data
-         preview moved to the Input tab in Phase 7D). -->
+         (6c.5) → chi-square → simulation verification (8B) → analytical
+         validation (8C) → trace (the data preview moved to the Input tab in
+         Phase 7D). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -70,6 +72,7 @@
                         <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
                         <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
                         <CheckBox IsChecked="{Binding ShowSimulationVerification, Mode=TwoWay}" Content="Simulation verification"/>
+                        <CheckBox IsChecked="{Binding ShowAnalyticalValidation, Mode=TwoWay}" Content="Analytical validation"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>
@@ -311,6 +314,55 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Analytical validation widget (Phase 8C, FR-STAT-11): the
+                 simulated per-stage wait and queue length against the closed-form
+                 M/M/c (Erlang-C) values. Empty (with an explanation) when the
+                 M/M/c assumptions do not hold. -->
+            <Border IsVisible="{Binding ShowAnalyticalValidation}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Analytical validation (M/M/c)"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="Simulated per-stage wait and queue length against the closed-form steady-state M/M/c (Erlang-C) values; valid only for exponential arrivals and service with ρ &lt; 1 over a long run."
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding AnalyticalValidation.EmptyMessage}"
+                               IsVisible="{Binding AnalyticalValidation.IsEmpty}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <StackPanel IsVisible="{Binding AnalyticalValidation.HasRows}"
+                                Spacing="{DynamicResource SpaceS}">
+                        <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8">
+                            <TextBlock Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="1" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="2" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="3" Text="Sim queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="4" Text="M/M/c queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="5" Text="Δ%" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding AnalyticalValidation.Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="services:ComparisonRow">
+                                    <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding StageName}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding SimulatedAvgWait, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding AnalyticalAvgWait, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding SimulatedQueueLength, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding AnalyticalQueueLength, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="5" Text="{Binding DeltaPercent, StringFormat={}{0:0.#}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

@@ -40,6 +40,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public SimulationVerificationViewModel SimulationVerification { get; } = new();
 
+    /// <summary>
+    /// Analytical validation of the last run against the closed-form M/M/c
+    /// metrics (Phase 8C). Owned here and shared with
+    /// <see cref="ResultsPanelViewModel"/> so the Results widget binds it under
+    /// the panel's DataContext; populated when a comparable run completes,
+    /// cleared on Clear All and on a refused run.
+    /// </summary>
+    public AnalyticalValidationViewModel AnalyticalValidation { get; } = new();
+
     /// <summary>Raised when the view model asks the shell to select a tab index (RULING 2, Phase 7D).</summary>
     public event EventHandler<int>? TabSelectionChanged;
 
@@ -57,6 +66,7 @@ public partial class MainViewModel : ObservableObject
         // is the ResultsPanelViewModel; share the single instance so its XAML
         // can bind it (Phase 8B).
         Results.SimulationVerification = SimulationVerification;
+        Results.AnalyticalValidation = AnalyticalValidation;
 
         Config.RunRequested += OnRunRequested;
         Config.PropertyChanged += OnConfigPropertyChanged;
@@ -214,6 +224,7 @@ public partial class MainViewModel : ObservableObject
         Config.ResetToDefaults();
         Results.Reset();
         SimulationVerification.Clear();
+        AnalyticalValidation.Clear();
         Log.Information("Clear All requested: config, uploaded data and results reset to the launch state");
     }
 
@@ -257,6 +268,7 @@ public partial class MainViewModel : ObservableObject
             {
                 Results.CompleteRun(outcome);
                 ApplyVerification(outcome, parameters);
+                ApplyAnalyticalValidation(outcome, parameters);
             });
         });
     }
@@ -285,5 +297,36 @@ public partial class MainViewModel : ObservableObject
             parameters.InterArrivalDistribution,
             serviceFamilies,
             Config.SignificanceLevelForRun);
+    }
+
+    /// <summary>
+    /// Populates the analytical-validation widget from the finished run
+    /// (Phase 8C). The per-stage λ, μ and c are read back from the run's own
+    /// <see cref="StageMetrics"/> so the comparison is apples-to-apples with the
+    /// simulated numbers (including the exit-probability-adjusted downstream
+    /// arrival rates). A refused/crashed run clears the widget; a run that fails
+    /// the M/M/c assumptions yields an empty table plus the explanatory message.
+    /// </summary>
+    /// <param name="outcome">The completed run outcome.</param>
+    /// <param name="parameters">The parameters the run used (supplies the configured families).</param>
+    private void ApplyAnalyticalValidation(RunOutcome outcome, SimulationParameters parameters)
+    {
+        if (outcome.Result is null)
+        {
+            AnalyticalValidation.Clear();
+            return;
+        }
+
+        var serviceFamilies = Enumerable
+            .Repeat(parameters.ServiceDistribution, outcome.Result.StageMetrics.Count)
+            .ToList();
+        var stageInputs = outcome.Result.StageMetrics
+            .Select(m => (m.ArrivalRate, m.ServiceRate, m.ServerCount))
+            .ToList();
+        AnalyticalValidation.ApplyAsync(
+            outcome.Result,
+            parameters.InterArrivalDistribution,
+            serviceFamilies,
+            stageInputs);
     }
 }

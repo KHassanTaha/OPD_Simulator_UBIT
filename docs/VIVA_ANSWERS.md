@@ -195,6 +195,10 @@ viva slides can update it in one place. (FR-UI-5)
 random draw (`draw#1 U=0.6681 → service time 0.101 min`) under a fixed seed, so
 a handful of patients can be replayed by hand. (2) Analytical validation: with
 exponential arrivals/service the engine's queue-length, wait, and utilisation
-outputs are compared against the M/M/c formulas and the % error reported.
-(3) `dotnet test` — 230 tests including the run-flow tests that assert refusal
-banners, trace detail by level, and multi-day day counts.
+outputs are compared against the M/M/c formulas and the % error reported (the
+Results-panel *Analytical validation* widget, §6.9 of the user manual). We guard
+the comparison to steady-state runs — the analytical formulas do not apply to a
+165-minute clinic day. To use the widget, run a DiagnosticTrace over 100,000 or
+more simulated minutes. (3) `dotnet test` — 414 tests including the run-flow
+tests that assert refusal banners, trace detail by level, and multi-day day
+counts.

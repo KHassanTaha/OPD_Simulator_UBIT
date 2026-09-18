@@ -423,7 +423,8 @@ The widget selector (a "Customise results" toggle at the top of the right
 panel) shows or hides the individual Results widgets below it: the **metrics
 table**, the **per-server utilisation chart**, the **queue-length-over-time
 chart**, the **waiting-time distribution**, the **chi-square results**, the
-**simulation verification** (§6.8), and the **event trace**. Your choice is
+**simulation verification** (§6.8), the **analytical validation** (§6.9), and
+the **event trace**. Your choice is
 remembered between sessions. (The **data preview** moved to the **Input** tab
 in Phase 7D and is no longer a Results widget.)
 
@@ -583,6 +584,47 @@ checks the implementation.
 
 This is a **Results** widget: it describes a run, so it lives under
 "Customise results" on the Results panel, never on the Input tab.
+
+### 6.9 Analytical Validation (M/M/c)
+
+This widget is the simulator's **analytical check**: it compares the
+simulated per-stage wait and queue length against the closed-form M/M/c
+(Erlang-C) values for the same arrival rate, service rate and server count.
+
+The closed-form formulas only apply under **all three** of these conditions:
+
+1. **Exponential** inter-arrival and service times (M/M/c).
+2. Every stage **stable**, i.e. ρ < 1 at each stage.
+3. A **steady-state run** — an operating time of at least **100,000
+   simulated minutes** (about 70 operating days).
+
+If any condition fails, the widget stays on its empty state and says why:
+*"Analytical comparison requires a steady-state run — exponential service,
+ρ < 1 at every stage, and a horizon of at least 100,000 simulated minutes
+(~70 operating days). Clinic-day runs are transient and will not match M/M/c
+formulas."*
+
+Why the horizon condition: M/M/c results describe long-run (steady-state)
+behaviour. A single 2-hour clinic day is a **transient**, so the simulated
+averages would differ from the formula for statistical reasons even when the
+engine is perfectly correct. To use the widget, run a **Diagnostic trace**
+(§5 step 7) with the **horizon** set to at least `100000` minutes, then start
+the calculation.
+
+How to read the table — one row per stage:
+
+| Column | Meaning |
+|--------|---------|
+| Sim wait | Simulated average wait in queue (minutes) |
+| M/M/c wait | Closed-form average wait, Wq (minutes) |
+| Sim queue | Simulated average queue length |
+| M/M/c queue | Closed-form average queue length, Lq |
+| Δ% | \|simulated − analytical\| as a percentage of the analytical value |
+
+A small Δ% (a few percent) means the engine agrees with queueing theory on
+that configuration — that is the validation. This widget is a **Results**
+widget: it needs a finished run, so it lives under "Customise results", never
+on the Input tab.
 
 ---
 

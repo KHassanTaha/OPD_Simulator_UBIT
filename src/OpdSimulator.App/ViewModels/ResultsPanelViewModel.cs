@@ -41,7 +41,8 @@ public sealed record ChiSquareRow(
 /// run-refusal banner with its clean message (G3/G4, 5-F). Widget visibility
 /// follows <see cref="WidgetPreferences"/> (FR-UI-14), seeded to all-on.
 /// Phase 7D removed the data-preview widget: the preview now lives on the
-/// Input tab.
+/// Input tab. The Simulation verification (Phase 8B) and Analytical validation
+/// (Phase 8C) widgets bind shared view models owned by the window.
 /// </summary>
 public partial class ResultsPanelViewModel : ObservableObject
 {
@@ -71,18 +72,21 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (!visible.Contains("utilisation")
             || !visible.Contains("queueLength")
             || !visible.Contains("waitHistogram")
-            || !visible.Contains("simulationVerification"))
+            || !visible.Contains("simulationVerification")
+            || !visible.Contains("analyticalValidation"))
         {
             // Widget migrations: a ui.json written before the utilisation (6c.4),
-            // queue-length / waiting-time (6c.5) and simulation-verification
-            // (Phase 8B) widgets existed must not hide them forever. Add each
-            // missing key once and persist, so every new widget starts visible
-            // like the others. A deliberate later-off is re-enabled once — same
-            // accepted behaviour as the 6c.4 migration.
+            // queue-length / waiting-time (6c.5), simulation-verification
+            // (Phase 8B) and analytical-validation (Phase 8C) widgets existed
+            // must not hide them forever. Add each missing key once and persist,
+            // so every new widget starts visible like the others. A deliberate
+            // later-off is re-enabled once — same accepted behaviour as the 6c.4
+            // migration.
             if (!visible.Contains("utilisation")) { visible.Add("utilisation"); migrated = true; }
             if (!visible.Contains("queueLength")) { visible.Add("queueLength"); migrated = true; }
             if (!visible.Contains("waitHistogram")) { visible.Add("waitHistogram"); migrated = true; }
             if (!visible.Contains("simulationVerification")) { visible.Add("simulationVerification"); migrated = true; }
+            if (!visible.Contains("analyticalValidation")) { visible.Add("analyticalValidation"); migrated = true; }
             if (migrated) { _preferences.Save(); }
         }
 
@@ -93,6 +97,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         ShowQueueLength = visible.Contains("queueLength");
         ShowWaitHistogram = visible.Contains("waitHistogram");
         ShowSimulationVerification = visible.Contains("simulationVerification");
+        ShowAnalyticalValidation = visible.Contains("analyticalValidation");
     }
 
     /// <summary>Called at the start of every run attempt so config proof is a one-time concern.</summary>
@@ -491,6 +496,19 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private bool _showSimulationVerification = true;
 
+    /// <summary>
+    /// The Analytical validation widget state (Phase 8C): the simulated-vs-M/M/c
+    /// comparison table. Shared with the window-level view model — MainViewModel
+    /// owns the single instance and hands it here so the Results XAML can bind
+    /// it under this panel's DataContext. A refused or non-comparable run leaves
+    /// it empty.
+    /// </summary>
+    public AnalyticalValidationViewModel AnalyticalValidation { get; set; } = new();
+
+    /// <summary>True when the Analytical validation widget card is visible (FR-UI-14).</summary>
+    [ObservableProperty]
+    private bool _showAnalyticalValidation = true;
+
     partial void OnShowMetricsChanged(bool value) => OnWidgetVisibilityChanged();
 
     partial void OnShowChiSquareChanged(bool value) => OnWidgetVisibilityChanged();
@@ -505,8 +523,10 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowSimulationVerificationChanged(bool value) => OnWidgetVisibilityChanged();
 
+    partial void OnShowAnalyticalValidationChanged(bool value) => OnWidgetVisibilityChanged();
+
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation").</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -532,6 +552,9 @@ public partial class ResultsPanelViewModel : ObservableObject
             case "simulationVerification":
                 ShowSimulationVerification = !ShowSimulationVerification;
                 break;
+            case "analyticalValidation":
+                ShowAnalyticalValidation = !ShowAnalyticalValidation;
+                break;
         }
     }
 
@@ -548,6 +571,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (ShowQueueLength) { visible.Add("queueLength"); }
         if (ShowWaitHistogram) { visible.Add("waitHistogram"); }
         if (ShowSimulationVerification) { visible.Add("simulationVerification"); }
+        if (ShowAnalyticalValidation) { visible.Add("analyticalValidation"); }
 
         VisibleWidgets = visible;
         WidgetVisibilityChanged?.Invoke(this, EventArgs.Empty);
@@ -560,5 +584,5 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification" };
+        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
 }

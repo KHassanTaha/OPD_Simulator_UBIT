@@ -309,7 +309,7 @@ public class Phase8BVerificationTests
     }
 
     [AvaloniaFact]
-    public void WidgetSelector_ListsExactlySevenWidgets_After8B()
+    public void WidgetSelector_ListsExactlyEightWidgets_After8C()
     {
         var window = new MainWindow();
         window.Show();
@@ -325,9 +325,11 @@ public class Phase8BVerificationTests
                 .Select(c => c.Content?.ToString() ?? string.Empty)
                 .ToArray();
 
-            Assert.Equal(7, contents.Length);
+            // 7→8 in Phase 8C: analytical validation widget added.
+            Assert.Equal(8, contents.Length);
             Assert.Contains("Simulation verification", contents);
-            Assert.Equal(7, new ResultsPanelViewModel().VisibleWidgets.Count);
+            Assert.Contains("Analytical validation", contents);
+            Assert.Equal(8, new ResultsPanelViewModel().VisibleWidgets.Count);
         }
         finally
         {
