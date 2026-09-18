@@ -70,16 +70,19 @@ public partial class ResultsPanelViewModel : ObservableObject
         bool migrated = false;
         if (!visible.Contains("utilisation")
             || !visible.Contains("queueLength")
-            || !visible.Contains("waitHistogram"))
+            || !visible.Contains("waitHistogram")
+            || !visible.Contains("simulationVerification"))
         {
-            // Widget migrations: a ui.json written before the utilisation (6c.4)
-            // and queue-length / waiting-time (6c.5) widgets existed must not
-            // hide them forever. Add each missing key once and persist, so every
-            // new widget starts visible like the others. A deliberate later-off
-            // is re-enabled once — same accepted behaviour as the 6c.4 migration.
+            // Widget migrations: a ui.json written before the utilisation (6c.4),
+            // queue-length / waiting-time (6c.5) and simulation-verification
+            // (Phase 8B) widgets existed must not hide them forever. Add each
+            // missing key once and persist, so every new widget starts visible
+            // like the others. A deliberate later-off is re-enabled once — same
+            // accepted behaviour as the 6c.4 migration.
             if (!visible.Contains("utilisation")) { visible.Add("utilisation"); migrated = true; }
             if (!visible.Contains("queueLength")) { visible.Add("queueLength"); migrated = true; }
             if (!visible.Contains("waitHistogram")) { visible.Add("waitHistogram"); migrated = true; }
+            if (!visible.Contains("simulationVerification")) { visible.Add("simulationVerification"); migrated = true; }
             if (migrated) { _preferences.Save(); }
         }
 
@@ -89,6 +92,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         ShowUtilisation = visible.Contains("utilisation");
         ShowQueueLength = visible.Contains("queueLength");
         ShowWaitHistogram = visible.Contains("waitHistogram");
+        ShowSimulationVerification = visible.Contains("simulationVerification");
     }
 
     /// <summary>Called at the start of every run attempt so config proof is a one-time concern.</summary>
@@ -475,6 +479,18 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private bool _showWaitHistogram = true;
 
+    /// <summary>
+    /// The Simulation verification widget state (Phase 8B): the engine-output
+    /// chi-square cards. Shared with the window-level view model — MainViewModel
+    /// owns the single instance and hands it here so the Results XAML can bind
+    /// it under this panel's DataContext. A refused run leaves it empty.
+    /// </summary>
+    public SimulationVerificationViewModel SimulationVerification { get; set; } = new();
+
+    /// <summary>True when the Simulation verification widget card is visible (FR-UI-14).</summary>
+    [ObservableProperty]
+    private bool _showSimulationVerification = true;
+
     partial void OnShowMetricsChanged(bool value) => OnWidgetVisibilityChanged();
 
     partial void OnShowChiSquareChanged(bool value) => OnWidgetVisibilityChanged();
@@ -487,8 +503,10 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowWaitHistogramChanged(bool value) => OnWidgetVisibilityChanged();
 
+    partial void OnShowSimulationVerificationChanged(bool value) => OnWidgetVisibilityChanged();
+
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification").</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -511,6 +529,9 @@ public partial class ResultsPanelViewModel : ObservableObject
             case "waitHistogram":
                 ShowWaitHistogram = !ShowWaitHistogram;
                 break;
+            case "simulationVerification":
+                ShowSimulationVerification = !ShowSimulationVerification;
+                break;
         }
     }
 
@@ -526,6 +547,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (ShowUtilisation) { visible.Add("utilisation"); }
         if (ShowQueueLength) { visible.Add("queueLength"); }
         if (ShowWaitHistogram) { visible.Add("waitHistogram"); }
+        if (ShowSimulationVerification) { visible.Add("simulationVerification"); }
 
         VisibleWidgets = visible;
         WidgetVisibilityChanged?.Invoke(this, EventArgs.Empty);
@@ -538,5 +560,5 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram" };
+        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification" };
 }

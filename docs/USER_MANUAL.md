@@ -422,10 +422,10 @@ calculation. If the run was refused, an error banner explains exactly why.
 The widget selector (a "Customise results" toggle at the top of the right
 panel) shows or hides the individual Results widgets below it: the **metrics
 table**, the **per-server utilisation chart**, the **queue-length-over-time
-chart**, the **waiting-time distribution**, the **chi-square results**, and
-the **event trace**. Your choice is remembered between sessions. (The **data
-preview** moved to the **Input** tab in Phase 7D and is no longer a Results
-widget.)
+chart**, the **waiting-time distribution**, the **chi-square results**, the
+**simulation verification** (§6.8), and the **event trace**. Your choice is
+remembered between sessions. (The **data preview** moved to the **Input** tab
+in Phase 7D and is no longer a Results widget.)
 
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
@@ -516,7 +516,7 @@ the Simulation tab next to the metrics, never on the Input tab
 
 ### 6.7 Reading the Charts — Data-Derived vs Run-Derived
 
-The five charts answer two different questions, and each one appears on
+The charts answer two different questions, and each one appears on
 exactly one tab:
 
 | Chart | Tab | Describes | Where the numbers come from |
@@ -526,6 +526,7 @@ exactly one tab:
 | Per-server utilisation bars | Results | a **run** | `logs`/engine last run (§6.4) |
 | Queue length over time | Results | a **run** | engine last run (§6.5) |
 | Waiting-time distribution | Results | a **run** | engine last run (§6.6) |
+| Simulation-verification histogram + chi-square | Results | a **run** | the engine's own generated samples (§6.8) |
 
 So: if a figure describes the file you uploaded, it is on **Input**;
 if it describes what the simulator just did, it is on **Results**. The
@@ -550,6 +551,38 @@ says *"Load a data file to see fit analysis."* Before a run the three Results
 charts each show their own *"Run a simulation to see …"* message. If a chart
 cannot be drawn, the widget falls back to that same text rather than crashing
 the run — the numbers in the metrics table are always present.
+
+### 6.8 Simulation Verification (Output-Side Chi-Square)
+
+This widget checks the simulator itself, not the data file. After a run it
+takes the inter-arrival and per-stage service times the **engine actually
+generated**, fits the distribution you configured, and runs a chi-square
+goodness-of-fit test on those generated values. Until a run finishes it shows
+*"Run a simulation to verify its output."*
+
+How to read it:
+
+- One card per series: **Inter-arrival time** plus one per stage
+  (e.g. *Reception service time*, *Screening service time*, *Doctor service
+  time*), each with a histogram of the generated values and the χ² p-value.
+- **p > 0.05** means the engine's output is consistent with the distribution
+  you configured — verification passes. A collapsing p-value would mean the
+  engine is not drawing from the distribution it claims, which is an
+  implementation bug, not a data problem.
+- **Deterministic** stages are skipped with a note (a constant stream has no
+  distribution to fit). **General** is treated as Exponential for verification
+  and says so. A stage with too few generated samples shows
+  *"Insufficient samples for chi-square."* instead of inventing a verdict.
+
+**Input chi-square vs output chi-square (§6.2 vs §6.8).** The Input tab's
+chi-square validates that our MLE fit is a good model of the *historical*
+data — that is input modelling. This widget validates that the simulation
+*engine* generates values matching the configured distribution — that is the
+standard model-verification step. The first checks the assumption; the second
+checks the implementation.
+
+This is a **Results** widget: it describes a run, so it lives under
+"Customise results" on the Results panel, never on the Input tab.
 
 ---
 

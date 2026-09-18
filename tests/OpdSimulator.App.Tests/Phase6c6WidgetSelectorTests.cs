@@ -12,19 +12,19 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 6c.6 — widget integration verification: the "Customise results"
-/// selector (FR-UI-14) must offer exactly the six Results widgets — Metrics
-/// table, Chi-square table, Event trace, Per-server utilisation, Queue length
-/// over time, Waiting-time distribution — no more, no fewer. Phase 7D removed
-/// the Data preview widget (it now lives on the Input tab). The XAML picker IS
-/// the contract, so this is a rendered-window test: the six checkboxes are read
-/// from the real ResultPanel (D-123 window seam), and the view-model key set is
-/// cross-checked so the persisted preferences and the "exactly six" rule stay
-/// consistent.
+/// selector (FR-UI-14) must offer exactly the Results widgets — Metrics table,
+/// Chi-square table, Event trace, Per-server utilisation, Queue length over
+/// time, Waiting-time distribution and (since Phase 8B) Simulation verification
+/// — no more, no fewer. Phase 7D removed the Data preview widget (it now lives
+/// on the Input tab). The XAML picker IS the contract, so this is a
+/// rendered-window test: the checkboxes are read from the real ResultPanel
+/// (D-123 window seam), and the view-model key set is cross-checked so the
+/// persisted preferences and the "exactly seven" rule stay consistent.
 /// </summary>
 public class Phase6c6WidgetSelectorTests
 {
     [AvaloniaFact]
-    public void ResultsPanel_WidgetSelector_ListsExactlySixResultsWidgets()
+    public void ResultsPanel_WidgetSelector_ListsExactlySevenResultsWidgets()
     {
         var window = new MainWindow();
         window.Show();
@@ -46,30 +46,29 @@ public class Phase6c6WidgetSelectorTests
             window.UpdateLayout();
 
             string[] expected = { "Metrics", "Chi-square", "Event trace",
-                "Utilisation", "Queue length", "Wait histogram" };
+                "Utilisation", "Queue length", "Wait histogram", "Simulation verification" };
             string[] actual = picker.GetVisualDescendants().OfType<CheckBox>()
                 .Select(c => c.Content?.ToString() ?? string.Empty)
                 .ToArray();
             Assert.Equal(expected, actual);
 
-            // VM contract matches the UI exactly: these six keys, no more.
+            // VM contract matches the UI exactly: these seven keys, no more.
             // A fresh panel (no persisted ui.json) proves the contract hermetically
             // — MainWindow's instance reflects this machine's real preferences file
             // and is not the thing under test here. Phase 7D removed the
-            // "dataPreview" widget from the results panel, so the initial set is
-            // now all six keys.
+            // "dataPreview" widget; Phase 8B added "simulationVerification".
             var results = new ResultsPanelViewModel();
-            Assert.Equal(6, expected.Length);
+            Assert.Equal(7, expected.Length);
             Assert.Equal(new[] { "metrics", "chiSquare", "trace",
-                "utilisation", "queueLength", "waitHistogram" }, results.VisibleWidgets);
+                "utilisation", "queueLength", "waitHistogram", "simulationVerification" }, results.VisibleWidgets);
 
-            // An unknown key must not introduce a seventh widget or throw.
+            // An unknown key must not introduce an eighth widget or throw.
             results.ToggleWidget("bogus-widget");
-            Assert.Equal(6, results.VisibleWidgets.Count);
+            Assert.Equal(7, results.VisibleWidgets.Count);
 
             // The removed key is inert: toggling it changes nothing.
             results.ToggleWidget("dataPreview");
-            Assert.Equal(6, results.VisibleWidgets.Count);
+            Assert.Equal(7, results.VisibleWidgets.Count);
         }
         finally
         {

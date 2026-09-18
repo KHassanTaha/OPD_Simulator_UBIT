@@ -7,6 +7,37 @@ not survive the view-layer replacement (see `docs/M5_FAILURES.md`).
 
 ---
 
+## Phase 8B — simulation-verification widget (2026-09-18)
+
+### Q: You already have a chi-square test. Why is there a second one?
+
+**Answer:** We run chi-square in two places. Input-side chi-square validates
+that our MLE fit is a good model of the historical data — this is input
+modelling. Output-side chi-square validates that the simulation engine is
+generating values that match the distribution the user configured — this is the
+standard model-verification step from Banks and Law & Kelton. The first checks
+the assumption; the second checks the implementation. If the engine silently
+drew from the wrong distribution, the input-side test would still pass (the
+data is fine) while the output-side test would reject — so they cannot be
+replaced by one another. The output-side test consumes the raw inter-arrival
+and per-stage service samples the engine retains in `SimulationResult`
+(Phase 8A, D-135) and lives as a Results widget because it describes a run
+(D-136).
+
+### Q: What does the verification widget do when the chosen family is not a real distribution?
+
+**Answer:** It fails loud instead of faking a verdict. **Deterministic** output
+is skipped with a note (a constant stream has no distribution to fit);
+**General** is flattened to Exponential and the card says so (the engine still
+samples every stage exponentially, D-127); a series with fewer than two samples
+shows *"Insufficient samples for chi-square."* rather than a fabricated
+p-value. That is the same honesty rule as the rest of the app — never silently
+skip a check. It reuses the same `FitsService` and the same histogram binning
+as the Input tab, so the two chi-squares are computed the same way and can be
+compared directly (`Phase8BVerificationTests`).
+
+---
+
 ## Phase 7D — merged Input tab (2026-09-18)
 
 ### Q: Why merge the Data upload section into the Input Analysis tab instead of keeping them separate?

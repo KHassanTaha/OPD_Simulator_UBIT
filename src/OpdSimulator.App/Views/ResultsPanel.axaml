@@ -10,8 +10,8 @@
          welcome card until any run is attempted; afterwards the chosen widgets
          inside a scrollable stack. Widget order is stable: metrics →
          utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
-         (6c.5) → chi-square → trace (the data preview moved to the Input tab
-         in Phase 7D). -->
+         (6c.5) → chi-square → simulation verification (8B) → trace (the data
+         preview moved to the Input tab in Phase 7D). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -69,6 +69,7 @@
                         <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
                         <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
                         <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
+                        <CheckBox IsChecked="{Binding ShowSimulationVerification, Mode=TwoWay}" Content="Simulation verification"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>
@@ -271,6 +272,42 @@
                                     <TextBlock Grid.Column="4" Text="{Binding PValue}"/>
                                     <TextBlock Grid.Column="5" Text="{Binding Decision}"/>
                                 </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Simulation verification widget (Phase 8B): output-side chi-square
+                 over the samples the engine itself generated, confirming the run
+                 matches the configured distribution (Banks / Law & Kelton model
+                 verification). One chart card per series; empty until a run. -->
+            <Border IsVisible="{Binding ShowSimulationVerification}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Simulation verification"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="Chi-square goodness-of-fit of the engine's own generated samples against the configured distribution (output-side model verification)."
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding SimulationVerification.EmptyMessage}"
+                               IsVisible="{Binding SimulationVerification.IsEmpty}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ItemsControl ItemsSource="{Binding SimulationVerification.Charts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VerificationChartViewModel">
+                                <controls:ChartCard Title="{Binding Title}"
+                                                    Caption="{Binding Caption}"
+                                                    EmptyStateText="No verification for this series."
+                                                    ShowEmptyState="{Binding ShowEmptyState}"
+                                                    ChartContent="{Binding ChartContent}"
+                                                    Margin="0,0,0,16"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

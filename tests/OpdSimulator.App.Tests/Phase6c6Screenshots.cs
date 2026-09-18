@@ -25,9 +25,9 @@ namespace OpdSimulator.App.Tests;
 /// <item><c>phase-6c-input-analysis.png</c> — Input tab: histogram +
 /// fitted-PDF card and chi-square observed-vs-expected card per fit.</item>
 /// <item><c>phase-6c-results-all.png</c> — Simulation tab after a real engine
-/// run with the sample multi-stage clinic loaded: all six widgets (metrics,
-/// utilisation, queue length, waiting-time histogram, chi-square, trace) in one
-/// frame.</item>
+/// run with the sample multi-stage clinic loaded: all seven widgets (metrics,
+/// utilisation, queue length, waiting-time histogram, chi-square, simulation
+/// verification, trace) in one frame.</item>
 /// <item><c>phase-6c-widget-toggled.png</c> — same run with the "Customise
 /// results" picker open and one widget (waiting-time history) switched off.</item>
 /// </list>
@@ -73,11 +73,11 @@ public class Phase6c6Screenshots
     }
 
     [AvaloniaFact]
-    public void Render_ResultsAllSixWidgetsFromRealRun_SavePhase6cResultsAllPng()
+    public void Render_ResultsAllWidgetsFromRealRun_SavePhase6cResultsAllPng()
     {
         var window = new MainWindow();
         window.Width = 1200;
-        window.Height = 3200; // every widget, including the event trace, fits one frame
+        window.Height = 5600; // every widget, including the event trace, fits one frame
         window.Show();
         try
         {
@@ -86,7 +86,7 @@ public class Phase6c6Screenshots
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
-            string[] originalWidgets = ForceAllSixVisible(main.Results);
+            string[] originalWidgets = ForceAllWidgetsVisible(main.Results);
             try
             {
                 (var outcome, _) = RunRealThreeStage(main);
@@ -96,7 +96,7 @@ public class Phase6c6Screenshots
                 window.UpdateLayout();
 
                 AssertWidgetsFromRealRun(main, outcome);
-                AssertAllSixInsideOneFrame(window);
+                AssertAllWidgetsInsideOneFrame(window);
 
                 long frame = Capture(window, "phase-6c-results-all.png");
                 Assert.True(frame >= 512, "results-all frame missing or suspiciously small");
@@ -117,7 +117,7 @@ public class Phase6c6Screenshots
     {
         var window = new MainWindow();
         window.Width = 1200;
-        window.Height = 3200;
+        window.Height = 5600;
         window.Show();
         try
         {
@@ -126,7 +126,7 @@ if (window.DataContext is not MainViewModel main)
                 throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
             }
 
-            string[] originalWidgets = ForceAllSixVisible(main.Results);
+            string[] originalWidgets = ForceAllWidgetsVisible(main.Results);
             try
             {
                 (var outcome, _) = RunRealThreeStage(main);
@@ -169,17 +169,17 @@ if (window.DataContext is not MainViewModel main)
     private static readonly string[] WidgetKeys =
     {
         "metrics", "chiSquare", "trace",
-        "utilisation", "queueLength", "waitHistogram",
+        "utilisation", "queueLength", "waitHistogram", "simulationVerification",
     };
 
     /// <summary>
-    /// The results screenshots must show a stable all-six frame regardless of
+    /// The results screenshots must show a stable all-widgets frame regardless of
     /// the developer machine's real <c>ui.json</c> (FR-UI-14 preferences are
     /// persisted per-user and MainViewModel loads them), so this test forces
     /// every widget visible for the capture and restores the original set in
     /// <c>finally</c> — leaving the machine's preferences exactly as they were.
     /// </summary>
-    private static string[] ForceAllSixVisible(ResultsPanelViewModel results)
+    private static string[] ForceAllWidgetsVisible(ResultsPanelViewModel results)
     {
         string[] original = results.VisibleWidgets.ToArray();
         foreach (string key in WidgetKeys)
@@ -229,13 +229,23 @@ if (window.DataContext is not MainViewModel main)
 
         main.Results.StartRun();
         main.Results.CompleteRun(outcome);
+
+        // Phase 8B: the production completion path also verifies the engine's
+        // generated output samples; mirror it here so the seventh widget carries
+        // real content in the frame (RunRealThreeStage bypasses OnRunRequested).
+        main.SimulationVerification.Apply(
+            outcome.Result,
+            config.InterArrivalDistribution ?? "Exponential",
+            Enumerable.Repeat(config.ServiceDistribution ?? "Exponential", outcome.Result.StageMetrics.Count).ToList(),
+            0.05);
         return (outcome, binding);
     }
 
     /// <summary>
-    /// Proves every one of the six widgets carries real, non-empty content
+    /// Proves every one of the seven widgets carries real, non-empty content
     /// after the run wiring (the screenshot is evidence, the asserts are the
-    /// proof). Phase 7D removed the data-preview widget from this panel.
+    /// proof). Phase 7D removed the data-preview widget from this panel;
+    /// Phase 8B added the simulation-verification widget.
     /// </summary>
     private static void AssertWidgetsFromRealRun(MainViewModel main, RunOutcome outcome)
     {
@@ -272,9 +282,17 @@ if (window.DataContext is not MainViewModel main)
         // 6. Event trace is populated at State level.
         Assert.False(string.IsNullOrWhiteSpace(r.TraceText));
 
-        // And the FR-UI-14 contract: all six widgets are visible together.
+        // 7. Simulation verification (Phase 8B): one report card per series
+        // (inter-arrival + 3 stages). The inter-arrival card is always drawable;
+        // the low-arrival sample run can legitimately leave a downstream stage
+        // with too few service samples for a fit (the card then explains why).
+        Assert.False(r.SimulationVerification.IsEmpty);
+        Assert.Equal(4, r.SimulationVerification.Charts.Count);
+        Assert.NotNull(r.SimulationVerification.Charts[0].ChartContent);
+
+        // And the FR-UI-14 contract: all seven widgets are visible together.
         Assert.Equal(new[] { "metrics", "chiSquare", "trace",
-            "utilisation", "queueLength", "waitHistogram" }, r.VisibleWidgets);
+            "utilisation", "queueLength", "waitHistogram", "simulationVerification" }, r.VisibleWidgets);
     }
 
     /// <summary>
@@ -283,7 +301,7 @@ if (window.DataContext is not MainViewModel main)
     /// clipped. The event trace is the last widget in the stack, so if its card
     /// bottom fits inside the window, every widget above it does too.
     /// </summary>
-    private static void AssertAllSixInsideOneFrame(Window window)
+    private static void AssertAllWidgetsInsideOneFrame(Window window)
     {
         var panel = window.GetVisualDescendants().OfType<ResultsPanel>().Single();
         var headers = panel.GetVisualDescendants().OfType<TextBlock>()

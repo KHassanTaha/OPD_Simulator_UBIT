@@ -32,6 +32,14 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Merged Input tab state (upload + preview + fit analysis, Phase 7D).</summary>
     public InputTabViewModel InputTab { get; }
 
+    /// <summary>
+    /// Output-side chi-square verification of the last run's generated samples
+    /// (Phase 8B). Owned here and shared with <see cref="ResultsPanelViewModel"/>
+    /// so the Results widget binds it under the panel's DataContext; populated
+    /// when a run completes, cleared on Clear All and on a refused run.
+    /// </summary>
+    public SimulationVerificationViewModel SimulationVerification { get; } = new();
+
     /// <summary>Raised when the view model asks the shell to select a tab index (RULING 2, Phase 7D).</summary>
     public event EventHandler<int>? TabSelectionChanged;
 
@@ -44,6 +52,11 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         InputTab = new InputTabViewModel(InputAnalysis);
+
+        // The verification widget lives in the Results panel, whose DataContext
+        // is the ResultsPanelViewModel; share the single instance so its XAML
+        // can bind it (Phase 8B).
+        Results.SimulationVerification = SimulationVerification;
 
         Config.RunRequested += OnRunRequested;
         Config.PropertyChanged += OnConfigPropertyChanged;
@@ -200,6 +213,7 @@ public partial class MainViewModel : ObservableObject
     {
         Config.ResetToDefaults();
         Results.Reset();
+        SimulationVerification.Clear();
         Log.Information("Clear All requested: config, uploaded data and results reset to the launch state");
     }
 
@@ -239,7 +253,37 @@ public partial class MainViewModel : ObservableObject
                     "The simulator stopped unexpectedly. See logs/errors-*.log for details.");
             }
 
-            Dispatcher.UIThread.Post(() => Results.CompleteRun(outcome));
+            Dispatcher.UIThread.Post(() =>
+            {
+                Results.CompleteRun(outcome);
+                ApplyVerification(outcome, parameters);
+            });
         });
+    }
+
+    /// <summary>
+    /// Populates the output-side verification widget from the finished run
+    /// (Phase 8B). The engine samples every stage exponentially regardless of
+    /// the configured family (D-126), so the one configured service family is
+    /// applied to every stage here. A refused/crashed run clears the widget.
+    /// </summary>
+    /// <param name="outcome">The completed run outcome.</param>
+    /// <param name="parameters">The parameters the run used (supplies the configured families).</param>
+    private void ApplyVerification(RunOutcome outcome, SimulationParameters parameters)
+    {
+        if (outcome.Result is null)
+        {
+            SimulationVerification.Clear();
+            return;
+        }
+
+        var serviceFamilies = Enumerable
+            .Repeat(parameters.ServiceDistribution, outcome.Result.StageMetrics.Count)
+            .ToList();
+        SimulationVerification.ApplyAsync(
+            outcome.Result,
+            parameters.InterArrivalDistribution,
+            serviceFamilies,
+            Config.SignificanceLevelForRun);
     }
 }
