@@ -28,6 +28,9 @@ dotnet run --project src/OpdSimulator.App
 | [`docs/TODO.md`](docs/TODO.md) | Task list |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Progress log |
 | [`docs/BLOCKERS.md`](docs/BLOCKERS.md) | Active blockers |
+| [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | Definition of done and acceptance checklist |
+| [`docs/WORKFLOW_DIAGRAM.md`](docs/WORKFLOW_DIAGRAM.md) | End-to-end system/workflow diagram |
+| [`docs/RESULTS_PANEL_STRUCTURE.md`](docs/RESULTS_PANEL_STRUCTURE.md) | Results-panel widget structure and grouping |
 
 ## Tech Stack
 

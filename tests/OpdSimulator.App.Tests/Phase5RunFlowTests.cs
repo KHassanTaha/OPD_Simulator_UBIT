@@ -70,30 +70,30 @@ public class Phase5RunFlowTests
     }
 
     [Fact]
-    public void TraceLevel_NoneEventsStateRng_ChangeRenderedDetail()
+    public void TraceLevel_MinimalStandardDetailedDebug_ChangeRenderedDetail()
     {
         var baseline = ManualClinic();
         baseline.IsDiagnosticTrace = true;
         baseline.AdvancedIsOptionalEnabled = true;
 
-        // None: nothing rendered.
-        baseline.TraceLevel = "None";
-        var none = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
-        Assert.Null(none.Error);
-        Assert.Empty(none.TraceLines);
+        // Minimal: nothing rendered.
+        baseline.TraceLevel = "Minimal";
+        var minimal = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
+        Assert.Null(minimal.Error);
+        Assert.Empty(minimal.TraceLines);
 
-        // Events: arrivals present, RNG rows dropped below the Rng level.
-        baseline.TraceLevel = "Events";
-        var events = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
-        Assert.NotEmpty(events.TraceLines);
-        Assert.Contains(events.TraceLines, line => line.Contains("ARRIVAL"));
-        Assert.DoesNotContain(events.TraceLines, line => line.Contains("RNG"));
+        // Standard: arrivals present, RNG rows dropped below the Debug level.
+        baseline.TraceLevel = "Standard";
+        var standard = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
+        Assert.NotEmpty(standard.TraceLines);
+        Assert.Contains(standard.TraceLines, line => line.Contains("ARRIVAL"));
+        Assert.DoesNotContain(standard.TraceLines, line => line.Contains("RNG"));
 
-        // Rng: the draw rows are rendered (T=… RNG …).
-        baseline.TraceLevel = "Rng";
-        var rng = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
-        Assert.NotEmpty(rng.TraceLines);
-        Assert.Contains(rng.TraceLines, line => line.Contains("RNG"));
+        // Debug: the draw rows are rendered (T=… RNG …).
+        baseline.TraceLevel = "Debug";
+        var debug = SimulationCoordinator.Run(baseline.TryBuildRunParameters()!, binding: null);
+        Assert.NotEmpty(debug.TraceLines);
+        Assert.Contains(debug.TraceLines, line => line.Contains("RNG"));
     }
 
     [Fact]

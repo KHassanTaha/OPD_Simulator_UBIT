@@ -61,7 +61,7 @@ public class Phase5dConfigTests
     // ── 5d.1 · Stages are topology only ───────────────────────────────────
 
     [Fact]
-    public void DefaultConfig_StagesShowNoSourceLabels_StartEnabled()
+    public void DefaultConfig_StagesShowNoSourceLabels_StartBlocked()
     {
         var vm = NewVm();
 
@@ -71,8 +71,11 @@ public class Phase5dConfigTests
             Assert.Equal("μ = — (no source)", row.ServiceRateLabel);
             Assert.False(row.HasErrors);
         });
-        Assert.True(vm.StartIsEnabled,
-            "an empty configuration is runnable in principle — the per-stage μ refusal surfaces as a clean banner at run time");
+        // D-128 supersedes 5d.1's "runnable in principle" contract: an empty
+        // fit-mode config has no usable file, so Start is disabled and the
+        // banner names the missing input.
+        Assert.False(vm.StartIsEnabled);
+        Assert.Contains("data file", vm.StartBlockedMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -107,6 +110,9 @@ public class Phase5dConfigTests
     [Fact]
     public void Start_Refused_WhenMuSourceMissingAndParametersOff()
     {
+        // Defence in depth: the GUI's Start gating (7C.6, D-128) prevents
+        // reaching this path from the UI, but the coordinator still refuses
+        // cleanly if called directly (CLI, tests, future callers).
         // Two-stage data supplies λ and p_exit, but the configured third stage
         // (Doctor) has no fitted rate and Parameters is OFF — no manual entry.
         var path = WriteTwoStageCsv();
@@ -138,7 +144,8 @@ public class Phase5dConfigTests
         Assert.Equal("0.05", vm.SignificanceLevel.Value);
         Assert.False(vm.SignificanceLevel.HasError);
         Assert.Equal(0.05, vm.SignificanceLevelForRun, precision: 5);
-        Assert.True(vm.StartIsEnabled);
+        // D-128: α is valid, but the empty fit-mode config is still incomplete.
+        Assert.False(vm.StartIsEnabled);
     }
 
     [Fact]

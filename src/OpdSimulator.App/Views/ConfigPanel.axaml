@@ -11,7 +11,7 @@
          PinnedFooterBar pinned under the scroll area (D-XXX, DECISIONS.md).
          Tab order per section follows visual order; each ValidatedField is a
          single tab stop (its inner TextBox) and validates on blur (FR-UI-17). -->
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="*,Auto,Auto">
 
         <ScrollViewer Grid.Row="0"
                       VerticalScrollBarVisibility="Auto"
@@ -19,52 +19,58 @@
 
             <StackPanel Spacing="{DynamicResource SpaceM}">
 
-                <!-- ───── 1 · Data ─────────────────────────────────────── -->
-                <controls:CollapsibleSection Title="1 · Data"
-                                             IsExpanded="True"
-                                             HelpText="Upload the patient data file. The row preview lives in the Results panel (Phase 5) — it is deliberately not duplicated here.">
+                <!-- Phase 7C: top-level data-source selector. Fit the
+                     distributions from an uploaded file, or enter the rates
+                     by hand; exactly one path is active (D-128). -->
+                <controls:SearchableDropdown Label="Data source"
+                                             Placeholder="Choose how to configure…"
+                                             Tooltip="Fit the distributions from an uploaded data file, or enter the arrival and service rates manually"
+                                             Items="{Binding SourceModeOptions}"
+                                             SelectedItem="{Binding SourceModeSelection, Mode=TwoWay}"
+                                             HelpAnchor="data-source"/>
+
+                <!-- Phase 7D: the Data section is now a compact status strip.
+                     Upload, preview and the stage-mismatch actions live in the
+                     Input tab; this strip only reports the active source and
+                     offers a link across. -->
+                <Border Classes="PanelCard" Padding="{DynamicResource ThicknessSpaceS}">
                     <StackPanel Spacing="{DynamicResource SpaceXs}">
-                        <Button Content="Upload Data"
-                                Command="{Binding UploadDataCommand}"
-                                Classes="PrimaryButton"
-                                HorizontalAlignment="Stretch"
-                                ToolTip.Tip="Opens a file picker for an .xlsx or .csv patient data file"/>
-                        <TextBlock Text="{Binding DataStatus}"
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{Binding ConfigSourceText}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
+                                       ToolTip.Tip="Where this run's parameters come from. Manage the file in the Input tab."/>
+                            <Button Grid.Column="1"
+                                    Content="Manage input →"
+                                    Command="{Binding NavigateToInputTabCommand}"
+                                    Classes="GhostButton"
+                                    ToolTip.Tip="Open the Input tab to upload a data file, review the preview, or handle a stage mismatch"/>
+                        </Grid>
+                        <TextBlock Text="Stages differ from data — see the Input tab."
+                                   IsVisible="{Binding HasStageMismatch}"
                                    Classes="Caption"
-                                   TextWrapping="Wrap"/>
-                        <!-- Phase 5d stage-count mismatch (D-114): amber warning
-                             + Sync/Keep actions when the data's stages differ
-                             from the configured list. -->
-                        <Border IsVisible="{Binding IsStageMismatchWarningVisible}"
-                                Background="{DynamicResource BrushWarningBackground}"
-                                BorderBrush="{DynamicResource BrushWarning}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource CornerRadiusM}"
-                                Padding="{DynamicResource ThicknessSpaceS}">
-                            <StackPanel Spacing="{DynamicResource SpaceS}">
-                                <TextBlock Text="{Binding StageMismatchMessage}"
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource BrushWarning}"
-                                           FontSize="{DynamicResource FontSizeCaption}"/>
-                                <StackPanel Orientation="Horizontal"
-                                            Spacing="{DynamicResource SpaceXs}">
-                                    <Button Content="Sync stages from data"
-                                            Command="{Binding SyncStagesFromDataCommand}"
-                                            Classes="PrimaryButton"
-                                            ToolTip.Tip="Replace the configured stages with the stages found in the loaded data"/>
-                                    <Button Content="Keep current stages"
-                                            Command="{Binding KeepCurrentStagesCommand}"
-                                            Classes="GhostButton"
-                                            ToolTip.Tip="Keep the configured stages for this session; the warning is dismissed"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BrushWarning}"/>
                     </StackPanel>
-                </controls:CollapsibleSection>
+                </Border>
+
+                <!-- Phase 8D.3: bulk expand/collapse for the five section groups. -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="{DynamicResource SpaceXs}">
+                    <Button Content="Expand all"
+                            Command="{Binding ExpandAllCommand}"
+                            Classes="GhostButton"
+                            ToolTip.Tip="Open every configuration section"/>
+                    <Button Content="Collapse all"
+                            Command="{Binding CollapseAllCommand}"
+                            Classes="GhostButton"
+                            ToolTip.Tip="Close every configuration section to just its header"/>
+                </StackPanel>
 
                 <!-- ───── 2 · Model ────────────────────────────────────── -->
                 <controls:CollapsibleSection Title="2 · Model"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsModelSectionExpanded, Mode=TwoWay}"
                                              HelpText="Distribution shapes and how the entered numbers are interpreted (rate-wise vs mean-wise, CONTEXT §5.6).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:SearchableDropdown Label="Inter-arrival distribution"
@@ -88,6 +94,20 @@
                                                  ErrorMessage="{Binding SignificanceLevel.ErrorMessage}"
                                                  HelpAnchor="significance-level"
                                                  views:ConfigPanelValidation.ValidationKey="significance-level"/>
+                    </StackPanel>
+                </controls:CollapsibleSection>
+
+                <!-- ───── 3 · Parameters ───────────────────────────────── -->
+                <controls:CollapsibleSection Title="3 · Parameters"
+                                             IsExpanded="{Binding IsParametersSectionExpanded, Mode=TwoWay}"
+                                             IsOptional="True"
+                                             IsEnabledToggle="{Binding ParametersIsOptionalEnabled, Mode=TwoWay}"
+                                             HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
+                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <!-- Phase 7A: the parameter-mode radio lives here (was
+                             in Model) alongside the unit of the λ / μ entries,
+                             so "how the numbers are written" and "what the
+                             numbers mean" sit together above the manual fields. -->
                         <StackPanel Spacing="{DynamicResource SpaceXs}">
                             <TextBlock Text="Parameter mode"
                                        FontSize="{DynamicResource FontSizeBody}"
@@ -105,16 +125,7 @@
                                              IsChecked="{Binding IsMeanWise, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </controls:CollapsibleSection>
-
-                <!-- ───── 3 · Parameters ───────────────────────────────── -->
-                <controls:CollapsibleSection Title="3 · Parameters"
-                                             IsExpanded="True"
-                                             IsOptional="True"
-                                             IsEnabledToggle="{Binding ParametersIsOptionalEnabled, Mode=TwoWay}"
-                                             HelpText="Optional overrides; blanks fall back to the fitted values (manual input takes precedence, CONTEXT §5.6).">
-                    <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <controls:TimeUnitSelector SelectedUnit="{Binding TimeUnit, Mode=TwoWay}"/>
                         <controls:ValidatedField x:Name="ManualLambdaField"
                                                  Label="Manual λ (per minute)"
                                                  Watermark="e.g., 0.5"
@@ -130,6 +141,7 @@
                                                  Watermark="e.g., 0.8, 0.6, 0.4"
                                                  Tooltip="Comma-separated per-stage service rates. Blank uses the fitted values."
                                                  Unit="/ min"
+                                                 IsVisible="{Binding IsCommaListMuVisible}"
                                                  Value="{Binding ManualMuPerStage.Value, Mode=TwoWay}"
                                                  HasError="{Binding ManualMuPerStage.HasError}"
                                                  ErrorMessage="{Binding ManualMuPerStage.ErrorMessage}"
@@ -162,7 +174,7 @@
 
                 <!-- ───── 4 · Stages (1–5) ─────────────────────────────── -->
                 <controls:CollapsibleSection Title="4 · Stages"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsStagesSectionExpanded, Mode=TwoWay}"
                                              HelpText="Named stages through which every patient flows. The stage list defines topology only (name + server count); the service rate μ comes from the loaded data or the Parameters section (5d.1, D-112).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:ValidatedField x:Name="StageCountField"
@@ -196,15 +208,59 @@
                                                                      ErrorMessage="{Binding Servers.ErrorMessage}"
                                                                      HelpAnchor="servers"
                                                                      views:ConfigPanelValidation.ValidationKey="servers"/>
-                                            <StackPanel Spacing="2">
+                                            <!-- Phase 7B: Kendall model shortcut
+                                                 (M = exponential, D = deterministic,
+                                                 G = general; final digit = servers).
+                                                 Advanced reveals independent family
+                                                 dropdowns and hides the shortcut. -->
+                                            <controls:SearchableDropdown Label="Model"
+                                                                         Placeholder="e.g., M/M/2"
+                                                                         Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
+                                                                         Items="{Binding ModelOptions}"
+                                                                         SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                                                         IsVisible="{Binding !UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-model"/>
+                                            <ToggleSwitch Content="Advanced"
+                                                          IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
+                                                          ToolTip.Tip="Set the arrival and service distribution families independently"/>
+                                            <controls:SearchableDropdown Label="Arrival distribution"
+                                                                         Placeholder="e.g., Exponential"
+                                                                         Tooltip="Distribution family for the time between arrivals at this stage"
+                                                                         Items="{Binding DistributionFamilies}"
+                                                                         SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
+                                                                         IsVisible="{Binding UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-arrival-distribution"/>
+                                            <controls:SearchableDropdown Label="Service distribution"
+                                                                         Placeholder="e.g., Exponential"
+                                                                         Tooltip="Distribution family for this stage's service times"
+                                                                         Items="{Binding DistributionFamilies}"
+                                                                         SelectedItem="{Binding ServiceFamily, Mode=TwoWay}"
+                                                                         IsVisible="{Binding UseAdvancedSetup}"
+                                                                         HelpAnchor="stage-service-distribution"/>
+                                            <StackPanel Spacing="2"
+                                                        IsVisible="{Binding $parent[ItemsControl].DataContext.IsCommaListMuVisible}">
                                                 <TextBlock Text="Service rate μ"
                                                            FontSize="{DynamicResource FontSizeCaption}"
                                                            Foreground="{DynamicResource BrushTextSecondary}"/>
                                                 <TextBlock Text="{Binding ServiceRateLabel}"
                                                            Classes="Caption"
                                                            TextWrapping="Wrap"
-                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing — the run is refused until a source exists"/>
+                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
                                             </StackPanel>
+                                            <!-- Phase 7C: the editable per-stage μ. Always
+                                                 shown in manual mode; in fit mode it appears
+                                                 only when the data has no fitted rate for this
+                                                 stage (7C.4/7C.5). -->
+                                            <controls:ValidatedField Label="Service rate μ"
+                                                                     Watermark="e.g., 0.8"
+                                                                     Tooltip="Manual service rate for this stage, interpreted by the Parameter mode and Time unit; only needed when the data does not supply one"
+                                                                     Unit="/ min"
+                                                                     IsVisible="{Binding IsMuVisible}"
+                                                                     Value="{Binding MuValue, Mode=TwoWay}"
+                                                                     HasError="{Binding MuHasError}"
+                                                                     ErrorMessage="{Binding MuError}"
+                                                                     HelpAnchor="stage-mu"
+                                                                     views:ConfigPanelValidation.ValidationKey="stage-mu"/>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -215,9 +271,28 @@
 
                 <!-- ───── 5 · Horizon ──────────────────────────────────── -->
                 <controls:CollapsibleSection Title="5 · Horizon"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsHorizonSectionExpanded, Mode=TwoWay}"
                                              HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <!-- Phase 7A: time-span presets above the run-mode radio.
+                             Short spans bound the window (15 / 60 minutes); day+
+                             spans drive the generator-day count (D-125). -->
+                        <controls:SearchableDropdown Label="Time span"
+                                                     Placeholder="Choose a span…"
+                                                     Tooltip="Length of the simulated window: 15 minutes, 1 hour, one full clinic day, a full clinic week (Mon/Tue/Wed/Thu/Sat), ≈ one month, or a custom number of days"
+                                                     Items="{Binding TimeSpanOptions}"
+                                                     SelectedItem="{Binding TimeSpanSelection, Mode=TwoWay}"
+                                                     HelpAnchor="time-span"/>
+                        <controls:ValidatedField x:Name="CustomDaysField"
+                                                 Label="Custom days"
+                                                 Watermark="e.g., 10"
+                                                 Tooltip="Number of consecutive clinic days to simulate (integer ≥ 1)"
+                                                 IsVisible="{Binding IsCustomDaysVisible}"
+                                                 Value="{Binding CustomDays.Value, Mode=TwoWay}"
+                                                 HasError="{Binding CustomDays.HasError}"
+                                                 ErrorMessage="{Binding CustomDays.ErrorMessage}"
+                                                 HelpAnchor="custom-days"
+                                                 views:ConfigPanelValidation.ValidationKey="custom-days"/>
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{DynamicResource SpaceM}">
                             <RadioButton GroupName="RunMode"
@@ -276,7 +351,7 @@
 
                 <!-- ───── 6 · Advanced ─────────────────────────────────── -->
                 <controls:CollapsibleSection Title="6 · Advanced"
-                                             IsExpanded="True"
+                                             IsExpanded="{Binding IsAdvancedSectionExpanded, Mode=TwoWay}"
                                              IsOptional="True"
                                              IsEnabledToggle="{Binding AdvancedIsOptionalEnabled, Mode=TwoWay}"
                                              HelpText="Reproducibility and the per-event trace detail written by a diagnostic-trace run (only that run mode records a trace — D-105).">
@@ -292,7 +367,7 @@
                                                  views:ConfigPanelValidation.ValidationKey="seed"/>
                         <controls:SearchableDropdown Label="Trace level"
                                                      Placeholder="Choose a level…"
-                                                     Tooltip="How much per-event detail the diagnostic run logs (None / Events / State / Rng)"
+                                                     Tooltip="How much per-event detail the diagnostic run logs (Minimal / Standard / Detailed / Debug)"
                                                      IsVisible="{Binding TraceLevelVisible}"
                                                      Items="{Binding TraceLevels}"
                                                      SelectedItem="{Binding TraceLevel, Mode=TwoWay}"
@@ -303,8 +378,15 @@
             </StackPanel>
         </ScrollViewer>
 
+        <!-- FR-UI-9 / D-128: names exactly which required input is missing
+             while Start is disabled. Hides itself when nothing is missing. -->
+        <controls:ErrorBanner Grid.Row="1"
+                              Margin="{DynamicResource ThicknessWindowPadding}"
+                              Message="{Binding StartBlockedMessage}"
+                              ToolTip.Tip="Shows which required inputs are missing before the simulation can start"/>
+
         <!-- Pinned primary action: stays visible while the config scrolls. -->
-        <controls:PinnedFooterBar Grid.Row="1"
+        <controls:PinnedFooterBar Grid.Row="2"
                                   PrimaryText="Start Calculation"
                                   PrimaryCommand="{Binding StartCalculationCommand}"
                                   PrimaryIsEnabled="{Binding StartIsEnabled}"

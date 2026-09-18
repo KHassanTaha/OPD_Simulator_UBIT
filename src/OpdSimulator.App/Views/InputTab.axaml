@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:views="using:OpdSimulator.App.Views"
+             xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             x:Class="OpdSimulator.App.Views.InputTab"
+             x:DataType="viewModels:InputTabViewModel">
+
+    <!-- Input tab (Phase 7D): one scrollable column that merges the old Data
+         section (upload, preview, stage-mismatch warning) and the old Input
+         Analysis tab (distribution-fit charts) (AGENTS §19.6). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Padding="{DynamicResource ThicknessWindowPadding}">
+
+        <StackPanel Spacing="{DynamicResource SpaceM}">
+
+            <!-- Upload / clear -->
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceS}">
+                <Button Content="Upload Data"
+                        Command="{Binding UploadFileCommand}"
+                        Classes="PrimaryButton"
+                        ToolTip.Tip="Opens a file picker for an .xlsx or .csv patient data file"/>
+                <Button Content="Clear File"
+                        Command="{Binding ClearFileCommand}"
+                        Classes="GhostButton"
+                        IsVisible="{Binding HasFile}"
+                        ToolTip.Tip="Unload the data file and clear the preview and fit analysis"/>
+                <TextBlock Text="{Binding StatusText}"
+                           Classes="Caption"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource BrushTextMuted}"
+                           Margin="8,0,0,0"/>
+            </StackPanel>
+
+            <!-- Validation banner (FR-UI-9): row issues or a load failure -->
+            <controls:ErrorBanner Message="{Binding Preview.BannerMessage}"
+                                  Severity="{Binding Preview.Severity}"
+                                  IsVisible="{Binding Preview.HasValidationIssues}"
+                                  ToolTip.Tip="The loaded file has validation problems; the affected rows are flagged in the preview below."/>
+
+            <!-- Data preview (FR-UI-20) -->
+            <Border IsVisible="{Binding HasFile}"
+                    Classes="PanelCard"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Data preview"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <controls:DataPreviewTable ColumnTitles="{Binding Preview.ColumnTitles}"
+                                               Rows="{Binding Preview.Rows}"
+                                               InvalidRows="{Binding Preview.InvalidRows}"
+                                               LoadErrorSummary="{Binding Preview.LoadErrorSummary}"
+                                               MaxHeight="400"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Stage-count mismatch (D-114): full warning + actions live here
+                 (Phase 7D); the Simulation tab shows only a one-line indicator. -->
+            <Border IsVisible="{Binding HasStageMismatch}"
+                    Background="{DynamicResource BrushWarningBackground}"
+                    BorderBrush="{DynamicResource BrushWarning}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceS}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="{Binding StageMismatchMessage}"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource BrushWarning}"
+                               FontSize="{DynamicResource FontSizeCaption}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceXs}">
+                        <Button Content="Sync stages from data"
+                                Command="{Binding SyncStagesFromDataCommand}"
+                                Classes="PrimaryButton"
+                                ToolTip.Tip="Replace the configured stages with the stages found in the loaded data"/>
+                        <Button Content="Keep current stages"
+                                Command="{Binding KeepCurrentStagesCommand}"
+                                Classes="GhostButton"
+                                ToolTip.Tip="Keep the configured stages for this session; the warning is dismissed"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Action: hand the file to the Simulation tab -->
+            <Button Content="Use for simulation →"
+                    Command="{Binding UseForSimulationCommand}"
+                    Classes="PrimaryButton"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding HasFile}"
+                    ToolTip.Tip="Go to the Simulation tab and fit the parameters from this file"/>
+
+            <!-- Distribution-fit analysis for the loaded file -->
+            <Border Height="1" Background="{DynamicResource BrushBorderDefault}"/>
+
+            <StackPanel Spacing="{DynamicResource SpaceXs}" IsVisible="{Binding HasFile}">
+                <TextBlock Text="Distribution fit"
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                <TextBlock Text="Fit quality for the loaded data — histograms and chi-square goodness-of-fit."
+                           Classes="Caption"/>
+            </StackPanel>
+
+            <Border IsVisible="{Binding HasFile}">
+                <views:InputAnalysisView DataContext="{Binding Analysis}"/>
+            </Border>
+
+            <!-- Empty state -->
+            <StackPanel IsVisible="{Binding !HasFile}"
+                        Spacing="{DynamicResource SpaceS}"
+                        MaxWidth="480"
+                        HorizontalAlignment="Center"
+                        Margin="0,48,0,0">
+                <TextBlock Text="No data file loaded."
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Upload a CSV or XLSX to fit distributions from historical data, or configure parameters manually in the Simulation tab."
+                           Classes="Caption"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -24,6 +24,13 @@
     <Color x:Key="ColorBrandGreenLight">#2E9E62</Color>
     <Color x:Key="ColorAccentInfo">#0B7285</Color>
     <Color x:Key="ColorFocusRing">#1565C0</Color>
+    <!-- Chart series palette (Phase 6C): series 3+4 fill out the four series
+         colours the queue-over-time chart needs. Both are clearly distinct
+         from ColorBrandGreen and ColorAccentInfo and beat the 3:1 WCAG AA
+         non-text contrast on the white panel background:
+         #6B2FBA (violet)  ≈ 7.7:1, #E54600 (vermillion) ≈ 4.0:1. -->
+    <Color x:Key="ColorChartSeries3">#6B2FBA</Color>
+    <Color x:Key="ColorChartSeries4">#E54600</Color>
 
     <Color x:Key="ColorBackgroundWindow">#F4F6F5</Color>
     <Color x:Key="ColorBackgroundPanel">#FFFFFF</Color>

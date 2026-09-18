@@ -1936,3 +1936,524 @@ impact (positive and negative), alternatives considered.
 - **Alternatives considered:** a separate `NoticeBanner` control (rejected —
   identical layout, duplicated logic, AGENTS §16.5); new `ColorWarningBright`
   tokens (rejected — Theme.axaml already had them from earlier phases).
+
+### D-116 — LiveChartsCore.SkiaSharpView.Avalonia 2.0.5 re-pinned for charts (6c.1) — 2026-09-16
+
+- **Decision:** `OpdSimulator.App` re-adds the chart package as
+  **LiveChartsCore.SkiaSharpView.Avalonia 2.0.5** (exact version, no range).
+  It was dropped in Phase 1 of the GUI rebuild (the view layer was deleted);
+  Phase 6C brings the Input Analysis + results chart suite back on top of the
+  rebuilt Avalonia 11.3.3 shell.
+- **Rationale:** 2.0.5 is the latest stable of the 2.0.x line (2.1.x is
+  dev-only pre-releases on NuGet), and its dependency contract —
+  Avalonia ≥ 11.0.0, Avalonia.Skia ≥ 11.0.0, LiveChartsCore.SkiaSharpView ≥
+  2.0.5 — matches our Avalonia 11.3.3 exactly. The parked M6 branch
+  (`feat/milestone-6-charts-and-token`) already paired the same two versions,
+  so this re-pin has in-repo precedent rather than an untested guess.
+- **Implementation:** one `<PackageReference>` in `OpdSimulator.App.csproj`;
+  restore verified. Probe of the 2.0.5 assembly confirmed the exported
+  Avalonia controls (`CartesianChart`, `PieChart`, `PolarChart`, `GeoMap`,
+  `MotionCanvas`, `XamlAxis`, `Xaml*Series`) and that legend/tooltip are
+  **not** Avalonia controls — they are themed via per-chart paint objects
+  (`LegendTextPaint`, `LegendBackgroundPaint`, `LegendTextSize`,
+  `TooltipTextPaint`, `TooltipBackgroundPaint`, `TooltipTextSize`, per-axis
+  `LabelPaint`) drawn as `SKPaint` from ChartTheme brushes in 6c.2+.
+- **Impact:** (+) same LiveCharts flavour as the archived M5 charts, so
+  `ChartsBuilder`/`ChartViewModels` lessons transfer; (+) SkiaSharp native
+  deps already satisfied (libfontconfig/libfreetype) — no new apt
+  prerequisites. (−) none observed.
+- **Alternatives considered:** stay package-free (rejected — NFR-6 asks for
+  charts and hand-rolled Skia drawing would be slower to defend in the viva);
+  `LiveChartsCore.SkiaSharpView` 2.1.x pre-release (rejected — unstable).
+
+### D-117 — chart series palette + `ChartTheme.axaml` brush contract, hex never inline (6c.1) — 2026-09-16
+
+- **Decision:** the 6c.1 chart infrastructure adds four colour tokens to
+  `Assets/Theme.axaml` — the existing `ColorChartSeries1` (brand blue) and
+  `ColorChartSeries2` (teal), plus **`ColorChartSeries3` #6B2FBA** (violet)
+  and **`ColorChartSeries4` #E54600** (vermillion) — all ≥ 3:1 contrast
+  (WCAG AA non-text) against the white `ColorBackgroundPanel`. A
+  brush-*only* resource dictionary, `Assets/ChartTheme.axaml`, maps those
+  colour tokens to chart brushes (`BrushChartSeries1..4`, grid, axis text,
+  axis ticks, legend text/background/border, tooltip background/border/text).
+  Charts reference ChartTheme brushes only; hex values appear **only** in
+  Theme.axaml. Legend/axis/tooltip colours are handed to LiveCharts as
+  SKPaints built from these brushes (D-116) — never as literal ARGB.
+- **Rationale:** AGENTS §16.3 (one file restyles the whole app) extends to
+  charts; the violet/vermillion pair stays distinguishable from brand
+  blue/teal under colour-blindness (blue-violet vs orange-red axes).
+  Contrasts: #6B2FBA ≈ 7.7:1, #E54600 ≈ 4.0:1 vs #FFFFFF — comfortably inside
+  WCAG AA for non-text UI.
+- **Implementation:** Theme.axaml tokens + `ChartTheme.axaml` merged in
+  `App.axaml` after Theme/Motion (tokens resolve first, brushes reference
+  them). `Controls/ChartCard.axaml` (reusable Title / Caption /
+  EmptyStateText / ShowEmptyState / ChartContent) toggles the empty-state
+  Border vs the ChartHost ContentPresenter; the screenshot + tests assert on
+  the *named container parts* — a hidden `ContentPresenter` prunes its
+  content from the visual tree, and `Control.IsVisible` is **local**, not
+  effective, so child TextBlocks under a hidden Border still report
+  `IsVisible = true` (implementation lesson, recorded for every future
+  chart test).
+- **Impact:** (+) chart look follows the theme contract; (+) empty/error
+  states are first-class (FR-UI-9) from day one; (−) two resource files to
+  keep in sync (tokens vs brushes), mitigated by the brush-only rule.
+- **Alternatives considered:** hard-code ARGB in LiveCharts configuration
+  (rejected — violates §16.3, breaks one-file restyle); reuse the two
+  existing series tokens for all four series (rejected — queue-over-time and
+  waiting-time charts in 6c.5 would reuse identical colours on one panel).
+
+### D-118 — input histogram reuses the chi-square result's bins, never recomputes (6c.2) — 2026-09-16
+
+- **Decision:** the Input Analysis histograms are built exclusively from
+  `ChiSquareResult.BinEdges` + `Observed` — the exact arrays the goodness-of-
+  fit verdict was computed on. The fitted PDF overlay per bin is
+  `Density(midpoint) × (edgeHigh − edgeLow) × N`, with N = fit sample count.
+  Bin categories render as `[low, high)` (invariant culture). One card per
+  series in the run's own fit order (`"Inter-arrival"`, then `"<stage>
+  service"`), each captioned `Family (params) — χ²(df) = stat, p = p — verdict`.
+  A failed fit still produces a card, in seriesless empty state.
+- **Rationale:** 6c.2's owner spec was explicit: "bins from the chi-square
+  result (never recomputed)". Equal-probability chi-square bins have *varying*
+  widths, so a "16 fixed bins" histogram (the M6 `ChartsBuilder` approach)
+  would disagree with the goodness-of-fit table — a viva-hostile
+  inconsistency. Scaling density by the *actual* bin width keeps the fitted
+  curve a fair comparison to the observed counts.
+- **Implementation:** `Services/InputAnalysisService.cs` (pure numbers, no UI
+  types): `FitAll` mirrors `SimulationCoordinator.BuildFits` labels; `BuildHistogram`
+  maps one `FitReport` → `HistogramChartData`. `Services/ChartControlBuilder.cs`
+  builds the `CartesianChart` (observed `ColumnSeries` in `BrushChartSeries1`,
+  fitted `LineSeries` in `BrushChartSeries2`) on the UI thread; every colour
+  resolves a `ChartTheme.axaml` brush with hex fallbacks matching those theme
+  colours (headless tests). Legend/tooltip paints + axes come from the theme.
+  Cache lesson: the LiveCharts enums (`LegendPosition`, `TooltipPosition`) live
+  in `LiveChartsCore.Measure`, not `LiveChartsCore`.
+- **Impact:** (+) chart and verdict can never disagree — same bins, observed
+  copied verbatim; (+) pure service is unit-testable without a UI session
+  (PDF scaling and bin reuse asserted exactly); (−) a card only appears when a
+  fit ran at all — an α or degradation that skips fitting shows the card's
+  empty state instead of bars; acceptable, surfaces the failure.
+- **Alternatives considered:** recompute histogram bins from samples at a
+  fixed count (rejected — the anti-pattern the owner overrode); put `Data`'s
+  binned output in Core and feed LiveCharts stateless models like M6's
+  `ChartViewModel` (rejected — the M6 branch is retired; live controls bound
+  to simple card VMs suit the single-tab layout and keep Core untouched).
+
+### D-119 — Input Analysis refresh wiring: explicit binding-change event + background fit, superseding generation guard (6c.2) — 2026-09-16
+
+- **Decision:** `ConfigPanelViewModel` raises a new `DataBindingChanged` event
+  when `Binding` changes (file load in `ApplyLoadedFile`, reset in
+  `ResetToDefaults`). `MainViewModel` subscribes to it plus
+  `Config.PropertyChanged` on the two distribution dropdowns and
+  `Config.SignificanceLevel.PropertyChanged` (α drives the card captions), all
+  funneling into one `InputAnalysis.ApplyAsync(...)`. Preparation (fits +
+  binning) runs on a `Task.Run` (G5); the chart controls are built on the UI
+  thread. A monotonically increasing generation counter is captured at apply
+  and checked inside `Dispatcher.UIThread.Post` — a stale background apply from
+  an older generation is dropped with a warning. A synchronous `Apply` (and
+  `ApplyPrepared`) power deterministic wiring/UI tests and the screenshot path.
+- **Rationale:** the Input Analysis tab must mirror exactly what the run uses —
+  same binding, same distribution labels, same α — and must refresh whenever
+  any of those change, or the tab lies next to the results panel. G5 forbids
+  creating LiveCharts controls off the UI thread; the generation guard prevents
+  a slow background job overwriting a newer refresh (e.g. user re-uploads while
+  a fit is running). Labels and α values are passed straight to `FitsService`
+  mirroring `SimulationCoordinator`, so no label→family mapping code exists.
+- **Implementation:** `ConfigPanelViewModel.DataBindingChanged` (internal
+  `RaiseDataBindingChanged()` invoked at the end of load/reset); `MainViewModel`
+  handlers described above; `InputAnalysisViewModel.{ApplyAsync, Apply,
+  ApplyPrepared}` + `ObservableCollection<InputAnalysisChartViewModel> Charts`
+  rendered by `InputAnalysisView` as `ChartCard`s. Wiring covered by
+  `MainViewModel_UploadResetAndDistributionChange_StayInSync` (awaits the
+  posted apply via a deadline poll; headless dispatcher pumps during `await`).
+- **Impact:** (+) reviewers see the same fit on the tab and in results;
+  (+) deterministic sync path makes the async UI wiring itself testable; (−)
+  three event sources into one refresh — mildly coupled, but each carries one
+  datum and there is no cross-talk.
+- **Alternatives considered:** poll `Binding` on a timer (rejected — polling is
+  silent work and late by nature); recompute inside `ApplyLoadedFile`/reset
+  directly (rejected — couples data analysis to the tab and skips distribution
+  changes); re-evaluate every `PropertyChanged` (rejected — noisy, re-fits on
+  unrelated fields).
+
+### D-120 — chi-square cards reuse the verdict's own bins and two side-by-side columns (6c.3) — 2026-09-16
+
+- **Decision:** Each fitted series gets a second Input Analysis card below its
+  histogram: a paired observed-vs-expected bar chart. The categories are the
+  bin indices ("bin 1", "bin 2", …) derived from `ChiSquareResult.BinEdges` — no
+  re-binning, no recomputation; Observed and Expected are the exact arrays the
+  verdict was computed from. The bars are two ordinary `ColumnSeries` sharing
+  every coordinate, which LiveCharts2 renders **grouped side-by-side by
+  default** (stacking would require `StackedColumnSeries`). The card's caption
+  restates the ResultsPanel chi-square row verbatim
+  (`χ² = {stat}, df = {df}, p = {p} — {Decision}`, same `0.###` invariant
+  format, `Decision` copied as-is), so the verdict is readable on the card
+  without cross-checking the table. A fit with no chi-square renders only its
+  histogram empty-state — no fabricated second card.
+- **Rationale:** the whole point of the bar chart is to *show* whether the
+  observed bins track the expected frequencies (the χ² statistic is their
+  aggregate). Reusing the verdict's bins/arrays is the only way the bars and
+  the goodness-of-fit table can never disagree. Grouped columns, not stacked,
+  because observed-vs-expected is a comparison, not a composition; side-by-side
+  makes the gap per bin the visible signal. The verbatim caption makes the card
+  self-explanatory during the viva.
+- **Implementation:** `InputAnalysisService.BuildChiSquareChart(FitReport)`
+  returns `ChiSquareChartData` (Title "Chi-square: {label}", Caption, HasSeries,
+  Categories, Observed, Expected); `ChartControlBuilder.BuildChiSquareChart`
+  emits two `ColumnSeries` (Observed = BrushChartSeries1, Expected =
+  BrushChartSeries2) via a shared `CreateChart` shell factored out of the
+  histogram builder (categorical X labels, frequency Y axis, theme-resolved
+  paints). `InputAnalysisChartViewModel` already hosts any `ChartContent`, so
+  the common `IInputChartData` interface lets `ApplyPrepared` dispatch on the
+  concrete record to the right builder — one card slot, either chart kind.
+  `Prepare` emits histogram then chi-square per fit, in fit order. Covered by
+  `Phase6c3ChiSquareTests` (same bin count, observed sum = n, caption format,
+  categories from BinEdges, null-fit empty state) + `Phase6c3Screenshot`.
+- **Impact:** (+) every verdict is verifiable at a glance on the same tab that
+  chose the distribution; (+) single source of bin truth eliminates a whole
+  class of chart-vs-table drift bugs; (−) two cards per series makes the list
+  longer — mitigated because the Input Analysis list is short (≤ a handful of
+  fitted series).
+- **Alternatives considered:** re-bin the samples independently for the chart
+  (rejected — two binning rules = two disagreeing pictures); `StackedColumnSeries`
+  (rejected — stacks hide the per-bin gap); print χ² into a static label only
+  (rejected — the owner asked for the paired bars).
+
+### D-121 — per-server utilisation is a Results widget, run-driven; |Δ − stage mean| > 0.15 is the imbalance rule (6c.4) — 2026-09-17
+
+- **Decision:** The per-server utilisation chart lives in the **Results** panel,
+  shown **only after a finished run** ("Run a simulation to see utilisation."
+  before that), and is a toggleable widget in the "Customise results" selector
+  (FR-UI-14) like Metrics, Chi-square, Data preview and Event trace. It answers
+  the question "what did this run do to that server?" — a run-derived figure —
+  so it sits with the other run outputs (metrics, trace), never on the Input
+  Analysis tab, per AGENTS §16.12 Tab Semantics. Data source is the engine's
+  own report: `StageMetrics.PerServerUtilisation` (server-by-server usage) and
+  `StageMetrics.StageUtilisation` — which the engine defines as the **mean of
+  the stage's per-server utilisations** (Engine.cs) — used as the "stage
+  average" reference. A server is **flagged** when
+  |server utilisation − stage mean| > 0.15: bar goes amber (`BrushWarning`) and
+  the tooltip states the gap ("Above average by {delta:.1%}" /
+  "Below average by {delta:.1%}"); a thin reference line per stage marks the
+  stage mean. Widget order in the Results stack: metrics → utilisation →
+  chi-square → data preview → trace. This **supersedes** the earlier quick
+  answer given during pre-flight ("historical utilisation from data") — the
+  owner's DECISION message states the Results-panel option explicitly; no
+  historical utilisation was requested and no Data-layer work was done.
+- **Rationale:** the historical/simulated dichotomy in CONTEXT §5.7 predates
+  the widget and is out of scope here — the sample data has no server-ID
+  columns, so a per-server historical value cannot exist, and the owner chose
+  the simulated engine path. Comparing each server against its **stage mean**
+  (not the whole-clinic mean, and not max−min spread) makes the flag local:
+  a clinic where one doctor is worked unfairly relative to the other two is
+  exactly the decision-relevant signal, and "mean of the stage" is what
+  `StageUtilisation` already is, so the chart can never disagree with the
+  metrics table. The run-driven placement follows the tab-semantics rule that
+  run-derived figures describe a run (FR-UI-14 only customises Results
+  widgets); putting historical or fitted-data figures here would violate the
+  Input Analysis/Results split. A threshold of 0.15 keeps the amber signal
+  meaningful (a ±15% workload gap is the agreed "imbalance" magnitude) while
+  ordinary sampling noise at this clinic's volumes (~60 services/server/session)
+  almost never crosses it on its own.
+  **Relationship to PRD FR-STAT-7 (owner decision, 2026-09-17 — "keep both,
+  document the distinction"):** PRD's imbalance flag
+  `max(server_util) − min(server_util) > 0.15` remains the standing
+  **analytical** definition (stage range). This widget's rule — per-server
+  |Δ vs stage mean| > 0.15 — is a **per-server visual variant** of the same
+  concern: max−min cannot say *which* servers deviate (a 3-server stage could
+  hide an overworked middle server), and pairing every bar against its own
+  stage mean is what the toggleable widget can display. The two rules coexist
+  and are documented as such in CONTEXT §5.7; they answer different questions
+  (stage dispersion vs per-server deviation) and are not averaged.
+- **Implementation:** `Services/UtilisationChartService.Build(SimulationResult?)`
+  returns pure `UtilisationChartData` (Bars: StageName/ServerNumber/Utilisation/
+  IsOutlier/DeltaFromAverage; ReferenceLines per stage with bar-index spans;
+  `ImbalanceThreshold = 0.15` and `Caption` as public constants) — UI-agnostic so
+  the flag logic is unit-testable headlessly. `ChartControlBuilder.BuildUtilisationChart`
+  emits one `ColumnSeries<double?>` per server (a single non-null value at the
+  server's categorical index; `double?` nulls create the gaps) filled green or
+  amber, with per-series `YToolTipLabelFormatter` (LiveCharts 2.0.5: cartesian
+  series expose `YToolTipLabelFormatter`/`XToolTipLabelFormatter`; the bare
+  `ToolTipLabelFormatter` is Pie-only — compiler-confirmed), plus one thin
+  `LineSeries<double?>` per stage at the stage mean; legend hidden because
+  series ≈ bars + stages (X labels + tooltips carry the meaning); Y axis labels
+  percent (`P0`). The shared `CreateChart` shell gained optional `yLabeler` and
+  `showLegend`. `ResultsPanelViewModel` gains `ShowUtilisation` (default-on,
+  FR-UI-14), `UtilisationChart` (built `CartesianChart`), empty-state flags, and
+  wiring in `CompleteRun` via `SetUtilisation`. `WidgetPreferences` default seed
+  includes "utilisation"; a **pre-6c.4 ui.json** gets the key inserted once on
+  load so existing users see the new widget (a deliberate later-off is restored
+  to on a single time — accepted one-time migration cost; no schema version
+  exists to detect it). `BrushColor` resource lookup is wrapped so a lazily
+  built theme dictionary that throws degrades to the documented theme-matching
+  hex; `SetUtilisation` drops to the widget empty state when no fully-initialised
+  Avalonia app exists (plain unit tests) — the real chart path is proven by the
+  AvaloniaFact screenshot (`logs/screenshots/phase-6c4-utilisation.png`).
+  Covered by `Phase6c4UtilisationTests` (bar layout across stages in order,
+  outlier flag for ±0.32 around a 0.50 mean, no flag at the mean, caption
+  contains the threshold, null result → empty card, toggle/defaults) +
+  `Phase6c4Screenshot` (real 3-stage run, servers 1/2/3 → 6 bars + 3 reference
+  lines rendered).
+- **Impact:** (+) the metric the metrics table hides — a single over/under-used
+  server — is now visible at a glance; (+) flag rule is local, deterministic
+  and unit-tested; (+) tab semantics stay clean (run figures on Results).
+  (−) one more widget to customise; (−) pre-6c.4 preference files re-enable the
+  widget once after a deliberate hide (documented migration; harmless).
+- **Alternatives considered:** historical utilisation from the data (rejected —
+  no server-ID columns exist, and the owner's decision message chose the
+  engine's run output); flag by max−min **spread** > 0.15 per CONTEXT §5.7
+  (rejected for this widget — the owner's spec is per-server |Δ vs stage mean|,
+  which also composes cleanly with N servers whereas spread only pairs two);
+  place in Input Analysis next to the histograms (rejected — violates §16.12,
+  and there is nothing to plot until a run exists); stage-level aggregate bar
+  (rejected — the whole point is per-server imbalance).
+
+### D-122 — queue-length-over-time + waiting-time histograms are Results widgets; 2000-point min-max decimation (6c.5) — 2026-09-17
+
+- **Decision:** Phase 6c.5 adds two run-derived charts to the Results panel as
+  default-on FR-UI-14 widgets (widget order metrics → utilisation → queue
+  length → waiting-time histogram → chi-square → data preview → trace):
+  1. **Queue length over time** — one `LineSeries` per stage, each from
+     `StageMetrics.QueueLengthSeries` (`QueueSample` time-steps; the engine
+     already emits one sample per queue-change event, so sampling density
+     scales with patient count). With > 2000 points per stage the series is
+     **downsampled to ≤ 2000 points by pairwise min-max bucket decimation**
+     (D-122 algorithm): the time span is split into equal-sized buckets
+     covering `[t₀, tₙ]`, each bucket contributes ≤ 2 points — its local
+     min-length point and its local max-length point — sorted by time, and
+     the **first and last original points are kept verbatim**. Both the global
+     Q-max and the max-length bucket in any interval survive by construction;
+     monotonic original time stays monotonic. Complexity O(n), no RNG, no
+     per-point interpolation → output is deterministic and the caption states
+     the source plus "downsampled from {N} samples" whenever points were
+     reduced. No Core/VML change is needed because the series already exists;
+     engine behaviour is untouched (hard 6c.5 rule — no Core/Data/Cli edits).
+  2. **Waiting-time distribution** — see D-123.
+- **Rationale:** a queue chart with 20,000+ points is unreadable columns of
+  ink and costs memory; but dropping points naively (every-nth) hides the
+  peaks — the sharp upward spikes are exactly the instability/bottleneck
+  signal a clinic manager must see. Min-max bucket decimation is the smallest
+  correct fix that a student can defend orally (two lines of arithmetic per
+  bucket) and, unlike Largest-Triangle-Three-Buckets (LTTB), it provably
+  preserves the **global min and max** and every bucket's extremes — the
+  guarantee that matters for a Q-over-time chart. LTTB was the alternative:
+  it produces visually smoother results but is harder to explain and cannot
+  guarantee that any extreme survives, which is a worse trade-off for a viva
+  than slightly jagged lines. Downsampling lives in the **service**, not the
+  control, so its properties are unit-testable headlessly (tests pin:
+  ≤ MaxPoints for 20,000 samples; first/last points verbatim; the global
+  max sample survives; monotonic time).
+- **Implementation:** new `Services/QueueLengthChartService` (pure):
+  `QueueChartPoint(Time, Length)`, `QueueStageSeries(StageName, Points)`,
+  `QueueLengthChartData` (`HasSeries`, `Caption`, `MaxPoints = 2000`, static
+  `Empty`). `SetQueueLength` in `ResultsPanelViewModel` builds it from the
+  run outcome and swaps the `ChartContent`; before any run the widget shows
+  "Run a simulation to see queue length over time."; `Reset()` clears it.
+  `ChartControlBuilder.BuildQueueChart` types each series as
+  `LineSeries<ObservablePoint>` (flat lines — `LineSmoothness 0`, `GeometrySize
+  0`), X axis in minutes, stage-name legend, palette colours from the shared
+  `SeriesPalette` cycled colour-consecutively (green → teal → violet →
+  vermillion) so 6+ stages still use only theme tokens, never inline hex
+  (D-117).
+- **Impact:** (+) the "behaviour over time" purpose §6.3 of the visual-analysis
+  strategy is finally on screen; (+) a 100,000-event trace still draws; (+)
+  deterministic headless tests prove the extremes survive compression. (−) a
+  per-stage chart adds rows to the Results stack; (−) decimation is piecewise
+  constant where buckets merge two points — accepted and documented in the
+  caption.
+- **Alternatives considered:** LTTB (rejected above — no extreme guarantee,
+  harder viva story); naive every-nth downsampling (rejected — hides peaks);
+  render raw without downsampling (rejected — memory + unreadable ink at high
+  patient counts); accumulate fewer `QueueSample` events in the engine
+  (rejected — would alter Core statistics and break the trace↔metrics
+  cross-check in D-058).
+
+### D-123 — waiting-time histogram: one stage at a time, base-10 log-scale drops zero bins, selector resets to first stage; headless chart tests must construct windows (6c.5) — 2026-09-17
+
+- **Decision:** The waiting-time distribution widget shows **one stage at a
+  time** — a `SearchableDropdown` (Label "Stage", `HelpAnchor
+  "waiting-time-histogram"`) over the stage names lets the user switch
+  between a reception vs screening vs doctor delay profile; the selector
+  **resets to the first stage on every new run** so a fresh run cannot show a
+  stale stage selection. Default: 16 equal-width bins over
+  `[min, max]` of `StageMetrics.WaitingTimeSamples` (each bin's label is an
+  invariant-culture "[low, high)" range so the axis reads correctly on any
+  locale); the histogram widget rows live on the Results tab because they
+  describe a **run** (AGENTS §16.12) — the Input Analysis tab keeps its own
+  per-stage fitted-PDF histograms of the *data*. An optional **log-scale Y**
+  checkbox swaps the Y axis for a base-10 `LogarithmicAxis`; because log(0)
+  is undefined, zero-count bins are rendered as **gaps (null values) only on
+  the log axis** — the linear axis keeps zero-height bars. Chart construction
+  happens on the UI thread (G5); the pure binning lives in the service.
+- **Rationale:** one stage at a time because the delay distributions of an
+  80-minute clinic differ violently across stages (reception waits are small
+  and tight, doctor waits are long and skewed); a single stacked chart would
+  flatten every shape onto one axis. First-stage-on-run is the least-surprise
+  default and keeps the dropdown consistent with the queue widget's per-stage
+  lines. Log scale only when asked: skewed long-tail data (a few 500-minute
+  outliers vs hundreds of 2-minute waits) makes 15 of 16 linear bars
+  invisible, and a base-10 log axis is the honest viva answer to "why do
+  small bins vanish" — dropping rather than faking them (log 0 is undefined,
+  a zero bar on a log axis would lie). Widget-level decision so nothing in
+  Core changes.
+- **Implementation:** new `Services/WaitHistogramService` (pure):
+  `WaitHistogramData(StageName, HasSeries, Categories, Counts)` with `Empty`,
+  `DefaultBinCount = 16`, `Caption`, `EmptyStateText = "Run a simulation to
+  see the waiting-time distribution."`, `Build(result, stageName)`,
+  `StageNames(result)`, `BuildForSamples(...)` (a zero-width sample range
+  yields one degenerate bin rather than 16 empty labels). `ResultsPanelViewModel`
+  adds `WaitStageNames`, `SelectedWaitStage`, `IsWaitLogScale`, `WaitHistogramChart`;
+  `SetWaitHistogram(result)` stores the run and forces the selector to the
+  first stage; changing the selector or the log toggle rebuilds the chart in a
+  try/catch that degrades to the widget empty state (G5 — never crash the UI);
+  `Reset()` clears widget + chart. `ChartControlBuilder.BuildWaitHistogramChart`
+  emits a `ColumnSeries<double?>` (null → gap on log axis), and the shared
+  `CreateChart` shell gained an `IChartSeries[]` + `yAxisOverride` overload.
+  **Test lessons (D-121 extended):** bare `CartesianChart` construction
+  outside a rendered window intermittently throws
+  `PlatformNotSupportedException` at `Dispatcher.PushFrame` under full-suite
+  load (headless dispatcher contention), even though it passes in isolation —
+  so chart *behaviour* is asserted on the pure service seam in plain `[Fact]`
+  tests (decimation, first/last, min/max, one line per stage, selector
+  change/reset, empty states) and axis/rendering proof lives only in
+  window-based `[AvaloniaFact]` tests (the log-axis swap is driven through
+  the real VM `IsWaitLogScale` path in a `MainWindow`; the gate screenshot
+  renders both widgets from a real 3-stage run — see D-121's now-fixed
+  pattern). One screenshot file per phase gate is the evidence convention
+  (owner reviews it; the agent cannot see PNGs).
+- **Impact:** (+) the long-tail signal (and its inverse, a tight symmetric
+  delay profile) is now visible per stage; (+) log-scale is opt-in so small
+  waiting sets don't look alarmingly empty by default; (+) pure service
+  seams keep the whole binning/decimation logic viva-defensible and
+  headlessly testable. (−) one more widget in the picker; (−) per-stage
+  exploration requires a dropdown click instead of one glance.
+- **Alternatives considered:** bin by the chi-square result's own edges
+  (rejected — that is a *fit* visual for Input Analysis, D-118; the widget
+  shows the run's actual waiting-time distribution, and the chi-square
+  result does not exist per wait sample); histogram all stages stacked
+  (rejected — shapes collapse onto one axis); log axis by default
+  (rejected — surprising for the day-1 user and unnecessary when samples are
+  well-behaved); a plain `Axis` swap done by recreating the chart from
+  scratch (accepted as implementation — LiveCharts axes are fixed at
+  construction, so the rebuild is the mechanism).
+
+### D-124 — 6c.6 gate normalises then restores the machine's real ui.json; post-6c.4 widget migration pinned as unconditional-restore (2026-09-17)
+
+- **Context:** Phase 6c.6 closed the 6C chart suite with verification + docs only (owner: "no new features", `feat/milestone-6c-input-analysis-charts`). The gate added `Phase6c6WidgetSelectorTests`, `Phase6c6EmptyStateTests`, `Phase6c6Nfr6Tests` and `Phase6c6Screenshots` (3 consolidated frames: `phase-6c-input-analysis.png`, `phase-6c-results-all.png`, `phase-6c-widget-toggled.png`).
+- **Decision:** (1) The rendered-window gate needs a stable "all seven widgets" frame, but `MainViewModel` loads the per-user `~/.config/OpdSimulator/ui.json` (FR-UI-14 persistence, non-injectable), so on this machine `trace` was off in prefs. The screenshot tests therefore **force all seven widgets visible before capture and restore the original visible-set in `finally`** — assertions on the *picker* and the *VM toggle-key contract* use a fresh `ResultsPanelViewModel()` (no prefs file) so they are hermetic. (2) The D-121/D-123 widget migration was re-examined and intentionally left as-is: a ui.json missing a post-6c.4 key gets that key **restored on every load** (no schema marker exists; D-121's "restored once" wording is optimistic). No App code changed in 6c.6 (verification phase); the real contract is now **pinned by a test** (`Post64Widget_MissingFromPreferences_RestoredToVisibleOnLoad`) so a future change to genuine one-time migration has a behaviour baseline to break.
+- **Rationale:** FR-UI-14 says widget visibility persists; it applies cleanly to pre-6c.4 keys (trace/metrics/chi-square/data-preview), which is what the §18 walkthrough's restart step demonstrates. The three post-6c.4 keys carry a documented migration that deliberately favours "new widget visible" over "remembered off" for old configs; keeping it avoids an unrequested schema/flag change mid-verification. Normalise/restore makes the automated gate stable, repeatable and non-invasive to the developer machine (it does not silently flip real preferences).
+- **Impact:** (+) gate screenshots are deterministic and show all seven widgets; (+) machine prefs untouched after the suite; (+) the unconditional-restore migration is now locked by a test with a clear rationale. (−) a real user can still not keep one of the three new widgets *off* across restarts — surfaced to the owner (task list) as a candidate follow-up PRD change, not silently "fixed".
+- **Alternatives considered:** inject a temp `WidgetPreferences` into `MainViewModel`/`ResultsPanelViewModel` for tests (rejected — App code change, out of scope for a verification phase; the VM already accepts prefs but the window's VM is constructed in `MainViewModel`); assert only whatever prefs happen to show (rejected — the C5 evidence frame must show all seven widgets); fix the migration to true one-time (rejected for this phase — needs a schema marker design decision, deferred).
+
+### D-125 — Phase 7A: input units convert only at the parameter boundary; engine stays per-minute; time-span presets are generator-day shortcuts (2026-09-18)
+
+- **Context:** Phase 7A (`feat/milestone-7-model-driven`) added three model-driven inputs: a **time-unit selector** (Minutes / Seconds / Hours) for the manual λ and μ entries, the **parameter-mode radio relocated** into the Parameters section (D-102's optional section) as the owner's PRD FR-UI-1 layout fix, and **time-span presets** in the Horizon section (15 minutes / 1 hour / 1 day / 1 week / 1 month / custom days) that drive the run-mode semantics. The Core engine, Data layer, CLI and all Phase-6C chart code were frozen (owner: "no touch").
+- **Decision:** (1) The engine (and every downstream consumer) continues to speak **per-minute** exclusively; the new unit applies **only** in `ConfigPanelViewModel.TryBuildRunParameters`.Convert when assembling `RunParameters` from the manual fields: Minutes→value, Seconds→value×60, Hours→value/60, applied to either the rate (Rate-wise) or the mean inverted first (Mean-wise: rate = 1/mean, **then** per-minute scaling). `ToPerMinute` is a private static seam, tested through `TryBuildRunParameters`. `TimeUnit` is a single two-way `ObservableProperty` (default `Minutes`); the `TimeUnitSelector` control wraps the existing string-based `SearchableDropdown` with a value-converter binding rather than duplicating its UI. (2) `TimeSpanPreset` (default `OneDay`) maps: FifteenMinutes→1 generator-day with a 15-minute horizon, OneHour→1 day / 60-minute horizon, OneDay→1, OneWeek→6 (Mon/Tue/Wed/Thu/Sat + the following Monday so a full week of consecutive operating days runs), OneMonth→26 (30 calendar days ≈ 22 operating days at 5/7, ×1.2 buffer), CustomDays→the parsed field (0 when unparseable → the multi-day run refuses). Short spans bound the simulated window; day+ spans drive the generator-day count. Run-mode wiring: Multi-day forces `Days.Value = ResolveGeneratorDays()`; Single-day applies the 15/60-minute horizon bounds; Diagnostic-trace mode is untouched.
+- **Rationale:** unit conversion must never leak into Metrics/Statistics or the FEL, or the viva's M/M/c cross-check (which assumes minutes) breaks; a single conversion boundary is the smallest defensible seam. Clamping week-to-6 and month-to-26 keeps "choose a span" honest about clinic operating days (closed Fri/Sun, §1.1) without reimplementing a calendar in the VM — the engine already skips closed days, so 6/26 are the generator-day counts the engine needs.
+- **Impact:** (+) unit choice and parameter mode now sit logically together above the manual fields; (+) short/preset spans give a one-click analysis window; (+) Core/Data/Cli untouched → Core 85 / Data 58 / Cli 35 baseline preserved. (−) the engine remains minutes-only, so a "Seconds" output mode would need a separate presenter (not requested); (−) TimeSpan/ParameterMode are not yet serialised into presets — they default on load (preset persistence is Phase 6 / the deferred preset system).
+- **Alternatives considered:** convert units in the Core engine (rejected — leaks UI concerns in, Core/Data frozen); a global app unit (rejected — over-broad, unrequested); dropdown built from scratch (rejected — reuses the tested SearchableDropdown); Week/month presets resolving to literal calendar days (rejected — the engine loops over generated operating days, not real dates, so 6/26 are the honest equivalents).
+
+### D-126 — Phase 7B: per-stage Kendall model notation is a UI convenience; distribution families flow to the engine from the FIRST stage only (2026-09-18)
+
+- **Context:** Phase 7B (`feat/milestone-7-model-driven`) gave every stage row a **Kendall-notation model dropdown** (`M/M/1` … `G/G/1`, 11 standard entries) plus an **Advanced** toggle that reveals two independent family dropdowns ("Arrival distribution" / "Service distribution"). The owner froze Core/Data/Cli and the chart code for this phase; `SimulationParameters` (App `Models/SimulationParameters.cs`) remains a flat record with a single `InterArrivalDistribution` and a single `ServiceDistribution` string.
+- **Decision:** (1) A new pure `Services/ModelNotationParser` owns the notation grammar: three `/`-separated parts, families `M`→"Exponential"/`D`→"Deterministic"/`G`→"General", integer server count 1–5; anything else throws `ArgumentException` with an actionable message. `StandardModels` is the single source of dropdown options (also reused by the tests). (2) Selecting a model on a row sets its `ArrivalFamily`, `ServiceFamily` and `Servers.Value` (a string field, so the write is `Servers.Value = parsed.ServerCount.ToString()` — the existing `Servers.ValueChanged → RecomputeRho()` hook then fires for free). When a row's **Advanced** toggle is on, `OnSelectedModelChanged` returns early — advanced editing owns the family fields and must not be overwritten by a stale shortcut. (3) `TryBuildRunParameters` now reads `StageRows[0].ArrivalFamily` / `StageRows[0].ServiceFamily` instead of the old `?? "Exponential"` fallbacks. Arrivals are external (one stream for the whole network), so the first stage is the only meaningful source; service families are wired the same way because **`SimulationParameters` carries a single service family**, which the engine already applies to every stage. Per-stage service override is therefore **deferred** (would require a Core/record shape change, explicitly out of scope).
+- **Rationale:** the model dropdown is a *convenience* over three real fields the row already had (or needed) — it adds no engine concept. Keeping the parser pure and UI-free makes the grammar viva-defensible and headlessly testable (12 of the 17 new tests are plain `[Fact]`s). Reusing `Servers.Value` rather than introducing a numeric server property preserves the single validation path (`ConfigFieldViewModel`) and the ρ recompute. First-stage wiring is honest given the flat record and is documented rather than silently averaged.
+- **Impact:** (+) one-click `M/M/c` shortcuts with the server count set for you; (+) advanced users can still choose families explicitly; (+) Core/Data untouched → the 315-green pre-7B baseline is preserved (App +17 only). (−) **all stages share the first stage's service family** — choosing a different family on stage 2/3 changes the UI but not the engine until per-stage service is modelled (surfaced, not hidden); (−) `Deterministic`/`General` are display-only today (D-127); (−) a duplicate visible label exists — the Model section already has a "Service distribution" dropdown, so a stage's Advanced "Service distribution" can look identical out of context (flagged to the owner; §16.2 labels are otherwise persistent).
+- **Alternatives considered:** give `SimulationParameters` a per-stage service-family collection (rejected — Core/record change, out of scope, and the engine has no per-stage override); rename the stage family labels to avoid the collision (not chosen unilaterally — surfaced to the owner; the phase spec named them "Arrival distribution"/"Service distribution"); make the parser return a Core enum (rejected — Core has no `DistributionKind` and strings are already the `SimulationParameters` currency); validate via a typed dropdown-only contract and never throw (rejected — `SearchableDropdown` only commits list items, but the parser still guards direct/typed callers and is unit-tested to throw).
+
+### D-127 — "Deterministic" and "General" are display-only placeholders; the engine still samples exponentially (2026-09-18)
+
+- **Context:** The Kendall shorthand accepts `D` and `G` (`M/D/2`, `D/M/1`, `G/G/1`), but the App's run path only ever selected Exponential before 7B, `DistributionFitterFactory.SupportedNames` = Exponential / Normal / Lognormal / Gamma / Uniform, and the Core engine samples exponentially. A user can now select `M/D/1` or `G/G/1`.
+- **Decision:** Treat `Deterministic` and `General` as **parse-and-display placeholders**. `FitsService.Fit` returns a **null** fit report for an unsupported family (no crash, and the Input Analysis widget shows its own empty/degraded state), and the engine continues to sample exponentially. They are offered because the notation grammar requires them and because the dropdown should not silently lie about the model the user typed; they are **not** claimed to change the run. This is recorded as a known limitation, not a bug.
+- **Rationale:** implementing a deterministic (constant) sampler and a general/empirical sampler is a Core change and a distribution-fitting project of its own — explicitly out of scope for 7B (owner froze Core). Refusing `D`/`G` in the parser would contradict the notation already presented in CONTEXT §2.2; silently mapping `D`→Exponential would be a correctness lie. Returning `null` from the fit service keeps the "a chart/fit failure never blocks results" G5 posture.
+- **Impact:** (+) the full standard notation parses and renders, so a 7C+ stage can light up real samplers without touching the parser; (+) no crash path from an unsupported family; (−) `D`/`G` runs behave like `M` to the engine today — must be stated for the viva and revisited when/if deterministic/general sampling is added.
+- **Alternatives considered:** reject `D`/`G` at parse time (rejected — breaks the notation the PRD/CONTEXT present); add Core samplers now (rejected — out of scope, Core frozen); map `D` (mean) to Exponential with a note (rejected — misleading results).
+
+### D-128 — Start button is a completeness gate; supersedes 5d.1's "runnable in principle" contract (7C) — 2026-09-18
+
+- **Decision:** Start is enabled only when the current mode's required inputs are complete and valid. `FitFromData`: a loaded, validated data file **and** every stage has a resolvable μ (fitted or overridden). `EnterManually`: λ valid, every per-stage μ > 0, p_exit in [0,1). While incomplete the button stays disabled and its tooltip names the missing fields. The coordinator's run-time μ refusal is retained as defence in depth and is no longer reachable from the GUI.
+- **Rationale:** FR-UI-7 requires disabled controls to explain themselves; an enabled Start that then refuses at run time violates that. The professor's demonstrated flow and the group plan both describe configuring then running; the ρ ≥ 1 stability guard already works this way; and the group plan's Phase 11 acceptance criterion is "Invalid configuration never reaches simulation".
+- **Supersedes:** Phase 5d.1 `DefaultConfig_StagesShowNoSourceLabels_StartEnabled` ("an empty configuration is runnable in principle — the per-stage μ refusal surfaces as a clean banner at run time"). That contract is retired from the GUI surface; the affected tests are updated in place, not deleted.
+- **Implementation:** `ConfigPanelViewModel.RecomputeBlockingState()` gains per-mode completeness rules (`CollectServerGaps`, `CollectManualModeGaps`, `CollectFitModeGaps`); `StartBlockedMessage` drives the FR-UI-9 `ErrorBanner`. The per-stage μ field is authoritative in `EnterManually` and hidden; `ManualMuPerStage` visibility inverts between modes. Fitted rates win over manual overrides in `FitFromData`.
+- **Impact:** (+) Start is a true readiness signal, consistent with FR-UI-7; (−) the coordinator's runtime refusal loses GUI coverage — its unit/CLI tests now carry that load.
+- **Alternatives considered:** B′ — keep 5d.1 (Start enabled on an empty config, refuse at run time) and merely improve the banner. Rejected: it leaves an enabled action that cannot succeed and contradicts the group plan's Phase 11 criterion.
+
+### D-129 — Screenshot tests serialize; no async in `[AvaloniaFact]` — 2026-09-18
+
+- **Decision:** The `OpdSimulator.App.Tests` assembly disables xUnit test-collection parallelization (`[assembly: CollectionBehavior(DisableTestParallelization = true)]`), and every screenshot capture goes through a synchronous `HeadlessScreenshot.Capture(window)` helper with bounded retry. No `[AvaloniaFact]` in this project uses `await Task.Delay` or any other yield point.
+- **Rationale:** the single Avalonia headless session is process-global; parallel collections race on it and `CaptureRenderedFrame` intermittently returns null for a random window under full-suite load. Awaiting inside a headless fact triggers `Dispatcher.PushFrame`, which Avalonia.Headless 11.3.3 rejects with `System.PlatformNotSupportedException`.
+- **Implementation:** `HeadlessScreenshot.Capture` does `UpdateLayout → Dispatcher.UIThread.RunJobs → AvaloniaHeadlessPlatform.ForceRenderTimerTick → CaptureRenderedFrame`, retrying up to 10 times and failing loud (never a blank PNG). All 15 former ad-hoc capture sites across 13 test files now call it. `TestParallelization.cs` carries the assembly attribute.
+- **Alternatives considered:** async-pump per test (rejected — `PlatformNotSupportedException` in `HeadlessUnitTestSession.DispatchCore`); leaving the flake as a polish-backlog item (rejected — every remaining phase's gate would be exposed).
+- **Impact:** (+) suite is stable (12/12 full-solution runs green at time of commit, previously ~8/10); (+) one helper replaces fifteen ad-hoc capture sites; (−) the App test assembly runs serially, though wall-clock is unchanged (~11 s) at the current size.
+
+### D-130 — Phase 7D: the data preview is extracted into `InputPreviewViewModel`; the shared `DataPreviewTable` control is left untouched (2026-09-18)
+
+- **Context:** Phase 7D (`feat/milestone-7-model-driven`) merges the Simulation tab's "1 · Data" section and the separate "Input Analysis" tab into one **Input** tab, and removes the data-preview widget from the Results panel (AGENTS §19.6 forward note). The preview's column titles, rows, invalid-row map and load-error summary previously lived on `ResultsPanelViewModel`.
+- **Decision:** Move those members, unchanged in behaviour, into a new `InputPreviewViewModel` (RULING 1) owned by `InputTabViewModel.Preview`. `SetPreview(DataBindingResult?)` assigns **fresh** collection instances on every load and raises change notifications for the computed surface (`HasValidationIssues`, `HasValidationErrors`, `Severity`, `BannerMessage`, `IssueSummary`, `HasRows`); `Clear()` is `SetPreview(null)`. The `DataPreviewTable` control is **not modified** — its styled properties are reference-typed (`IEnumerable<string>?`, `IEnumerable<IReadOnlyList<string?>>?`, `IReadOnlyDictionary<int,string?>?`, `string?`) and it rebuilds only when a property reference changes, so the VM assigns flat projections rather than an `ObservableCollection` of row view models.
+- **Rationale:** the control is shared, tested and virtualised (D-081/D-090); a preview "move" must not become a control rewrite. Keeping the four public properties (column titles, rows, invalid rows, load-error summary) identical means the only changed thing is which view model owns them, so the §16.10 preview contract and its tests carry over. Reference-assignment matches the pre-7D behaviour exactly (no new observable plumbing, no per-row VM allocation for 10,000 rows).
+- **Impact:** (+) preview state is now UI-location-independent and has its own focused tests (`Phase7DTests`); (+) the DataPreviewTable contract is provably unchanged; (−) `HasValidationIssues`/`BannerMessage` must be manually re-raised because they are computed properties — always done inside `SetPreview`/`Clear`, which are the only mutators.
+- **Alternatives considered:** an `ObservableCollection<PreviewRowViewModel>` projection (rejected — would require changing the shared control's styled property types, risking NFR-10 render/sort timings and the 6C screenshot evidence); leave the preview on `ResultsPanelViewModel` and have the Input tab bind across to it (rejected — defeats the merge; the Results panel must lose the widget); duplicate the control (rejected — AGENTS §16.5 forbids duplicated UI logic).
+
+### D-131 — Phase 7D: tab navigation is a view-model event routed by `MainViewModel` (RULING 2) — 2026-09-18
+
+- **Context:** The Input tab offers "Use for simulation →" (return to the Simulation tab and switch to `FitFromData`) and the config status strip offers "Manage input →" (open the Input tab). A view model cannot touch the `TabControl` directly without breaking MVVM.
+- **Decision:** `MainViewModel` exposes `SetSelectedTabIndex(int)` and a `TabSelectionChanged` event. `ConfigPanelViewModel` raises `NavigateToInputTabRequested` (→ index 1); `InputTabViewModel` raises `UseForSimulationRequested` (→ set `SourceMode = FitFromData`, then index 0). `MainWindow.axaml.cs` subscribes to `TabSelectionChanged` and sets `MainTabs.SelectedIndex`. Tab indices are fixed: Simulation = 0, Input = 1, Token Generator = 2, Help = 3.
+- **Rationale:** keeps the views thin and the routing logic unit-testable without a window (the events and indices are asserted in `Phase7DTests`); avoids a static/singleton navigation service for a four-tab shell.
+- **Impact:** (+) navigation is testable and centralised in one event; (+) the config panel no longer knows about tab controls; (−) the numeric indices are a small implicit contract shared by VM and view — pinned by the `TabIndex_*` tests.
+- **Alternatives considered:** an `INavigationService` interface (rejected — over-abstraction for four fixed tabs, AGENTS §2); direct `TabControl` access from `ConfigPanel.axaml.cs` (rejected — couples the panel to the shell it lives in).
+
+### D-132 — Phase 7D: one file picker and one load path for both Upload buttons (RULING 3) — 2026-09-18
+
+- **Context:** After the merge, upload can be triggered from the Input tab ("Upload Data") and from the Simulation tab's status strip. Before 7D each surface had its own picker and load code.
+- **Decision:** Both `InputTabViewModel.UploadFileRequested` and `ConfigPanelViewModel.UploadRequested` route to a single `MainViewModel.PickAndLoadDataFileAsync()`, which awaits the shell-supplied `PickDataFileAsync` delegate and applies the chosen path exactly once through `ConfigPanel.ApplyLoadedFile(path)`. The config panel then pushes the analysed `DataBindingResult` to every subscriber via `DataBindingChanged`; `MainViewModel` mirrors it to `InputTab.SetLoadedFile(binding)`. No second picker exists.
+- **Rationale:** a single load path is the only way to guarantee the preview, the fit analysis, the config strip and the run all see the same binding; two pickers would let the surfaces diverge (the failure mode the 7D spec exists to remove). `ApplyLoadedFile` already owned analysis + gating; reusing it avoids a parallel loader.
+- **Impact:** (+) loading, clearing and mismatch state stay consistent across tabs; (+) the picker is the only OS-failure point and is caught+logged (AGENTS §12.4); (−) the shell must inject `PickDataFileAsync` before an upload can work — done in the `MainWindow` constructor and asserted by `InputTab_UploadRequested_UsesTheSinglePickerPath`.
+- **Alternatives considered:** keep a picker in `ConfigPanel.axaml.cs` and have the Input tab call into it (rejected — two code paths, the exact duplication 7D removes); have the Input tab own the picker and the strip call the Input tab (rejected — the strip is a link, not a second picker).
+
+### D-133 — Phase 7D: the D-114 stage-mismatch warning relocates to the Input tab; Sync goes straight to `SyncStagesToData` (RULING 4) — 2026-09-18
+
+- **Context:** The stage-count mismatch warning (D-114) lived inside the Simulation tab's Data section. With the Data section gone, the warning had to move. `ConfigPanelViewModel` previously raised `SyncStagesRequested` so the view could show its confirmation dialog before calling `SyncStagesToData()`.
+- **Decision:** The **full** warning (amber banner + "Sync stages from data" / "Keep current stages") now lives in the Input tab below "Use for simulation →". The Simulation tab's status strip shows only a one-line indicator: `"Stages differ from data — see the Input tab."` bound to `ConfigPanelViewModel.HasStageMismatch` plus the "Manage input →" link. `InputTabViewModel.StageMismatchSyncRequested` routes through `MainViewModel` **directly** to `Config.SyncStagesToData()`, dropping the intermediate view-owned confirmation dialog.
+- **Rationale:** the mismatch is a property of the loaded data, so its remediation belongs on the data tab (AGENTS §16.12 semantics). One authoritative warning avoids the two-surfaces-force-two-states risk. The old confirm dialog existed only to intercept the config section's own button; the Input tab's warning already states the consequence ("replaces the configured stages"), so a second modal is friction, not safety.
+- **Impact:** (+) exactly one full mismatch UI; (+) the Simulation strip keeps the user informed without duplicating actions; (−) the old view-level confirmation for stage-sync is gone (documented deviation from the pre-7D flow); (−) `ConfigPanelViewModel.SyncStagesRequested`/`KeepStageMismatchRequested` remain for compatibility but are no longer raised by the panel's (removed) buttons.
+- **Alternatives considered:** keep the full warning on both tabs (rejected — duplication; the AGENTS §16.5 rule and the 7D diff-review check both forbid it); keep the confirmation dialog in the Input tab's code-behind (rejected — re-introduces view logic for a state the VM already describes); demote the warning to the strip only (rejected — the strip has no room for the two actions the user needs).
+
+### D-134 — Phase 7D: tab header 2 is renamed "Input Analysis" → "Input" in place (Q2) — 2026-09-18
+
+- **Context:** The pre-existing Phase 3 shell test asserted the exact four headers, including `"Input Analysis"`. 7D merges the Data section and the Input Analysis tab into one tab, so the header changes while the tab **count and positions** do not.
+- **Decision:** Rename the header in place in `MainWindow.axaml` and update `Phase3ShellTests.MainWindow_HasFourTabs_InExpectedOrder` to expect `["Simulation", "Input", "Token Generator", "Help"]`, keeping the test's name, its four-item count, and the three `TabIndex_*` tests. The rename carries an explanatory comment in the test.
+- **Rationale:** the tab count is unchanged and the four-tab shell contract still holds; only the label of an existing tab moved. Asserting the new header keeps the shell contract honest, and the added `Phase7DTests.Shell_Tabs_AreSimulationInputTokenHelp` pins it from the 7D side too.
+- **Impact:** (+) header text matches the merged tab's purpose; (+) no churn in the shell structure; (−) any doc or screenshot that still says "Input Analysis tab" must be updated — tracked by the TODO polish-backlog row and updated in `AGENTS.md` §19.6/§16.12, `USER_MANUAL.md` and `DEV_LAUNCH.md` in this same change.
+- **Alternatives considered:** keep the header "Input Analysis" to avoid touching the test (rejected — the tab now also uploads and previews data, so the name is wrong); rename to "Data & Analysis" (rejected — "Input" is the term the owner uses and the shortest honest label).
+
+### D-135 — Phase 8A: `SimulationResult` retains the RNG-generated inter-arrival and per-stage service samples — 2026-09-18
+
+- **Context:** Phase 8B needs to run a chi-square goodness-of-fit test on the **simulation output** (simulation-verification charts, AGENTS §19.2 Path B). That requires the engine to hand back the raw inter-arrival and service times it drew, which it previously discarded. The engine already retains per-run chart samples (`_stageWaitSamples`, `_stageQueueSeries`) via instance buffers that are released at the end of a run.
+- **Decision:** Add two init-only properties to `SimulationResult` — `GeneratedInterArrivalSamples` (`IReadOnlyList<double>`) and `GeneratedServiceSamplesByStage` (`IReadOnlyList<IReadOnlyList<double>>`) — defaulting to `Array.Empty<…>`. Populate them from two new per-run instance buffers (`_generatedInterArrivals`, `_generatedServiceSamples`) that mirror the existing chart-buffer lifecycle: allocated at the top of `RunCore`, appended inside `HandleArrival` (only when the next arrival is actually scheduled) and `StartService` (indexed by `patient.StageIndex`), projected into the result, then released. No existing property, method, or constructor signature changes; the two public overloads of `Run` are untouched in shape.
+- **Rationale:** (1) The existing chart-buffer pattern is the codebase's idiom for "record raw per-run values without changing private method signatures" — reusing it keeps the change surgical and reviewable. (2) Retaining only inter-arrival draws that produced a scheduled arrival makes the sample stream the actual arrival-process gaps (N patients → N−1 gaps), which is what a goodness-of-fit test should consume; a draw beyond the window is discarded exactly as before and must not enter the fit. (3) Always recording (no feature flag, no conditional) keeps both `Run` paths converging on the same result shape (AGENTS §19.2); the cost at the 4000-patient × 3-stage scale is ≈ 128 KB, which is acceptable.
+- **Impact:** (+) simulation output can now be fitted and chi-square tested (unblocks 8B); (+) the result object is the single convergence point for both config paths; (+) no matrix rework — private helpers unchanged; (−) every `SimulationResult` now carries two extra collections (~128 KB at demo scale); (−) `GeneratedServiceSamplesByStage` must be kept index-aligned with `NetworkTopology.Stages` by every future caller.
+- **Alternatives considered:** pass the buffers by `ref` through `HandleArrival`/`StartService` (rejected — changes two private method signatures, wider blast radius than the instance-buffer idiom); record a fixed-size cap or a "record samples" flag (rejected — a flag fragments the result shape across paths and is not needed at demo scale); recompute samples from the trace sink (rejected — trace is optional/level-gated, so it is not a reliable source); write a separate sample log file (rejected — I/O in the hot loop and not a result object).
+
+### D-136 — Phase 8B: output-side chi-square verification is a seventh Results widget built from `SimulationResult`'s retained samples — 2026-09-18
+
+- **Context:** Phase 8A made the engine hand back the raw inter-arrival and per-stage service samples it drew (`SimulationResult.GeneratedInterArrivalSamples` / `GeneratedServiceSamplesByStage`, D-135). Phase 8B turns that data into the **simulation-verification** step of the methodology (Banks; Law & Kelton): test whether the engine's *own output* is consistent with the distribution the user configured. This is distinct from the Input tab's chi-square, which tests whether the MLE fit is a good model of the *historical data* (AGENTS §19.6 / §16.12).
+- **Decision:** Add two App-layer types and surface them as a new Results widget. (1) `Services/SimulationVerificationService.cs` — a pure `VerifyAll(result, arrivalFamily, serviceFamilies, α)` that returns one `VerificationReport` per series (inter-arrival + one per `result.StageMetrics`, in stage order) and, per series, runs a single `FitsService.Fit(label, samples, effectiveFamily, α)` and builds the histogram via the existing `InputAnalysisService.BuildHistogram` (reusing the fit's own bins, D-118). (2) `ViewModels/SimulationVerificationViewModel.cs` — empty until a run finishes, `ApplyAsync` preps the reports on a thread-pool thread and builds the LiveCharts controls on the UI thread via `Dispatcher.UIThread.Post`, with the D-119-style generation guard (a newer run supersedes a stale apply). The widget is the seventh key (`simulationVerification`) in `ResultsPanelViewModel`/`WidgetPreferences`, and `MainViewModel`'s run-completion closure calls `ApplyVerification` after `CompleteRun`.
+- **Rationale:** (1) Output-side chi-square is the standard model-verification check and completes the two-chi-square story the viva asks about (input modelling vs implementation check). (2) The service deliberately reuses `FitsService`/`InputAnalysisService` rather than adding a second fit/histogram path — one fitter, one binner, consistent verdicts. (3) Verification runs on the engine's retained samples, so it works identically in Path A (fit-from-data) and Path B (manual) — the convergence point is `SimulationResult`, not the config (AGENTS §19.2). (4) Background preparation + UI-thread chart build preserves NFR-6 responsiveness, matching the Input-tab precedent. (5) "Deterministic" and "General" are special-cased honestly: Deterministic skips the test with a note, General is flattened to Exponential with a note (consistent with D-127). Fewer than two samples also yields a note, not a fabricated verdict (AGENTS §12 — fail loud).
+- **Impact:** (+) the simulator now demonstrates both input-side and output-side chi-square, with a clear methodological distinction; (+) no Core/Data/Cli change — 8B is App-only on top of 8A; (+) one widget shares the existing chart/report patterns. (−) the Results panel now has seven widgets and the picker/visibility/preferences contract grows by one key; every count-based assertion had to move 6→7 (done in place in `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots`); (−) a low-arrival run can legitimately leave a downstream stage with too few service samples, so that card renders its explanatory note rather than a histogram (surfaced, not hidden).
+- **Alternatives considered:** recompute fits in a new `VerificationFitter` (rejected — duplicates `FitsService` and risks divergent verdicts); a dedicated "Verification" tab (rejected — it is run-derived output, so it belongs on the Results panel per AGENTS §16.12); fold the verdict into the existing chi-square widget (rejected — that widget is data-side/Input; mixing run output into it would violate the semantic split); synchronous apply on completion (rejected — chart construction on the UI thread after a background run can jank the panel).
+
+### D-137 — Phase 8C: the analytical-validation widget is guarded by a steady-state horizon threshold — 2026-09-18
+
+- **Context:** Phase 8C adds the analytical-validation Results widget (FR-STAT-5): it compares simulated per-stage wait/queue length against closed-form M/M/c (Erlang-C) values. The widget's applicability rule originally looked only at the configured distribution families (exponential arrivals/service) and per-stage stability (ρ < 1). The first version of the gate test exposed a real defect in that rule: with the brief's own configuration (λ=0.5, μ 0.8/0.6/0.4, c 1/2/3, p_exit 0.4, seed 42) the comparison reported +127% / +358% / +18% deltas — not because the engine is wrong, but because the GUI's default run is a single **165-minute clinic day**, and M/M/c formulas are **steady-state** results. Measured deltas at the same configuration: 50,000 min → ~5%, 200,000 min → ~1%, with the sign of the error flipping as N grows — i.e. finite-sample noise, not modelling bias.
+- **Decision:** Add a third applicability condition — the run's operating time must be at least `AnalyticalValidationService.MinimumSteadyStateMinutes` (**100,000 simulated minutes**, ≈ 70 operating days). `Compare` checks the horizon **before** the family/ρ checks and returns an empty list when it is not met; the widget then shows its explanatory `EmptyMessage` naming all three conditions. The threshold is a fixed, named constant; no per-configuration time-constant heuristic.
+- **Rationale:** (1) Comparing a transient run to a steady-state formula is mathematically invalid; a caption does not prevent a reader misreading a table of 100–350% deltas as an engine defect. (2) 100,000 is the conservative midpoint of the measured convergence (50k → ~5%, 200k → ~1%) and is easy to defend orally. (3) A fixed constant avoids a heuristic that would vary per configuration and be hard to justify in the viva. (4) The horizon is read from `SimulationResult.OperatingTimeMinutes` — the elapsed simulated time for a diagnostic/horizon run, and the summed open-day block time for a calendar run — so clinic-day runs are refused exactly as intended. (5) The 5% gate assertion is honoured on the long, uninterrupted `DiagnosticTrace` run it was actually designed for.
+- **Impact:** (+) the widget can never display a misleading steady-state comparison; (+) the 5% gate is meaningful; (+) the message explains *why* the widget is hidden, so the user can act (run a long diagnostic). (−) a user who runs the default one-day clinic sees the empty message instead of a table (by design, and explained); (−) the legacy 6C all-widgets screenshot now shows the analytical card in its empty state, so `AssertWidgetsFromRealRun` asserts the empty state there rather than rows (the populated state is covered by `Phase8CValidationTests`).
+- **Alternatives considered:** show the widget on every exponential + ρ < 1 run with a "steady state" caveat caption (rejected — a caption does not prevent misreading a table); relax the 5% gate to 10% on the default 10,000-minute run (rejected — the brief mandates 5%, and 10% would still be transient-limited); auto-scale the horizon per configuration via a time-constant heuristic (rejected — indefensible in a viva and non-deterministic across configs).
+
+### D-138 — Phase 8D: `TraceLevel` members renamed (`Minimal/Standard/Detailed/Debug`) as a pure ordinal-preserving relabel — 2026-09-18
+
+- **Context:** The M4 trace feature named its four levels `None`/`Events`/`State`/`Rng`. The names leaked implementation detail (`Rng` is a *verbosity tier*, not a data source; `None` reads as "no trace feature" rather than "no rows rendered") and the brief for the Phase 8D polish pass asked for user-facing level names. The enum's numeric ordinals are load-bearing: `CollectionTraceSink`/`TextWriterTraceSink` compare with `>=` and the CLI/`SimulationCoordinator` parse names, so a reorder would silently change every threshold.
+- **Decision:** Rename the four members **without changing their ordinals or comparisons** — `None(0)→Minimal`, `Events(1)→Standard`, `State(2)→Detailed`, `Rng(3)→Debug`. This is a **pure relabel**: every `>=` threshold keeps the same numeric meaning, and `Minimal` continues to collect **no** trace rows (the `CollectionTraceSink.Write` early-return on `_level == TraceLevel.Minimal` is kept). The string tokens become `minimal|standard|detailed|debug` (CLI `--level`, default `detailed`) and the App's `TraceLevels` list `{ Minimal, Standard, Detailed, Debug }` (default `Detailed`); `EffectiveTraceLevel` falls back to `Detailed` when Advanced is off. `TraceLevelFromName` maps MINIMAL/STANDARD/DETAILED/DEBUG and unknown → `Minimal`.
+- **Rationale:** (1) No behaviour change means no test rewrite beyond name/token updates and no risk to the M4 golden fixture, so the polish pass cannot regress the trace. (2) The new names describe what the user sees (how much detail) instead of the sink internals. (3) Ordinal preservation is the only way to keep the `>=` comparisons correct while satisfying the rename request; any reorder would have required auditing every sink and parser.
+- **Impact:** (+) clearer, viva-defensible level names; (+) `Minimal` is self-documenting as "no rows" rather than "feature absent"; (+) all level tests now assert the public names. (−) a rename touches every reference — `TraceFormatter`, `TextWriterTraceSink`, `CollectionTraceSink`, `SimulationCoordinator`, `TraceCommand`, `ConfigPanelViewModel`, `SimulationParameters` doc, `ConfigPanel.axaml`, `AGENTS.md` §19.2, `DEV_LAUNCH.md` §7.6, `USER_MANUAL.md`, `REQUIREMENTS.md`, `VIVA_ANSWERS.md` and seven test files — but all are mechanical. (−) historical changelog rows that cite the old names are left verbatim as of their date.
+- **Alternatives considered:** reorder members to a conventional Verbose→Fatal ascending scale (rejected — silently changes every `>=` threshold and endangers the golden fixture); keep the old names and add display aliases (rejected — two names for one concept); rename `None`→`Off`/`Silent` (rejected — "Minimal" reads better next to the three detail tiers).
+

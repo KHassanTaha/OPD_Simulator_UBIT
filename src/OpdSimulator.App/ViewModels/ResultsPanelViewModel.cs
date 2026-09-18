@@ -1,6 +1,7 @@
 namespace OpdSimulator.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
@@ -34,10 +35,14 @@ public sealed record ChiSquareRow(
 
 /// <summary>
 /// Drives the Simulation-tab results panel (Phase 5): the welcome card until a
-/// run starts, then the chosen widgets — metrics table, chi-square table, the
-/// scrollable event trace, the data preview — plus the run-refusal banner with
-/// its clean message (G3/G4, 5-F). Widget visibility follows
-/// <see cref="WidgetPreferences"/> (FR-UI-14), seeded to all-on.
+/// run starts, then the chosen widgets — metrics table, per-server utilisation
+/// chart (Phase 6c.4), queue-length-over-time chart and waiting-time histogram
+/// (Phase 6c.5), chi-square table and the scrollable event trace — plus the
+/// run-refusal banner with its clean message (G3/G4, 5-F). Widget visibility
+/// follows <see cref="WidgetPreferences"/> (FR-UI-14), seeded to all-on.
+/// Phase 7D removed the data-preview widget: the preview now lives on the
+/// Input tab. The Simulation verification (Phase 8B) and Analytical validation
+/// (Phase 8C) widgets bind shared view models owned by the window.
 /// </summary>
 public partial class ResultsPanelViewModel : ObservableObject
 {
@@ -63,10 +68,36 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
 
         var visible = _preferences.VisibleWidgets;
+        bool migrated = false;
+        if (!visible.Contains("utilisation")
+            || !visible.Contains("queueLength")
+            || !visible.Contains("waitHistogram")
+            || !visible.Contains("simulationVerification")
+            || !visible.Contains("analyticalValidation"))
+        {
+            // Widget migrations: a ui.json written before the utilisation (6c.4),
+            // queue-length / waiting-time (6c.5), simulation-verification
+            // (Phase 8B) and analytical-validation (Phase 8C) widgets existed
+            // must not hide them forever. Add each missing key once and persist,
+            // so every new widget starts visible like the others. A deliberate
+            // later-off is re-enabled once — same accepted behaviour as the 6c.4
+            // migration.
+            if (!visible.Contains("utilisation")) { visible.Add("utilisation"); migrated = true; }
+            if (!visible.Contains("queueLength")) { visible.Add("queueLength"); migrated = true; }
+            if (!visible.Contains("waitHistogram")) { visible.Add("waitHistogram"); migrated = true; }
+            if (!visible.Contains("simulationVerification")) { visible.Add("simulationVerification"); migrated = true; }
+            if (!visible.Contains("analyticalValidation")) { visible.Add("analyticalValidation"); migrated = true; }
+            if (migrated) { _preferences.Save(); }
+        }
+
         ShowMetrics = visible.Contains("metrics");
         ShowChiSquare = visible.Contains("chiSquare");
         ShowTrace = visible.Contains("trace");
-        ShowDataPreview = visible.Contains("dataPreview");
+        ShowUtilisation = visible.Contains("utilisation");
+        ShowQueueLength = visible.Contains("queueLength");
+        ShowWaitHistogram = visible.Contains("waitHistogram");
+        ShowSimulationVerification = visible.Contains("simulationVerification");
+        ShowAnalyticalValidation = visible.Contains("analyticalValidation");
     }
 
     /// <summary>Called at the start of every run attempt so config proof is a one-time concern.</summary>
@@ -108,6 +139,9 @@ public partial class ResultsPanelViewModel : ObservableObject
             : string.Empty;
 
         SetMetrics(outcome.Result);
+        SetUtilisation(outcome.Result);
+        SetQueueLength(outcome.Result);
+        SetWaitHistogram(outcome.Result);
     }
 
     private static string N0(double v) => $"{v:0.###}";
@@ -133,10 +167,14 @@ public partial class ResultsPanelViewModel : ObservableObject
         SystemMetrics.Clear();
         StageRows.Clear();
         ChiSquareRows.Clear();
-        PreviewColumnTitles = null;
-        PreviewRows = null;
-        PreviewInvalidRows = null;
-        PreviewError = null;
+        UtilisationChart = null;
+        QueueLengthChart = null;
+        WaitHistogram = null;
+        WaitHistogramChart = null;
+        WaitStageNames = null;
+        SelectedWaitStage = null;
+        IsWaitLogScale = false;
+        _lastResult = null;
         ApplyPreferences();
     }
 
@@ -171,32 +209,111 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Feeds the data-preview widget from the current data binding.</summary>
-    /// <param name="binding">Binding result of the last loaded file, or null.</param>
-    public void SetPreview(DataBindingResult? binding)
+    /// <summary>
+    /// Feeds the per-server utilisation widget (FR-STAT-7, Phase 6c.4). The
+    /// chart control is built by <see cref="ChartControlBuilder"/> on the UI
+    /// thread; a refused run (or none) leaves an empty card and the widget shows
+    /// its "run a simulation to see utilisation" empty state instead.
+    /// </summary>
+    /// <param name="result">The completed simulation result, or null when the run was refused.</param>
+    private void SetUtilisation(OpdSimulator.Core.Engine.SimulationResult? result)
     {
-        if (binding?.DataSet is not { } dataSet)
+        if (result is null)
         {
-            PreviewColumnTitles = null;
-            PreviewRows = null;
-            PreviewInvalidRows = null;
-            PreviewError = binding?.ErrorMessage;
+            UtilisationChart = null;
             return;
         }
 
-        PreviewColumnTitles = dataSet.Columns.ToList();
-        PreviewRows = dataSet.Rows
-            .Select(row => (IReadOnlyList<string?>)row.Values.Select(v => (string?)v).ToList())
-            .ToList();
+        var data = UtilisationChartService.Build(result);
+        try
+        {
+            UtilisationChart = ChartControlBuilder.BuildUtilisationChart(data);
+        }
+        catch (Exception ex)
+        {
+            // G5: LiveCharts controls only construct inside a fully-initialised
+            // Avalonia app (with a rendering platform). Headless unit tests that
+            // assert metrics/trace have none, so the widget degrades to its
+            // empty state instead of failing the whole results panel. The real
+            // path is proven by the AvaloniaFact screenshot test.
+            Serilog.Log.Warning(ex, "Utilisation chart could not be built in this context");
+            UtilisationChart = null;
+        }
+    }
 
-        // RowNumber is 1-based data-row number (row 1 = first data row below
-        // the header); the preview widget uses 0-based indices.
-        PreviewInvalidRows = binding.Issues
-            .Where(i => i.RowNumber > 0)
-            .GroupBy(i => i.RowNumber - 1)
-            .ToDictionary(g => g.Key, g => (string?)g.First().Reason);
-        PreviewError = binding.ErrorMessage;
-        ShowDataPreview = binding.IsUsable;
+    /// <summary>
+    /// Feeds the queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5). The
+    /// chart control is pre-decimated by <see cref="QueueLengthChartService"/>
+    /// and built on the UI thread; a refused run (or none) leaves an empty card
+    /// and the widget shows its "run a simulation to see queue length" empty
+    /// state instead.
+    /// </summary>
+    /// <param name="result">The completed simulation result, or null when the run was refused.</param>
+    private void SetQueueLength(OpdSimulator.Core.Engine.SimulationResult? result)
+    {
+        if (result is null)
+        {
+            QueueLengthChart = null;
+            return;
+        }
+
+        var data = QueueLengthChartService.Build(result);
+        try
+        {
+            QueueLengthChart = ChartControlBuilder.BuildQueueChart(data);
+        }
+        catch (Exception ex)
+        {
+            // Same G5 degradation rationale as the utilisation widget.
+            Serilog.Log.Warning(ex, "Queue-length chart could not be built in this context");
+            QueueLengthChart = null;
+        }
+    }
+
+    /// <summary>
+    /// Feeds the waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5): stores
+    /// the finished result, resets the stage selector to the first stage (every
+    /// new run starts from a deterministic selection), and rebuilds the chart
+    /// for that stage. A refused run (or none) leaves no stage names, no
+    /// selection and no chart — the widget's empty state shows.
+    /// </summary>
+    /// <param name="result">The completed simulation result, or null when the run was refused.</param>
+    private void SetWaitHistogram(OpdSimulator.Core.Engine.SimulationResult? result)
+    {
+        _lastResult = result;
+        WaitStageNames = result is null ? null : WaitHistogramService.StageNames(result);
+        SelectedWaitStage = WaitStageNames is { Count: > 0 } ? WaitStageNames[0] : null;
+        RebuildWaitHistogram();
+    }
+
+    /// <summary>
+    /// Rebuilds the waiting-time histogram for the currently selected stage.
+    /// Triggered by the stage selector, the log-scale toggle and every new run;
+    /// the pure data record is always refreshed so tests can assert the data
+    /// follows the selection even in contexts where the LiveCharts control
+    /// cannot be constructed (G5 degradation).
+    /// </summary>
+    private void RebuildWaitHistogram()
+    {
+        if (_lastResult is null || SelectedWaitStage is null)
+        {
+            WaitHistogram = null;
+            WaitHistogramChart = null;
+            return;
+        }
+
+        var data = WaitHistogramService.Build(_lastResult, SelectedWaitStage);
+        WaitHistogram = data;
+        try
+        {
+            WaitHistogramChart = ChartControlBuilder.BuildWaitHistogramChart(data, IsWaitLogScale);
+        }
+        catch (Exception ex)
+        {
+            // Same G5 degradation rationale as the utilisation widget.
+            Serilog.Log.Warning(ex, "Waiting-time histogram could not be built in this context");
+            WaitHistogramChart = null;
+        }
     }
 
     // ── Header / banner ───────────────────────────────────────────────────
@@ -263,21 +380,89 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private string _traceText = string.Empty;
 
-    /// <summary>Data-preview column titles from the loaded file.</summary>
+    /// <summary>Built per-server utilisation chart (Phase 6c.4), or null before the first run.</summary>
     [ObservableProperty]
-    private IEnumerable<string>? _previewColumnTitles;
+    private Control? _utilisationChart;
 
-    /// <summary>Data-preview raw rows (each an ordered list of cell strings or nulls).</summary>
-    [ObservableProperty]
-    private IEnumerable<IReadOnlyList<string?>>? _previewRows;
+    /// <summary>True once a utilisation chart was built from a finished run.</summary>
+    public bool HasUtilisationChart => UtilisationChart is not null;
 
-    /// <summary>Preview row index → validator reason for invalid rows.</summary>
-    [ObservableProperty]
-    private IReadOnlyDictionary<int, string?>? _previewInvalidRows;
+    /// <summary>True before the first run — the widget shows its empty state then.</summary>
+    public bool ShowUtilisationEmptyState => !HasUtilisationChart;
 
-    /// <summary>Load-failure summary that replaces the preview table (FR-UI-9).</summary>
+    partial void OnUtilisationChartChanged(Control? value)
+    {
+        OnPropertyChanged(nameof(HasUtilisationChart));
+        OnPropertyChanged(nameof(ShowUtilisationEmptyState));
+    }
+
+    /// <summary>Widget caption (FR-STAT-7): names the imbalance threshold and rule.</summary>
+    public string UtilisationCaption => UtilisationChartService.Caption;
+
+    // ── Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5) ────────────
+
+    /// <summary>Built queue-length-over-time chart, or null before the first run.</summary>
     [ObservableProperty]
-    private string? _previewError;
+    private Control? _queueLengthChart;
+
+    /// <summary>True once a queue-length chart was built from a finished run.</summary>
+    public bool HasQueueLengthChart => QueueLengthChart is not null;
+
+    /// <summary>True before the first run — the widget shows its empty state then.</summary>
+    public bool ShowQueueLengthEmptyState => !HasQueueLengthChart;
+
+    partial void OnQueueLengthChartChanged(Control? value)
+    {
+        OnPropertyChanged(nameof(HasQueueLengthChart));
+        OnPropertyChanged(nameof(ShowQueueLengthEmptyState));
+    }
+
+    /// <summary>Widget caption: names the sampling and downsampling policy.</summary>
+    public string QueueLengthCaption => QueueLengthChartService.Caption;
+
+    // ── Waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5) ────────────
+
+    /// <summary>The last finished run the histogram rebuilds from (selector/scale changes).</summary>
+    private OpdSimulator.Core.Engine.SimulationResult? _lastResult;
+
+    /// <summary>Pure data record for the selected stage (refreshed on every rebuild).</summary>
+    [ObservableProperty]
+    private WaitHistogramData? _waitHistogram;
+
+    /// <summary>Built waiting-time histogram chart, or null before the first run.</summary>
+    [ObservableProperty]
+    private Control? _waitHistogramChart;
+
+    /// <summary>True once a waiting-time histogram was built from a finished run.</summary>
+    public bool HasWaitHistogramChart => WaitHistogramChart is not null;
+
+    /// <summary>True before the first run — the widget shows its empty state then.</summary>
+    public bool ShowWaitHistogramEmptyState => !HasWaitHistogramChart;
+
+    partial void OnWaitHistogramChartChanged(Control? value)
+    {
+        OnPropertyChanged(nameof(HasWaitHistogramChart));
+        OnPropertyChanged(nameof(ShowWaitHistogramEmptyState));
+    }
+
+    /// <summary>Stage names the selector offers, in run order (null before a run).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string>? _waitStageNames;
+
+    /// <summary>The stage whose histogram is shown; resets to the first on every new run.</summary>
+    [ObservableProperty]
+    private string? _selectedWaitStage;
+
+    partial void OnSelectedWaitStageChanged(string? value) => RebuildWaitHistogram();
+
+    /// <summary>Log-scale toggle for long tails: switches the Y axis to base-10 logarithmic.</summary>
+    [ObservableProperty]
+    private bool _isWaitLogScale;
+
+    partial void OnIsWaitLogScaleChanged(bool value) => RebuildWaitHistogram();
+
+    /// <summary>Widget caption: names the binning policy.</summary>
+    public string WaitHistogramCaption => WaitHistogramService.Caption;
 
     // ── Widget visibility (FR-UI-14, persisted via WidgetPreferences) ─────
 
@@ -291,7 +476,38 @@ public partial class ResultsPanelViewModel : ObservableObject
     private bool _showTrace = true;
 
     [ObservableProperty]
-    private bool _showDataPreview;
+    private bool _showUtilisation = true;
+
+    [ObservableProperty]
+    private bool _showQueueLength = true;
+
+    [ObservableProperty]
+    private bool _showWaitHistogram = true;
+
+    /// <summary>
+    /// The Simulation verification widget state (Phase 8B): the engine-output
+    /// chi-square cards. Shared with the window-level view model — MainViewModel
+    /// owns the single instance and hands it here so the Results XAML can bind
+    /// it under this panel's DataContext. A refused run leaves it empty.
+    /// </summary>
+    public SimulationVerificationViewModel SimulationVerification { get; set; } = new();
+
+    /// <summary>True when the Simulation verification widget card is visible (FR-UI-14).</summary>
+    [ObservableProperty]
+    private bool _showSimulationVerification = true;
+
+    /// <summary>
+    /// The Analytical validation widget state (Phase 8C): the simulated-vs-M/M/c
+    /// comparison table. Shared with the window-level view model — MainViewModel
+    /// owns the single instance and hands it here so the Results XAML can bind
+    /// it under this panel's DataContext. A refused or non-comparable run leaves
+    /// it empty.
+    /// </summary>
+    public AnalyticalValidationViewModel AnalyticalValidation { get; set; } = new();
+
+    /// <summary>True when the Analytical validation widget card is visible (FR-UI-14).</summary>
+    [ObservableProperty]
+    private bool _showAnalyticalValidation = true;
 
     partial void OnShowMetricsChanged(bool value) => OnWidgetVisibilityChanged();
 
@@ -299,10 +515,18 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowTraceChanged(bool value) => OnWidgetVisibilityChanged();
 
-    partial void OnShowDataPreviewChanged(bool value) => OnWidgetVisibilityChanged();
+    partial void OnShowUtilisationChanged(bool value) => OnWidgetVisibilityChanged();
+
+    partial void OnShowQueueLengthChanged(bool value) => OnWidgetVisibilityChanged();
+
+    partial void OnShowWaitHistogramChanged(bool value) => OnWidgetVisibilityChanged();
+
+    partial void OnShowSimulationVerificationChanged(bool value) => OnWidgetVisibilityChanged();
+
+    partial void OnShowAnalyticalValidationChanged(bool value) => OnWidgetVisibilityChanged();
 
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "dataPreview").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation").</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -316,8 +540,20 @@ public partial class ResultsPanelViewModel : ObservableObject
             case "trace":
                 ShowTrace = !ShowTrace;
                 break;
-            case "dataPreview":
-                ShowDataPreview = !ShowDataPreview;
+            case "utilisation":
+                ShowUtilisation = !ShowUtilisation;
+                break;
+            case "queueLength":
+                ShowQueueLength = !ShowQueueLength;
+                break;
+            case "waitHistogram":
+                ShowWaitHistogram = !ShowWaitHistogram;
+                break;
+            case "simulationVerification":
+                ShowSimulationVerification = !ShowSimulationVerification;
+                break;
+            case "analyticalValidation":
+                ShowAnalyticalValidation = !ShowAnalyticalValidation;
                 break;
         }
     }
@@ -331,7 +567,11 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (ShowMetrics) { visible.Add("metrics"); }
         if (ShowChiSquare) { visible.Add("chiSquare"); }
         if (ShowTrace) { visible.Add("trace"); }
-        if (ShowDataPreview) { visible.Add("dataPreview"); }
+        if (ShowUtilisation) { visible.Add("utilisation"); }
+        if (ShowQueueLength) { visible.Add("queueLength"); }
+        if (ShowWaitHistogram) { visible.Add("waitHistogram"); }
+        if (ShowSimulationVerification) { visible.Add("simulationVerification"); }
+        if (ShowAnalyticalValidation) { visible.Add("analyticalValidation"); }
 
         VisibleWidgets = visible;
         WidgetVisibilityChanged?.Invoke(this, EventArgs.Empty);
@@ -342,7 +582,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Widget keys currently visible (mirrors the four Show flags).</summary>
+    /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace" };
+        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
 }

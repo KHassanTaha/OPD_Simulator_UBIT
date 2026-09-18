@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using OpdSimulator.App.Views;
 
@@ -28,8 +27,7 @@ public class ControlsDemoScreenshot
 
         try
         {
-            var frame = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(host);
 
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");

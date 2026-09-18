@@ -134,7 +134,7 @@ emits the same event stream at every level, so rerunning at a different
 `--level` shows the same story with more or fewer columns. The test even
 normalises CRLF so the fixture matches identically on Windows and Linux.
 
-**Q: What does `--level rng` add, and how is the draw order defensible?**
+**Q: What does `--level debug` add, and how is the draw order defensible?**
 A: One row per actual random draw: the seed, then `draw#k U=0.6681 → service
 time 0.101 min at Reception s0 (end at t=0.101)`. Each draw's row closes the
 loop: the reader can recompute the next event time by hand from U. The order is

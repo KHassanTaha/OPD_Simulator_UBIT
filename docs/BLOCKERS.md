@@ -9,6 +9,12 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Resolved
 
+- **B-009:** Phase 7C docs — `AGENTS.md` §19 "Two-Path Configuration Contract" required the owner's exact text.
+  - **Resolved 2026-09-18:** §18 restored (never previously present; UI completion discipline now codified). §19 added with text reconciled to code. §15 and the 14→16 / 17→19 numbering gaps documented at end of `AGENTS.md`.
+  - Linked: `docs/TODO.md` Phase 7C row; `docs/DECISIONS.md` D-128.
+
+## Resolved
+
 - **B-008:** Phase 5c.3 (event trace in ClinicDay/MultiDay run modes) conflicts with the frozen-Core rule.
   - Resolution: owner chose **(a)** — allow the minimal Core change. 2026-09-16.
   - Outcome: optional `ITraceSink? traceSink = null` added to the calendar `Engine.Run` overload and forwarded to `RunCore` (D-110). Byte-compatibility proven: Core suite 85 green before AND after. `SimulationCoordinator` now collects a trace in every run mode; `TraceViewer_PopulatesAfterClinicDayRun` green.

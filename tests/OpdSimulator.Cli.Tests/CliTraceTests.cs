@@ -32,7 +32,7 @@ public class CliTraceTests
             .Replace('\r', '\n')
             .Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-    private static string[] RunTrace(string level = "state")
+    private static string[] RunTrace(string level = "detailed")
     {
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
@@ -50,16 +50,16 @@ public class CliTraceTests
     /// produce exactly the frozen, hand-verified 5-patient story.
     /// </summary>
     [Fact]
-    public void Trace_StateLevel_MatchesHandVerifiedFixture()
+    public void Trace_DetailedLevel_MatchesHandVerifiedFixture()
     {
         string[] expected = LinesOf(File.ReadAllText(FixturePath));
-        Assert.Equal(expected, RunTrace("state"));
+        Assert.Equal(expected, RunTrace("detailed"));
     }
 
     [Fact]
-    public void Trace_RngLevel_ListsDrawsAgainstTheReferenceSequence()
+    public void Trace_DebugLevel_ListsDrawsAgainstTheReferenceSequence()
     {
-        string[] lines = RunTrace("rng");
+        string[] lines = RunTrace("debug");
         Assert.Contains(lines, l => l.Contains("seed=42", StringComparison.Ordinal));
         Assert.Contains(lines, l => l.Contains("draw#1 U=0.6681", StringComparison.Ordinal));
         Assert.Contains(lines, l => l.Contains("draw#2 U=0.1409", StringComparison.Ordinal));
@@ -67,13 +67,13 @@ public class CliTraceTests
     }
 
     [Fact]
-    public void Trace_EventsLevel_DropsStateColumnsAndRngRows()
+    public void Trace_StandardLevel_DropsStateColumnsAndRngRows()
     {
-        string[] lines = RunTrace("events");
+        string[] lines = RunTrace("standard");
         Assert.All(lines, l => Assert.DoesNotContain("s0", l));
         Assert.All(lines, l => Assert.DoesNotContain("→", l));
         Assert.All(lines, l => Assert.DoesNotContain("RNG", l));
-        Assert.Contains("q=1", string.Join("\n", lines)); // queue values still present at events level
+        Assert.Contains("q=1", string.Join("\n", lines)); // queue values still present at standard level
     }
 
     [Fact]

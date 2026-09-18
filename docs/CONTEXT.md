@@ -240,8 +240,22 @@ its **last service end**, identical for historical and simulated values. A
 fixed 8:15–11:00 window would let close-time overtime push utilisation
 toward (and past) 1, so it is rejected (Decision D-018).
 
-**Imbalance flag:** applies to BOTH sources — flag when
-max(util_server) − min(util_server) > 0.15.
+**Imbalance flag (simulated source — implemented 6c.4):** flag a server when
+|util_server − stage mean| > 0.15. Shown as an amber bar in the Results
+per-server utilisation widget, with the gap in the tooltip
+("Above/Below average by …"). The stage mean is `StageUtilisation`, which the
+engine defines as the mean of its per-server utilisations (D-121).
+
+> **[VERIFIED — owner, 2026-09-17]** Two imbalance rules coexist by owner
+> decision ("keep both, document the distinction"): **PRD FR-STAT-7 keeps
+> max − min > 0.15 as the standing analytical definition** (stage range);
+> the Results **per-server utilisation widget** instead flags
+> |util − stage mean| > 0.15 (owner's 6c.4 decision message, D-121) — a
+> per-server visual variant, because max−min only ever contrasts the two
+> extreme servers of a stage and cannot say *which* of the others deviate.
+> The historical per-server source was not implemented (the sample data has
+> no server-ID columns), so the widget flag applies to simulated engine runs
+> only, on the Results tab (run-derived figure — AGENTS §16.12).
 
 > **[UNVERIFIED — assumption, 2026-09-13]** Blank cells inside an optional
 > server-ID column: where the patient WAS served at that stage, a blank
@@ -260,6 +274,20 @@ max(util_server) − min(util_server) > 0.15.
 > source)" label. This matches the Section-3 λ/μ override pattern exactly, so
 > D-100's "blank means fitted" intent is preserved with one canonical entry
 > point (D-112).
+
+> **[VERIFIED — owner A′, 2026-09-18 — D-128 / Phase 7C]** Configuration now
+> has **two explicit paths**, chosen by the top-level **Data source** dropdown:
+> **Fit from an uploaded data file** (default) or **Enter parameters manually**.
+> In manual mode the per-stage **Service rate μ (per server)** field is
+> re-introduced and is the single entry point; the Parameters comma list is
+> hidden. In fit mode the comma list remains the bulk override and the
+> per-stage field appears only for a stage the data does not cover. **Precedence
+> in fit mode: fitted rate → comma list → per-stage fallback** (a fitted rate
+> wins — this reverses 5d.1's manual-over-fitted order). **Start is a
+> completeness gate**: it stays disabled until the chosen path is complete, and
+> a banner names the missing input; the coordinator's run-time μ refusal is
+> retained as defence in depth but is no longer GUI-reachable (D-128,
+> supersedes the 5d.1 "runnable in principle" contract).
 
 ---
 
@@ -284,10 +312,26 @@ The simulator uses LiveCharts2. Charts are a presentation layer: the
 underlying numbers are always available in the metrics table, so a
 chart failure never blocks the results.
 
-> Charts are an M5 (GUI) feature. The groundwork happens earlier: the M1
-> statistics collector exposes per-server busy times and waiting-time
-> samples, and the M2 fitting module exposes binned data and fitted PDF
-> curve points — so chart consumers never need the engine reworked.
+> **[VERIFIED — 2026-09-17, Phase 6C complete]** The chart suite landed in
+> Phase 6C in two groups by data source, and a figure appears on exactly one
+> tab (AGENTS §16.12): the **Input** tab (data-derived) holds the
+> inter-arrival / per-stage-service histograms with the fitted-PDF overlay and
+> the paired chi-square observed-vs-expected bars — both built from the
+> verdict's own bins, never recomputed (D-118); **Results** (run-derived)
+> holds the per-server utilisation bars (D-121), the queue-length-over-time
+> lines (min-max decimated to ≤ 2000 pts, D-122) and the one-stage
+> waiting-time histogram (D-123). The M1 collector supplied per-server busy
+> times + per-stage `QueueLengthSeries` + `WaitingTimeSamples`, and M2
+> supplied binned data + fitted PDF points, so no engine rework was needed.
+> The 6C completion gate is D-124 (Phase 6c.6).
+>
+> **[VERIFIED — 2026-09-18, Phase 7D]** The data-derived charts and the data
+> upload/preview UI now share one **Input** tab (tab 2 of four:
+> Simulation | Input | Token Generator | Help). The Simulation tab's former
+> "1 · Data" section is a status strip linking to it, and the data preview is
+> no longer a Results widget. The tab/content split is unchanged in meaning:
+> data-side content on Input, run-side content on the Results panel
+> (D-130..D-134).
 
 ---
 

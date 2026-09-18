@@ -127,7 +127,7 @@ public class Phase4bConfigTests
         Assert.False(vm.AdvancedIsOptionalEnabled, "Clear All must reset the Advanced toggle to OFF");
         Assert.False(vm.ParametersSupplied, "with Parameters OFF the run must see no manual overrides");
         Assert.Equal(42, vm.EffectiveSeed);
-        Assert.Equal("State", vm.EffectiveTraceLevel);
+        Assert.Equal("Detailed", vm.EffectiveTraceLevel);
     }
 
     [AvaloniaFact]
@@ -154,13 +154,13 @@ public class Phase4bConfigTests
     {
         var vm = NewVm();
         vm.Seed.Value = "7";
-        vm.TraceLevel = "Rng";
+        vm.TraceLevel = "Debug";
 
         Assert.Equal(42, vm.EffectiveSeed);
-        Assert.Equal("State", vm.EffectiveTraceLevel);
+        Assert.Equal("Detailed", vm.EffectiveTraceLevel);
 
         vm.AdvancedIsOptionalEnabled = true;
         Assert.Equal(7, vm.EffectiveSeed);
-        Assert.Equal("Rng", vm.EffectiveTraceLevel);
+        Assert.Equal("Debug", vm.EffectiveTraceLevel);
     }
 }

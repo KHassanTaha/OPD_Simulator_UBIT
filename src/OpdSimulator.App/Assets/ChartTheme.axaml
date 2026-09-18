@@ -1,0 +1,42 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        CHARTTHEME.AXAML — the single home of every chart visual token
+        (Phase 6C). No hex values here: each brush resolves a Color token
+        from Theme.axaml, and no chart view ever inlines a colour (AGENTS
+        §16.3). A single-file restyle of Theme.axaml restyles every chart.
+
+        LiveCharts theming contract (verified against 2.0.5): legend and
+        tooltip colours are set per-chart as LiveCharts Paint objects
+        (LegendTextPaint / LegendBackgroundPaint / TooltipTextPaint /
+        TooltipBackgroundPaint), and axis labels as per-axis LabelPaint.
+        The chart-building code (6c.2+) converts these brushes to SKPaints
+        at chart construction time — the brushes below are the one source
+        those paints are built from.
+    -->
+
+    <!-- Series colours: the four-stage queue-over-time chart (6c.5) needs at
+         least four mutually distinct series colours (green, teal, violet,
+         vermillion). -->
+    <SolidColorBrush x:Key="BrushChartSeries1" Color="{StaticResource ColorBrandGreen}"/>
+    <SolidColorBrush x:Key="BrushChartSeries2" Color="{StaticResource ColorAccentInfo}"/>
+    <SolidColorBrush x:Key="BrushChartSeries3" Color="{StaticResource ColorChartSeries3}"/>
+    <SolidColorBrush x:Key="BrushChartSeries4" Color="{StaticResource ColorChartSeries4}"/>
+
+    <!-- Axes -->
+    <SolidColorBrush x:Key="BrushChartGrid" Color="{StaticResource ColorBorderDefault}"/>
+    <SolidColorBrush x:Key="BrushChartAxisText" Color="{StaticResource ColorTextSecondary}"/>
+    <SolidColorBrush x:Key="BrushChartAxisTicks" Color="{StaticResource ColorBorderHover}"/>
+
+    <!-- Legend -->
+    <SolidColorBrush x:Key="BrushChartLegendText" Color="{StaticResource ColorTextSecondary}"/>
+    <SolidColorBrush x:Key="BrushChartLegendBackground" Color="{StaticResource ColorBackgroundPanel}"/>
+    <SolidColorBrush x:Key="BrushChartLegendBorder" Color="{StaticResource ColorBorderDefault}"/>
+
+    <!-- Tooltip -->
+    <SolidColorBrush x:Key="BrushChartTooltipBackground" Color="{StaticResource ColorBackgroundPanel}"/>
+    <SolidColorBrush x:Key="BrushChartTooltipBorder" Color="{StaticResource ColorBorderDefault}"/>
+    <SolidColorBrush x:Key="BrushChartTooltipText" Color="{StaticResource ColorTextPrimary}"/>
+
+</ResourceDictionary>

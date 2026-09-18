@@ -79,7 +79,7 @@ public class TraceRegressionTests
     public void Trace_MatchesHandVerifiedGoldenFile()
     {
         string expected = File.ReadAllText(FixturePath).Replace("\r\n", "\n").TrimEnd('\n');
-        string actual = string.Join("\n", TraceLines(TraceLevel.State));
+        string actual = string.Join("\n", TraceLines(TraceLevel.Detailed));
 
         Assert.Equal(expected, actual);
     }
@@ -92,7 +92,7 @@ public class TraceRegressionTests
     [Fact]
     public void GoldenLock_DetectsTamperedFixture()
     {
-        string[] actual = TraceLines(TraceLevel.State);
+        string[] actual = TraceLines(TraceLevel.Detailed);
         string[] tamperedLines = (string[])actual.Clone();
         string[] parts = tamperedLines[tamperedLines.Length / 2].Split(' ', StringSplitOptions.RemoveEmptyEntries);
         parts[^1] = "q=999";
@@ -110,7 +110,7 @@ public class TraceRegressionTests
     [Fact]
     public void Trace_HasExactlyFiveOfEachEventType()
     {
-        const TraceLevel level = TraceLevel.State;
+        const TraceLevel level = TraceLevel.Detailed;
         var counts = TraceLines(level)
             .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[2])
             .GroupBy(column => column)
@@ -120,40 +120,40 @@ public class TraceRegressionTests
         Assert.Equal(5, counts["START_SVC"]);
         Assert.Equal(5, counts["END_SVC"]);
         Assert.Equal(5, counts["EXIT"]);
-        Assert.False(counts.ContainsKey("RNG"), "state level must not show RNG rows");
+        Assert.False(counts.ContainsKey("RNG"), "detailed level must not show RNG rows");
         Assert.False(counts.ContainsKey("ROUTE"), "single-stage trace has no route rows");
     }
 
     /// <summary>
-    /// Level contract: <c>events</c> drops the state columns (server id,
-    /// destination) and the RNG rows; <c>state</c> adds the columns; <c>rng</c>
+    /// Level contract: <c>standard</c> drops the state columns (server id,
+    /// destination) and the RNG rows; <c>detailed</c> adds the columns; <c>debug</c>
     /// adds the draw rows on top. The event times themselves are identical
     /// across levels — only the detail changes, never the story.
     /// </summary>
     [Fact]
     public void Levels_DifferOnlyInDetailColumns()
     {
-        string[] eventsRows = TraceLines(TraceLevel.Events);
-        string[] stateRows = TraceLines(TraceLevel.State);
-        string[] rngRows = TraceLines(TraceLevel.Rng);
+        string[] standardRows = TraceLines(TraceLevel.Standard);
+        string[] detailedRows = TraceLines(TraceLevel.Detailed);
+        string[] debugRows = TraceLines(TraceLevel.Debug);
 
-        Assert.All(eventsRows, line => Assert.DoesNotContain("s0", line));
-        Assert.All(eventsRows, line => Assert.DoesNotContain("→", line));
-        Assert.DoesNotContain("RNG", string.Join("\n", eventsRows));
+        Assert.All(standardRows, line => Assert.DoesNotContain("s0", line));
+        Assert.All(standardRows, line => Assert.DoesNotContain("→", line));
+        Assert.DoesNotContain("RNG", string.Join("\n", standardRows));
 
-        Assert.All(stateRows, line => Assert.False(line.Contains("RNG", StringComparison.Ordinal)));
-        Assert.All(stateRows.Where(line => line.Contains("START_SVC")), line => Assert.Contains("s0", line));
-        Assert.All(stateRows.Where(line => line.Contains("END_SVC")), line => Assert.Contains("→ exit", line));
+        Assert.All(detailedRows, line => Assert.False(line.Contains("RNG", StringComparison.Ordinal)));
+        Assert.All(detailedRows.Where(line => line.Contains("START_SVC")), line => Assert.Contains("s0", line));
+        Assert.All(detailedRows.Where(line => line.Contains("END_SVC")), line => Assert.Contains("→ exit", line));
 
-        string rngText = string.Join("\n", rngRows);
-        Assert.Contains("seed=42", rngText);
-        Assert.Contains("U=", rngText);
-        Assert.Contains("draw#", rngText);
+        string debugText = string.Join("\n", debugRows);
+        Assert.Contains("seed=42", debugText);
+        Assert.Contains("U=", debugText);
+        Assert.Contains("draw#", debugText);
 
         // The same event times appear regardless of level (the story is level-independent).
         Assert.Equal(
-            eventsRows.Where(line => line.Contains("ARRIVAL")).Select(line => line.Split(' ')[0]),
-            rngRows.Where(line => line.Contains("ARRIVAL")).Select(line => line.Split(' ')[0]));
+            standardRows.Where(line => line.Contains("ARRIVAL")).Select(line => line.Split(' ')[0]),
+            debugRows.Where(line => line.Contains("ARRIVAL")).Select(line => line.Split(' ')[0]));
     }
 
     /// <summary>
@@ -166,7 +166,7 @@ public class TraceRegressionTests
     [Fact]
     public void RngRows_TrackTheReferenceRandomSequence()
     {
-        string[] drawRows = TraceLines(TraceLevel.Rng)
+        string[] drawRows = TraceLines(TraceLevel.Debug)
             .Where(line => line.Contains("draw#"))
             .ToArray();
         Assert.Equal(10, drawRows.Length); // 5 patients, single server: one service draw per start + one inter-arrival draw per arrival

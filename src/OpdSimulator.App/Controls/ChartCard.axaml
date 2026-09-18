@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.ChartCard">
+
+    <!-- ChartCard — one themed card that carries a single chart (Phase 6C).
+         A reusable unit for every Input-Analysis and results chart: a Title,
+         an optional Caption, the chart control (ChartContent), and a themed
+         EmptyStateText shown until data exists. All colours come from theme
+         tokens; no hex here (AGENTS §16.3). -->
+    <Border Classes="PanelCard">
+        <StackPanel Spacing="{DynamicResource SpaceS}">
+            <TextBlock x:Name="TitleText"
+                       Text="{Binding $parent[controls:ChartCard].Title}"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"/>
+            <TextBlock x:Name="CaptionText"
+                       Text="{Binding $parent[controls:ChartCard].Caption}"
+                       Classes="Caption"
+                       TextWrapping="Wrap"/>
+            <Border x:Name="EmptyStateBorder"
+                    Background="{DynamicResource BrushBackgroundAlt}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <TextBlock Text="{Binding $parent[controls:ChartCard].EmptyStateText}"
+                           Classes="Caption"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"/>
+            </Border>
+            <ContentPresenter x:Name="ChartHost"
+                              Content="{Binding $parent[controls:ChartCard].ChartContent}"/>
+        </StackPanel>
+    </Border>
+</UserControl>

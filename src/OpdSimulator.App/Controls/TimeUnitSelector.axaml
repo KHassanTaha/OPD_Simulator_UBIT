@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.TimeUnitSelector"
+             x:DataType="controls:TimeUnitSelector">
+
+    <!-- TimeUnitSelector (Phase 7A) — a SearchableDropdown wrapper that
+         exposes a strongly-typed two-way TimeUnit selection while reusing
+         the FR-UI-6 dropdown (type-to-filter, × clear, keyboard nav). The
+         string↔TimeUnit bridge lives in the code-behind converter. -->
+    <controls:SearchableDropdown x:Name="Dropdown"
+                                 Label="Time unit"
+                                 Placeholder="Choose a unit…"
+                                 Tooltip="The unit used for every rate and duration in this configuration."/>
+</UserControl>

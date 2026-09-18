@@ -10,7 +10,7 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 3 shell tests (feat/gui-rebuild gate): MainWindow is now the
-/// TabControl shell — Simulation | Input Analysis | Token Generator | Help —
+/// TabControl shell — Simulation | Input | Token Generator | Help —
 /// with the Simulation tab carrying the 380px-config / fill-results split.
 /// Keyboard contract (AGENTS §16.7): the tab headers are the first focusable
 /// element and arrow keys move selection between tabs.
@@ -33,8 +33,10 @@ public class Phase3ShellTests
 
         var tabs = Shell(window);
         Assert.Equal(4, tabs.Items.Count);
+        // Header 2 renamed in Phase 7D when Data + Input Analysis merged into a
+        // single "Input" tab. Tab count unchanged.
         Assert.Equal(
-            new[] { "Simulation", "Input Analysis", "Token Generator", "Help" },
+            new[] { "Simulation", "Input", "Token Generator", "Help" },
             Headers(tabs));
 
         window.Close();

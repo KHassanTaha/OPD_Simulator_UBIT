@@ -59,6 +59,13 @@ public sealed class Engine
     private List<double>[]? _stageWaitSamples;
     private List<QueueSample>[]? _stageQueueSeries;
 
+    // Per-run generated-value samples (Phase 8A): the inter-arrival and service
+    // times the RNG actually produced, retained so a later goodness-of-fit pass
+    // can test the simulation output itself. Always recorded; released at the
+    // end of the run like the chart buffers.
+    private List<double>? _generatedInterArrivals;
+    private List<List<double>>? _generatedServiceSamples;
+
     /// <summary>
     /// Creates an engine for a network run (no single-stage <see cref="EngineConfig"/>).
     /// </summary>
@@ -261,6 +268,11 @@ public sealed class Engine
         _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<double>()).ToArray();
         _stageQueueSeries = Enumerable.Range(0, stages.Length).Select(_ => new List<QueueSample>()).ToArray();
 
+        // Generated-value buffers (Phase 8A): one inter-arrival list and one
+        // service-time list per stage. Always retained, released after the run.
+        _generatedInterArrivals = new List<double>();
+        _generatedServiceSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<double>()).ToList();
+
         // First arrival at t = 0 (CONTEXT §4.3).
         fel.Enqueue(new Event(0, EventType.Arrival, nextPatientId));
 
@@ -350,8 +362,14 @@ public sealed class Engine
         }).ToArray();
 
         // Release the per-run buffers; a later run allocates fresh ones.
+        var generatedInterArrivals = _generatedInterArrivals!;
+        var generatedServiceSamplesByStage = _generatedServiceSamples!
+            .Select(samples => (IReadOnlyList<double>)samples)
+            .ToList();
         _stageWaitSamples = null;
         _stageQueueSeries = null;
+        _generatedInterArrivals = null;
+        _generatedServiceSamples = null;
 
         double[] perServerUtilisation = stageMetrics
             .SelectMany(m => m.PerServerUtilisation)
@@ -371,6 +389,8 @@ public sealed class Engine
             AdmittedPerDay = gate?.AdmittedPerDay ?? Array.Empty<int>(),
             GeneratorDays = gate?.GeneratorDays ?? 0,
             DailyCap = gate?.DailyCap,
+            GeneratedInterArrivalSamples = generatedInterArrivals,
+            GeneratedServiceSamplesByStage = generatedServiceSamplesByStage,
         };
     }
 
@@ -431,6 +451,9 @@ public sealed class Engine
         double stopTime = gate is not null ? gate.StopTime : horizonMinutes;
         if (nextArrivalTime < stopTime)
         {
+            // Retain the draw that actually produced the next arrival (Phase 8A);
+            // a draw beyond the window is discarded exactly as before.
+            _generatedInterArrivals!.Add(interArrival);
             nextPatientId++;
             fel.Enqueue(new Event(nextArrivalTime, EventType.Arrival, nextPatientId));
         }
@@ -459,6 +482,7 @@ public sealed class Engine
         EmitTrace(TraceEventType.StartService, clock, patient.Id, stage.Name, server.Id, stage.Queue.Count, details: null);
 
         double serviceTime = _serviceSampler.Sample(stage.ServiceRate);
+        _generatedServiceSamples![patient.StageIndex].Add(serviceTime); // Phase 8A: retain the drawn service time per stage
         EmitRngDraw(clock, FormattableString.Invariant(
             $"service time {serviceTime:0.000} min at {stage.Name} s{server.Id} (end at t={clock + serviceTime:0.000})"));
         _log.Debug("    -> service start server={ServerId}, service-time draw={Draw:0.####} min, end t={Time:0.###}",

@@ -23,7 +23,7 @@ public sealed class TextWriterTraceSink : ITraceSink
     /// <param name="writer">Where formatted lines are written.</param>
     /// <param name="level">The detail level applied to every row.</param>
     /// <param name="realStartMinutes">Wall-clock anchor of t = 0 (default 08:15).</param>
-    public TextWriterTraceSink(TextWriter writer, TraceLevel level = TraceLevel.State, double realStartMinutes = OpdSimulator.Core.Calendar.ClinicCalendar.DefaultWindowStartMinutes)
+    public TextWriterTraceSink(TextWriter writer, TraceLevel level = TraceLevel.Detailed, double realStartMinutes = OpdSimulator.Core.Calendar.ClinicCalendar.DefaultWindowStartMinutes)
     {
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
         _level = level;

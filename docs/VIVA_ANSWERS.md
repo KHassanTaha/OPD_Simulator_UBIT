@@ -7,6 +7,105 @@ not survive the view-layer replacement (see `docs/M5_FAILURES.md`).
 
 ---
 
+## Phase 8B — simulation-verification widget (2026-09-18)
+
+### Q: You already have a chi-square test. Why is there a second one?
+
+**Answer:** We run chi-square in two places. Input-side chi-square validates
+that our MLE fit is a good model of the historical data — this is input
+modelling. Output-side chi-square validates that the simulation engine is
+generating values that match the distribution the user configured — this is the
+standard model-verification step from Banks and Law & Kelton. The first checks
+the assumption; the second checks the implementation. If the engine silently
+drew from the wrong distribution, the input-side test would still pass (the
+data is fine) while the output-side test would reject — so they cannot be
+replaced by one another. The output-side test consumes the raw inter-arrival
+and per-stage service samples the engine retains in `SimulationResult`
+(Phase 8A, D-135) and lives as a Results widget because it describes a run
+(D-136).
+
+### Q: What does the verification widget do when the chosen family is not a real distribution?
+
+**Answer:** It fails loud instead of faking a verdict. **Deterministic** output
+is skipped with a note (a constant stream has no distribution to fit);
+**General** is flattened to Exponential and the card says so (the engine still
+samples every stage exponentially, D-127); a series with fewer than two samples
+shows *"Insufficient samples for chi-square."* rather than a fabricated
+p-value. That is the same honesty rule as the rest of the app — never silently
+skip a check. It reuses the same `FitsService` and the same histogram binning
+as the Input tab, so the two chi-squares are computed the same way and can be
+compared directly (`Phase8BVerificationTests`).
+
+---
+
+## Phase 7D — merged Input tab (2026-09-18)
+
+### Q: Why merge the Data upload section into the Input Analysis tab instead of keeping them separate?
+
+**Answer:** They answer the same question — "what data did I load, and is it
+usable?" — so splitting them forced the user across two surfaces to do one job
+(upload, check the preview, read the fit). Phase 7D makes one **Input** tab
+(tab 2 of four: Simulation | Input | Token Generator | Help) that holds upload,
+preview, validation banner, stage-mismatch warning, and the fit charts
+together. The semantic split from AGENTS §16.12 survives: data-derived figures
+live on Input; run-derived figures live on the Results panel. The Simulation
+tab's Data section collapses to a status strip ("Using file: …" /
+"Entering parameters manually") with a **Manage input →** link, so the config
+panel still tells you the data source at a glance (D-130..D-134).
+
+### Q: Two buttons can both open a file picker — how do you know they don't load twice?
+
+**Answer:** They don't own a picker each. `ConfigPanelViewModel` and the Input
+tab both *raise an intent* — `UploadRequested` / `UploadFileRequested` — and
+`MainViewModel.PickAndLoadDataFileAsync` is the single place that shows the
+OS picker, loads, validates, and mirrors the result into both the config panel
+and the Input tab (RULING 3, D-132). One path means one validation, one log
+line, one preview. The test `InputTab_UploadRequested_UsesTheSinglePickerPath`
+pins that both intents converge on the same handler.
+
+---
+
+## Phase 6C — chart suite (2026-09-17)
+
+### Q: How do the charts prove the fitted distribution actually fits the data?
+
+**Answer:** The Input tab histogram draws the observed frequencies in
+exactly the same bins the chi-square test uses, and overlays the fitted PDF
+(density × bin width × n, so curve and bars are on one scale). You see the
+fit *before* the p-value. The chi-square widget then draws observed vs
+expected per bin, so you can point at the specific bins that drive χ². The
+picture and the verdict are guaranteed consistent because both are produced
+from the same `ChiSquareResult` — the histogram never re-bins the data
+(`Phase6c2HistogramTests.BuildHistogram_ReusesTheChiSquareBins_NeverRecomputes`).
+"Fail to reject" is not "the distribution is correct"; we always report the
+p-value, and the chart is the intuition behind it.
+
+### Q: Why show one bar per server instead of a single stage-utilisation number?
+
+**Answer:** Stage utilisation is the *mean* of its servers, and a mean hides
+imbalance — one doctor at 90% plus one at 30% averages to a comfortable-looking
+60%. The per-server chart exposes that: each bar is a real engine server, and
+a bar turns amber when it deviates from its stage mean by more than 0.15, with
+the exact gap in its tooltip (D-121). FR-STAT-7's analytical rule stays
+max − min > 0.15; the widget is the per-server visual variant because max−min
+only tells you the two extremes and never *which other* server is off
+(CONTEXT §5.7 documents both). This is a run-derived figure, so it lives on
+the Results tab, never the Input tab.
+
+### Q: The queue-length chart plots a run with hundreds of thousands of samples. How is it not unusable?
+
+**Answer:** Two things. First, the series is prepared off the UI thread, so
+prep over 10,000 samples stays well under the 100 ms budget and the window
+never freezes (`Phase6c6Nfr6Tests`, NFR-6). Second, the plotted series is
+min-max bucket-decimated to at most 2000 points per stage (D-122): each
+bucket keeps its first, last, minimum and maximum, so the tallest peaks and
+the visible trend survive while the point count is bounded — O(n) in one pass.
+The caption says "downsampled from N samples" when reduction happened, so the
+number is never hidden. Full-fidelity data is still in the metrics; the chart
+is a presentation layer.
+
+---
+
 ## Phase 5d — config refinements (2026-09-16)
 
 ### Q: Why is the μ field gone from the Stages section?
@@ -96,6 +195,10 @@ viva slides can update it in one place. (FR-UI-5)
 random draw (`draw#1 U=0.6681 → service time 0.101 min`) under a fixed seed, so
 a handful of patients can be replayed by hand. (2) Analytical validation: with
 exponential arrivals/service the engine's queue-length, wait, and utilisation
-outputs are compared against the M/M/c formulas and the % error reported.
-(3) `dotnet test` — 230 tests including the run-flow tests that assert refusal
-banners, trace detail by level, and multi-day day counts.
+outputs are compared against the M/M/c formulas and the % error reported (the
+Results-panel *Analytical validation* widget, §6.9 of the user manual). We guard
+the comparison to steady-state runs — the analytical formulas do not apply to a
+165-minute clinic day. To use the widget, run a DiagnosticTrace over 100,000 or
+more simulated minutes. (3) `dotnet test` — 414 tests including the run-flow
+tests that assert refusal banners, trace detail by level, and multi-day day
+counts.

@@ -24,9 +24,11 @@
            headers left→right → the active tab's content (config fields first,
            results second) → window chrome.   Only the TabControl has focusable
            content in the shell; placeholder cards are non-interactive.
-         Structure: header bar + TabControl [Simulation | Input Analysis |
+         Structure: header bar + TabControl [Simulation | Input |
          Token Generator | Help]. Simulation carries the 380px-config / fill-
-         results split (GridSplitter, mirrors M5 "400,6,*" design). -->
+         results split (GridSplitter, mirrors M5 "400,6,*" design). Phase 7D
+         merged the old Data section and Input Analysis tab into the single
+         "Input" tab. -->
     <Grid RowDefinitions="Auto,*">
 
         <Border Grid.Row="0"
@@ -50,6 +52,7 @@
         </Border>
 
         <TabControl Grid.Row="1"
+                    x:Name="MainTabs"
                     Background="{DynamicResource BrushBackgroundWindow}"
                     TabIndex="0">
 
@@ -80,11 +83,10 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Input Analysis" TabIndex="1">
+            <TabItem Header="Input" TabIndex="1">
                 <Border Background="{DynamicResource BrushBackgroundWindow}"
                         Padding="{DynamicResource ThicknessWindowPadding}">
-                    <controls:PlaceholderContent Title="Input analysis"
-                                                 Hint="Uploaded data preview, distribution fitting (MLE), chi-square goodness-of-fit and parameter comparison — Phase 4/5."/>
+                    <views:InputTab DataContext="{Binding InputTab}"/>
                 </Border>
             </TabItem>
 

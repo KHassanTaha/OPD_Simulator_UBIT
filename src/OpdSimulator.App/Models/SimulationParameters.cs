@@ -24,7 +24,7 @@ using OpdSimulator.Data.Parameters;
 /// <param name="DailyCap">Maximum admissions per day block; null = unlimited.</param>
 /// <param name="Seed">Random seed for reproducibility (FR-VAL-3).</param>
 /// <param name="PExitOverride">Manual exit probability after Screening; null = fitted (or default 0.4 with no data).</param>
-/// <param name="TraceLevelName">Human-readable trace level: "None", "Events", "State" or "Rng".</param>
+/// <param name="TraceLevelName">Human-readable trace level: "Minimal", "Standard", "Detailed" or "Debug".</param>
 public sealed record SimulationParameters(
     ParameterMode Mode,
     string InterArrivalDistribution,

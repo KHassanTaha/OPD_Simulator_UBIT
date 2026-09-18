@@ -2,6 +2,1090 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-18 06:59
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8D — final polish: Results-panel group headings (8D.1)
+- Phase 8D — `TraceLevel` rename Minimal/Standard/Detailed/Debug, ordinals preserved (8D.2, D-138)
+- Phase 8D — config Collapse All / Expand All (8D.3)
+- Phase 8D — three reference docs created: DEFINITION_OF_DONE.md, WORKFLOW_DIAGRAM.md, RESULTS_PANEL_STRUCTURE.md (8D.4)
+
+In Progress
+- None
+
+What is complete:
+- `src/OpdSimulator.App/Views/ResultsPanel.axaml`: seven group headings (Overview, Server Performance, Charts, Statistical Validation, Simulation Verification, Analytical Validation, Event Trace) inside the `HasRun` region only (welcome card unchanged); no separate "Stage Performance" heading (per-stage table shares the metrics card); "Charts" follows physical widget order (queue + wait before chi-square); stale `FR-STAT-11` comment → `FR-STAT-5`; layout-contract comment updated.
+- `src/OpdSimulator.Core/Trace/TraceLevel.cs`: members `Minimal(0)/Standard(1)/Detailed(2)/Debug(3)` (was `None/Events/State/Rng`), ordinals and `>=` comparisons untouched; `Minimal` still collects nothing. Updated `TraceFormatter`, `TextWriterTraceSink`, `CollectionTraceSink`, `SimulationCoordinator`, `TraceCommand` (`--level minimal|standard|detailed|debug`, default `detailed`), `ConfigPanelViewModel` (list/default/effective/reset), `SimulationParameters` doc, `ConfigPanel.axaml` tooltip; docs `AGENTS.md` §19.2, `DEV_LAUNCH.md` §7.6, `USER_MANUAL.md`, `REQUIREMENTS.md` FR-VAL-4, `VIVA_ANSWERS.md`.
+- `src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs` + `Views/ConfigPanel.axaml`: five `IsXSectionExpanded` bools (all default true) + `CollapseAll`/`ExpandAll` commands; each `CollapsibleSection.IsExpanded` bound two-way; "Expand all"/"Collapse all" ghost buttons above `§2 · Model`.
+- `docs/DEFINITION_OF_DONE.md`, `docs/WORKFLOW_DIAGRAM.md`, `docs/RESULTS_PANEL_STRUCTURE.md` created; `README.md` Documentation table links all three.
+- Tests: new `tests/OpdSimulator.App.Tests/Phase8DTests.cs` (2) + `Phase8DScreenshots.cs` (1, walkthrough a–d); `TraceRegressionTests`, `CliTraceTests`, `Phase5RunFlowTests`, `Phase5Screenshot`, `Phase5cScreenshot`, `Phase4ConfigTests`, `Phase4bConfigTests`, `Phase8CValidationTests` updated for the rename.
+- Docs reconciliation: D-138 logged; legacy M5 chart/event-log backlog rows (event log, LiveCharts2, five charts, Input Analysis tab, run-event wiring) retired as `[x]`; `Phase7DScreenshots` flake captured as a polish-backlog row.
+
+What remains:
+- Phase 6 (Help + presets) — must not start until instructed (8D is the last phase of the 7–8 batch).
+- Polish backlog: results-panel unit captions (FR-UI-22), steady-state hint, `Phase7DScreenshots` harness alignment, per-stage service families, D/G placeholders, duplicate service-distribution labels, comma-list vs per-stage μ consolidation, orphaned sync commands.
+
+Next Session Should Start With
+- Await owner "go" for Phase 6 (Help + presets).
+- Address polish-backlog rows as directed.
+
+Blocked
+- None
+
+Git State
+Commits made this session: `chore: results panel grouping, trace rename, docs additions (Phase 8D)` (single commit: code, tests, docs and this handoff)
+Pushed to origin: Yes — pushed with this commit (per §11.4)
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 417 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 234)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Trace/TraceLevel.cs: renamed enum members (ordinals preserved)
+src/OpdSimulator.Core/Trace/TraceFormatter.cs, TextWriterTraceSink.cs: rename refs
+src/OpdSimulator.App/Services/CollectionTraceSink.cs, SimulationCoordinator.cs: rename refs
+src/OpdSimulator.Cli/Commands/TraceCommand.cs: `--level` tokens + usage/error text
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: trace names + section-expansion properties/commands
+src/OpdSimulator.App/Views/ConfigPanel.axaml: section bindings + buttons
+src/OpdSimulator.App/Views/ResultsPanel.axaml: seven group headings
+src/OpdSimulator.App/Models/SimulationParameters.cs: trace-level doc
+tests/OpdSimulator.App.Tests/Phase8DTests.cs: added (2 tests)
+tests/OpdSimulator.App.Tests/Phase8DScreenshots.cs: added (1 walkthrough + screenshot)
+tests/.../{TraceRegressionTests,CliTraceTests,Phase5RunFlowTests,Phase5Screenshot,Phase5cScreenshot,Phase4ConfigTests,Phase4bConfigTests,Phase8CValidationTests}.cs: rename updates
+docs/DEFINITION_OF_DONE.md, docs/WORKFLOW_DIAGRAM.md, docs/RESULTS_PANEL_STRUCTURE.md: added
+docs/DECISIONS.md: D-138
+docs/TODO.md: Phase 8D `[x]`, legacy M5 rows retired, flake row added
+docs/DEV_LAUNCH.md: Last verified + §6 (417) + Phase 8D test paragraph + changelog
+docs/USER_MANUAL.md, docs/REQUIREMENTS.md, AGENTS.md, VIVA_ANSWERS.md: trace-rename refs
+README.md: links the three new docs
+
+Decisions Made
+D-138 — `TraceLevel` renamed Minimal/Standard/Detailed/Debug as a pure ordinal-preserving relabel
+
+Assumptions Added/Changed
+None
+
+Notes for Next Session
+- Two 8D.1 deviations to be aware of: (1) no "Stage Performance" heading (the per-stage table is merged into the metrics card); (2) the "Charts" heading follows the physical widget order, which differs from the brief's listed order.
+- The 8D.1–8D.3 walkthrough "a–d" text was truncated in the owner instruction; the sequence actually exercised is defined in `Phase8DScreenshots.cs` (real run → four renamed levels → Collapse All → Expand All + screenshot).
+- 8D is the final phase in the 7–8 batch. Do not start Phase 6 until the owner says "go".
+
+Session Handoff — 2026-09-18 06:18
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8C — analytical M/M/c validation widget (8C.1–8C.4), with the Option-2 steady-state horizon guard (D-137)
+
+In Progress
+- None
+
+What is complete:
+- `Services/AnalyticalValidationService.cs` — pure Erlang-C `ComputeForStage` (textbook M/M/1 + M/M/2 verified; null for λ≤0/μ≤0/c<1/ρ≥1) and `Compare(result, arrivalFamily, serviceFamilies, stageInputs)`, which returns one `ComparisonRow` per stage only when exponential arrivals + every stage exponential + every ρ<1 + `result.OperatingTimeMinutes >= MinimumSteadyStateMinutes` (100,000). The horizon guard reads **`SimulationResult.OperatingTimeMinutes`**.
+- `ViewModels/AnalyticalValidationViewModel.cs` — empty-until-run; `Apply`/`ApplyRows` (sync, tests) + `ApplyAsync` (Task.Run prep, `Dispatcher.UIThread.Post` apply, generation guard); `Clear`; long `EmptyMessage` naming all three conditions.
+- Eighth Results key `analyticalValidation`: `ResultsPanelViewModel` (Show*/ToggleWidget/VisibleWidgets 8 keys/migration), `WidgetPreferences` default seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyAnalyticalValidation` in the posted run-completion path, `ResultsPanel.axaml` eighth card (6-column table) + picker checkbox.
+- `Phase8CValidationTests.cs` (12 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` and `Phase8BVerificationTests` updated in place 7→8.
+
+What remains:
+- Phase 8D, then Phase 6 (Help + presets). Do NOT start 8D until instructed.
+
+Next Session Should Start With
+- Phase 8D — await owner "go".
+- Phase 6 (Help + presets) after 8D.
+
+Blocked
+- None
+
+Git State
+Commits made this session: fda0231 feat: analytical M/M/c validation widget (Phase 8C)
+Pushed to origin: No — push follows this docs-handoff commit (per §13 the handoff is its own commit)
+Uncommitted changes: None (this handoff commit pending)
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 414 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 231)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/AnalyticalValidationService.cs: added
+src/OpdSimulator.App/ViewModels/AnalyticalValidationViewModel.cs: added
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (8th widget key)
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified (shared VM + ApplyAnalyticalValidation)
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified (8th card + checkbox)
+src/OpdSimulator.App/Services/WidgetPreferences.cs: modified (default seed)
+tests/OpdSimulator.App.Tests/Phase8CValidationTests.cs: added (12 tests)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs: modified (7→8 in place)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs: modified (7→8, renames, 6200 px height, analytical card asserted empty on the transient run)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs: modified (7→8 in place)
+docs/DECISIONS.md: modified (D-137)
+docs/REQUIREMENTS.md: modified (FR-STAT-5 → [x]; coverage 50/70 = 71.4%)
+docs/DEV_LAUNCH.md: modified (§1 last-verified, §6 counts, changelog)
+docs/USER_MANUAL.md: modified (§6 widget list, new §6.9 Analytical validation)
+docs/VIVA_ANSWERS.md: modified (Phase 8C sentence; test count 230 → 414)
+docs/TODO.md: modified (Phase 8C → [x]; §8D polish backlog line)
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-137 — Phase 8C: the analytical-validation widget is guarded by a steady-state horizon threshold
+
+Assumptions Added/Changed
+- None (the 100,000-minute threshold is a decision, not a domain assumption)
+
+Notes for Next Session
+- **Horizon property for the guard: `SimulationResult.OperatingTimeMinutes`.** For a diagnostic/horizon run it is the elapsed simulated minutes; for a calendar run it is the summed open-day block time (so a clinic day stays far below 100,000 and is correctly refused).
+- **The brief said "FR-STAT-11", which does not exist in the PRD.** Phase 8C maps to the existing **FR-STAT-5** ("Auto compare vs analytical M/M/c"); adding FR-STAT-11 would have been an orphan row (AGENTS §9.7). Flagged to the owner in the handoff.
+- **The 6C all-widgets screenshot now shows the analytical card in its empty state** — that run is a transient λ=0.1 clinic day, so the D-137 guard refuses the comparison. `AssertWidgetsFromRealRun` asserts `IsEmpty` + no rows for widget #8 (the populated case is covered by `Phase8CValidationTests`). Do not "fix" the 6C run to force rows.
+- The 5% gate test is a **200,000-minute DiagnosticTrace** (`HorizonMinutes = "200000"`, `AdvancedIsOptionalEnabled = true`, `Seed.Value = "42"`, `TraceLevel = "None"`, λ=0.5, μ 0.8/0.6/0.4, servers 1/2/3, p_exit 0.4); it also writes `logs/screenshots/phase-8c-analytical.png` by hiding the other seven widgets and restoring them in `finally`.
+- Observed once during the session: `Phase7DScreenshots.Render_InputTabEmpty_SavePhase7dInputEmptyPng` flaked once under full-suite headless load, then passed in isolation and in 3 consecutive full App runs. Not caused by 8C; watch for headless-screenshot flakiness in CI.
+- `Phase6c6Screenshots` results-in-one-frame window height is now 6200 px (was 5600) to fit the eighth widget.
+
+Session Handoff — 2026-09-18 05:32
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8B — simulation-output chi-square verification widget (8B.1–8B.4)
+
+In Progress
+- None
+
+What is complete:
+- `Services/SimulationVerificationService.cs` — pure `VerifyAll(result, arrivalFamily, serviceFamilies, α)` returns one `VerificationReport` per series (inter-arrival + one per `result.StageMetrics`, stage order). Per series: a single `FitsService.Fit` + a histogram via the shared `InputAnalysisService.BuildHistogram` (reuses the verdict's own bins, D-118). Deterministic skips with a note; General flattens to Exponential with a note (D-127); < 2 samples yields an insufficient-samples note — never a fabricated verdict.
+- `ViewModels/SimulationVerificationViewModel.cs` (+ `VerificationChartViewModel`) — empty until a run completes; `ApplyAsync` preps on a thread-pool thread and builds charts on the UI thread via `Dispatcher.UIThread.Post`, generation-guarded against stale applies (D-119 pattern); `Clear()`.
+- Seventh Results key `simulationVerification`: `ResultsPanelViewModel` (Show*/ToggleWidget/VisibleWidgets/migration), `WidgetPreferences` default seed, `MainViewModel` shared instance + `ResetAll` clear + `ApplyVerification` on run completion, `ResultsPanel.axaml` card + picker checkbox.
+- `Phase8BVerificationTests.cs` (9 tests); `Phase6c6WidgetSelectorTests`/`Phase6c6Screenshots` updated in place 6→7 (`six` helpers/doc renamed).
+
+What remains:
+- Phase 8C (do NOT start until instructed), then 8D; Phase 6 (Help + presets) comes after 8D.
+
+Next Session Should Start With
+- Phase 8C — await owner "go" (8C scope to be confirmed).
+- Phase 8D, then Phase 6.
+
+Blocked
+- None
+
+Git State
+Commits made this session: 559b21e feat: simulation-output chi-square verification widget (Phase 8B)
+Pushed to origin: Yes — `feat/milestone-7-model-driven` at 559b21e (docs handoff commit follows)
+Uncommitted changes: None (this handoff commit pending)
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release)
+dotnet test: PASS — 402 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 219)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/SimulationVerificationService.cs: added
+src/OpdSimulator.App/ViewModels/SimulationVerificationViewModel.cs: added (+ VerificationChartViewModel)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (7th widget key)
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified (shared VM + ApplyVerification)
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified (7th card + checkbox)
+src/OpdSimulator.App/Services/WidgetPreferences.cs: modified (default seed)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs: added (9 tests)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs: modified (6→7 in place)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs: modified (6→7, renames, heights)
+docs/DECISIONS.md: modified (D-136)
+docs/REQUIREMENTS.md: modified (FR-UI-4/FR-UI-14 refreshed)
+docs/DEV_LAUNCH.md: modified (§1 last-verified, §6 counts, changelog)
+docs/USER_MANUAL.md: modified (§6 widget list, §6.7 table, new §6.8)
+docs/VIVA_ANSWERS.md: modified (Phase 8B section)
+docs/TODO.md: modified (Phase 8B → [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-136 — output-side chi-square verification is a seventh Results widget built from `SimulationResult`'s retained samples
+
+Assumptions Added/Changed
+- None
+
+Notes for Next Session
+- The 6C screenshot config (λ=0.1) legitimately leaves the Doctor stage with too few service samples, so its verification card renders an explanatory note, not a histogram; `AssertWidgetsFromRealRun` therefore asserts only the inter-arrival card is drawable, while the 8B gate test uses λ=0.5 and asserts all four cards are. Do not "fix" the 6C run to force a doctor histogram — the note is the correct fail-loud behaviour.
+- `VerificationWidget_PopulatesOnRunCompletion` (Phase8B) also writes the gate screenshot `logs/screenshots/phase-8b-verification.png`; it temporarily hides the other six widgets and restores them in `finally` (machine `ui.json` ends unchanged).
+- `Phase6c6Screenshots` results-in-one-frame window height is now 5600 px (was 3200) to fit the seventh widget.
+
+Session Handoff — 2026-09-18 04:32
+Branch: feat/milestone-7-model-driven
+Status: Clean
+
+Done
+- Phase 8A — retain RNG-generated samples in `SimulationResult` (8A.1–8A.3)
+
+In Progress
+- None
+
+What is complete:
+- `SimulationResult` exposes `GeneratedInterArrivalSamples` and `GeneratedServiceSamplesByStage` (init-only, `Array.Empty` defaults).
+- `Engine.RunCore` records the drawn inter-arrival times (only when the next arrival is scheduled) and the per-stage service times (indexed by `patient.StageIndex`) in two per-run buffers, projects them into the result, then releases them.
+- Private helper signatures, existing public properties/methods/constructors, and both `Run` overloads are unchanged.
+- `GeneratedSamplesTests.cs` (5 tests) added; Core 85 → 90.
+
+What remains:
+- Phase 8B (chi-square on simulation output) — do NOT start until instructed.
+
+Next Session Should Start With
+- Phase 8B — simulation-verification histograms + chi-square over the retained samples (await owner "go").
+- Phase 8C, then 8D; Phase 6 (Help + presets) comes after 8D.
+
+Blocked
+- None
+
+Git State
+Commits made this session: 1500f2e feat: retain generated samples in SimulationResult (Phase 8A)
+Pushed to origin: Yes — `feat/milestone-7-model-driven` at 1500f2e
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release)
+dotnet test: PASS — 393 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 210)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Engine/SimulationResult.cs: modified (+2 init-only properties)
+src/OpdSimulator.Core/Engine/Engine.cs: modified (2 buffers + append/project/release)
+tests/OpdSimulator.Core.Tests/GeneratedSamplesTests.cs: added (5 tests)
+docs/DECISIONS.md: modified (D-135)
+docs/DEV_LAUNCH.md: modified (§1 counts, §6 counts, §12 changelog)
+docs/PROGRESS.md: modified (Phase 8A entry + this handoff)
+docs/TODO.md: modified (Phase 8A → [x])
+
+Decisions Made
+- D-135 — `SimulationResult` retains RNG-generated inter-arrival and per-stage service samples
+
+Assumptions Added/Changed
+- None
+
+Notes for Next Session
+- `Run_CalendarMode_RetainsSamples` deliberately does NOT assert `count == TotalPatientsServed − 1`: retained inter-arrival samples include draws that landed in closed periods and were gated out, so the count is not tied to patients served. It asserts both streams are populated and every stage produced service samples. Flagged in PROGRESS and D-135.
+- 8A was Core-only: no UI/launch smoke was needed or run; the 7D launch evidence stands.
+- Memory cost of always retaining: ≈128 KB at 4000 patients × 3 stages (accepted, D-135).
+
+## Phase 8A — Retain RNG-generated samples in `SimulationResult` (2026-09-18, `feat/milestone-7-model-driven`)
+
+First phase of the owner's Phase 8 simulation-verification series (owner "go";
+STOP before 8B enforced). Phase 8B needs the simulation **output** (not the
+input data) to be chi-square tested against the configured distributions, so
+the engine must stop discarding the inter-arrival and service times it draws.
+
+1. **Result shape** (8A.1, D-135): `SimulationResult` gains two init-only
+   properties — `GeneratedInterArrivalSamples` (`IReadOnlyList<double>`) and
+   `GeneratedServiceSamplesByStage` (`IReadOnlyList<IReadOnlyList<double>>`),
+   both defaulting to `Array.Empty<…>`. No existing property, method, or
+   constructor signature changed.
+2. **Engine retention** (8A.2): two new per-run instance buffers
+   (`_generatedInterArrivals` / `_generatedServiceSamples`) mirror the existing
+   chart-buffer lifecycle — allocated in `RunCore`, appended in `HandleArrival`
+   (only inside the `nextArrivalTime < stopTime` block, so a discarded
+   beyond-window draw is not retained) and in `StartService` (indexed by
+   `patient.StageIndex`), projected into the result, then released. Private
+   helper signatures untouched; both `Run` overloads (horizon + calendar)
+   converge on the same `RunCore` path, so both retain samples.
+3. **Tests** (8A.3): new `GeneratedSamplesTests.cs`, 5 tests —
+   `Run_HorizonMode_RetainsInterArrivalSamples_CountMatches` (count = served − 1),
+   `Run_HorizonMode_RetainsServiceSamples_PerStage`,
+   `Run_CalendarMode_RetainsSamples`, `Run_SameSeed_ProducesIdenticalSamples`,
+   `Run_DifferentSeed_ProducesDifferentSamples`.
+
+**GATE passed (2026-09-18):** Release build **0 warnings / 0 errors**; full
+suite **393 green** — Core **85 → 90** (+5), Data 58, Cli 35, App 210. Core-only
+change, so no launch/alive smoke was required. Docs: DECISIONS D-135, TODO,
+DEV_LAUNCH §6 + changelog.
+
+> **Note on `Run_CalendarMode_RetainsSamples`:** retained inter-arrival samples
+> are the arrivals the engine *scheduled*, which includes draws that landed in
+> closed periods and were gated out; they are therefore not tied to
+> `TotalPatientsServed`. The test asserts the streams are populated and every
+> stage produced service samples, not a patient-count equality.
+
+## Phase 7D — Merged Input tab (upload + preview + fit analysis) (2026-09-18, `feat/milestone-7-model-driven`)
+
+Fourth phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
+8A enforced). The Simulation tab's "1 · Data" section and the separate "Input
+Analysis" tab merged into one **Input** tab; the data-preview widget left the
+Results panel; the config panel's data UI became a compact status strip; and the
+D-114 stage-mismatch warning relocated to the Input tab (AGENTS §19.6 / §16.12).
+
+1. **Preview state split** (7D.1, D-130): new `InputPreviewViewModel` owns
+   `ColumnTitles`/`Rows`/`InvalidRows`/`LoadErrorSummary` plus the computed
+   `HasValidationIssues`/`HasValidationErrors`/`Severity`/`BannerMessage`/
+   `IssueSummary`/`HasRows` and `SetPreview`/`Clear`. The shared
+   `DataPreviewTable` control was **not modified** (reference-assigned flat
+   projections, not an `ObservableCollection`).
+2. **Input tab VM + view** (7D.1–7D.2): new `InputTabViewModel` (upload / clear /
+   use-for-simulation / sync-stages / keep-stages intent events, `SetLoadedFile`,
+   `ApplyStageMismatch`, `Clear`) and `Views/InputTab.axaml` + code-behind
+   (`Upload Data` / `Clear File`, FR-UI-9 banner, preview, D-114 warning,
+   "Use for simulation →", separator, "Distribution fit", the shared
+   `InputAnalysisView`, empty state).
+3. **Shell wiring** (7D.3, D-131/D-132): tab 2 renamed `"Input"`; `MainWindow`
+   gained `x:Name="MainTabs"`, the `TabSelectionChanged` subscription and the
+   `PickDataFileAsync` picker delegate; `MainViewModel` owns the two-way routing
+   (`SetSelectedTabIndex`, `PickAndLoadDataFileAsync`, `UpdateConfigSourceStatus`,
+   `SyncStageMismatchToInputTab`).
+4. **Config strip** (7D.4, D-133): the "1 · Data" `CollapsibleSection` became a
+   `PanelCard` status strip (`ConfigSourceText` + "Manage input →" + the
+   one-line `"Stages differ from data — see the Input tab."` indicator);
+   `ConfigPanel.axaml.cs` lost its dead upload/sync/keep handlers;
+   `ConfigPanelViewModel` gained `ConfigSourceStatus`/`ConfigSourceText`/
+   `HasStageMismatch`/`NavigateToInputTabRequested`/`ClearLoadedFile()`.
+5. **Results panel cleanup** (7D.5): the four preview members, `SetPreview`,
+   `ShowDataPreview` and the "Data preview" widget/checkbox were removed from
+   `ResultsPanelViewModel`/`ResultsPanel.axaml`; `WidgetPreferences` keeps the
+   legacy `dataPreview` key parseable (forward-compatible).
+6. **Tests** (7D.7): new `Phase7DTests` (36 tests) + `Phase7DScreenshots`
+   (4 frames); `Phase3ShellTests` header rename; `Phase4ConfigTests` 6→5
+   sections; `Phase7CTests`, `Phase5cFixesTests`, `Phase6c1/2/3Screenshot`,
+   `Phase6c6Screenshots`, `Phase6c6WidgetSelectorTests` updated in place.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **388 green**
+(Core 85 / Data 58 / Cli 35 / App 210, +40); headless Linux launch alive
+`"Main window created."` exit 0, crash logs unchanged since 2026-09-16; evidence
+`logs/screenshots/phase-7d-input-empty.png` (35 KB), `phase-7d-input-loaded.png`
+(137 KB), `phase-7d-input-mismatch.png` (101 KB), `phase-7d-config-strip.png`
+(113 KB) — D-089 headless method. Docs: DECISIONS D-130..D-134, TODO 7D `[x]` +
+6C flip, AGENTS §19.6/§16.12 tab-name refresh, DEV_LAUNCH §1/§6 + changelog,
+USER_MANUAL merge, VIVA_ANSWERS. Pushed to `feat/milestone-7-model-driven`,
+awaiting owner review/merge per §11.5; **do not start Phase 8A until instructed**.
+
+### Phase 7D verification (AGENTS §18)
+
+| Requirement / contract | How verified |
+|---|---|
+| FR-UI-9 (inline validation banner) | `InputTab_ValidationIssues_RenderAsBanner` (AvaloniaFact): row issues render the `ErrorBanner` with the issue text in the merged tab; screenshot `phase-7d-input-loaded.png`. |
+| FR-UI-14 / §16.12 (Results widgets are run-derived only) | `ResultsPanel_NoLongerContainsDataPreview`, `ResultsPanel_View_HasNoDataPreviewTable`, `WidgetPreferences_LegacyDataPreviewKey_StillParses`; `phase-6c6WidgetSelectorTests` six-widget contract. |
+| FR-UI-20 / NFR-10 (preview surface) | `Preview_SetPreview_ProjectsColumnsAndRows`, `Preview_SetPreview_MapsInvalidRowsToZeroBasedIndices`, `Preview_IssueSummary_TruncatesAfterFive`; `InputTab_AfterLoad_AnalysisSectionVisible` asserts the virtualised table is shown. |
+| FR-UI-7 (disabled control explains itself) / D-114 | `InputTab_StageMismatchWarning_VisibleWhenSet`, `ConfigPanel_StatusStrip_MismatchIndicator_VisibleOnMismatch`, `InputTab_StageSync_ReplacesConfigStages`; screenshot `phase-7d-input-mismatch.png`. |
+| §19.6 two-path contract (both paths still work) | `InputTab_UseForSimulation_SwitchesToFitAndSelectsSimulation` (Path B → A) and `InputTab_ClearFile_UnloadsConfigFile` (A → unload), plus the unchanged `Phase7CTests`. |
+| RULING 1–4 (owner 7D rulings) | D-130..D-134; `InputTab_AfterLoad_AnalysisSectionVisible`, `ConfigPanel_ManageInputButton_NavigatesToInputTab`, `InputTab_UploadRequested_UsesTheSinglePickerPath`, `InputTab_StageSync_ReplacesConfigStages`. |
+| Tab order (§16.7 / §19.6) | `Phase3ShellTests.MainWindow_HasFourTabs_InExpectedOrder` (header renamed), `Phase7DTests.Shell_Tabs_AreSimulationInputTokenHelp` + `TabIndex_*`; `ArrowKeys_MoveTabSelection_WhenHeaderFocused`. |
+| D-089 headless launch method | `timeout 20 dotnet run --project src/OpdSimulator.App -c Release` → `Application started. Main window created.`, exit 0; 4 screenshots regenerated by `Phase7DScreenshots`. |
+
+### Session Handoff — 2026-09-18 03:35
+Branch: `feat/milestone-7-model-driven`
+Status: Clean
+
+Done
+- Phase 7D — merged Input tab (upload + preview + fit analysis) `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 388 green (Core 85 / Data 58 / Cli 35 / App 210, +40); D-130..D-134 logged.
+
+In Progress
+- None.
+
+Next Session Should Start With
+- Await owner review/merge of `feat/milestone-7-model-driven` (§11.5); do not start Phase 8A until instructed.
+- Post-merge: Phase 8A (Core: retain generated samples), then 8B, 8C, 8D; Phase 6 (Help tab + preset system) follows 8D.
+
+Blocked
+- None.
+
+Git State
+- Commits made this session: `9ae09bf` `feat: merge Input tab (upload + preview + fit analysis) (Phase 7D)`.
+- Pushed to origin: Yes (feature branch).
+- Uncommitted changes: None.
+
+Build & Test
+- dotnet build: PASS (0 warnings, 0 errors)
+- dotnet test: PASS — 388 passed, 0 failed
+- Warnings: 0
+
+Files Touched
+- src/OpdSimulator.App/ViewModels/InputPreviewViewModel.cs: added
+- src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: added
+- src/OpdSimulator.App/Views/InputTab.axaml (+ .axaml.cs): added
+- src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+- src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+- src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified
+- src/OpdSimulator.App/Views/MainWindow.axaml (+ .axaml.cs): modified
+- src/OpdSimulator.App/Views/ConfigPanel.axaml (+ .axaml.cs): modified
+- src/OpdSimulator.App/Views/ResultsPanel.axaml: modified
+- tests/OpdSimulator.App.Tests/Phase7DTests.cs: added
+- tests/OpdSimulator.App.Tests/Phase7DScreenshots.cs: added
+- tests/OpdSimulator.App.Tests/Phase3ShellTests.cs, Phase4ConfigTests.cs, Phase5cFixesTests.cs, Phase6c1Screenshot.cs, Phase6c2Screenshot.cs, Phase6c3Screenshot.cs, Phase6c6Screenshots.cs, Phase6c6WidgetSelectorTests.cs, Phase7CTests.cs: modified
+- docs/DECISIONS.md, docs/PROGRESS.md, docs/TODO.md, AGENTS.md, docs/DEV_LAUNCH.md, docs/USER_MANUAL.md, docs/VIVA_ANSWERS.md: modified
+
+Decisions Made
+- D-130 — preview extracted into `InputPreviewViewModel`; control untouched.
+- D-131 — navigation via `MainViewModel.SetSelectedTabIndex`/`TabSelectionChanged`.
+- D-132 — one picker / one load path for both Upload buttons.
+- D-133 — D-114 warning relocates to the Input tab; Sync calls `SyncStagesToData` directly.
+- D-134 — tab header 2 renamed "Input Analysis" → "Input" in place.
+
+Assumptions Added/Changed
+- None new.
+
+Notes for Next Session
+- `ConfigPanelViewModel.SyncStagesRequested`/`KeepStageMismatchRequested` remain but are no longer raised by the panel (its buttons were removed) — cleanup candidate, not dead code.
+- The §19.6 tab-name refresh TODO row is now done (AGENTS §19.6/§16.12, USER_MANUAL, DEV_LAUNCH updated in this change).
+
+> Phase order clarification (7D handoff fix): next phase after 7D is 8A, not Phase 6. Phase 6 follows 8D.
+
+### AGENTS.md §18 + §19 — 2026-09-18
+
+§18 "UI Completion Criterion" restored — it had never been present despite
+governing the verification discipline across phases 7A–7C. §19 "Two-Path
+Configuration Contract" added with text reconciled to code (precedence order
+corrected, precedence location corrected, tab names corrected, Phase 7D merge
+note added; the `TraceLevel` line is a forward reference to the Phase 8D
+rename — the current enum values `None | Events | State | Rng` are named
+alongside their future `Minimal | Standard | Detailed | Debug` names).
+Section numbering gaps 14→16 and 17→19 documented. B-009 closed.
+
+## Phase 7C — Two-path configuration (fit-from-data / enter-manually) (2026-09-18, `feat/milestone-7-model-driven`)
+
+Third phase of the owner's Phase 7 model-driven series (owner "go"; STOP before
+8A enforced). Two explicit configuration paths selected by a new top-level
+**Data source** dropdown; Start became a completeness gate after the owner
+confirmed A′ and directed that 5d.1's "runnable in principle" contract be
+superseded (D-128).
+
+1. **Mode model** (7C.1–7C.2): new `Models/DataSourceMode.cs`
+   (`FitFromData`/`EnterManually`). `ConfigPanelViewModel` gained `SourceMode`
+   (default FitFromData) with a string-backed `SourceModeSelection` bridge for
+   the existing `SearchableDropdown`, `IsDataSectionVisible` /
+   `IsManualMuEditable` / `IsCommaListMuVisible`, a `0.4` p_exit seed on
+   switching to manual, and the Parameters toggle locked on in manual mode.
+2. **Per-stage μ** (7C.3–7C.5): `StageRow` gained
+   `MuValue`/`MuHasError`/`MuError`/`IsMuVisible` + blur `ValidateMu()`
+   ("μ must be a positive number…", routed via `ValidationKey="stage-mu"`).
+   The new "Service rate μ" `ValidatedField` is visible in manual mode
+   always, and in fit mode only for stages with no fitted rate. Fit-mode
+   `ManualServiceRates` now prefers fitted → comma list → per-stage fallback
+   (fitted wins — reverses 5d.1's manual-over-fitted order).
+3. **Completeness gate** (7C.6): `RecomputeBlockingState()` now runs
+   `CollectServerGaps` + per-mode `CollectManualModeGaps` /
+   `CollectFitModeGaps`, sets `StartIsEnabled` and `StartBlockedMessage`, and
+   drives the new FR-UI-9 `ErrorBanner` above the pinned footer. A real bug
+   was found in-gate: `SyncStagesToData` renamed rows but never recomputed the
+   gate, so the message stayed stale ("Reception has no μ" after adopting a
+   Screening-only file) — fixed by recomputing in `ApplyLoadedFile` and
+   `SyncStagesToData`.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **348 green**
+(Core 85 / Data 58 / Cli 35 / App 170, +16 `Phase7CTests`; the 5d.1
+Start-enabled assertions were updated in place, not deleted). Evidence
+`logs/screenshots/phase-7c-manual-mode.png` (470×1000 headless render:
+EnterManually, Data section hidden, per-stage μ 0.8/0.6/0.4, servers 1/2/3,
+Start enabled — D-089 method; temporary harness removed after capture).
+`Phase5dScreenshot` was updated to the new fitted-wins label order. Docs:
+DECISIONS D-128, TODO 7C `[x]` + polish backlog additions, USER_MANUAL
+"Data source — two ways to configure" + "Service rate" rewrite + §5 steps +
+changelog, DEV_LAUNCH §1/§6/§12, REQUIREMENTS FR-UI-9 `[x]` / FR-UI-7 `[~]`,
+CONTEXT §5.7. Pushed to `feat/milestone-7-model-driven`, awaiting owner
+review/merge per §11.5; **do not start Phase 8A until instructed**.
+
+Open item: `AGENTS.md` §19 "Two-Path Configuration Contract" was requested with
+the owner's exact text, which was not available in this session — **not written
+to avoid inventing policy**; awaiting the owner's text.
+
+### Session Handoff — 2026-09-18 01:32
+Branch: `feat/milestone-7-model-driven`
+Status: Clean (only `AGENTS.md` §19 text outstanding — B-009)
+
+Done
+- Phase 7C — two-path configuration marked `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 348 green (Core 85 / Data 58 / Cli 35 / App 170, +16), evidence `logs/screenshots/phase-7c-manual-mode.png`; D-128 logged.
+
+In Progress
+- None (code + tests + docs complete; commit/push pending at time of writing).
+
+What is complete:
+- `Models/DataSourceMode.cs`; `ConfigPanelViewModel` mode region + per-mode gate + `StartBlockedMessage` + `CollectServerGaps`/`CollectManualModeGaps`/`CollectFitModeGaps`; `StageRow` μ fields + `ValidateMu`; `ConfigPanel.axaml` Data-source dropdown / gated Data section / per-stage μ field / ErrorBanner; `ConfigPanel.axaml.cs` "stage-mu" routing; `Phase7CTests.cs` (16 tests); 5d.1 Start-gate test flips (D-128).
+- Docs: DECISIONS D-128, TODO 7C `[x]` + 3 polish-backlog rows, DEV_LAUNCH §1/§6/§12, USER_MANUAL "Data source"/"Service rate"/§5/changelog, REQUIREMENTS (FR-UI-9 `[x]`, FR-UI-7 `[~]`, coverage 49/70 = 70.0%), CONTEXT §5.7.
+
+What remains:
+- Owner to supply the exact `AGENTS.md` §19 "Two-Path Configuration Contract" text; then append it.
+- Owner to eyeball `logs/screenshots/phase-7c-manual-mode.png` (470×1000) and review/merge the branch per §11.5.
+- Do NOT start Phase 8A until instructed.
+
+Next Session Should Start With
+- Add `AGENTS.md` §19 once the owner supplies the exact text (nothing else outstanding for 7C).
+- If 8A starts, re-run the §14.1 reconciliation first (git + TODO + PROGRESS + BLOCKERS + DECISIONS).
+
+Blocked
+- `AGENTS.md` §19 text — owner input required (see BLOCKERS.md B-009 if raised).
+
+Git State
+Commits made this session: `fb1b272` — `feat: two-path configuration (fit-from-data + enter-manually) (Phase 7C)`; plus the docs follow-up commit that carries this handoff.
+Pushed to origin: Yes — `c4cf833..fb1b272` (and the follow-up) on `feat/milestone-7-model-driven`.
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors).
+dotnet test: PASS — 348 green (Core 85 / Data 58 / Cli 35 / App 170).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App/Models/DataSourceMode.cs: added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (mode region, StageRow μ, per-mode gate, SyncStages/ApplyLoaded recalc, TryBuildRunParameters)
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified (Data-source dropdown, gated Data section, per-stage μ field, ErrorBanner row)
+src/OpdSimulator.App/Views/ConfigPanel.axaml.cs: modified ("stage-mu" blur routing)
+tests/OpdSimulator.App.Tests/Phase7CTests.cs: added (16 tests)
+tests/OpdSimulator.App.Tests/Phase4ConfigTests.cs: modified (5d.1 Start-gate flips, D-128 comments)
+tests/OpdSimulator.App.Tests/Phase5dConfigTests.cs: modified (rename + flips, defence-in-depth comment)
+tests/OpdSimulator.App.Tests/Phase5dScreenshot.cs: modified (fitted-wins label assertions)
+docs/DECISIONS.md: modified (D-128)
+docs/TODO.md: modified (7C `[x]`, polish backlog)
+docs/DEV_LAUNCH.md: modified (§1, §6, §12)
+docs/USER_MANUAL.md: modified (Data source / Service rate / §5 / changelog)
+docs/REQUIREMENTS.md: modified (FR-UI-7/9, coverage)
+docs/CONTEXT.md: modified (§5.7)
+docs/PROGRESS.md: modified (7C narrative + this handoff)
+
+Decisions Made
+- D-128 — Start button is a completeness gate; supersedes 5d.1's "runnable in principle" contract (A′, owner-confirmed).
+
+Assumptions Added/Changed
+- CONTEXT §5.7 [VERIFIED] — two configuration paths; fit-mode μ precedence fitted → comma → per-stage; Start gate (D-128).
+
+Notes for Next Session
+- `AGENTS.md` §19 was explicitly requested "with the owner's exact text"; that text is not in the repo or this session — do not write a substitute.
+- The fit-mode μ precedence change (fitted wins) is a deliberate reversal of 5d.1; `Phase5dScreenshot` was updated accordingly.
+- `logs/` is gitignored; the 7C screenshot came from a temporary harness removed after capture.
+
+
+## Phase 7B — Per-stage Kendall model notation (2026-09-18, `feat/milestone-7-model-driven`)
+
+Second phase of the owner's Phase 7 model-driven input series (owner "go"
+after the 7A docs follow-up was committed). Scope locked to the Stages
+section; the Server count field, Stage name field, p_exit location, all
+Phase-6C chart code, and Core / Data / Cli were frozen.
+
+1. **Notation parser** (7B.1): new pure `Services/ModelNotationParser.cs`
+   — `Parse("A/S/c")` maps `M`→"Exponential", `D`→"Deterministic",
+   `G`→"General", server count 1–5, and throws `ArgumentException` with an
+   actionable message otherwise; `StandardModels` is the 11-entry option
+   list (M/M/1..5, M/D/1..3, D/M/1..2, G/G/1), also consumed by the tests.
+2. **Row model / advanced fields** (7B.2): `StageRow` gained
+   `SelectedModel` (default "M/M/1"), `UseAdvancedSetup`, `ArrivalFamily`,
+   `ServiceFamily`, plus `OnSelectedModelChanged` which applies the
+   shortcut to the families and to `Servers.Value` (the field is a string
+   `ConfigFieldViewModel`, so this is `Servers.Value = parse.ServerCount`
+   `.ToString()`; the existing rho recompute fires). While Advanced is on
+   the handler returns early so it never clobbers explicit families.
+3. **UI** (7B.3): each stage row now shows `Server count → Model ▼ →
+   Advanced toggle → [arrival/service family ▼ ▼, revealed by Advanced] →
+   μ source label`. The shortcut is hidden in Advanced mode and vice versa.
+4. **Run wiring** (7B.4): `TryBuildRunParameters` pulls
+   `InterArrivalDistribution`/`ServiceDistribution` from
+   `StageRows[0].ArrivalFamily`/`.ServiceFamily` (arrivals are one external
+   stream; the record carries a single service family, so per-stage service
+   override is deferred — D-126).
+5. **Tests** (7B.5): exactly one new file `Phase7BTests.cs` with the 17
+   named tests (10 parser, 5 `StageRow`, 2 rendered `ConfigPanel`).
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **332
+green** (Core 85 / Data 58 / Cli 35 / App 154, +17). Evidence
+`logs/screenshots/phase-7b-stage-models.png` (470×900 headless render:
+Reception set to M/M/2 with Servers=2, Screening in Advanced mode showing
+both family dropdowns, Doctor with the default shortcut — D-089 method;
+owner to eyeball). One full-suite run flaked once on the pre-existing
+`Phase5Screenshot` render (headless dispatcher contention under load); it
+passed in isolation and on the re-run, and the committed suite is green.
+Docs: DECISIONS D-126/D-127, TODO 7B `[x]`, USER_MANUAL "Per-stage model
+setup", DEV_LAUNCH §6 + changelog.
+
+Findings surfaced (not silently fixed): (a) **all stages share the first
+stage's service family** in the engine until per-stage service is modelled;
+(b) **`Deterministic`/`General` are display-only** — the engine still
+samples exponentially and `FitsService` returns a null report for them
+(D-127); (c) the stage Advanced **"Service distribution" label duplicates**
+the existing Model-section dropdown label — flagged to the owner rather
+than renamed unilaterally. Pushed to `feat/milestone-7-model-driven`,
+awaiting owner review/merge per §11.5; **do not start Phase 7C until
+instructed**.
+
+New tests (`tests/OpdSimulator.App.Tests/Phase7BTests.cs`, exactly 17):
+`Parser_MM1_ReturnsExponentialExponential1`, `Parser_MM3_ReturnsExponentialExponential3`,
+`Parser_MD2_ReturnsExponentialDeterministic2`, `Parser_DM1_ReturnsDeterministicExponential1`,
+`Parser_GG1_ReturnsGeneralGeneral1`, `Parser_Invalid_MissingSlash_Throws`,
+`Parser_Invalid_BadServerCount_Throws`, `Parser_Invalid_UnknownLetter_Throws`,
+`Parser_StandardModels_HasExactly11Entries`, `Parser_StandardModels_AllParse`,
+`StageRow_DefaultModel_IsMM1`, `StageRow_ChangeModel_FillsArrivalFamily`,
+`StageRow_ChangeModel_FillsServiceFamily`, `StageRow_ChangeModel_UpdatesServerCount`,
+`StageRow_AdvancedMode_SkipsModelSync`, `ConfigPanel_EachStage_HasModelDropdown`,
+`ConfigPanel_AdvancedToggle_RevealsTwoDistributions`.
+
+### Session Handoff — 2026-09-18 00:43
+Branch: `feat/milestone-7-model-driven`
+Status: Clean
+
+Done
+- Phase 7B — per-stage model notation marked `[x]` in docs/TODO.md after a full GATE: build 0/0, suite 332 green (Core 85 / Data 58 / Cli 35 / App 154, +17), real launch 18 s alive "Main window created." + crash logs unchanged, evidence `logs/screenshots/phase-7b-stage-models.png`.
+
+In Progress
+- None.
+
+What is complete:
+- `Services/ModelNotationParser` (Kendall `A/S/c` grammar + 11-model `StandardModels`); `StageRow` model/advanced fields + model→family/server sync; `ConfigPanel.axaml` per-stage Model dropdown + Advanced toggle + two family dropdowns; `TryBuildRunParameters` first-stage family wiring; `Phase7BTests.cs` (17 tests).
+- Docs: DECISIONS D-126/D-127, TODO 7B `[x]`, DEV_LAUNCH §1/§6/§12, USER_MANUAL "Per-stage model setup" + changelog, PROGRESS (this entry + handoff).
+
+What remains:
+- Owner to eyeball `logs/screenshots/phase-7b-stage-models.png` (470×900) and review/merge the branch per §11.5.
+- Do NOT start Phase 7C until instructed.
+
+Next Session Should Start With
+- Await the owner's "go" for Phase 7C (scope per PRD/TODO — not started; STOP enforced at the 7B boundary).
+- If 7C starts, re-run the §14.1 reconciliation first (git + TODO + PROGRESS + BLOCKERS + DECISIONS).
+
+Blocked
+- None.
+
+Git State
+Commits made this session: `d14a111` — `feat: per-stage model notation and distribution selectors (Phase 7B)` (7A docs commit `912a76e` was the resume HEAD).
+Pushed to origin: Yes — `912a76e..d14a111` on `feat/milestone-7-model-driven`.
+Uncommitted changes: None.
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors).
+dotnet test: PASS — 332 green (Core 85 / Data 58 / Cli 35 / App 154).
+Warnings: 0. One full-suite run flaked once on the pre-existing `Phase5Screenshot` headless render; it passed in isolation and on re-run (charted as a known flake, not a 7B regression).
+
+Files Touched
+src/OpdSimulator.App/Services/ModelNotationParser.cs: added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (StageRow + TryBuildRunParameters)
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified (stage-row controls)
+tests/OpdSimulator.App.Tests/Phase7BTests.cs: added
+docs/DECISIONS.md: modified (D-126, D-127)
+docs/DEV_LAUNCH.md: modified (§1 verified line, §6 counts, §12 changelog)
+docs/USER_MANUAL.md: modified ("Per-stage model setup" + §12 changelog)
+docs/TODO.md: modified (7B row `[x]`)
+docs/PROGRESS.md: modified (7B narrative + this handoff)
+
+Decisions Made
+- D-126 — per-stage Kendall notation is a UI convenience; families flow from the FIRST stage; per-stage service override deferred.
+- D-127 — `Deterministic`/`General` are display-only placeholders (engine still exponential, null fit report).
+
+Assumptions Added/Changed
+- None (the `D`/`G` limitation is recorded as D-127, a decision).
+
+Notes for Next Session
+- Three findings surfaced, not silently fixed: (a) all stages share the first stage's service family in the engine (flat `SimulationParameters`); (b) `Deterministic`/`General` behave like `M` (D-127); (c) a stage's Advanced "Service distribution" label duplicates the existing Model-section dropdown label — flagged for the owner, not renamed.
+- `logs/` is gitignored; the 7B screenshot was produced by a temporary harness that was removed after capture (matching the 7A evidence pattern).
+
+## Phase 7A — Time-unit selector, parameter-mode relocation, time-span presets (2026-09-18, `feat/milestone-7-model-driven`)
+
+First phase of the owner's Phase 7 model-driven input series (STOP before 7B
+formally issued after this gate). Three changes, all in `OpdSimulator.App`
+only — Core / Data / Cli and all Phase-6C chart code frozen (owner: "no
+touch"):
+
+1. **Time-unit selector** (7A.1–7A.2): new `Models/TimeUnit.cs` enum
+   (Minutes/Seconds/Hours), new reusable `Controls/TimeUnitSelector.axaml(.cs)`
+   wrapping the existing string-based `SearchableDropdown` via a two-way
+   value-converter binding (`SelectedUnit` StyledProperty, default Minutes).
+2. **Input model consolidation** (7A.3–7A.4): the parameter-mode radio
+   (Rate-wise/Mean-wise) moved from the Model section into the Parameters
+   section top, immediately above the new `TimeUnitSelector` and the manual
+   λ/μ fields — the modal D-102 optional section is auto-enabled; both
+   radios and the unit selector are two-way ObservableProperties.
+3. **Time-span presets** (7A.5–7A.6): Horizon gains a `TimeSpanPreset`
+   dropdown (15 minutes / 1 hour / 1 day / 1 week / 1 month / custom days)
+   above the run-mode radio; `TryBuildRunParameters` converts every manual
+   parameter to **per-minute** via a private `ToPerMinute` seam (Seconds
+   ×60, Hours ÷60, Minutes passthrough — Mean-wise inverts 1/mean first),
+   and resolves short spans to a bounded minutes-horizon vs day+ spans to a
+   generator-day count (OneWeek→6, OneMonth→26, D-125); Multi-day run mode
+   forces `Days.Value`.
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **315
+green** (Core 85 / Data 58 / Cli 35 / App 137, +15 `Phase7ATests.cs` names
+below); real Linux launch 18 s alive "Application started. Main window
+created." + exit 0, crash logs unchanged since 2026-09-16. Evidence
+`logs/screenshots/phase-7a-units.png` (headless render of the real
+ConfigPanel: Parameters section with the moved radios + TimeUnitSelector
+showing "Seconds", Horizon section with the "Custom days" span selected —
+D-089 method; owner to eyeball).
+
+New tests (`tests/OpdSimulator.App.Tests/Phase7ATests.cs`, exactly 15, one
+new test FILE per 7A.7): `TimeUnit_Default_IsMinutes`,
+`ParameterMode_Default_IsRateWise`, `ToPerMinute_Minutes_ReturnsUnchanged`,
+`ToPerMinute_Seconds_MultipliesBy60`, `ToPerMinute_Hours_DividesBy60`,
+`RateWise_LambdaPassesThrough`, `MeanWise_LambdaIsInverseOfMean`,
+`MeanWise_SecondsMean_ConvertsCorrectly`, `TimeSpan_FifteenMinutes_ReturnsHorizonMinutes15`,
+`TimeSpan_OneHour_ReturnsHorizonMinutes60`, `TimeSpan_OneDay_ReturnsGeneratorDays1`,
+`TimeSpan_OneWeek_ReturnsGeneratorDays6`, `TimeSpan_OneMonth_ReturnsGeneratorDays26`,
+`TimeSpan_CustomDays_ParsesFieldValue`, `TimeUnitSelector_BindsToViewModel`
+(AvaloniaFact). Docs: DECISIONS D-125, USER_MANUAL "Time unit"/"Parameter
+mode" subsections, DEV_LAUNCH §1 last-verified + §6 count + changelog.
+Awaiting owner review/merge per §11.5; **Phase 7B is NOT to be started**.
+
+### §18 walkthrough — Phase 7A (automated where headless; on-display keyboard pass remains owner-required, host is Wayland)
+
+| Step | Result | How verified |
+|------|--------|--------------|
+| Time unit defaults to Minutes | Pass | `TimeUnit_Default_IsMinutes` |
+| Seconds unit scales manual λ by ×60 | Pass | `ToPerMinute_Seconds_MultipliesBy60` + `MeanWise_SecondsMean_ConvertsCorrectly` reached through `TryBuildRunParameters` |
+| Hours unit scales manual μ by ÷60 | Pass | `ToPerMinute_Hours_DividesBy60` |
+| Mean-wise inverts before unit conversion | Pass | `MeanWise_LambdaIsInverseOfMean` |
+| Parameter-mode radio moved to Parameters top | Pass | `Phase7ATests` + `phase-7a-units.png` (Parameters section frame) |
+| Time unit selector is two-way | Pass | `TimeUnitSelector_BindsToViewModel` (AvaloniaFact) |
+| Span presets resolve to horizons / generator days | Pass | `TimeSpan_FifteenMinutes_*` … `TimeSpan_CustomDays_ParsesFieldValue` (6 tests) |
+| Fresh launch → defaults, no auto-restore | Pass | `TimeUnit_Default_IsMinutes` + `ParameterMode_Default_IsRateWise` (factory defaults, FR-UI-21) |
+| Real launch + no new crash log | Pass | 18 s alive "Application started. Main window created.", exit 0; `logs/crash-*` unchanged since 2026-09-16 |
+
+## Phase 6c.6 — 6C completion gate (2026-09-17)
+
+Verification + docs only (D-124); no App/Core/Data/Cli source change. Four new
+test files (9 tests) close the 6C chart suite: `Phase6c6WidgetSelectorTests`
+(rendered picker lists exactly the 7 Results widgets in order; VM `ToggleWidget`
+key set matches the XAML; unknown key no-op), `Phase6c6EmptyStateTests` (three
+chart widgets show + keep empty states pre-run and after a refused run; a
+widget toggled off persists across a fresh window for pre-6c.4 keys; the
+post-6c.4 migration is pinned to unconditional-restore), `Phase6c6Nfr6Tests`
+(queue-length prep over 10,000 samples on a thread-pool thread, < 100 ms,
+deterministic — NFR-6), `Phase6c6Screenshots` (3 consolidated frames +
+all-seven-widgets containment assert + ui.json normalise/restore).
+
+Gate: `dotnet build -c Release` 0 warnings / 0 errors; full suite **300 green**
+(Core 85 / Data 58 / Cli 35 / App 122); real Linux launch 18 s alive
+"Application started. Main window created." + exit 0; crash logs unchanged.
+Evidence: `logs/screenshots/phase-6c-input-analysis.png` 1200×2000,
+`phase-6c-results-all.png` 1200×3200 (all 7 widgets), `phase-6c-widget-toggled.png`.
+
+### §18 walkthrough — a–i (automated where headless; on-display keyboard pass remains owner-required, host is Wayland)
+
+| Step | Result | How verified |
+|------|--------|--------------|
+| (a) Welcome card on fresh launch | Pass | Phase-5c welcome tests + `phase-5c-welcome.png` (fresh VM, no run) |
+| (b) Load `sample_3stage_clinic.csv` | Pass | `Phase6c6Screenshots` runs the real `DataAnalyzer` on the file (4 fits, usable binding) |
+| (c) Input Analysis histograms + chi-square | Pass | `Render_InputAnalysisOneFrame` — 4 cards, screenshot |
+| (d) Run a simulation | Pass | `RunRealThreeStage` → `SimulationCoordinator.Run` → `RunOutcome` with non-null `Result` |
+| (e) All seven Results widgets | Pass | `AssertWidgetsFromRealRun` + `AssertAllSevenInsideOneFrame` (containment within the 1200×3200 frame) |
+| (f) Toggle a widget off via Customise; restart → persisted | Pass (automated) | picker test + `WidgetVisibility_ToggledOff_PersistsAcrossRestart`; real-display click owner-required |
+| (g) Wait-histogram stage selector changes data | Pass | `Phase6c5ChartTests` (Reception→Doctor rebuild) + `SelectedWaitStage` asserted in the results-all frame |
+| (h) Clear All → fresh-launch state | Pass | Phase-4/5d Clear All reset tests + `phase-5d-cleared.png` |
+| (i) Reload + rerun → no crash / no new crash log | Pass | every AvaloniaFact = full fresh window + run; launch smoke exit 0; `logs/crash-*` unchanged since 2026-09-16 |
+
+### Findings surfaced (no behaviour changed — verification phase)
+
+- **D-124:** a `ui.json` missing a post-6c.4 widget key (`utilisation`/`queueLength`/`waitHistogram`) is restored to `VisibleWidgets` on **every** load, not once; D-121's "restored once" wording is optimistic. Pinned by `Post64Widget_MissingFromPreferences_RestoredToVisibleOnLoad`; flagged to the owner as a candidate follow-up (add a schema marker) — not fixed here.
+- **Deviation:** the 6c.6.2 note said chart-render failure should degrade to a "text-only summary + themed toast"; the implemented (and tested) fallback is the widget's empty-state text + a Serilog warning, no toast. Kept as-is (G5: a chart failure never crashes the run); raised for owner review.
+- **Not a bug:** the results-all run header shows "Effective exit probability (after Screening): 0.7" because `sample_3stage_clinic.csv` has mixed departure stages (6 rows exit at Doctor) → fitted p_exit ≈ 0.7, which is correct.
+
+### Session Handoff — 2026-09-17 02:58
+Branch: `feat/milestone-6c-input-analysis-charts`
+Status: In-Progress (6c.5 done & tested; commit+push pending the owner's look at the screenshot)
+
+Done
+- Phase 6c.5 — queue-length-over-time + waiting-time histogram widgets marked `[x]` in docs/TODO.md row 56 after a full GATE: build 0/0, full suite 291 green (Core 85 / Data 58 / Cli 35 / App 113), real launch 18 s alive "Main window created.", no new crash logs, evidence `logs/screenshots/phase-6c5-charts.png` generated by the passing AvaloniaFact.
+
+In Progress
+- None (gate docs written; final commit/push left for after owner reviews the screenshot).
+
+What is complete:
+- Both widget services, chart builders, ViewModel wiring, WidgetPreferences migration, ResultsPanel.axaml widgets + picker checkboxes, 6 content tests + screenshot test (all 7 new tests green; the 6c.5 suite was re-run 7× during this session to chase a headless flake).
+- Docs: DECISIONS.md D-122 + D-123, TODO row 56 → [x], DEV_LAUNCH §1/§6/Changelog, USER_MANUAL §4 Diagram + §6.5/§6.6, REQUIREMENTS FR-UI-4 → [x].
+
+What remains:
+- Owner should eyeball `logs/screenshots/phase-6c5-charts.png` (1200×2000, 214 KB).
+- Commit `feat: queue-over-time and waiting-time histogram charts (Phase 6c.5)` (uncommitted working tree), push, then STOP at the 6c.5 gate for owner "go" before 6c.6.
+
+Next Session Should Start With
+- 6c.6 — Completion gate (docs consolidation, remaining screenshots, final review + merge).
+Blocked
+- None.
+
+Git State
+Commits made this session: none (all 6c.5 source changes are uncommitted; previous HEAD `c359e4c` is the committed 6c.4 + process-note pair).
+Pushed to origin: No — nothing new from this session.
+Uncommitted changes: the full 6c.5 working set (2 new services, ChartControlBuilder, ResultsPanelViewModel, WidgetPreferences, ResultsPanel.axaml, 2 test files, 4 docs files).
+
+Build & Test
+dotnet build: PASS (0 warnings, 0 errors).
+dotnet test: PASS — 291 green (Core 85 / Data 58 / Cli 35 / App 113), verified twice end-to-end plus 5 App-only runs; earlier a single intermittent headless-suite failure was chased to D-123's lesson (bare chart construction outside a window) and eliminated.
+
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App/Services/QueueLengthChartService.cs: added (pure; min-max decimation D-122).
+src/OpdSimulator.App/Services/WaitHistogramService.cs: added (pure; per-stage bins D-123).
+src/OpdSimulator.App/Services/ChartControlBuilder.cs: modified (BuildQueueChart, BuildWaitHistogramChart, CreateChart yAxisOverride overload, SeriesPalette; `using LiveChartsCore.Defaults;`).
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (SetQueueLength/SetWaitHistogram/RebuildWaitHistogram, IsWaitLogScale, selector reset, prefs migration).
+src/OpdSimulator.App/Services/WidgetPreferences.cs: modified (seed + migration keys).
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified (two widget sections + two picker checkboxes).
+tests/OpdSimulator.App.Tests/Phase6c5ChartTests.cs: added (6 named tests).
+tests/OpdSimulator.App.Tests/Phase6c5Screenshot.cs: added (gate screenshot, real 3-stage run).
+docs/DECISIONS.md: D-122 + D-123 appended.
+docs/TODO.md: row 56 [~] → [x].
+docs/DEV_LAUNCH.md: §1 Last verified (291), §6 (App 113 + 6c.5 description), Changelog row.
+docs/USER_MANUAL.md: §4 diagram + new §6.5/§6.6.
+docs/REQUIREMENTS.md: FR-UI-4 → [x].
+
+Decisions Made
+- D-122 — min-max bucket decimation for queue-length lines (≤ 2000 pts; first/last + global min/max preserved; O(n); LTTB rejected). DECISIONS.md anchor.
+- D-123 — waiting-time histogram: one stage at a time, base-10 log axis drops zero bins, selector resets to first stage per run; headless test lesson (window-based proof only). DECISIONS.md anchor.
+
+Assumptions Added/Changed
+- None new; no [UNVERIFIED] tags changed in CONTEXT.md this session.
+
+Notes for Next Session
+- The 6c.5 gate is NOT closed until the owner confirms the screenshot and merges. Keep branch `feat/milestone-6c-input-analysis-charts`.
+- LiveCharts facts re-confirmed this session: `ObservablePoint` lives in `LiveChartsCore.Defaults`; `LogarithmicAxis` ctor takes the log base.
+- Do not touch `docs/deep-dive-ch1-6` (process note above).
+
+> **Process note (owner, 2026-09-17):** the deep-dive authoring was intended to
+> run after all phases complete, but was started early on its own branch
+> (`docs/deep-dive-ch1-6`). From now on, deep-dive authoring sessions must run
+> against `main` (or a clean docs branch off `main`), NOT interleaved with
+> feature work. (Triggered by the 6c.4 commit landing work-tree changes that
+> straddled the feat and docs branches.)
+
+### Phase 6c.4 — per-server utilisation widget (2026-09-17 01:35)
+
+Owner confirmed placement by DECISION message (superseding a quick answer):
+the utilisation chart is a **Results** widget, run-driven (option 2), never an
+Input Analysis figure. Implemented on `feat/milestone-6c-input-analysis-charts`:
+- `Services/UtilisationChartService.cs` — pure `UtilisationChartData` builder:
+  one `UtilisationBarRow` per server in stage order, a reference line per stage
+  at `StageUtilisation` (which IS the mean of per-server utilisations,
+  Engine.cs:344), `IsOutlier` when |util − stage mean| > 0.15, threshold +
+  caption exposed as public consts.
+- `ChartControlBuilder.BuildUtilisationChart` — per-server `ColumnSeries<double?>`
+  (green `BrushChartSeries1`, amber `BrushWarning` for outliers), per-server
+  `YToolTipLabelFormatter` ("Above/Below average by {delta:.1%}"), thin
+  stage-average `LineSeries` per stage, hidden legend (one series per server +
+  per stage), Y P0 labeler; the shared `CreateChart` shell gained optional
+  `yLabeler` + `showLegend`.
+- `ResultsPanelViewModel` — `ShowUtilisation` (FR-UI-14, default-on),
+  `UtilisationChart` control content, empty state until a run; `SetUtilisation`
+  degrades to the empty card in plain headless unit tests (LiveCharts controls
+  require a fully-initialised app — real path proven by the AvaloniaFact).
+  `BrushColor` lookup wrapped with theme-hex fallback for lazy dictionary builds.
+- `ResultsPanel.axaml` — utilisation widget between metrics and chi-square; 5th
+  picker checkbox; layout comments updated. `WidgetPreferences` default seed
+  gained "utilisation"; a pre-6c.4 `ui.json` gets the key added once on load
+  (default-on migration).
+- AGENTS.md §16.12 Tab Semantics added verbatim (owner-pasted).
+- Tests: `Phase6c4UtilisationTests` (bar layout, outlier flag, caption,
+  null-result empty card, toggle/defaults) + `Phase6c4Screenshot` (real 3-stage
+  run, servers 1/2/3 → 6 bars + 3 reference lines, screenshot saved).
+- Docs: D-121, USER_MANUAL §6.4 + right-panel figure + changelog, CONTEXT §5.7
+  imbalance rule reconciled to the owner-confirmed |Δ − mean| definition, TODO
+  row DONE, DEV_LAUNCH refreshed. After the gate, PRD FR-STAT-7's max−min rule
+  was retained as the analytical definition (owner "keep both" decision) and the
+  widget's |Δ vs stage mean| rule documented as the per-server visual variant —
+  D-121 + CONTEXT §5.7 updated.
+
+Gate: build 0/0; suite **284 green** (Core 85 / Data 58 / Cli 35 / App 106);
+real Linux launch 18 s alive, crash logs unchanged;
+`logs/screenshots/phase-6c4-utilisation.png` (~100 KB). Committed + pushed on
+the 6c branch. NOT yet reviewed/merged by owner.
+
+### Session Handoff — 2026-09-16 07:35
+Branch: `feat/milestone-6c-input-analysis-charts`
+Status: Clean (committed, uncommitted = none)
+Done
+6c.3 — Chi-square observed vs expected bars (TODO 6c.3 → [x]; commit + push this session, hash in Git State)
+
+In Progress
+None
+
+What is complete: 6c.3 fully built, verified, committed, and pushed. Grouped
+side-by-side columns use the LiveCharts default (two plain `ColumnSeries`
+sharing coords; `StackedColumnSeries` deliberately avoided) — confirmed against
+the official 2.0.5 docs. `IInputChartData` + dispatch lets the same ChartCard
+slot host either chart kind. Full suite 278 green (App 100, +6:
+`Phase6c3ChiSquareTests` 5 content facts + `Phase6c3Screenshot`). Real launch
+18 s alive, crash logs unchanged. Docs synced (D-120, TODO, DEV_LAUNCH
+§1/§6/§12, USER_MANUAL §4/§12, REQUIREMENTS FR-UI-4).
+
+What remains: owner review of the 6c.3 branch, then "go" for 6c.4 (per-server
+utilisation bars + imbalance flag).
+
+Blocked
+None
+
+Git State
+Commits made this session: `207187d` (6c.2, prior gate) + the 6c.3 commit (hash reported in chat at wrap time)
+Pushed to origin: Yes
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS (0 warnings / 0 errors)
+dotnet test: PASS — 278 passed, 0 failed
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/InputAnalysisService.cs: added `IInputChartData` + `ChiSquareChartData` + `BuildChiSquareChart`
+src/OpdSimulator.App/Services/ChartControlBuilder.cs: extracted shared `CreateChart`, added `BuildChiSquareChart`
+src/OpdSimulator.App/ViewModels/InputAnalysisViewModel.cs: `ApplyPrepared` dispatches on `IInputChartData`; `Prepare` emits histogram + chi-square per fit
+tests/OpdSimulator.App.Tests/Phase6c2HistogramTests.cs: expected cards 2 → 4 (helper + wiring + layout asserts)
+tests/OpdSimulator.App.Tests/Phase6c2Screenshot.cs: expected 4 cards
+tests/OpdSimulator.App.Tests/Phase6c3ChiSquareTests.cs: added (5 facts)
+tests/OpdSimulator.App.Tests/Phase6c3Screenshot.cs: added (evidence PNG)
+docs/DECISIONS.md (D-120), docs/TODO.md (+6c.3), docs/PROGRESS.md, docs/DEV_LAUNCH.md, docs/USER_MANUAL.md, docs/REQUIREMENTS.md
+
+Decisions Made
+D-120 — chi-square cards reuse the verdict's own bins + two side-by-side `ColumnSeries` (DECISIONS.md)
+
+Assumptions Added/Changed
+None (the owner's gate note "272 + 5 = 277" miscounted: the per-phase convention
+counts the screenshot-evidence test, so 6 content tests landed → 278. Flagged
+in TODO 6c.3 + this handoff; not a blocker.)
+
+Notes for Next Session
+6c.4 spec is in InputAnalysisService/BuildChiSquareChart's sibling files region
+of TODO.md (per-server utilisation bar chart, imbalance > 0.15 amber `BrushWarning`,
+tooltip "Above average by {delta:.1%}", screenshot phase-6c4-utilisation.png).
+Await owner "go".
+
+### Resume — 2026-09-16 07:20 — reconciled: 0 findings (clean 6c.2 working tree on `feat/milestone-6c-input-analysis-charts`, HEAD `ec83231`, all 6c.2 src/tests/docs present uncommitted)
+
+### Phase 6c.3 — 2026-09-16 07:25 — chi-square observed-vs-expected bars (`feat/milestone-6c-input-analysis-charts`)
+
+Owner said "go" after the 6c.2 push (`207187d`). Implementation:
+
+1. **Docs-first API confirm (AGENTS rule: don't invent):** the LiveCharts2
+   2.0.5 docs confirm grouping is *default* — multiple `ColumnSeries` sharing a
+   coordinate render side-by-side; stacking needs `StackedColumnSeries`; the
+   `Padding` property tunes in-series spacing and `IgnoresBarPosition` is only
+   for background columns. So observed-vs-expected is literally two
+   `ColumnSeries` — no undocumented API.
+2. **Service:** `InputAnalysisService.BuildChiSquareChart(FitReport)` returns
+   `ChiSquareChartData` (Title "Chi-square: {label}", Caption, HasSeries,
+   Categories, Observed, Expected). Categories = "bin 1"… "bin k" derived from
+   `ChiSquareResult.BinEdges.Count − 1`; Observed/Expected ARE the verdict's
+   arrays (cast only), never recomputed (D-118 principle preserved); Caption =
+   `"χ² = {stat:0.###}, df = {df}, p = {p:0.###} — {Decision}"` invariant —
+   identical wording/format to the ResultsPanel row. Null chi-square → empty
+   card (HasSeries false).
+3. **Builder:** `ChartControlBuilder` — extracted a shared private `CreateChart`
+   shell (categorical X labels / frequency Y axis / theme-resolved paints /
+   legend-top / tooltips) so histogram and chi-square builders differ only in
+   their series lists. `BuildChiSquareChart` = two `ColumnSeries` (Observed =
+   BrushChartSeries1 green, Expected = BrushChartSeries2 teal, MaxBarWidth 22
+   each) grouped side-by-side by the default.
+4. **One slot, two shapes:** both records implement the tiny `IInputChartData`
+   interface (Title/Caption/HasSeries); `InputAnalysisViewModel.ApplyPrepared`
+   dispatches histogram vs chi-square to the matching builder and both fill the
+   same `ChartCard` slot. `Prepare` emits per fit: histogram card then
+   chi-square card (only when the fit produced a chi-square).
+5. **Tests (6 new, broadened existing):** `Phase6c3ChiSquareTests` — same bin
+   count for observed/expected/categories; observed sum == sample size; caption
+   format matches the results-table wording (contains χ²=stat, df =, p =, and
+   the Decision string); categories equal bin index labels from BinEdges;
+   null-fit → empty card. `Phase6c3Screenshot` → `phase-6c3-chi-square.png`.
+   6c.2 tests updated: 2 → 4 cards everywhere (helper, layout assert, wiring
+   await, screenshot count).
+6. **Gate:** build 0/0; **278 green** (Core 85 / Data 58 / Cli 35 / App 100);
+   real launch 18 s alive "Main window created.", crash logs unchanged (2);
+   evidence PNG 38.9 KB (byte-identical to the *regenerated* 6c.2 PNG because
+   both screenshot tests now render the exact same 4-card window — both show
+   the chi-square cards; acceptable, noted in DEV_LAUNCH §6). Count: the owner
+   gate line said "272 + 5 = 277" but 6 tests landed (5 content + 1 screenshot),
+   matching the per-phase convention — flagged.
+7. **Docs:** D-120; TODO 6c.3 → [x]; DEV_LAUNCH §1 (278), §6 (App 100 + 6c.3
+   bullet), §12 changelog row; USER_MANUAL §4 (two cards per series) + §12;
+   REQUIREMENTS FR-UI-4 description updated (D-120); PROGRESS this entry.
+
+Lesson: the two 6c.2/6c.3 screenshots are byte-identical by construction now —
+do not chase "newer PNG looks same" as a defect; the window content is
+identical because 6c.2's evidence test also renders the chi-square cards (both
+tests share the 4-card MainWindow). Visual pixel-verification is unavailable in
+headless; rely on the assertions (4 chart controls, all non-null content) +
+LiveCharts' own rendering path.
+
+### Phase 6c.2 — 2026-09-16 07:05 — Input Analysis histograms + fitted PDF overlay (`feat/milestone-6c-input-analysis-charts`)
+
+Exploration confirmed the contracts 6c.2 builds on: `FitsService.Fit` returns
+`FitReport(Label, Samples, Fitted, ChiSquare)`; `ChiSquareResult` carries
+`Statistic/df/PValue/Alpha/RejectFit/Observed(/* int */)/Expected/BinEdges`
+(equal-probability bins, Eᵢ ≥ 1 guard — widths vary per bin); `FittedDistribution`
+exposes `Name/Parameters/ParametersText()/Distribution(Density)/SampleSize`;
+`SimulationCoordinator.BuildFits` labels "Inter-arrival" + "<stage> service"
+with the distribution label passed straight to `FitsService` (no label→family
+mapping exists); sample CSV is a single Screening stage; M6 branch precedent
+(`feat/milestone-6-charts-and-token`) proved the `ColumnSeries`/`LineSeries`/
+`SolidColorPaint` construction; a LiveCharts probe showed the `LegendPosition`/
+`TooltipPosition` enums live in `LiveChartsCore.Measure`.
+
+Implemented:
+- `Services/InputAnalysisService.cs` — pure numbers: `FitAll` mirrors BuildFits;
+  `BuildHistogram` copies `chi.BinEdges`/`chi.Observed` verbatim (6c.2 owner
+  spec "bins from the chi-square result, never recomputed"), PDF per bin =
+  `Density(midpoint) × width × N`, categories `[low, high)`, caption
+  `Family (params) — χ²(df) = stat, p = p — verdict`; failed fit → seriesless
+  empty card (title kept, EmptyState "Fit unavailable for this series.").
+- `Services/ChartControlBuilder.cs` — builds the `CartesianChart` on the UI
+  thread (G5): observed `ColumnSeries` (BrushChartSeries1), fitted
+  `LineSeries` (BrushChartSeries2), axes/grid/legend/tooltip paints resolved
+  from ChartTheme brushes with hex fallbacks matching those theme colours
+  (headless).
+- `ViewModels/InputAnalysisChartViewModel.cs` — Title / Caption / HasSeries /
+  ShowEmptyState / ChartContent (bound to `ChartCard`).
+- `InputAnalysisViewModel` — `Charts` ObservableCollection,
+  `ApplyAsync` (Task.Run prep + Dispatcher.UIThread.Post + generation guard,
+  stale applies dropped with a Serilog warning) / `Apply` (sync, deterministic
+  tests) / `ApplyPrepared`.
+- `ConfigPanelViewModel` — new `DataBindingChanged` event raised at the end of
+  `ApplyLoadedFile` and `ResetToDefaults` (internal `RaiseDataBindingChanged`).
+- `MainViewModel` — subscribes to the event + `Config.PropertyChanged`
+  (distribution dropdowns) + `Config.SignificanceLevel.PropertyChanged` (α
+  feeds the captions) → `InputAnalysis.ApplyAsync(binding, iad, svd, α)`.
+- `Views/InputAnalysisView.axaml` — ItemsControl of `ChartCard`s bound to
+  `Charts` (show-empty via `!HasSeries`), card margin 0,0,0,16.
+
+Gate evidence: Release build 0 warnings/0 errors; **suite 272 green** (Core 85 /
+Data 58 / Cli 35 / App 94 — 261 baseline + 11 new: 6 pure-service, 2 Avalonia
+VM, 1 config-event, 1 async MainViewModel wiring, 1 screenshot); real Linux
+launch 18 s alive "Main window created." with crash logs unchanged (0 new);
+evidence `logs/screenshots/phase-6c2-histograms.png` (57 KB — Inter-arrival +
+Screening cards). Lesson: cannot visually confirm the PNG via the model (no
+image input) — size vs the 27 KB empty-tab frame plus the in-test `Series`
+assertions back the render. Docs: DECISIONS **D-118** (bin reuse + PDF scale)
++ **D-119** (refresh wiring + generation guard); TODO 6c.2 → [x];
+DEV_LAUNCH §1/§6/§12 + USER_MANUAL §4/§12 + changelogs updated. 6c.3 await:
+chi-square O/E bars (verdict text mirrors ResultsPanel rows).
+
+### Phase 6c.1 — 2026-09-16 06:45 — chart infrastructure + Input Analysis scaffold (`feat/milestone-6c-input-analysis-charts`)
+
+Pre-flight (owner-approved) established: pin **LiveChartsCore.SkiaSharpView.Avalonia
+2.0.5** (latest stable, deps Avalonia ≥ 11.0 ≥ 11.0.0 — matches the parked M6
+branch pair with 11.3.3; D-116); SkiaSharp native deps already present, no apt
+change; charts consume `DataBindingResult.InterArrivalMinutes` +
+`ServiceMinutesByStage` through the public `FitsService.Fit` (chi-square bins
+never recomputed — used straight from `ChiSquareResult`); per-stage
+`StageMetrics.WaitingTimeSamples` + `QueueLengthSeries` already exist in frozen
+Core, so the proposed "minimal Core addition" is **permanently dropped** per
+owner instruction — any genuine 6c.5 gap gets reported, not patched
+speculatively. Owner added two accessible colour tokens (≥ 3:1 vs white panel,
+logged with rationale).
+
+Shipped in 6c.1:
+- `Theme.axaml`: `ColorChartSeries3` #6B2FBA (violet ≈ 7.7:1) +
+  `ColorChartSeries4` #E54600 (vermillion ≈ 4.0:1) — hex lives only here.
+- `Assets/ChartTheme.axaml` (new): brush-only chart dictionary
+  (BrushChartSeries1..4, grid, axis text/ticks, legend, tooltip brushes);
+  merged into App.axaml after Theme/Motion (D-117).
+- `Controls/ChartCard.axaml(.cs)` (new): reusable card — Title / Caption /
+  EmptyStateText / ShowEmptyState(default true) / ChartContent; empty-state
+  Border vs ChartHost ContentPresenter toggled by ApplyEmptyState.
+- `ViewModels/InputAnalysisViewModel.cs` (new): `IsEmpty` → "Load a data file
+  to see fit analysis.", `HasData` inverse raised via OnIsEmptyChanged.
+- `Views/InputAnalysisView.axaml(.cs)` (new): empty-state + HasData
+  ScrollViewer reserved for 6c.2+ cards. MainWindow Input Analysis tab now
+  hosts it (placeholder removed); `MainViewModel.InputAnalysis` property added.
+- Tests (`Phase6c1InputAnalysisTests`, 4) + `Phase6c1Screenshot` (evidence):
+  ChartCard title+caption, empty-state visible by default, hidden when
+  ShowEmptyState=false, InputAnalysisView empty message, empty-state PNG.
+- Build/test lesson (D-117): `Control.IsVisible` is **local**, not effective —
+  a hidden ContentPresenter prunes its content; assertions target the named
+  containers (`EmptyStateBorder`/`ChartHost`), never child TextBlocks. Stale
+  App.Tests dll caused one false failure — rebuild the solution, not just the
+  App project. Test scratch probe (`ScratchProbe.cs`) deleted.
+
+GATE (all passed): Release build 0 warnings/0 errors; full suite **261 green**
+(Core 85 / Data 58 / Cli 35 / App 83 — 256 baseline + 4 spec'd tests + 1
+screenshot-evidence test, matching the per-phase convention that counts the
+screenshot test); real Linux launch 18 s alive with "Main window created."
+and crash logs unchanged (0 new entries); evidence
+`logs/screenshots/phase-6c1-empty.png` (27 KB). Docs: DECISIONS D-116 (package
+pin) + D-117 (palette/theme contract); DEV_LAUNCH §1 Last-verified, §3 package
+note, §6 counts + 6c.1 bullet, §12 changelog row; USER_MANUAL §4 tab list +
+hint text, §12 changelog row; TODO 6c.1 → [x], 6c.2..6c.6 rows retained.
+
 ### Phase 5d — 2026-09-16 06:10 — config panel refinements (μ relocation, α selector, stage-count mismatch warning)
 
 - **5d.1 (D-112):** Stages rows are now **topology only** — the editable per-row

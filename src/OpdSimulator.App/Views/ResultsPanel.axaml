@@ -2,14 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:OpdSimulator.App.Controls"
              xmlns:vm="using:OpdSimulator.App.ViewModels"
+             xmlns:services="using:OpdSimulator.App.Services"
              xmlns:views="using:OpdSimulator.App.Views"
              x:DataType="vm:ResultsPanelViewModel"
              x:Class="OpdSimulator.App.Views.ResultsPanel">
 
     <!-- Phase-5 results panel (Simulation tab, right column). Layout contract:
          welcome card until any run is attempted; afterwards the chosen widgets
-         inside a scrollable stack. Widget order is stable: metrics → chi-square
-         → data preview → trace. -->
+         inside a scrollable stack. Widget order is stable: metrics →
+         utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
+         (6c.5) → chi-square → simulation verification (8B) → analytical
+         validation (8C) → trace (the data preview moved to the Input tab in
+         Phase 7D). Phase 8D.1 groups the widgets under headings (Overview,
+         Server Performance, Charts, Statistical Validation, Simulation
+         Verification, Analytical Validation, Event Trace); the per-stage table
+         shares the metrics card, so it carries no separate "Stage Performance"
+         heading (8D.1: do not add a redundant heading for a merged table). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -64,14 +72,19 @@
                         <CheckBox IsChecked="{Binding ShowMetrics, Mode=TwoWay}" Content="Metrics"/>
                         <CheckBox IsChecked="{Binding ShowChiSquare, Mode=TwoWay}" Content="Chi-square"/>
                         <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
-                        <CheckBox IsChecked="{Binding ShowDataPreview, Mode=TwoWay}" Content="Data preview"/>
+                        <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
+                        <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
+                        <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
+                        <CheckBox IsChecked="{Binding ShowSimulationVerification, Mode=TwoWay}" Content="Simulation verification"/>
+                        <CheckBox IsChecked="{Binding ShowAnalyticalValidation, Mode=TwoWay}" Content="Analytical validation"/>
                     </UniformGrid>
                 </StackPanel>
             </Border>
             </StackPanel>
 
-            <!-- Scrollable widget area (5c.1): metrics, chi-square, preview,
-                 trace scroll together; the selector row above stays pinned. -->
+            <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square,
+                 trace scroll together; the selector row above stays pinned. The
+                 data preview moved to the Input tab in Phase 7D. -->
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -89,6 +102,13 @@
             <controls:ErrorBanner Message="{Binding RunError}"
                                   IsVisible="{Binding HasError}"
                                   ToolTip.Tip="The simulator did not run; read the message and adjust the configuration."/>
+
+            <!-- Group heading: Overview (Phase 8D.1). -->
+            <TextBlock Text="Overview"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
 
             <!-- Metrics widget (FR-STAT-6/7). -->
             <Border IsVisible="{Binding ShowMetrics}"
@@ -151,6 +171,114 @@
                 </StackPanel>
             </Border>
 
+            <!-- Group heading: Server Performance (Phase 8D.1). -->
+            <TextBlock Text="Server Performance"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
+            <!-- Per-server utilisation widget (FR-STAT-7, Phase 6c.4): bar per
+                 server, green or amber by imbalance; thin stage-average reference
+                 line; empty state until a run finishes. -->
+            <Border IsVisible="{Binding ShowUtilisation}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Per-server utilisation"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding UtilisationCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="Run a simulation to see utilisation."
+                               IsVisible="{Binding ShowUtilisationEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasUtilisationChart}"
+                                    Content="{Binding UtilisationChart}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Group heading: Charts (Phase 8D.1) — covers queue length and the
+                 waiting-time histogram below. -->
+            <TextBlock Text="Charts"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
+            <!-- Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5): one line
+                 per stage, downsampled ≤ 2000 points; empty state until a run. -->
+            <Border IsVisible="{Binding ShowQueueLength}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Queue length over time"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding QueueLengthCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="Run a simulation to see queue length over time."
+                               IsVisible="{Binding ShowQueueLengthEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasQueueLengthChart}"
+                                    Content="{Binding QueueLengthChart}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5): one stage
+                 at a time via a searchable dropdown; optional log-scale Y axis. -->
+            <Border IsVisible="{Binding ShowWaitHistogram}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Waiting-time distribution"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding WaitHistogramCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <StackPanel Spacing="{DynamicResource SpaceS}"
+                                IsVisible="{Binding HasWaitHistogramChart}">
+                        <controls:SearchableDropdown Label="Stage"
+                                                     Placeholder="Choose a stage…"
+                                                     Tooltip="The stage whose waiting-time histogram is shown (one stage at a time; resets to the first on every run)"
+                                                     Items="{Binding WaitStageNames}"
+                                                     SelectedItem="{Binding SelectedWaitStage, Mode=TwoWay}"
+                                                     HelpAnchor="waiting-time-histogram"/>
+                        <CheckBox IsChecked="{Binding IsWaitLogScale, Mode=TwoWay}"
+                                  Content="Log-scale Y axis"
+                                  ToolTip.Tip="Use a base-10 logarithmic Y axis for the patient-count bins; helps read long tail bins with very small counts"/>
+                    </StackPanel>
+                    <TextBlock Text="Run a simulation to see the waiting-time distribution."
+                               IsVisible="{Binding ShowWaitHistogramEmptyState}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ContentControl IsVisible="{Binding HasWaitHistogramChart}"
+                                    Content="{Binding WaitHistogramChart}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Group heading: Statistical Validation (Phase 8D.1) — the
+                 input-side chi-square table below. -->
+            <TextBlock Text="Statistical Validation"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
             <!-- Chi-square widget (FR-STAT-8). -->
             <Border IsVisible="{Binding ShowChiSquare}"
                     Background="{DynamicResource BrushBackgroundPanel}"
@@ -187,23 +315,113 @@
                 </StackPanel>
             </Border>
 
-            <!-- Data preview widget (FR-UI-20): only visible once a file was analysed. -->
-            <Border IsVisible="{Binding ShowDataPreview}"
+            <!-- Group heading: Simulation Verification (Phase 8D.1) — the
+                 output-side model-verification widget below. -->
+            <TextBlock Text="Simulation Verification"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
+            <!-- Simulation verification widget (Phase 8B): output-side chi-square
+                 over the samples the engine itself generated, confirming the run
+                 matches the configured distribution (Banks / Law & Kelton model
+                 verification). One chart card per series; empty until a run. -->
+            <Border IsVisible="{Binding ShowSimulationVerification}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
                     CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
                 <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <TextBlock Text="Uploaded data preview"
+                    <TextBlock Text="Simulation verification"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <controls:DataPreviewTable ColumnTitles="{Binding PreviewColumnTitles}"
-                                               Rows="{Binding PreviewRows}"
-                                               InvalidRows="{Binding PreviewInvalidRows}"
-                                               LoadErrorSummary="{Binding PreviewError}"/>
+                    <TextBlock Text="Chi-square goodness-of-fit of the engine's own generated samples against the configured distribution (output-side model verification)."
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding SimulationVerification.EmptyMessage}"
+                               IsVisible="{Binding SimulationVerification.IsEmpty}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <ItemsControl ItemsSource="{Binding SimulationVerification.Charts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VerificationChartViewModel">
+                                <controls:ChartCard Title="{Binding Title}"
+                                                    Caption="{Binding Caption}"
+                                                    EmptyStateText="No verification for this series."
+                                                    ShowEmptyState="{Binding ShowEmptyState}"
+                                                    ChartContent="{Binding ChartContent}"
+                                                    Margin="0,0,0,16"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
+
+            <!-- Group heading: Analytical Validation (Phase 8D.1) — the M/M/c
+                 comparison widget below. -->
+            <TextBlock Text="Analytical Validation"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
+
+            <!-- Analytical validation widget (Phase 8C, FR-STAT-5): the
+                 simulated per-stage wait and queue length against the closed-form
+                 M/M/c (Erlang-C) values. Empty (with an explanation) when the
+                 M/M/c assumptions do not hold. -->
+            <Border IsVisible="{Binding ShowAnalyticalValidation}"
+                    Background="{DynamicResource BrushBackgroundPanel}"
+                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource CornerRadiusM}"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Analytical validation (M/M/c)"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="Simulated per-stage wait and queue length against the closed-form steady-state M/M/c (Erlang-C) values; valid only for exponential arrivals and service with ρ &lt; 1 over a long run."
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding AnalyticalValidation.EmptyMessage}"
+                               IsVisible="{Binding AnalyticalValidation.IsEmpty}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"/>
+                    <StackPanel IsVisible="{Binding AnalyticalValidation.HasRows}"
+                                Spacing="{DynamicResource SpaceS}">
+                        <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8">
+                            <TextBlock Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="1" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="2" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="3" Text="Sim queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="4" Text="M/M/c queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                            <TextBlock Grid.Column="5" Text="Δ%" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding AnalyticalValidation.Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="services:ComparisonRow">
+                                    <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding StageName}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding SimulatedAvgWait, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding AnalyticalAvgWait, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding SimulatedQueueLength, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding AnalyticalQueueLength, StringFormat={}{0:0.###}}"/>
+                                        <TextBlock Grid.Column="5" Text="{Binding DeltaPercent, StringFormat={}{0:0.#}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Group heading: Event Trace (Phase 8D.1). -->
+            <TextBlock Text="Event Trace"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       Margin="0,24,0,8"/>
 
             <!-- Event trace widget: mono, scrollable, selectable text (M4). -->
             <Border IsVisible="{Binding ShowTrace}"

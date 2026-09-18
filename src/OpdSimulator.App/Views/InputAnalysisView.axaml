@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             x:Class="OpdSimulator.App.Views.InputAnalysisView"
+             x:DataType="viewModels:InputAnalysisViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="controls|ChartCard">
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- Chart stack: one ChartCard per fit — 6c.2 histogram + fitted PDF
+             overlay; 6c.3 chi-square bars and 6c.4 utilisation join here.
+             Only visible once a data file is loaded (HasData). -->
+        <ScrollViewer IsVisible="{Binding HasData}">
+            <ItemsControl ItemsSource="{Binding Charts}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:InputAnalysisChartViewModel">
+                        <controls:ChartCard Title="{Binding Title}"
+                                            Caption="{Binding Caption}"
+                                            EmptyStateText="Fit unavailable for this series."
+                                            ShowEmptyState="{Binding ShowEmptyState}"
+                                            ChartContent="{Binding ChartContent}"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Empty state: the tab's launch and reset appearance. -->
+        <StackPanel IsVisible="{Binding IsEmpty}"
+                    Spacing="{DynamicResource SpaceS}"
+                    MaxWidth="480"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+            <TextBlock Text="Input analysis"
+                       FontSize="{DynamicResource FontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding EmptyMessage}"
+                       Classes="Caption"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+    </Panel>
+</UserControl>

@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.ViewModels;
@@ -35,8 +34,12 @@ public class Phase5dScreenshot
 
         Assert.True(vm.IsStageMismatchWarningVisible,
             "fixture must produce the stage-count mismatch warning");
-        Assert.All(vm.StageRows, row =>
-            Assert.EndsWith("(manual)", row.ServiceRateLabel, StringComparison.Ordinal));
+        // Phase 7C ruling 5: a fitted rate wins over the comma-list override, so
+        // Screening (the one stage present in the sample data) reports the fitted
+        // source; Reception and Doctor fall back to the manual comma list.
+        Assert.EndsWith("(manual)", vm.StageRows[0].ServiceRateLabel, StringComparison.Ordinal);
+        Assert.EndsWith("(from data)", vm.StageRows[1].ServiceRateLabel, StringComparison.Ordinal);
+        Assert.EndsWith("(manual)", vm.StageRows[2].ServiceRateLabel, StringComparison.Ordinal);
 
         var host = new Window
         {
@@ -54,9 +57,7 @@ public class Phase5dScreenshot
             var shotDir = Path.Combine(root, "logs", "screenshots");
             Directory.CreateDirectory(shotDir);
 
-            host.UpdateLayout();
-            var frame = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var frame = HeadlessScreenshot.Capture(host);
             frame.Save(Path.Combine(shotDir, "phase-5d-config.png"));
 
             vm.ResetToDefaults();
@@ -64,8 +65,7 @@ public class Phase5dScreenshot
             scroll.Offset = new Vector(0, scroll.Extent.Height);
             host.UpdateLayout();
 
-            var cleared = host.CaptureRenderedFrame()
-                ?? throw new InvalidOperationException("headless pipeline produced no frame");
+            var cleared = HeadlessScreenshot.Capture(host);
             cleared.Save(Path.Combine(shotDir, "phase-5d-cleared.png"));
 
             var configPath = Path.Combine(shotDir, "phase-5d-config.png");

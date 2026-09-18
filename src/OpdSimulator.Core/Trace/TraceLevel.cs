@@ -4,8 +4,8 @@ namespace OpdSimulator.Core.Trace;
 /// How much detail a human-readable event trace contains.
 /// </summary>
 /// <remarks>
-/// The levels form a strict ladder — <see cref="Events"/> &lt; <see cref="State"/>
-/// &lt; <see cref="Rng"/>. They only control the <em>rendered text</em> (via
+/// The levels form a strict ladder — <see cref="Standard"/> &lt; <see cref="Detailed"/>
+/// &lt; <see cref="Debug"/>. They only control the <em>rendered text</em> (via
 /// <see cref="TraceFormatter"/>), never the engine's event stream: the engine
 /// always emits the same <see cref="TraceEvent"/> sequence through an
 /// <see cref="ITraceSink"/>, so a rerun at a different level reproduces the
@@ -15,22 +15,22 @@ namespace OpdSimulator.Core.Trace;
 /// </remarks>
 public enum TraceLevel
 {
-    /// <summary>No trace rows are rendered (the default for a non-trace run).</summary>
-    None = 0,
+    /// <summary>Lowest level: no trace rows are collected (the level for a non-trace run).</summary>
+    Minimal = 0,
 
     /// <summary>One row per patient event (arrival, service start/end, exit), with only the core columns.</summary>
-    Events = 1,
+    Standard = 1,
 
     /// <summary>
-    /// <see cref="Events"/> plus the state-bearing columns — the serving server
+    /// <see cref="Standard"/> plus the state-bearing columns — the serving server
     /// id and the routing/exit destination. This is the default for the
     /// <c>trace</c> CLI command.
     /// </summary>
-    State = 2,
+    Detailed = 2,
 
     /// <summary>
-    /// <see cref="State"/> plus a row for every random-number draw (seed,
+    /// <see cref="Detailed"/> plus a row for every random-number draw (seed,
     /// uniform deviate, and the sampled time or routing decision it produced).
     /// </summary>
-    Rng = 3,
+    Debug = 3,
 }
