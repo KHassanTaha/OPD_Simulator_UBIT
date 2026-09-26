@@ -75,11 +75,19 @@ Examples:
 > remains `M` (exponential) throughout: the arrival process is M/M/c by definition, and
 > 8I changed the service side only.
 >
-> **Not yet reachable from the application.** The Engine can do this, but
-> `SimulationCoordinator` still builds every stage with three arguments, so **every stage
-> is still M/M/c in the running app**. Surfacing a per-stage family to the user — the
-> `SimulationParameters` field, the stage row, and the persistence of the choice — is
-> Phase 8J. See D-146.
+> **Reachable from Core and App as of Phase 8J, but not yet from the UI.** The Engine
+> can do this, and 8J wired the App to supply a family per stage: `SimulationParameters`
+> now carries `ServiceFamilies` + `ServiceRates` and `SimulationCoordinator` builds each
+> `StageSpec` with μ passed through unchanged. **But there is still one service-family
+> dropdown for the whole run, so every stage is still configured alike and every
+> reachable run is still M/M/c.** Giving each stage its own control — and removing the
+> vestigial `SimulationParameters.ServiceDistribution` shim that `MainViewModel` reads —
+> is Phase 8K. See D-146, D-147.
+>
+> **μ is carried as a rate, never as a mean.** `ServiceRates[i]` is μ per minute exactly
+> as entered; the spec's `Mean` is derived from it. Recovering μ by inverting a mean is
+> not bit-reversible (13.7 % of arbitrary doubles fail the round trip, D-146), so no code
+> path does it.
 
 ### 2.3 Why ρ ≥ 1 Means the System Is Unstable
 
