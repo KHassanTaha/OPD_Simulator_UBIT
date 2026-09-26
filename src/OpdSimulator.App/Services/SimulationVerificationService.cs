@@ -1,6 +1,7 @@
 namespace OpdSimulator.App.Services;
 
 using OpdSimulator.App.Models;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 using OpdSimulator.Data.Fitting;
 
@@ -35,12 +36,30 @@ public sealed record VerificationReport(
 /// </summary>
 /// <remarks>
 /// <para>
-/// Families "Exponential", "Normal", "Lognormal", "Gamma" and "Uniform" are
-/// fitted and tested through the existing <see cref="FitsService"/> pipeline so
-/// the result is exactly comparable to the input-side fits. "Deterministic"
-/// schedules no chi-square at all (a constant stream cannot be goodness-of-fit
-/// tested) and "General" is flattened to Exponential with an explanatory note
-/// (D-126: the engine samples service times exponentially for every stage).
+/// PER-STAGE SERIES ARE VERIFIED AGAINST THE CONFIGURED SPEC, NOT A REFIT
+/// (Phase 8K, D-154). Refitting the engine's own output and testing the refit
+/// answers a different question: it passes whenever the engine produced *some*
+/// plausible distribution, so a stage configured as Normal but sampled with a
+/// different spread would still be reported as a good fit. Each stage's
+/// <see cref="DistributionSpec"/> is passed through
+/// <see cref="FittedDistribution.FromSpec"/> into the same
+/// <see cref="ChiSquareTest"/> the input tab uses, so the verdict answers what
+/// was actually configured.
+/// </para>
+/// <para>
+/// "Deterministic" still schedules no chi-square at all (a constant stream cannot
+/// be goodness-of-fit tested) and keeps its exact D-128 note. The former "General"
+/// branch is <b>deleted</b>: "General" was never a real family, it was the string
+/// the single-family shim used before 8K, and with a typed
+/// <see cref="DistributionSpec"/> per stage there is nothing left for it to mean.
+/// </para>
+/// <para>
+/// The inter-arrival series still verifies by family NAME and refit, unlike the
+/// stages. That asymmetry is deliberate and recorded rather than tidied away: the
+/// per-stage spec is configured and carried on the run parameters, whereas the
+/// inter-arrival mean is 1/λ and λ is resolved by the coordinator at run time
+/// rather than being a configured distribution. 8K does not change the arrival
+/// contract; when an arrival spec is added it should use the spec path here too.
 /// </para>
 /// <para>
 /// Histogram bins come exclusively from <see cref="InputAnalysisService.BuildHistogram"/>,
@@ -60,21 +79,21 @@ public static class SimulationVerificationService
     /// </summary>
     /// <param name="result">The completed engine result (Phase 8A adds the generated-sample buffers).</param>
     /// <param name="arrivalFamily">Configured inter-arrival distribution family.</param>
-    /// <param name="serviceFamilies">Configured service family per stage (mirrors the single-family model of D-126); missing entries default to "Exponential".</param>
+    /// <param name="serviceSpecs">Configured service specification per stage, in stage order.</param>
     /// <param name="significanceLevel">Alpha the chi-square verdicts are decided at (config Significance section).</param>
     /// <exception cref="ArgumentNullException">When <paramref name="result"/> or <paramref name="serviceFamilies"/> is null.</exception>
     public static IReadOnlyList<VerificationReport> VerifyAll(
         SimulationResult result,
         string arrivalFamily,
-        IReadOnlyList<string> serviceFamilies,
+        IReadOnlyList<DistributionSpec> serviceSpecs,
         double significanceLevel)
     {
         ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(serviceFamilies);
+        ArgumentNullException.ThrowIfNull(serviceSpecs);
 
         var reports = new List<VerificationReport>
         {
-            VerifySeries(
+            VerifySeriesByFamilyName(
                 InputAnalysisService.InterArrivalSeriesLabel,
                 result.GeneratedInterArrivalSamples,
                 arrivalFamily,
@@ -84,17 +103,107 @@ public static class SimulationVerificationService
         for (int i = 0; i < result.StageMetrics.Count; i++)
         {
             var stage = result.StageMetrics[i];
-            string family = i < serviceFamilies.Count
-                ? serviceFamilies[i]
-                : serviceFamilies is { Count: > 0 } ? serviceFamilies[^1] : "Exponential";
             IReadOnlyList<double> samples = i < result.GeneratedServiceSamplesByStage.Count
                 ? result.GeneratedServiceSamplesByStage[i]
                 : Array.Empty<double>();
-            reports.Add(VerifySeries($"{stage.StageName} service", samples, family, significanceLevel));
+
+            // A missing spec is a configuration gap, not something to paper over with a
+            // default family: reporting "verified against Exponential" for a stage nobody
+            // configured would be exactly the kind of silent substitution 8K removes.
+            var spec = i < serviceSpecs.Count ? serviceSpecs[i] : null;
+            reports.Add(VerifySeriesBySpec($"{stage.StageName} service", samples, spec, significanceLevel));
         }
 
         return reports;
     }
+
+    /// <summary>
+    /// Verifies one per-stage series against the distribution the user CONFIGURED,
+    /// rather than against a fresh fit of the engine's output (Phase 8K, D-154).
+    /// </summary>
+    /// <remarks>
+    /// A spec that cannot produce a distribution (a Normal with no σ, a stage with no
+    /// spec at all) yields a note instead of a verdict, naming the reason. Silently
+    /// falling back to a default family here would hide a misconfiguration behind a
+    /// green chi-square, which is the failure mode this change exists to remove.
+    /// </remarks>
+    private static VerificationReport VerifySeriesBySpec(
+        string label,
+        IReadOnlyList<double> samples,
+        DistributionSpec? spec,
+        double alpha)
+    {
+        if (spec is null)
+        {
+            return Report(label, samples, "not configured", null, null,
+                "No service distribution was configured for this stage.");
+        }
+
+        string family = spec.Family.ToString();
+
+        if (spec.Family == DistributionFamily.Deterministic)
+        {
+            return Report(label, samples, family, null, null, DeterministicNote);
+        }
+
+        if (samples.Count < 2)
+        {
+            return Report(label, samples, family, null, null, "Insufficient samples for chi-square.");
+        }
+
+        try
+        {
+            // The single conversion point from a configured spec to something the
+            // chi-square and histogram pipeline understands. No fitting happens.
+            var configured = FittedDistribution.FromSpec(spec, samples.Count);
+            var chiSquare = ChiSquareTest.Run(samples, configured, alpha);
+            return Report(label, samples, family, chiSquare, configured, null);
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                       or ArgumentNullException
+                                       or InvalidOperationException)
+        {
+            // Two legitimate "no verdict" outcomes land here, and neither may be allowed
+            // to escape into the results panel:
+            //  - ArgumentException/ArgumentNullException: the spec itself is unusable
+            //    (a Normal with no σ, a stage nobody configured).
+            //  - InvalidOperationException: ChiSquareTest refuses the test when the
+            //    configured distribution puts an expected count below 1 in a bin. This
+            //    is now REACHABLE in a way it never was under the old refit: a spec
+            //    whose spread is much narrower than the samples the engine produced
+            //    leaves the tail bins expecting < 1 observation. That is a genuine
+            //    mismatch between configuration and output, so it belongs on the card
+            //    as a readable reason — the same treatment FitsService gives a
+            //    degenerate fit — not as an exception that blanks the whole widget.
+            return Report(label, samples, family, null, null, ex.Message);
+        }
+    }
+
+    private const string DeterministicNote = "Deterministic — chi-square not applicable.";
+
+    /// <summary>
+    /// Builds the card for a report whose fit (or configured distribution) is already
+    /// resolved, or whose reason for having no verdict is already known. The histogram
+    /// always comes from <see cref="InputAnalysisService.BuildHistogram"/>, which reuses
+    /// the verdict's own bins, so the chart and the chi-square cannot disagree.
+    /// </summary>
+    private static VerificationReport Report(
+        string label,
+        IReadOnlyList<double> samples,
+        string family,
+        ChiSquareResult? chiSquare,
+        FittedDistribution? distribution,
+        string? note) =>
+        new(
+            label,
+            samples.Count,
+            family,
+            chiSquare,
+            InputAnalysisService.BuildHistogram(
+                distribution is null
+                    ? new FitReport(label, samples, null, null)
+                    : new FitReport(label, samples, distribution, chiSquare)),
+            note);
 
     /// <summary>
     /// Fits and verifies one series. "Deterministic" never runs a chi-square
@@ -105,36 +214,26 @@ public static class SimulationVerificationService
     /// <see cref="InputAnalysisService.BuildHistogram"/>, which yields an empty
     /// (seriesless) card whenever no fit was possible.
     /// </summary>
-    private static VerificationReport VerifySeries(
+    private static VerificationReport VerifySeriesByFamilyName(
         string label,
         IReadOnlyList<double> samples,
         string family,
         double alpha)
     {
-        bool deterministic = string.Equals(family, "Deterministic", StringComparison.OrdinalIgnoreCase);
-        bool general = string.Equals(family, "General", StringComparison.OrdinalIgnoreCase);
-
-        string? note = deterministic
-            ? "Deterministic — chi-square not applicable."
-            : general
-                ? "General treated as Exponential for verification."
-                : null;
-
-        FitReport? fit = null;
-        if (!deterministic && samples.Count >= 2)
+        if (string.Equals(family, "Deterministic", StringComparison.OrdinalIgnoreCase))
         {
-            // Single source of truth for fit + verdict: the same FitsService the
-            // input tab and the results chi-square table use, so the output-side
-            // verdict is computed identically to an input-side one.
-            string effectiveFamily = general ? "Exponential" : family;
-            fit = FitsService.Fit(label, samples, effectiveFamily, alpha);
-        }
-        else if (!deterministic)
-        {
-            note ??= "Insufficient samples for chi-square.";
+            return Report(label, samples, family, null, null, DeterministicNote);
         }
 
-        var histogram = InputAnalysisService.BuildHistogram(fit ?? new FitReport(label, samples, null, null));
-        return new VerificationReport(label, samples.Count, family, fit?.ChiSquare, histogram, note);
+        if (samples.Count < 2)
+        {
+            return Report(label, samples, family, null, null, "Insufficient samples for chi-square.");
+        }
+
+        // Inter-arrival only: no configured arrival spec exists to verify against yet
+        // (see the remarks on VerifyAll), so this still refits. The stage path above
+        // must not come back to this.
+        var fit = FitsService.Fit(label, samples, family, alpha);
+        return Report(label, samples, family, fit.ChiSquare, fit.Fitted, null);
     }
 }

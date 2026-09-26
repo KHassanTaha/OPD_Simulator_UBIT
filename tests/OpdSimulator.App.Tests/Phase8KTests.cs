@@ -6,6 +6,7 @@ using OpdSimulator.App.Controls;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Data.Fitting;
 using OpdSimulator.Core.Stages;
 
 namespace OpdSimulator.App.Tests;
@@ -504,6 +505,223 @@ public class Phase8KTests
         finally
         {
             window.Close();
+        }
+    }
+
+    // ── 8K.6 · the G/G/c auto-fit answer ──────────────────────────────
+
+    /// <summary>
+    /// The variable-variance 3-stage fixture. Chosen over sample_3stage_clinic.csv
+    /// because that file's service times are constant (reception always 2 min,
+    /// screening always 4 min), so every family is correctly rejected and the auto-fit
+    /// success path can never run against it.
+    /// </summary>
+    private const string VariableCsv = "sample_3stage_variable.csv";
+
+    private static string VariablePath() => SamplePath(VariableCsv);
+
+    private static string SamplePath(string fileName)
+    {
+        var dir = AppContext.BaseDirectory;
+        for (int i = 0; i < 8 && dir is not null; i++)
+        {
+            var candidate = Path.Combine(dir, "samples", fileName);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        throw new FileNotFoundException(
+            $"Could not find samples/{fileName} above {AppContext.BaseDirectory}.");
+    }
+
+    /// <summary>
+    /// Loads the variable fixture and returns the Screening row, which is where the
+    /// auto-fit is exercised. Index 1 because the fixture's stage order is
+    /// Reception, Screening, Doctor.
+    /// </summary>
+    private static (ConfigPanelViewModel Panel, StageRow Screening) ScreeningWithData()
+    {
+        var panel = Panel(3);
+        panel.ApplyLoadedFile(VariablePath());
+        return (panel, panel.StageRows[1]);
+    }
+
+    [Fact]
+    public void AutoFit_Succeeds_SetsBadgeWithFiniteAic_AndKeepsGGNotation()
+    {
+        // Why it matters: this is the whole point of G/G/c. The user names no family,
+        // the fitter picks one from the data, and the panel has to say which — with a
+        // number the user can check.
+        //
+        // Deliberately NOT asserting a particular winning family or a "good" p-value
+        // (owner ruling): both are properties of the data, not of the code. What must
+        // hold is that a family was chosen, that the reported AIC is a real number, and
+        // that the user's G/G/1 request is still on screen afterwards.
+        var (panel, row) = ScreeningWithData();
+        Assert.Null(row.AutoFitBadge);
+
+        row.SelectedModel = "G/G/1";
+
+        Assert.NotNull(row.AutoFitBadge);
+        Assert.Contains("Best fit:", row.AutoFitBadge);
+        AssertNoNonFiniteNumber(row.AutoFitBadge);
+        Assert.Equal("G/G/1", row.SelectedModel);
+    }
+
+    [Fact]
+    public void AutoFit_Success_AppliesTheWinningFamilyToTheRow()
+    {
+        // Why it matters: the badge is only half the contract. The family the fitter
+        // chose has to reach the row the run is built from, or the badge is describing a
+        // decision the simulation never makes.
+        var (panel, row) = ScreeningWithData();
+
+        row.SelectedModel = "G/G/1";
+
+        // The expected family is whatever the fitter actually decided for these samples,
+        // read from the fitter rather than hard-coded. Naming a family here would pin the
+        // test to one dataset's outcome; comparing against the fitter tests the thing this
+        // test is actually about — that the DECISION reached the row — for any winner,
+        // including Exponential.
+        // Read the same stage samples the auto-fit reads: Binding is the panel's public
+        // door onto the loaded analysis, and ServiceMinutesByStage is keyed by stage name
+        // exactly as the production lookup does.
+        Assert.NotNull(panel.Binding);
+        Assert.True(panel.Binding!.ServiceMinutesByStage.TryGetValue(row.StageName, out var samples));
+        Assert.NotEmpty(samples);
+        var decision = GeneralDistributionFitter.FitBest(samples);
+        Assert.NotNull(decision.Best);
+        Assert.Equal(decision.Best!.Family, row.ServiceFamily);
+        Assert.Null(row.InlineError);
+    }
+
+    [Fact]
+    public void AutoFit_BlankMu_IsFilledFromTheFit_AndLabelledAsFitted()
+    {
+        // Why it matters: a G/G/c stage the data covers has no μ, and Start stays
+        // disabled until it has one, so the auto-fit is the only thing that can make
+        // the stage runnable. The user must also be able to tell that μ came from the
+        // data rather than from their own keyboard.
+        var (_, row) = ScreeningWithData();
+        Assert.True(string.IsNullOrWhiteSpace(row.MuValue));
+
+        row.SelectedModel = "G/G/1";
+
+        Assert.False(string.IsNullOrWhiteSpace(row.MuValue));
+        Assert.True(row.IsMuFittedLocally);
+        Assert.Contains("(fitted)", row.ServiceRateLabel);
+    }
+
+    [Fact]
+    public void AutoFit_UserEnteredMu_IsKept_AndNotLabelledAsFitted()
+    {
+        // Why it matters: the inverse of the previous test, and the one that protects
+        // deliberate input. A typed μ is an answer, and a fitter that overwrote it would
+        // silently discard the user's model.
+        var (_, row) = ScreeningWithData();
+        row.MuValue = "0.300";
+
+        row.SelectedModel = "G/G/1";
+
+        Assert.Equal("0.300", row.MuValue);
+        Assert.False(row.IsMuFittedLocally);
+        Assert.DoesNotContain("(fitted)", row.ServiceRateLabel);
+    }
+
+    [Fact]
+    public void AutoFit_NoDataLoaded_RefusesWithAnActionableReason()
+    {
+        // Why it matters: a G/G/c stage with no data has nothing to fit. Silently
+        // leaving it Exponential would run a model the user did not ask for while the
+        // dropdown still claimed G/G.
+        var panel = Panel(3);
+        var row = panel.StageRows[1];
+        row.SelectedModel = "M/M/2";
+
+        row.SelectedModel = "G/G/2";
+
+        Assert.Equal("M/M/2", row.SelectedModel);
+        Assert.True(row.HasInlineError);
+        Assert.Contains("no usable", row.InlineError, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(row.AutoFitBadge);
+    }
+
+    [Fact]
+    public void AutoFit_FitFindsNoWinner_RefusesWithTheFittersOwnReason()
+    {
+        // Why it matters: the refusal must name the actual statistical reason, not a
+        // generic failure. sample_3stage_clinic.csv has constant service times, so
+        // every family is rejected and the reason is a real diagnostic the user can act
+        // on ("your data has no variation"). This is also what keeps the sample-count
+        // threshold in exactly one place — the fitter's — instead of being restated here.
+        var panel = Panel(3);
+        panel.ApplyLoadedFile(SamplePath("sample_3stage_clinic.csv"));
+        var row = panel.StageRows[1];
+        row.SelectedModel = "M/M/2";
+
+        row.SelectedModel = "G/G/2";
+
+        Assert.Equal("M/M/2", row.SelectedModel);
+        Assert.True(row.HasInlineError);
+        Assert.Contains("could not fit", row.InlineError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Screening", row.InlineError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AutoFit_ManualFamilyChange_RetiresTheBadge()
+    {
+        // Why it matters: a stale verdict is worse than none. Once the user overrides
+        // the family by hand, a badge still claiming "Best fit: Lognormal" describes a
+        // decision the user has already overturned, and nothing on screen would say so.
+        var (_, row) = ScreeningWithData();
+        row.SelectedModel = "G/G/1";
+        Assert.NotNull(row.AutoFitBadge);
+
+        row.ServiceFamily = DistributionFamily.Exponential;
+
+        Assert.Null(row.AutoFitBadge);
+    }
+
+    [Fact]
+    public void AutoFit_InlineErrorIsSupersededByTheNextAttempt_NotByAFamilyChange()
+    {
+        // Why it matters: it records WHERE a stale message is allowed to die. A family
+        // change deliberately does NOT clear the error, because the error may describe
+        // a spread value that is still invalid — switching Normal -> Lognormal keeps
+        // using the same StdDev, and wiping the message would hide a real problem until
+        // Start refused the run. The error is superseded by the next auto-fit attempt,
+        // which is the only event that can genuinely resolve it.
+        var panel = Panel(3);
+        var row = panel.StageRows[1];
+        row.SelectedModel = "G/G/2";
+        Assert.True(row.HasInlineError);
+
+        // Same family pair, different problem: the error survives a manual override...
+        row.ServiceFamily = DistributionFamily.Exponential;
+        Assert.True(row.HasInlineError);
+
+        // ...and is cleared once the stage can actually be fitted.
+        panel.ApplyLoadedFile(VariablePath());
+        row.SelectedModel = "G/G/2";
+        Assert.False(row.HasInlineError);
+        Assert.NotNull(row.AutoFitBadge);
+    }
+
+    /// <summary>
+    /// Asserts a user-facing string carries no non-finite number. Phase 8K's gate item
+    /// 3(j): an AIC of -inf, +inf or NaN is always a bug, and it reached the UI once
+    /// already (D-156), so it is checked at the point it would be read rather than only
+    /// at the fitter that produced it.
+    /// </summary>
+    private static void AssertNoNonFiniteNumber(string text)
+    {
+        foreach (var forbidden in new[] { "-∞", "+∞", "∞", "NaN", "-inf", "+inf", "inf" })
+        {
+            Assert.DoesNotContain(forbidden, text);
         }
     }
 

@@ -223,7 +223,10 @@ if (window.DataContext is not MainViewModel main)
         config.StageRows[1].Servers.Value = "2";
         config.StageRows[2].Servers.Value = "3";
 
-        var outcome = SimulationCoordinator.Run(config.TryBuildRunParameters()!, binding);
+        // The same SimulationParameters production hands the widgets, so this frame is
+        // wired from the real configured specs rather than a reconstructed stand-in.
+        var parameters = config.TryBuildRunParameters()!;
+        var outcome = SimulationCoordinator.Run(parameters, binding);
         Assert.Null(outcome.Error);
         Assert.NotNull(outcome.Result);
         Assert.Equal(3, outcome.Result!.StageMetrics.Count);
@@ -237,7 +240,7 @@ if (window.DataContext is not MainViewModel main)
         main.SimulationVerification.Apply(
             outcome.Result,
             config.InterArrivalDistribution ?? "Exponential",
-            Enumerable.Repeat(config.ServiceDistribution ?? "Exponential", outcome.Result.StageMetrics.Count).ToList(),
+            parameters.ServiceFamilies,
             0.05);
 
         // Phase 8C: exercise the analytical-validation production path too. This
@@ -246,7 +249,7 @@ if (window.DataContext is not MainViewModel main)
         main.AnalyticalValidation.Apply(
             outcome.Result,
             config.InterArrivalDistribution ?? "Exponential",
-            Enumerable.Repeat(config.ServiceDistribution ?? "Exponential", outcome.Result.StageMetrics.Count).ToList(),
+            parameters.ServiceFamilies.Select(spec => spec.Family.ToString()).ToList(),
             outcome.Result.StageMetrics.Select(m => (m.ArrivalRate, m.ServiceRate, m.ServerCount)).ToList());
         return (outcome, binding);
     }

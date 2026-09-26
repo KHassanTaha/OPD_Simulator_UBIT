@@ -5,7 +5,16 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
-*(none — current resolutions on file)*
+- **B-010:** `SimulationCoordinator` drops every stage's configured spread, so **no non-Exponential stage can actually run**.
+  - **Owner:** Taha — **ruling needed.** This changes what the engine samples, so it is not an agent's call.
+  - **Found 2026-09-26** by the 8K.8 screenshot gate, not by inspection: the mixed-family frame could not be produced.
+  - **Mechanism:** `ConfigPanelViewModel.TryBuildRunParameters` correctly builds a complete per-stage spec via `BuildSpec(row, rate)` — including σ for Normal, `Shape` + derived `Scale` for Gamma, derived `Min`/`Max` for Uniform — and carries it in `SimulationParameters.ServiceFamilies`. `SimulationCoordinator.BuildStageSpecs` then reads **only** `.Family` from that spec and rebuilds it as `new DistributionSpec(family, Mean: 1.0 / mu)` (`SimulationCoordinator.cs:250`). The spread is discarded there.
+  - **Consequence:** `DistributionSamplerFactory.Create` then refuses the stage — verbatim: `System.ArgumentException : Normal distribution requires StdDev > 0. (Parameter 'spec.StdDev')` thrown from `DistributionSamplerFactory.RequirePositiveStdDev`, surfacing to the user as an opaque Core exception rather than a config error. Same for Gamma (needs `Shape`) and Uniform (needs `Min`/`Max`).
+  - **Why this matters beyond one exception:** everything 8K built for the spread is currently dead on arrival for a real run. D-150's "μ is the only location parameter, every spread is separate and separate-typed", D-153's Uniform `w ≥ mean` guard, and the auto-fit's spread transfer all reach **validation only** — they never reach the engine. Only Exponential (the one family needing no spread) runs. So the headline 8K feature, "per-stage family selection", cannot yet select a family other than Exponential in the GUI or the CLI.
+  - **Proposed fix (needs approval — NOT applied):** carry the configured spec through and override only its mean, i.e. `parameters.ServiceFamilies[i] with { Mean = 1.0 / mu }` in place of the rebuild. This is consistent with D-147/D-150 (μ stays the authoritative location and is still the one value re-derived from the resolved rate; the spread is the user's or the fitter's and is not re-derived), and it is what the surrounding comment already claims the code does.
+  - **What is verified working today without it:** `BuildSpec` validation for all six families, the D-153 guard, and the whole of D-157's verification contract, which is tested per-stage in `Phase8BVerificationTests` (`VerifyAll_MixedStageParameters_*` uses genuinely different configured specs and passes/fails per stage). Only the end-to-end *run* is missing.
+  - **Evidence limitation accepted meanwhile:** `logs/screenshots/phase-8k-verification-mixed.png` is produced by a real three-stage run in which **all stages are Exponential**, because a mixed run cannot execute. The frame evidences D-157's per-stage verdict plumbing and the four cards, but it does **not** evidence a mixed-family run. This is stated in the test that writes it, not left for a reader to discover.
+  - **Needed to unblock:** owner approval of the one-line coordinator change (or a ruling to defer 8K's mixed-family run to a follow-up phase), after which `Phase8KScreenshots.Render_MixedFamilyVerification` is switched back to three distinct families and re-run.
 
 ## Resolved
 
