@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:OpdSimulator.App.Controls"
+             xmlns:views="clr-namespace:OpdSimulator.App.Views"
+             x:Class="OpdSimulator.App.Controls.StageRowControl"
+             x:DataType="vm:StageRow"
+             xmlns:vm="clr-namespace:OpdSimulator.App.ViewModels">
+
+    <!--
+      One stage row: the reusable unit for a stage in the Stages section (Phase 8K,
+      D-150). It was an inline DataTemplate inside ConfigPanel.axaml until Phase 8K,
+      which added three conditional spread inputs plus a Custom-notation state; a
+      template that long stops being a template, and AGENTS.md 16.5 requires the
+      reusable control. The row owns its own labels, tooltips, units and validation
+      keys so a second stage list would render identically.
+    -->
+    <Border Classes="PanelCard"
+            Margin="0,0,0,8"
+            Padding="{DynamicResource ThicknessSpaceS}">
+        <StackPanel Spacing="{DynamicResource SpaceS}">
+            <TextBlock Text="Stage name"
+                       FontSize="{DynamicResource FontSizeCaption}"
+                       Foreground="{DynamicResource BrushTextSecondary}"/>
+            <TextBox Text="{Binding StageName, Mode=TwoWay}"
+                     Watermark="e.g., Reception"
+                     ToolTip.Tip="Display name for this stage"/>
+            <controls:ValidatedField Label="Servers"
+                                     Watermark="e.g., 2"
+                                     Tooltip="Number of parallel servers at this stage (≥ 1)"
+                                     Value="{Binding Servers.Value, Mode=TwoWay}"
+                                     HasError="{Binding Servers.HasError}"
+                                     ErrorMessage="{Binding Servers.ErrorMessage}"
+                                     HelpAnchor="servers"
+                                     views:ConfigPanelValidation.ValidationKey="servers"/>
+
+            <!-- Kendall shortcut: M = exponential, D = deterministic, G = auto-fit from
+                 data; the trailing digit is the server count. Advanced mode hides the
+                 shortcut and reveals the independent family dropdowns instead. -->
+            <controls:SearchableDropdown Label="Model"
+                                         Placeholder="e.g., M/M/2"
+                                         Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
+                                         Items="{Binding ModelOptions}"
+                                         SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                                         IsVisible="{Binding !UseAdvancedSetup}"
+                                         HelpAnchor="stage-model"/>
+            <ToggleSwitch Content="Advanced"
+                          IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
+                          ToolTip.Tip="Set the arrival and service distribution families independently"/>
+
+            <controls:SearchableDropdown Label="Arrival distribution"
+                                         Placeholder="e.g., Exponential"
+                                         Tooltip="Distribution family for the time between arrivals at this stage. Note: arrivals are engine-wide, so the Model section's arrival dropdown is what the run uses; this row records your choice per stage."
+                                         Items="{Binding DistributionFamilies}"
+                                         SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
+                                         IsVisible="{Binding UseAdvancedSetup}"
+                                         HelpAnchor="stage-arrival-distribution"/>
+            <controls:SearchableDropdown Label="Service distribution"
+                                         Placeholder="e.g., Exponential"
+                                         Tooltip="Distribution family for this stage's service times"
+                                         Items="{Binding DistributionFamilies}"
+                                         SelectedItem="{Binding ServiceFamily, Mode=TwoWay}"
+                                         IsVisible="{Binding UseAdvancedSetup}"
+                                         HelpAnchor="stage-service-distribution"/>
+
+            <!-- Phase 8K (D-150): μ is the only location parameter for every family;
+                 the field below adds spread only. Each family shows the one input it
+                 needs, with its own label and unit, so a stale value from another
+                 family can never be read as a valid one. -->
+            <StackPanel Spacing="2"
+                        IsVisible="{Binding NeedsShapeParameters}">
+                <controls:ValidatedField Label="Standard deviation σ"
+                                         Watermark="e.g., 0.4"
+                                         Unit="min"
+                                         Tooltip="Spread of the service times. Shown for the Normal and Lognormal families only; the mean stays whatever μ you set."
+                                         IsVisible="{Binding NeedsStdDev}"
+                                         Value="{Binding ServiceStdDev, Mode=TwoWay}"
+                                         HasError="{Binding HasSpreadError}"
+                                         ErrorMessage="{Binding SpreadError}"
+                                         HelpAnchor="stage-std-dev"
+                                         views:ConfigPanelValidation.ValidationKey="stage-stddev"/>
+                <controls:ValidatedField Label="Shape k"
+                                         Watermark="e.g., 2"
+                                         Tooltip="Shape k. Scale is derived as Mean / k."
+                                         IsVisible="{Binding NeedsShape}"
+                                         Value="{Binding ServiceShape, Mode=TwoWay}"
+                                         HasError="{Binding HasSpreadError}"
+                                         ErrorMessage="{Binding SpreadError}"
+                                         HelpAnchor="stage-shape"
+                                         views:ConfigPanelValidation.ValidationKey="stage-shape"/>
+                <controls:ValidatedField Label="Half-width w"
+                                         Watermark="e.g., 0.5"
+                                         Unit="min"
+                                         Tooltip="Half-width w. Min = Mean − w, Max = Mean + w."
+                                         IsVisible="{Binding NeedsSpread}"
+                                         Value="{Binding ServiceSpread, Mode=TwoWay}"
+                                         HasError="{Binding HasSpreadError}"
+                                         ErrorMessage="{Binding SpreadError}"
+                                         HelpAnchor="stage-spread"
+                                         views:ConfigPanelValidation.ValidationKey="stage-spread"/>
+            </StackPanel>
+
+            <StackPanel Spacing="2"
+                        IsVisible="{Binding IsRateSourceVisible}">
+                <TextBlock Text="Service rate μ"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           Foreground="{DynamicResource BrushTextSecondary}"/>
+                <TextBlock Text="{Binding ServiceRateLabel}"
+                           Classes="Caption"
+                           TextWrapping="Wrap"
+                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
+            </StackPanel>
+
+            <!-- Phase 7C: the editable per-stage μ. Always shown in manual mode; in fit
+                 mode it appears only when the data has no fitted rate for this stage
+                 (7C.4/7C.5). -->
+            <controls:ValidatedField Label="Service rate μ"
+                                     Watermark="e.g., 0.8"
+                                     Tooltip="Manual mean service rate for this stage, interpreted by the Parameter mode and Time unit. This is the only location parameter: the family above sets the spread."
+                                     Unit="/ min"
+                                     IsVisible="{Binding IsMuVisible}"
+                                     Value="{Binding MuValue, Mode=TwoWay}"
+                                     HasError="{Binding MuHasError}"
+                                     ErrorMessage="{Binding MuError}"
+                                     HelpAnchor="stage-mu"
+                                     views:ConfigPanelValidation.ValidationKey="stage-mu"/>
+        </StackPanel>
+    </Border>
+</UserControl>

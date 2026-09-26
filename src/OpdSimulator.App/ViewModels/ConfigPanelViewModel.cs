@@ -30,6 +30,38 @@ public partial class ConfigPanelViewModel : ObservableObject
     public IReadOnlyList<string> Distributions { get; } =
         new[] { "Exponential", "Poisson", "Normal", "Uniform" };
 
+    /// <summary>
+    /// The six families offered by the per-stage and default-family dropdowns
+    /// (Phase 8K, D-150). Enum-typed so the row and the defaults cannot drift apart
+    /// the way two string lists can.
+    /// </summary>
+    public IReadOnlyList<DistributionFamily> StageFamilyOptions { get; } =
+        Enum.GetValues<DistributionFamily>();
+
+    /// <summary>
+    /// Service family stamped onto every NEW stage row (Phase 8K, D-150, task 8K.4).
+    /// </summary>
+    /// <remarks>
+    /// A default for creation, not a run-wide override: changing it leaves existing rows
+    /// alone, by design. A user who tuned one stage to Normal did not ask for the other
+    /// two to change when they later edited a default, so propagation is the explicit
+    /// "Apply to all stages" button and nothing else.
+    /// </remarks>
+    [ObservableProperty]
+    private DistributionFamily _defaultStageServiceFamily = DistributionFamily.Exponential;
+
+    /// <summary>
+    /// Arrival family stamped onto every NEW stage row, and shown on the row as the
+    /// family's own record of intent (Phase 8K, D-150, task 8K.4).
+    /// </summary>
+    /// <remarks>
+    /// Separate from the Model section's inter-arrival dropdown, which stays the value
+    /// the run actually uses: arrivals are generated engine-wide and Core has no
+    /// per-stage arrival family. This is the row's label for that one process.
+    /// </remarks>
+    [ObservableProperty]
+    private DistributionFamily _defaultStageArrivalFamily = DistributionFamily.Exponential;
+
     /// <summary>Day-of-week options for a multi-day run (clinic week, CONTEXT §1.1).</summary>
     public IReadOnlyList<string> StartDays { get; } =
         new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Saturday" };
@@ -562,6 +594,30 @@ public partial class ConfigPanelViewModel : ObservableObject
         IsAdvancedSectionExpanded = false;
     }
 
+    /// <summary>
+    /// Copies the two default families onto every existing stage row (Phase 8K, D-150,
+    /// task 8K.4) — the one and only way a default propagates to rows that already exist.
+    /// </summary>
+    /// <remarks>
+    /// Spread parameters are cleared for the rows that lose their family, because
+    /// <see cref="StageRow.ClearShapeParametersFor"/> runs from the family change and
+    /// a surviving σ under a Gamma family would be read as a shape.
+    /// </remarks>
+    [RelayCommand]
+    private void ApplyDefaultsToAllStages()
+    {
+        foreach (var row in StageRows)
+        {
+            // ApplyFamilies also marks the notation "Custom", because after this the
+            // shorthand no longer describes the row and leaving a stale M/M/1 beside a
+            // Normal family would misreport what the run will do.
+            row.ApplyFamilies(DefaultStageArrivalFamily, DefaultStageServiceFamily);
+        }
+
+        RecomputeRho();
+        RecomputeBlockingState();
+    }
+
     /// <summary>Expands every configuration section (Phase 8D.3).</summary>
     [RelayCommand]
     private void ExpandAll()
@@ -1064,7 +1120,15 @@ public partial class ConfigPanelViewModel : ObservableObject
             var name = index < DefaultStageNames.Length
                 ? DefaultStageNames[index]
                 : $"Stage {index + 1}";
-            var row = new StageRow { StageName = name };
+            // Phase 8K (D-150, task 8K.4): new rows start from the defaults, not from a
+            // hardcoded family. Read once per row so a row keeps the default that was
+            // current when it was created.
+            var row = new StageRow
+            {
+                StageName = name,
+                ArrivalFamily = DefaultStageArrivalFamily,
+                ServiceFamily = DefaultStageServiceFamily,
+            };
             row.Servers.ValueChanged += (_, _) => RecomputeRho();
             // A manual per-stage μ edit changes both ρ and Start readiness (7C.4/7C.6).
             row.MuValueChanged += (_, _) =>
@@ -1146,6 +1210,9 @@ public partial class ConfigPanelViewModel : ObservableObject
             // The editable per-stage μ is always available in manual mode; in
             // fit mode it appears only for a stage the data did not cover (7C.5).
             row.IsMuVisible = IsManualMuEditable || !(FittedRateFor(row.StageName) is > 0);
+            // Pushed per row rather than bound from the panel, because the extracted
+            // StageRowControl cannot resolve a typed $parent[ItemsControl] binding.
+            row.IsRateSourceVisible = IsCommaListMuVisible;
         }
     }
 
@@ -1485,15 +1552,24 @@ public partial class ConfigPanelViewModel : ObservableObject
             manualRates.Add(rate);
             serviceRates.Add(rate);
 
-            // Mean is 1/μ computed from the same `rate`. When no μ was entered the
-            // rate will be fitted from data later, so the mean is genuinely unknown
-            // here and is left NaN rather than guessed — the coordinator re-derives it
-            // from whichever μ actually wins. Nothing consumes this value before then.
-            var family = MapStringToFamily(row.ServiceFamily);
-            serviceFamilies.Add(new DistributionSpec(
-                family,
-                Mean: rate is > 0 ? 1.0 / rate.Value : double.NaN));
+            // Phase 8K (D-150): build the spec from the family and the SAME `rate`
+            // that goes into serviceRates, so Mean and ServiceRate cannot disagree.
+            // Null is passed through untouched, never defaulted: a blank μ must reach
+            // the coordinator as "fit me" and be refused loudly there, not be turned
+            // into a zero-mean spec that throws somewhere further downstream.
+            // Cleared here, before the check, so fixing the field clears the error on
+            // the very next attempt (FR-UI-17) rather than needing a separate reset.
+            row.SpreadError = string.Empty;
+            var spec = BuildSpec(row, rate);
+            if (spec is null)
+            {
+                // BuildSpec has written the reason on the row. Refusing the run here is
+                // what makes the message reachable: the alternative is the sampler
+                // factory throwing an opaque "requires StdDev > 0" from inside Core.
+                return null;
+            }
 
+            serviceFamilies.Add(spec);
             rowIndex++;
         }
 
@@ -1515,13 +1591,14 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var startDay);
 
-        // Phase 8J (D-126 lifted): the service family is now taken per stage from each
-        // row's own ServiceFamily instead of collapsing to StageRows[0]. Arrivals are
-        // still external and take the first stage's arrival family — an arrival family
-        // per stage is not modelled, and 8J changed only the service side.
+        // Phase 8K (D-150, Ruling 3): arrivals are NOT per stage. Core samples
+        // inter-arrivals from one engine-wide exponential process, so the Model
+        // section's dropdown stays authoritative and each row's ArrivalFamily is
+        // informational only. Previously this read StageRows[0].ArrivalFamily, which
+        // made the first stage silently govern every other stage.
         return new SimulationParameters(
             mode,
-            StageRows[0].ArrivalFamily,
+            InterArrivalDistribution ?? "Exponential",
             manualLambda,
             names,
             serverCounts,
@@ -1541,28 +1618,130 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Maps a family name from the UI dropdowns to the Core enum.
+    /// Builds the <see cref="DistributionSpec"/> for one stage from its row's family
+    /// and the mode-converted μ that will also be handed to the engine as
+    /// <c>StageSpec.ServiceRate</c> (Phase 8K, D-150).
     /// </summary>
     /// <remarks>
-    /// A private switch rather than a reuse: <c>GeneralDistributionFitter</c> in the Data
-    /// layer has the same mapping, but its copy is <c>private static</c> and Data is
-    /// outside this phase's file set, so it could not be called without widening scope.
-    /// The two must stay in step — the accepted names are exactly the five
-    /// <c>DistributionFitterFactory</c> families.
+    /// <para>
+    /// The architecture is that <b>μ is the only location parameter</b>: the user types
+    /// one mean service time and picks a family, and the family's own parameters control
+    /// <i>spread only</i>. That is the fix for the disagreement that made an earlier
+    /// draft impossible — a row where μ and the raw parameters were both entered could
+    /// describe two different distributions at once.
+    /// </para>
+    /// <para>
+    /// Consequently every family satisfies one invariant:
+    /// <c>ServiceRate == 1 / Mean == μ</c>. The D-147 debug check in
+    /// <c>StageSpec</c> tests exactly that, so it holds globally with no scoping and no
+    /// Core change. The sampler's own mean agrees too: Gamma draws from
+    /// <c>k · Scale = k · (Mean / k) = Mean</c>, and Uniform from
+    /// <c>((Mean − w) + (Mean + w)) / 2 = Mean</c>.
+    /// </para>
+    /// <para>
+    /// When μ is null the mean is genuinely unknown — the coordinator will fit it from
+    /// data — so the spec is built with a NaN mean, exactly as Phase 8J did, and the
+    /// spread fields are still carried through for the coordinator to use.
+    /// </para>
     /// </remarks>
-    private static DistributionFamily MapStringToFamily(string? name) =>
-        (name ?? string.Empty).Trim().ToLowerInvariant() switch
+    /// <param name="row">The stage row, holding the family and the spread text.</param>
+    /// <param name="rate">Mode-converted μ per minute, or null when not entered.</param>
+    /// <returns>
+    /// The spec, or null when the family needs a spread parameter that is missing or
+    /// invalid. Null is a refusal, not a default: the caller stops the run so the user
+    /// gets the reason on the row instead of an exception from the sampler factory.
+    /// </returns>
+    internal static DistributionSpec? BuildSpec(StageRow row, double? rate)
+    {
+        var family = row.ServiceFamily;
+        double mean = rate is > 0 ? 1.0 / rate.Value : double.NaN;
+
+        switch (family)
         {
-            "exponential" => DistributionFamily.Exponential,
-            "normal" => DistributionFamily.Normal,
-            "lognormal" => DistributionFamily.Lognormal,
-            "gamma" => DistributionFamily.Gamma,
-            "uniform" => DistributionFamily.Uniform,
-            _ => throw new ArgumentException(
-                $"Unknown service distribution family '{name}'. Expected one of: Exponential, " +
-                "Normal, Lognormal, Gamma, Uniform.",
-                nameof(name)),
-        };
+            case DistributionFamily.Exponential:
+            case DistributionFamily.Deterministic:
+                return new DistributionSpec(family, mean);
+
+            case DistributionFamily.Normal:
+            case DistributionFamily.Lognormal:
+                if (!TryPositive(row.ServiceStdDev, out var stdDev))
+                {
+                    row.SpreadError =
+                        $"{family} needs a standard deviation greater than 0. " +
+                        $"You entered \"{row.ServiceStdDev ?? "blank"}\".";
+                    return null;
+                }
+
+                return new DistributionSpec(family, mean, StdDev: stdDev);
+
+            case DistributionFamily.Gamma:
+                if (!TryPositive(row.ServiceShape, out var shape))
+                {
+                    row.SpreadError =
+                        "Gamma needs a shape k greater than 0. " +
+                        $"You entered \"{row.ServiceShape ?? "blank"}\".";
+                    return null;
+                }
+
+                // Scale is derived, never entered: it is the one value that makes the
+                // sampler's mean (k·Scale) equal the mean the user asked for with μ.
+                return new DistributionSpec(family, mean, Shape: shape, Scale: mean / shape);
+
+            case DistributionFamily.Uniform:
+                if (!TryPositive(row.ServiceSpread, out var halfWidth))
+                {
+                    row.SpreadError =
+                        "Uniform needs a half-width w greater than 0. " +
+                        $"You entered \"{row.ServiceSpread ?? "blank"}\".";
+                    return null;
+                }
+
+                // A half-width at or beyond the mean drives the derived lower bound to
+                // zero or below, and a negative service time is not a service time.
+                // DistributionSpec only requires Min < Max, so nothing downstream would
+                // catch it — the run would quietly sample negative durations and every
+                // wait time derived from them would be wrong. Refuse it here, where the
+                // mean is known; the blur check cannot do this, because it would have to
+                // re-derive the mean from the row's own μ and risk disagreeing with this.
+                if (halfWidth >= mean)
+                {
+                    row.SpreadError =
+                        $"Uniform needs a half-width w less than the mean service time " +
+                        $"({mean:0.####} min), or Min would be 0 or negative. " +
+                        $"You entered \"{row.ServiceSpread ?? "blank"}\".";
+                    return null;
+                }
+
+                // Bounds derived from mean ± half-width, so a symmetric spread about the
+                // user's μ is guaranteed rather than typed twice and able to disagree.
+                return new DistributionSpec(family, mean, Min: mean - halfWidth, Max: mean + halfWidth);
+
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(row), family, "Unsupported service distribution family.");
+        }
+    }
+
+    /// <summary>
+    /// Parses a spread parameter the user typed, accepting only a strictly positive
+    /// number. Blank and malformed both fail: the sampler factory rejects a zero or
+    /// negative shape, scale or half-width, and a negative half-width would also make
+    /// the derived Min exceed the derived Max.
+    /// </summary>
+    /// <param name="text">The raw field text.</param>
+    /// <param name="value">The parsed value when the text is a positive number.</param>
+    /// <returns>True when <paramref name="value"/> was set.</returns>
+    private static bool TryPositive(string? text, out double value)
+    {
+        if (double.TryParse(text, out var parsed) && parsed > 0)
+        {
+            value = parsed;
+            return true;
+        }
+
+        value = 0.0;
+        return false;
+    }
 
     /// <summary>
     /// Converts a user-entered rate or inverted mean to the engine's native

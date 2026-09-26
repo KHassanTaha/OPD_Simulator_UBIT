@@ -142,6 +142,15 @@ public partial class ConfigPanel : UserControl
             case "stage-mu":
                 (field.DataContext as StageRow)?.ValidateMu();
                 break;
+
+            // Phase 8K: all three spread inputs share one validator, because only one
+            // of them is visible for the selected family and it validates whichever
+            // parameter that family needs.
+            case "stage-stddev":
+            case "stage-shape":
+            case "stage-spread":
+                (field.DataContext as StageRow)?.ValidateSpread();
+                break;
         }
     }
 }

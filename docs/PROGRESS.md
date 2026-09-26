@@ -2,6 +2,42 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Phase 8K.0–8K.5 — per-stage family selection — 2026-09-26
+
+**Branch:** `fix/post-merge-8e` · **Status:** In-Progress (8K.6–8K.8 remain)
+
+### Done
+- 8K.0 `StageRow` extracted byte-identically into its own file (D-149), committed and pushed as `a491783` before any behavioural change.
+- 8K.1 families are `DistributionFamily` enums end to end; `ParsedModel` carries two nullable families so `G/G/c` is representable; `G/G/c` raises `AutoFitRequested` instead of guessing; 15 fixed notations; `MapStringToFamily` deleted (D-150).
+- 8K.2 `BuildSpec(row, rate)` is the single place a family becomes a `DistributionSpec`. μ is the only location parameter — mean `= 1/μ` for all six, with σ / k / w as the only spread inputs and `Scale = Mean/k`, `Min/Max = Mean ± w` derived. Uniform refuses `w ≥ mean`.
+- 8K.3 `StageRowControl` extracted from the inline template; one spread field per family, μ visible for all six.
+- 8K.4 explicit new-stage defaults, seeded on construction; `ApplyDefaultsToAllStages` is the only retroactive path.
+- 18 tests in `Phase8KTests.cs` + 1 in `Phase7BTests.cs` = **19**.
+
+### Two real defects the tests found
+1. **Derived visibility properties were never raised.** `NeedsStdDev` / `NeedsShape` / `NeedsSpread` / `HasSpreadError` are computed, and a computed property nobody raises is a property the binding system never re-reads. The user changed a stage's family and the row kept rendering the *previous* family's input — a silent misconfiguration with plausible-looking numbers. Fixed by `RaiseDerivedSpreadNotifications()` on the family change and an `OnSpreadErrorChanged` hook. This is the failure mode §18 exists to prevent, and it was invisible to inspection because the XAML binding is correct; only exercising the control exposed it.
+2. **The Advanced toggle's `IsVisible` was bound instead of its checked state**, so the test found a null control where it expected a hidden one.
+
+### Ruling C correction, recorded
+The first proposal let a stage enter μ *and* the family's raw parameters and reconcile them. A temporary probe showed this produces
+`StageSpec 'Probe': ServiceRate (2) disagrees with ServiceDistribution.Mean (2), which implies a rate of 0.5.`
+— the numbers are equal and the assertion still fires, because the mid-point is the wrong quantity. The owner's corrected ruling (D-150) removes the disagreement instead of detecting it: one location parameter, spread derived. Probe files removed; all six families re-probed under the corrected architecture and accepted by `StageSpec` (μ = 0.5 → Mean = 2; Gamma k = 2 → Scale = 1; Uniform w = 0.5 → Min 1.5 / Max 2.5).
+
+### Gate
+| Check | Result |
+|---|---|
+| `dotnet build -c Release` | 0 errors, 0 warnings |
+| `dotnet test -c Release` | **501 / 501** (Core 114 / Data 71 / Cli 35 / App 281) |
+| `dotnet build -c Debug` | 0 errors, 0 warnings |
+| `dotnet test -c Debug` | **501 / 501** — required, because D-147 is `#if DEBUG` and a Release-only run cannot observe it |
+
+Test count is 19 over the 482 baseline, landing on the specified 501 exactly. The first draft of `Phase8KTests.cs` used two 6-case `[Theory]`s and standalone methods, which reported 32 cases and a 515 total; those are now single cases looping internally, so the suite count reflects behaviours specified rather than families enumerated.
+
+### Not yet done
+8K.6 (G/G/c auto-fit — nothing subscribes to `AutoFitRequested` yet), 8K.7 (per-stage verification and AIC/p-value badge), 8K.8 (manual gate, screenshots, docs, final commit). `ServiceDistribution` / `MainViewModel` shim reads are still in place and are part of 8K.6.
+
+---
+
 Session Handoff — 2026-09-26 17:45
 Branch: fix/post-merge-8e
 Status: In-Progress (pushed; awaiting owner review/merge per §11.5)

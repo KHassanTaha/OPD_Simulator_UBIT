@@ -12,6 +12,7 @@ using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 using Xunit;
@@ -268,13 +269,13 @@ public class Phase8FTests
         row.SelectedModel = "M/M/4";
 
         Assert.Equal("4", row.Servers.Value);
-        Assert.Equal("Exponential", row.ArrivalFamily);
-        Assert.Equal("Exponential", row.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ServiceFamily);
 
         // A different family must survive the round trip too.
         row.SelectedModel = "M/D/2";
         Assert.Equal("2", row.Servers.Value);
-        Assert.Equal("Deterministic", row.ServiceFamily);
+        Assert.Equal(DistributionFamily.Deterministic, row.ServiceFamily);
     }
 
     /// <summary>
