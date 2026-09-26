@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.Data.Parameters;
 using Serilog;
 
@@ -1442,6 +1443,15 @@ public partial class ConfigPanelViewModel : ObservableObject
         var names = new List<string>(stageCount);
         var serverCounts = new List<int>(stageCount);
         var manualRates = new List<double?>(stageCount);
+
+        // Phase 8J: the per-stage service family and the μ it belongs to, built here
+        // from the same `rate` value so the two can never disagree. `ServiceFamilies`
+        // carries the family; `serviceRates` carries μ as entered (null = not entered,
+        // so the coordinator fits it). The spec's Mean is filled from the same μ for
+        // the same reason — it is never recovered by inverting a Mean, because that
+        // round trip is not bit-reversible (D-146 caveat 1, D-147).
+        var serviceFamilies = new List<DistributionSpec>(stageCount);
+        var serviceRates = new List<double?>(stageCount);
         int rowIndex = 0;
         foreach (var row in StageRows)
         {
@@ -1473,6 +1483,17 @@ public partial class ConfigPanelViewModel : ObservableObject
             }
 
             manualRates.Add(rate);
+            serviceRates.Add(rate);
+
+            // Mean is 1/μ computed from the same `rate`. When no μ was entered the
+            // rate will be fitted from data later, so the mean is genuinely unknown
+            // here and is left NaN rather than guessed — the coordinator re-derives it
+            // from whichever μ actually wins. Nothing consumes this value before then.
+            var family = MapStringToFamily(row.ServiceFamily);
+            serviceFamilies.Add(new DistributionSpec(
+                family,
+                Mean: rate is > 0 ? 1.0 / rate.Value : double.NaN));
+
             rowIndex++;
         }
 
@@ -1494,15 +1515,13 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var startDay);
 
-        // Phase 7B: the per-stage model notation is now the source of the
-        // distribution families. Arrivals are external, so they take the
-        // FIRST stage's arrival family; services take the first stage's
-        // service family — SimulationParameters carries a single service
-        // family, so per-stage service override is deferred (D-126).
+        // Phase 8J (D-126 lifted): the service family is now taken per stage from each
+        // row's own ServiceFamily instead of collapsing to StageRows[0]. Arrivals are
+        // still external and take the first stage's arrival family — an arrival family
+        // per stage is not modelled, and 8J changed only the service side.
         return new SimulationParameters(
             mode,
             StageRows[0].ArrivalFamily,
-            StageRows[0].ServiceFamily,
             manualLambda,
             names,
             serverCounts,
@@ -1514,8 +1533,36 @@ public partial class ConfigPanelViewModel : ObservableObject
             dailyCap,
             EffectiveSeed,
             pExitOverride,
-            EffectiveTraceLevel);
+            EffectiveTraceLevel)
+        {
+            ServiceFamilies = serviceFamilies,
+            ServiceRates = serviceRates,
+        };
     }
+
+    /// <summary>
+    /// Maps a family name from the UI dropdowns to the Core enum.
+    /// </summary>
+    /// <remarks>
+    /// A private switch rather than a reuse: <c>GeneralDistributionFitter</c> in the Data
+    /// layer has the same mapping, but its copy is <c>private static</c> and Data is
+    /// outside this phase's file set, so it could not be called without widening scope.
+    /// The two must stay in step — the accepted names are exactly the five
+    /// <c>DistributionFitterFactory</c> families.
+    /// </remarks>
+    private static DistributionFamily MapStringToFamily(string? name) =>
+        (name ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "exponential" => DistributionFamily.Exponential,
+            "normal" => DistributionFamily.Normal,
+            "lognormal" => DistributionFamily.Lognormal,
+            "gamma" => DistributionFamily.Gamma,
+            "uniform" => DistributionFamily.Uniform,
+            _ => throw new ArgumentException(
+                $"Unknown service distribution family '{name}'. Expected one of: Exponential, " +
+                "Normal, Lognormal, Gamma, Uniform.",
+                nameof(name)),
+        };
 
     /// <summary>
     /// Converts a user-entered rate or inverted mean to the engine's native

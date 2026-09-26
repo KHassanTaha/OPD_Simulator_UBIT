@@ -170,11 +170,35 @@ public static class SimulationCoordinator
         {
             if (binding.ServiceMinutesByStage.TryGetValue(stage, out var times))
             {
-                reports.Add(FitsService.Fit($"{stage} service", times, parameters.ServiceDistribution, significanceLevel));
+                // Phase 8J: test the samples against the family that stage was actually
+                // configured with, instead of one family for the whole run. Looked up by
+                // name because the binding's stage list is the data's, which need not be
+                // the same length or order as the configured one; an unmatched stage
+                // falls back to the first configured family, which is what every stage
+                // was tested against before 8J.
+                reports.Add(FitsService.Fit(
+                    $"{stage} service",
+                    times,
+                    FamilyNameFor(parameters, stage),
+                    significanceLevel));
             }
         }
 
         return reports;
+    }
+
+    /// <summary>
+    /// The configured service family name for a stage, matched by stage name.
+    /// </summary>
+    private static string FamilyNameFor(SimulationParameters parameters, string stageName)
+    {
+        for (int i = 0; i < parameters.StageNames.Count && i < parameters.ServiceFamilies.Count; i++)
+        {
+            if (string.Equals(parameters.StageNames[i], stageName, StringComparison.OrdinalIgnoreCase))
+                return parameters.ServiceFamilies[i].Family.ToString();
+        }
+
+        return parameters.ServiceDistribution;
     }
 
     /// <summary>
@@ -183,30 +207,81 @@ public static class SimulationCoordinator
     /// when any stage has neither manual nor fitted μ — the run cannot be
     /// configured (5d.1: the banner names the first offending stage).
     /// </summary>
+    /// <exception cref="ArgumentException">
+    /// If the per-stage service lists do not line up with <c>StageNames</c> (D-147).
+    /// This is a misconfiguration rather than a user error, so it is surfaced loudly
+    /// instead of being papered over by padding or truncating a list.
+    /// </exception>
     private static (List<StageSpec>? Specs, string? MissingStageName) BuildStageSpecs(SimulationParameters parameters, DataBindingResult? binding)
     {
+        int stageCount = parameters.StageNames.Count;
+        RequirePerStageList("ServiceFamilies", stageCount, parameters.ServiceFamilies.Count, parameters);
+        RequirePerStageList("ServiceRates", stageCount, parameters.ServiceRates.Count, parameters);
+
         string? missingFor = null;
-        var specs = new List<StageSpec>(parameters.StageNames.Count);
-        for (int i = 0; i < parameters.StageNames.Count; i++)
+        var specs = new List<StageSpec>(stageCount);
+        for (int i = 0; i < stageCount; i++)
         {
             string name = parameters.StageNames[i];
-            double mu = parameters.ManualServiceRates[i] ?? FittedRateFor(name, binding) ?? double.NaN;
+
+            // ServiceRates is the as-entered μ (Phase 8J); ManualServiceRates is the
+            // mode-precedence input and FittedRateFor the data fallback. All three
+            // normally agree on the first non-null, so the resolved value is the same
+            // one the pre-8J code computed.
+            double mu = parameters.ServiceRates[i]
+                ?? parameters.ManualServiceRates[i]
+                ?? FittedRateFor(name, binding)
+                ?? double.NaN;
             if (!(mu > 0))
             {
                 missingFor ??= name;
                 continue;
             }
 
-            specs.Add(new StageSpec(name, parameters.ServerCounts[i], mu));
+            // The family comes from the per-stage spec; the mean is re-derived from the
+            // μ that actually won, so ServiceRate and ServiceDistribution.Mean are
+            // consistent by construction. Inverting Mean to recover μ is deliberately
+            // NOT done — that round trip is not bit-reversible (D-146 caveat 1).
+            var family = parameters.ServiceFamilies[i].Family;
+            specs.Add(new StageSpec(
+                name,
+                parameters.ServerCounts[i],
+                mu,
+                new DistributionSpec(family, Mean: 1.0 / mu)));
         }
 
-        if (specs.Count != parameters.StageNames.Count)
+        if (specs.Count != stageCount)
         {
             Log.Warning("Run refused: stage '{}' has no service rate (manual or fitted)", missingFor);
             return (null, missingFor);
         }
 
         return (specs, null);
+    }
+
+    /// <summary>
+    /// Fails fast when a per-stage list does not have one entry per stage.
+    /// </summary>
+    /// <remarks>
+    /// Without this, a short list would be indexed out of range mid-run and a long one
+    /// would silently drop stages — a misconfiguration that produced a plausible but
+    /// wrong network is worse than a refusal (AGENTS §12.4, fail loud).
+    /// </remarks>
+    private static void RequirePerStageList(string listName, int stageCount, int actualCount, SimulationParameters parameters)
+    {
+        if (actualCount == stageCount)
+            return;
+
+        Log.Error(
+            "SimulationParameters is misconfigured: {StageCount} stage name(s) but {ListName} has {ActualCount} entr(ies)",
+            stageCount, listName, actualCount);
+
+        throw new ArgumentException(
+            $"SimulationParameters is misconfigured: {stageCount} stage name(s) " +
+            $"('{string.Join(", ", parameters.StageNames)}') but {listName} has " +
+            $"{actualCount} entr(ies). The per-stage service lists must have exactly one " +
+            "entry per stage.",
+            nameof(parameters));
     }
 
     private static double? FittedRateFor(string stageName, DataBindingResult? binding)

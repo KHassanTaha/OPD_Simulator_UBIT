@@ -50,6 +50,36 @@ public sealed record StageSpec
         ServerCount = serverCount;
         ServiceRate = serviceRate;
         ServiceDistribution = serviceDistribution;
+
+#if DEBUG
+        // Developer safety net (Phase 8J, D-147): a stage may legitimately declare a
+        // rate and a distribution, but the two must describe the same model. If a
+        // caller passes a rate and a spec whose mean implies a different rate, the
+        // Engine's analytical stability check (rho = lambda / (c * mu), computed from
+        // ServiceRate) would validate one model while the simulation runs another —
+        // a bug that produces plausible-looking, silently wrong metrics.
+        //
+        // This is DEBUG-only on purpose. It is a development-time guard, not a
+        // production check: Release builds compile it out so there is no per-construction
+        // cost on the run path. Nothing in the shipped app relies on it firing.
+        //
+        // The tolerance is relative (1e-9 of the implied rate) rather than absolute, so
+        // the check scales with magnitude and cannot fire on ULP-level rounding: the
+        // legitimate derivation Mean = 1.0 / mu introduces exactly that much noise.
+        if (ServiceDistribution is { Mean: > 0 })
+        {
+            double impliedRate = 1.0 / ServiceDistribution.Mean;
+            double tolerance = 1e-9 * Math.Abs(impliedRate);
+            if (Math.Abs(ServiceRate - impliedRate) > tolerance)
+            {
+                throw new InvalidOperationException(
+                    $"StageSpec '{Name}': ServiceRate ({ServiceRate}) disagrees with " +
+                    $"ServiceDistribution.Mean ({ServiceDistribution.Mean}), which implies a " +
+                    $"rate of {impliedRate}. They must be consistent — derive both from the " +
+                    "same source rather than inverting one to get the other.");
+            }
+        }
+#endif
     }
 
     /// <summary>Human-readable stage name.</summary>
