@@ -48,7 +48,13 @@ public sealed class Engine
     private readonly EngineConfig? _config;
     private readonly TraceRandomSource _random;
     private readonly ExponentialSampler _interarrivalSampler;
-    private readonly ExponentialSampler _serviceSampler;
+
+    // One service-time sampler per stage, rebuilt at the start of every run from
+    // each StageSpec's EffectiveServiceDistribution (Phase 8I). Before 8I a single
+    // shared exponential sampler served every stage, so a stage could not be
+    // anything but M/M/c. Inter-arrivals deliberately stay exponential: the arrival
+    // process is M/M/c by definition and 8I changes only the service side.
+    private IDistributionSampler[]? _serviceSamplers;
     private readonly IServerSelectionPolicy _serverSelection;
     private readonly ILogger _log;
     private ITraceSink? _traceSink;
@@ -86,7 +92,6 @@ public sealed class Engine
         // draw sequence that the Milestone-1 regression is pinned to.
         _random = new TraceRandomSource(random);
         _interarrivalSampler = new ExponentialSampler(_random);
-        _serviceSampler = new ExponentialSampler(_random);
     }
 
     /// <summary>
@@ -251,6 +256,21 @@ public sealed class Engine
         var stages = Enumerable.Range(0, topology.StageSpecs.Count)
             .Select(i => topology.CreateStage(i))
             .ToArray();
+
+        // Per-stage service samplers (Phase 8I). Each stage dispatches on its own
+        // family, so M/D/c and M/M/c and M/E2/c can sit in the same network.
+        //
+        // Building the samplers consumes no draws — the factory only validates the
+        // spec — so this does not perturb the RNG stream. For a stage with no
+        // explicit distribution the spec resolves to Exponential with mean 1/μ, and
+        // ExponentialDistributionSampler draws exactly one uniform and applies the
+        // same -ln(U)/λ inverse CDF as the legacy ExponentialSampler did. The
+        // exponential draw sequence is therefore unchanged, which is what keeps the
+        // D-054 regression (seed 42: served = 29892, wait = 0.724) passing.
+        _serviceSamplers = topology.StageSpecs
+            .Select(spec => DistributionSamplerFactory.Create(spec.EffectiveServiceDistribution, _random))
+            .ToArray();
+
         var fel = new FEL();
 
         var inService = new Dictionary<int, Patient>();          // patientId -> patient being served
@@ -370,6 +390,7 @@ public sealed class Engine
         _stageQueueSeries = null;
         _generatedInterArrivals = null;
         _generatedServiceSamples = null;
+        _serviceSamplers = null;
 
         double[] perServerUtilisation = stageMetrics
             .SelectMany(m => m.PerServerUtilisation)
@@ -481,7 +502,10 @@ public sealed class Engine
         // dequeued the patient that starts here), i.e. how many are left behind.
         EmitTrace(TraceEventType.StartService, clock, patient.Id, stage.Name, server.Id, stage.Queue.Count, details: null);
 
-        double serviceTime = _serviceSampler.Sample(stage.ServiceRate);
+        // Phase 8I: the stage's own sampler, not a shared exponential. Index by the
+        // patient's stage rather than the local `stage` so this stays correct for the
+        // routing path too.
+        double serviceTime = _serviceSamplers![patient.StageIndex].NextSample();
         _generatedServiceSamples![patient.StageIndex].Add(serviceTime); // Phase 8A: retain the drawn service time per stage
         EmitRngDraw(clock, FormattableString.Invariant(
             $"service time {serviceTime:0.000} min at {stage.Name} s{server.Id} (end at t={clock + serviceTime:0.000})"));

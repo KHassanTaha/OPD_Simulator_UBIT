@@ -2,6 +2,71 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 17:05
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8I — `StageSpec` gains an optional `DistributionSpec`; the Engine builds one sampler per stage (D-146)
+- Phase 8I — proved the exponential RNG stream is byte-identical to pre-8I instead of assuming it
+- Phase 8I — 6 tests: exponential default, explicit override, M/D/1 constant times, zero variance with a control, heterogeneous M/M/1 + M/D/2 + M/M/3, byte-identity digests
+
+In Progress
+- Nothing. Phase 8I is closed out and the gate passed; 8J is not started.
+
+What is complete:
+The whole of Phase 8I. Two Core source files and one new Core test file.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F, 8G, 8H, 8I).
+- Phase 8J: surface per-stage families in the UI — `SimulationParameters`, the stage row, and persistence of the choice. NOT STARTED, per instruction.
+- Candidate follow-up, not yet a task: `ServiceRate` and `ServiceDistribution` can now disagree and nothing validates the relationship (see D-146). Worth deciding when 8J starts producing these values.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8J. Do not begin it unprompted.
+2. On go, confirm state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **473 green** (Core 114 / Data 71 / Cli 35 / App 253).
+
+Blocked
+None.
+
+Git State
+Commits made this session: `8I_COMMIT` feat: per-stage distribution dispatch in the Core engine (Phase 8I)
+
+Pushed to origin: Yes — `8I_COMMIT` on `fix/post-merge-8e`.
+
+Uncommitted changes: None — working tree clean after the push.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 473 passed, 0 failed (Core 114 / Data 71 / Cli 35 / App 253; +6 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Stages/StageSpec.cs: modified (optional serviceDistribution + ServiceDistribution + EffectiveServiceDistribution)
+src/OpdSimulator.Core/Engine/Engine.cs: modified (per-stage sampler array; shared service sampler removed)
+tests/OpdSimulator.Core.Tests/StageFamilyDispatchTests.cs: added (6 tests)
+
+docs/DECISIONS.md: modified (D-146)
+docs/TODO.md: modified (Phase 8I row [x])
+docs/PROGRESS.md: modified (this handoff)
+docs/CONTEXT.md: modified (§1.2 cross-reference, §2.2 canonical note)
+
+Decisions Made
+- D-146 — `StageSpec` gains an optional `DistributionSpec`; the Engine builds per-stage samplers; the exponential path is held to -ln(U)/λ to preserve RNG-stream compatibility
+
+Assumptions Added/Changed
+- None. CONTEXT.md §2.2 records an `[IMPLEMENTED]` fact about the Engine, not a new domain assumption. No assumption was tagged or changed.
+
+Notes for Next Session
+- **The Engine can now do per-stage families, but the app still cannot reach it.** `SimulationCoordinator.cs:200` still builds 3-argument `StageSpec`s, so every stage is M/M/c at runtime. If 8J is skipped or deferred, 8I is latent capability only — do not describe it to the professor as a user-visible feature.
+- **The pre-8I golden lives in the test, not in a fixture file.** `Engine_ExponentialStage_StillByteIdenticalToLegacy` pins FNV-1a digests of the raw bytes of all ~30,000 draws per stage, captured from the pre-8I build at a192ea2 via `git stash`. If a future phase legitimately changes the exponential path, that test is the tripwire — do not simply update the digests, because they encode the D-054 contract. Reproduce the capture the same way (stash the change, run, compare) rather than reading a number off a failing test.
+- **The 13.7 % rate round-trip caveat.** The exponential fallback derives rate as `1/(1/μ)`, which is not bit-equal to μ for many arbitrary doubles. Every existing fixture rate is exact, so nothing is currently affected, and a given config stays deterministic either way. If 8J ever surfaces a user-entered μ that is not round-trip-exact, service times may differ by one ulp from a pre-8I trace of the same model. Details in D-146.
+- **A deterministic stage consumes zero RNG draws.** So a deterministic run and an exponential run on the same seed diverge immediately — they are different models, not the same model sampled twice. This cost one wrong assertion while writing the tests; do not reintroduce a count comparison between them.
+- **`StageSpec` was intentionally NOT made a positional record.** The phase brief showed it that way, but PascalCase parameters would have broken ~20 named-argument call sites in `EngineTests.cs`/`NetworkTopologyTests.cs`, outside the phase's file set. Kept the explicit-constructor shape and appended an optional parameter. Recorded in D-146 so it is not "corrected" by mistake later.
+- Inter-arrivals remain exponential throughout; the arrival process is M/M/c by definition. 8I changed the service side only.
+
 Session Handoff — 2026-09-26 16:40
 Branch: fix/post-merge-8e
 Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
