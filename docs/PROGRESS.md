@@ -2,6 +2,74 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 16:40
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8H — `GeneralDistributionFitter`: the auto-fit path that picks a family from data by AIC (D-145)
+- Phase 8H — added the missing `Data → Core` project reference, the one edge AGENTS §4 always claimed
+- Phase 8H — `DistributionFitResult` + `GeneralFitResult` records, and the five family candidates with Deterministic excluded
+- Phase 8H — 13 tests including five synthetic-family recoveries and both sides of the `< 5` expected-bin-count boundary
+
+In Progress
+- Nothing. Phase 8H is closed out and the gate passed; 8I is not started.
+
+What is complete:
+The whole of Phase 8H. Three new Data files in `OpdSimulator.Data/Fitting`, one new Data test file, and one added `ProjectReference`.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F, 8G and 8H).
+- Phase 8I: surface the auto-fit path in the UI. NOT STARTED, per instruction.
+- Pre-existing, unrelated: the `phase-8f-*.png` frames were never eyeballed by the agent (this host has no image input), and the 8F.1 accent override lives in code rather than XAML. Both are open rows in TODO.md.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8I. Do not begin it unprompted.
+2. On go, confirm the branch state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **467 green** (Core 108 / Data 71 / Cli 35 / App 253), not the 454 this session started from.
+
+Blocked
+None.
+
+Git State
+Commits made this session: `740901b` feat: general distribution fitter with AIC model selection (Phase 8H)
+
+Pushed to origin: Yes — `740901b` on `fix/post-merge-8e`.
+
+Uncommitted changes: None — working tree clean after the push.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 467 passed, 0 failed (Core 108 / Data 71 / Cli 35 / App 253; +13 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Data/OpdSimulator.Data.csproj: modified (one added ProjectReference to Core, nothing else)
+src/OpdSimulator.Data/Fitting/DistributionFitResult.cs: added
+src/OpdSimulator.Data/Fitting/GeneralFitResult.cs: added
+src/OpdSimulator.Data/Fitting/GeneralDistributionFitter.cs: added
+tests/OpdSimulator.Data.Tests/GeneralDistributionFitterTests.cs: added (13 tests)
+
+docs/DECISIONS.md: modified (D-145)
+docs/TODO.md: modified (Phase 8H row [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-145 — `GeneralDistributionFitter` selects a family by AIC over the existing Data fitters; Deterministic is excluded because it is a user choice, not a fit result; Data now references Core
+
+Assumptions Added/Changed
+- None. No new domain assumptions were introduced; 8H adds infrastructure only and changes no CONTEXT.md assumption.
+
+Notes for Next Session
+- **The Gamma/exponential margin is the number to remember: 1.87 AIC.** On exponential data the winner beats Gamma by under 2 AIC, because Gamma with k≈1 is nearly exponential. The test is deterministic at seed 42 so it will not flake, but do not present that recovery as robust evidence. Every other family wins by 100+ AIC. Gamma's own recovery wins by 394.6.
+- **`ToSpec` is a translation layer, not a convenience.** The fitters report MathNet's shape–**rate** for Gamma and (μ, σ) of *ln X* for Lognormal; Core's samplers want shape–**scale** and mean/sd *of X*. Both are the D-144 trap in reverse. Do not "simplify" by passing fitted parameters straight through.
+- **Two rejection paths, deliberately different.** A candidate rejected before fitting has `Spec.Mean = NaN`; one rejected after fitting keeps its real diagnostics. `FitBest_RejectedBeforeFit_CarriesPlaceholderSpecWithNaNMean` and `FitBest_SmallSample_ExpectedBinCountBelow5_RejectsEveryCandidate` pin both. If you ever see NaN AICs in a report, the candidate never fitted.
+- **Family identity is still a string in Data's public API** (`IDistributionFitter.Name`, used by `App/Services/FitsService.cs` and `Cli/Commands/FitCommand.cs`) and an enum in Core. `GeneralDistributionFitter.ToFamily` is the only bridge. Left alone because 8H forbids touching App and Cli — worth closing in a later phase.
+- **AIC picks the winner; a chi-square rejection does not disqualify.** A family whose p-value is below alpha can still win on likelihood, because the brief specified rejection only on the `< 5` rule. All five recovery winners pass their own chi-square, but a real dataset could in principle be won by a family its own test rejects. Flagged in D-145 as a known limitation.
+- **"n ≥ 20" does not mean "a usable fit".** With equal-probability bins the `< 5` rule also fires at n ∈ {20…24} and {26…29}. Both boundaries are pinned by tests.
+- `Data.Tests` sees Core transitively through Data; no test-project reference was added, and none is needed unless that changes.
+
 Session Handoff — 2026-09-26 16:12
 Branch: fix/post-merge-8e
 Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
