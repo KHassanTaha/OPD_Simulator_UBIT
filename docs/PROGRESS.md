@@ -31,9 +31,9 @@ Blocked
 None.
 
 Git State
-Commits made this session: `740901b` feat: general distribution fitter with AIC model selection (Phase 8H)
+Commits made this session: `ea4aaa2` feat: general distribution fitter with AIC model selection (Phase 8H)
 
-Pushed to origin: Yes — `740901b` on `fix/post-merge-8e`.
+Pushed to origin: Yes — `ea4aaa2` on `fix/post-merge-8e`.
 
 Uncommitted changes: None — working tree clean after the push.
 
