@@ -4,7 +4,8 @@
              xmlns:views="clr-namespace:OpdSimulator.App.Views"
              x:Class="OpdSimulator.App.Controls.StageRowControl"
              x:DataType="vm:StageRow"
-             xmlns:vm="clr-namespace:OpdSimulator.App.ViewModels">
+             xmlns:vm="clr-namespace:OpdSimulator.App.ViewModels"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!--
       One stage row: the reusable unit for a stage in the Stages section (Phase 8K,
@@ -74,8 +75,8 @@
                                          Tooltip="Spread of the service times. Shown for the Normal and Lognormal families only; the mean stays whatever μ you set."
                                          IsVisible="{Binding NeedsStdDev}"
                                          Value="{Binding ServiceStdDev, Mode=TwoWay}"
-                                         HasError="{Binding HasSpreadError}"
-                                         ErrorMessage="{Binding SpreadError}"
+                                         HasError="{Binding HasInlineError}"
+                                         ErrorMessage="{Binding InlineError}"
                                          HelpAnchor="stage-std-dev"
                                          views:ConfigPanelValidation.ValidationKey="stage-stddev"/>
                 <controls:ValidatedField Label="Shape k"
@@ -83,8 +84,8 @@
                                          Tooltip="Shape k. Scale is derived as Mean / k."
                                          IsVisible="{Binding NeedsShape}"
                                          Value="{Binding ServiceShape, Mode=TwoWay}"
-                                         HasError="{Binding HasSpreadError}"
-                                         ErrorMessage="{Binding SpreadError}"
+                                         HasError="{Binding HasInlineError}"
+                                         ErrorMessage="{Binding InlineError}"
                                          HelpAnchor="stage-shape"
                                          views:ConfigPanelValidation.ValidationKey="stage-shape"/>
                 <controls:ValidatedField Label="Half-width w"
@@ -93,8 +94,8 @@
                                          Tooltip="Half-width w. Min = Mean − w, Max = Mean + w."
                                          IsVisible="{Binding NeedsSpread}"
                                          Value="{Binding ServiceSpread, Mode=TwoWay}"
-                                         HasError="{Binding HasSpreadError}"
-                                         ErrorMessage="{Binding SpreadError}"
+                                         HasError="{Binding HasInlineError}"
+                                         ErrorMessage="{Binding InlineError}"
                                          HelpAnchor="stage-spread"
                                          views:ConfigPanelValidation.ValidationKey="stage-spread"/>
             </StackPanel>
@@ -123,6 +124,38 @@
                                      ErrorMessage="{Binding MuError}"
                                      HelpAnchor="stage-mu"
                                      views:ConfigPanelValidation.ValidationKey="stage-mu"/>
+
+            <!-- The G/G/c verdict (Phase 8K, D-151). Shown only after a fit, and
+                 cleared by the row when the family changes, so it always describes
+                 the stage as it now stands. -->
+            <Border Classes="PanelCard"
+                    Padding="{DynamicResource ThicknessSpaceS}"
+                    IsVisible="{Binding AutoFitBadge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="G/G/c auto-fit"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding AutoFitBadge}"
+                               TextWrapping="Wrap"
+                               ToolTip.Tip="The family the fitter chose for this stage's observed service times, with its AIC and the chi-square p-value. Change the family by hand and this verdict is cleared."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Row-level error display for messages that belong to no visible input.
+                 A spread error already appears under its own field, so it is not
+                 repeated here; an auto-fit refusal has no field of its own and would
+                 otherwise be invisible on a stage with no spread input. One message,
+                 one channel, shown once (Phase 8K, D-151). -->
+            <StackPanel Spacing="2"
+                        IsVisible="{Binding ShowRowLevelError}">
+                <TextBlock Text="&#x26A0;"
+                           Foreground="{DynamicResource BrushError}"
+                           FontSize="{DynamicResource FontSizeBody}"/>
+                <TextBlock Text="{Binding InlineError}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource BrushError}"
+                           FontSize="{DynamicResource FontSizeCaption}"/>
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>

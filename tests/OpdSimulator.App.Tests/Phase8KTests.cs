@@ -319,23 +319,23 @@ public class Phase8KTests
             var spec = ConfigPanelViewModel.BuildSpec(row, Mu);
 
             Assert.Null(spec);
-            Assert.NotEqual(string.Empty, row.SpreadError);
-            Assert.Contains("greater than 0", row.SpreadError, StringComparison.Ordinal);
-            Assert.Contains("blank", row.SpreadError, StringComparison.Ordinal);
+            Assert.NotEqual(string.Empty, row.InlineError);
+            Assert.Contains("greater than 0", row.InlineError, StringComparison.Ordinal);
+            Assert.Contains("blank", row.InlineError, StringComparison.Ordinal);
 
             row.ValidateSpread();
-            Assert.True(row.HasSpreadError);
+            Assert.True(row.HasInlineError);
         }
 
         // A usable value clears it, which is what makes the field feel fixed rather
         // than permanently broken.
         var gamma = Row(DistributionFamily.Gamma, shape: "2");
         gamma.ValidateSpread();
-        Assert.False(gamma.HasSpreadError);
+        Assert.False(gamma.HasInlineError);
 
         gamma.ServiceShape = "0";
         gamma.ValidateSpread();
-        Assert.True(gamma.HasSpreadError);
+        Assert.True(gamma.HasInlineError);
 
         // A value that parses and is positive can still be unusable, and the refusal has
         // to name the specific problem. w = Mean gives Min = 0 and a larger w gives a
@@ -355,8 +355,8 @@ public class Phase8KTests
             else
             {
                 Assert.Null(spec);
-                Assert.Contains("less than the mean", row.SpreadError, StringComparison.Ordinal);
-                Assert.Contains(halfWidth, row.SpreadError, StringComparison.Ordinal);
+                Assert.Contains("less than the mean", row.InlineError, StringComparison.Ordinal);
+                Assert.Contains(halfWidth, row.InlineError, StringComparison.Ordinal);
             }
         }
     }

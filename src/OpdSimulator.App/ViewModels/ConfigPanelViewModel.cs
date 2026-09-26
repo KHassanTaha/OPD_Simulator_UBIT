@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Data.Fitting;
 using OpdSimulator.Data.Parameters;
 using Serilog;
 
@@ -1136,6 +1137,10 @@ public partial class ConfigPanelViewModel : ObservableObject
                 RecomputeRho();
                 RecomputeBlockingState();
             };
+            // G/G/c asks for a family to be chosen from the data. Only this class knows
+            // whether a file is loaded and can reach its samples, so the row asks and
+            // the answer is applied here (Phase 8K, D-151).
+            row.AutoFitRequested += (_, _) => HandleAutoFitRequested(row);
             StageRows.Add(row);
         }
 
@@ -1195,6 +1200,79 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Answers a stage row's G/G/c request: fit a family to the loaded data for that
+    /// stage, apply the winner, and say so — or refuse with a reason and put the
+    /// notation back (Phase 8K, D-151).
+    /// </summary>
+    /// <remarks>
+    /// The three refusals are the contract, not incidental branches. A G/G/c row
+    /// names no family, so a refusal that left the notation in place would hand the
+    /// run a stage whose family nobody chose. Every refusal therefore reverts the
+    /// dropdown and leaves a cause-and-remedy message in the row's single inline
+    /// error channel, and the threshold for "enough data" is deliberately not
+    /// restated here: it lives in <see cref="GeneralDistributionFitter"/> and is
+    /// reported through the fitter's own rejection reason, so there is one number.
+    /// </remarks>
+    /// <param name="row">The row that asked. Reverts its notation on every refusal.</param>
+    private void HandleAutoFitRequested(StageRow row)
+    {
+        if (Binding is not { IsUsable: true })
+        {
+            row.SetInlineError(
+                "G/G/c needs observed service times to choose a family, and no usable " +
+                "data file is loaded. Load one on the Input tab, or pick a specific " +
+                "family (M/M, M/D, D/M).");
+            row.RevertSelectedModel();
+            return;
+        }
+
+        var samples = StageServiceSamples(row);
+        var fit = GeneralDistributionFitter.FitBest(
+            samples ?? Array.Empty<double>(),
+            SignificanceLevelForRun);
+
+        if (fit.Best is null)
+        {
+            // FitBest states its own reason per candidate — "insufficient samples",
+            // a degenerate variance, and so on — so the user is told which one bit
+            // rather than a generic failure.
+            var reason = fit.AllCandidates
+                .Select(c => c.RejectionReason)
+                .FirstOrDefault(r => !string.IsNullOrEmpty(r))
+                ?? "No family fits this stage's observed service times.";
+            row.SetInlineError($"G/G/c could not fit stage '{row.StageName}': {reason}");
+            row.RevertSelectedModel();
+            return;
+        }
+
+        row.ApplyFittedSpec(fit.Best.Spec);
+        row.AutoFitBadge =
+            $"Best fit: {fit.Best.Family} (AIC {fit.Best.Aic:F0}, " +
+            $"p={fit.Best.ChiSquare?.PValue:F3})";
+
+        // A filled μ changes what this row's service rate is, and the auto-fit flag
+        // changes how the source label reads, so both are re-derived before the UI
+        // is next asked for them.
+        RefreshStageSourceLabels();
+    }
+
+    /// <summary>
+    /// The observed service times for a stage, taken from the loaded file's
+    /// per-stage service column, matched by stage name. Null when no file is
+    /// loaded or the file does not cover that stage.
+    /// </summary>
+    /// <remarks>
+    /// Same lookup as <c>SimulationCoordinator</c> reads the fitted rates from, so
+    /// the stage that is auto-fitted and the stage whose rate the coordinator
+    /// resolves are guaranteed to be the same stage.
+    /// </remarks>
+    /// <param name="row">The stage whose samples are wanted.</param>
+    private IReadOnlyList<double>? StageServiceSamples(StageRow row) =>
+        Binding?.ServiceMinutesByStage.TryGetValue(row.StageName, out var times) == true
+            ? times
+            : null;
+
+    /// <summary>
     /// Re-derives each stage row's read-only service-rate label and its μ-field
     /// visibility after any change that could affect them: the Parameters comma
     /// list, the loaded data, a mode switch or a stage-list resize (5d.1, D-112,
@@ -1224,6 +1302,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private string BuildServiceRateLabel(StageRow row, int index, IReadOnlyList<double?> manualParts)
     {
+        // Checked before the mode branches: a μ the G/G/c auto-fit wrote into this row
+        // is the most specific description of it, and the coordinator resolves it as a
+        // per-stage value, so this is the number the run will actually use. The
+        // remaining branches are untouched, so a row that was never auto-fitted keeps
+        // exactly the label it had.
+        if (row.IsMuFittedLocally && double.TryParse(row.MuValue, out var fittedMu) && fittedMu > 0)
+        {
+            return $"μ = {fittedMu:0.###} (fitted)";
+        }
+
         if (SourceMode == DataSourceMode.EnterManually)
         {
             return double.TryParse(row.MuValue, out var perStage) && perStage > 0
@@ -1559,7 +1647,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             // into a zero-mean spec that throws somewhere further downstream.
             // Cleared here, before the check, so fixing the field clears the error on
             // the very next attempt (FR-UI-17) rather than needing a separate reset.
-            row.SpreadError = string.Empty;
+            row.InlineError = string.Empty;
             var spec = BuildSpec(row, rate);
             if (spec is null)
             {
@@ -1666,7 +1754,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             case DistributionFamily.Lognormal:
                 if (!TryPositive(row.ServiceStdDev, out var stdDev))
                 {
-                    row.SpreadError =
+                    row.InlineError =
                         $"{family} needs a standard deviation greater than 0. " +
                         $"You entered \"{row.ServiceStdDev ?? "blank"}\".";
                     return null;
@@ -1677,7 +1765,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             case DistributionFamily.Gamma:
                 if (!TryPositive(row.ServiceShape, out var shape))
                 {
-                    row.SpreadError =
+                    row.InlineError =
                         "Gamma needs a shape k greater than 0. " +
                         $"You entered \"{row.ServiceShape ?? "blank"}\".";
                     return null;
@@ -1690,7 +1778,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             case DistributionFamily.Uniform:
                 if (!TryPositive(row.ServiceSpread, out var halfWidth))
                 {
-                    row.SpreadError =
+                    row.InlineError =
                         "Uniform needs a half-width w greater than 0. " +
                         $"You entered \"{row.ServiceSpread ?? "blank"}\".";
                     return null;
@@ -1705,7 +1793,7 @@ public partial class ConfigPanelViewModel : ObservableObject
                 // re-derive the mean from the row's own μ and risk disagreeing with this.
                 if (halfWidth >= mean)
                 {
-                    row.SpreadError =
+                    row.InlineError =
                         $"Uniform needs a half-width w less than the mean service time " +
                         $"({mean:0.####} min), or Min would be 0 or negative. " +
                         $"You entered \"{row.ServiceSpread ?? "blank"}\".";

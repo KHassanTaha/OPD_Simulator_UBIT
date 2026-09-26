@@ -2,6 +2,7 @@ namespace OpdSimulator.App.ViewModels;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
@@ -115,6 +116,43 @@ public partial class StageRow : ObservableObject
     private string _selectedModel = "M/M/1";
 
     /// <summary>
+    /// The one inline error channel for this row (Phase 8K, D-151). A spread
+    /// value the build path will refuse and an auto-fit that could not run are
+    /// both "this row cannot be built, and here is why" — giving them one field
+    /// means the row can never show two different complaints at once, and the
+    /// user always has one place to look.
+    /// </summary>
+    [ObservableProperty]
+    private string? _inlineError;
+
+    /// <summary>
+    /// What the G/G/c auto-fit decided for this stage, e.g.
+    /// "Best fit: Gamma (AIC 41, p=0.312)". Null until a G/G/c selection has been
+    /// fitted. Cleared whenever the family or the model changes, so a badge can
+    /// never describe a stage it no longer describes (Phase 8K, D-151).
+    /// </summary>
+    [ObservableProperty]
+    private string? _autoFitBadge;
+
+    /// <summary>
+    /// True when this row's μ was filled in by a G/G/c auto-fit rather than typed
+    /// by the user. It decides only how <see cref="ServiceRateLabel"/> reads —
+    /// "(fitted)" instead of "(per-stage)" — so the user can tell a number they
+    /// typed from one the fitter chose. It is deliberately not a precedence input:
+    /// a filled μ is a μ, and it wins by being present, exactly like a typed one
+    /// (Phase 8K, D-151).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isMuFittedLocally = false;
+
+    /// <summary>
+    /// The notation this row held before the current selection, so a G/G/c
+    /// auto-fit that cannot run can put the dropdown back where the user left it
+    /// instead of leaving a G/G/c that never described anything.
+    /// </summary>
+    private string? _previousModel;
+
+    /// <summary>
     /// When false the arrival/service families and the server count are derived
     /// from <see cref="SelectedModel"/>; when true the two family dropdowns are
     /// revealed and edited independently (Phase 7B).
@@ -174,15 +212,6 @@ public partial class StageRow : ObservableObject
     [ObservableProperty]
     private string? _serviceSpread;
 
-    /// <summary>Inline cause+remedy for a spread parameter that is missing or invalid.</summary>
-    /// <remarks>
-    /// Written by <see cref="ConfigPanelViewModel"/> when a run is refused because
-    /// this row's family needs a spread parameter it does not have (Phase 8K), and
-    /// cleared on the next attempt once the field holds a usable value.
-    /// </remarks>
-    [ObservableProperty]
-    private string _spreadError = string.Empty;
-
     /// <summary>
     /// Whether this row's family needs a spread parameter in addition to μ. Drives
     /// the visibility of the spread input in <c>StageRowControl</c> (Phase 8K).
@@ -209,15 +238,27 @@ public partial class StageRow : ObservableObject
     public bool NeedsSpread => ServiceFamily == DistributionFamily.Uniform;
 
     /// <summary>
-    /// True while <see cref="SpreadError"/> holds a message. Bound by all three spread
-    /// fields: only one is visible for any family, so sharing one flag and one message
-    /// cannot put an error under the wrong input.
+    /// True while <see cref="InlineError"/> holds a message. Bound by the spread
+    /// fields and by the auto-fit error line: one channel and one flag, so an error
+    /// can never appear under an input it does not belong to.
     /// </summary>
-    public bool HasSpreadError => !string.IsNullOrEmpty(SpreadError);
+    public bool HasInlineError => !string.IsNullOrEmpty(InlineError);
 
     /// <summary>Keeps the derived error flag in step with the message it reads.</summary>
-    partial void OnSpreadErrorChanged(string value) =>
-        OnPropertyChanged(nameof(HasSpreadError));
+    partial void OnInlineErrorChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasInlineError));
+        OnPropertyChanged(nameof(ShowRowLevelError));
+    }
+
+    /// <summary>
+    /// Whether the row's inline error must be drawn at row level because no spread
+    /// field is on screen to carry it. A spread error is already shown under its own
+    /// field, so repeating it here would print one message twice; an auto-fit refusal
+    /// belongs to no field, and on an Exponential or Deterministic stage — where no
+    /// spread field exists at all — it would otherwise never be seen.
+    /// </summary>
+    public bool ShowRowLevelError => HasInlineError && !NeedsShapeParameters;
 
     /// <summary>
     /// Announces that every family-dependent derived property may have changed. A
@@ -229,6 +270,7 @@ public partial class StageRow : ObservableObject
         OnPropertyChanged(nameof(NeedsStdDev));
         OnPropertyChanged(nameof(NeedsShape));
         OnPropertyChanged(nameof(NeedsSpread));
+        OnPropertyChanged(nameof(ShowRowLevelError));
     }
 
     /// <summary>
@@ -251,17 +293,17 @@ public partial class StageRow : ObservableObject
 
         if (label.Length == 0)
         {
-            SpreadError = string.Empty;
+            InlineError = string.Empty;
             return;
         }
 
         if (double.TryParse(text, out var value) && value > 0)
         {
-            SpreadError = string.Empty;
+            InlineError = string.Empty;
         }
         else
         {
-            SpreadError = $"{ServiceFamily} needs {label} greater than 0. " +
+            InlineError = $"{ServiceFamily} needs {label} greater than 0. " +
                           $"You entered \"{text ?? "blank"}\".";
         }
     }
@@ -277,11 +319,30 @@ public partial class StageRow : ObservableObject
         Enum.GetValues<DistributionFamily>();
 
     /// <summary>
+    /// Captures the outgoing notation before it changes, so
+    /// <see cref="RevertSelectedModel"/> can restore it when an auto-fit refuses.
+    /// </summary>
+    partial void OnSelectedModelChanging(string value) => _previousModel = SelectedModel;
+
+    /// <summary>
     /// Applies a model-notation shortcut to the row: arrival family, service
     /// family and server count. Skipped while Advanced setup owns those fields.
     /// </summary>
     partial void OnSelectedModelChanged(string value)
     {
+        // G/G/c names no family, so it has to be fitted before anything else looks at
+        // the value — including the Advanced check below. Restricting auto-fit to Model
+        // mode would mean the same dropdown did two different things depending on which
+        // panel it sat in, and Advanced is where a user assembles a mixed network, which
+        // is exactly where a per-stage fit is wanted. _suppressNotationSync is not
+        // consulted here on purpose: nothing inside the sync writes a G/G notation, so
+        // honouring it would only add a way for the trigger to be silently skipped.
+        if (ModelNotationParser.IsGeneralModel(value))
+        {
+            AutoFitRequested?.Invoke(this, ModelAutoFitRequestedEventArgs.ForStage(StageName, value));
+            return;
+        }
+
         if (UseAdvancedSetup || _suppressNotationSync)
         {
             return;
@@ -302,18 +363,8 @@ public partial class StageRow : ObservableObject
             return;
         }
 
-        // G/G/c names no family — it asks for one to be chosen from the data. The
-        // notation's own fields stay untouched here; the parent view model owns
-        // the auto-fit (Phase 8K, task 8K.6) because only it can see whether a
-        // file is loaded and reach the fitted samples. Firing the event rather
-        // than rejecting inline keeps the row free of data-layer knowledge.
-        if (ModelNotationParser.IsGeneralModel(value))
-        {
-            AutoFitRequested?.Invoke(this, ModelAutoFitRequestedEventArgs.ForStage(StageName, value));
-            return;
-        }
-
-        // A null family can only come from a G notation, handled above.
+        // A null family can only come from a G notation, and every G notation was
+        // already handled by the trigger above.
         //
         // The suppression is essential, not defensive: assigning the families fires
         // OnArrivalFamilyChanged / OnServiceFamilyChanged, and in Advanced mode those
@@ -376,6 +427,11 @@ public partial class StageRow : ObservableObject
         // input — a silent failure that reads as a broken binding.
         RaiseDerivedSpreadNotifications();
 
+        // A badge describes one family, so a family change retires it. The parent
+        // writes the badge *after* calling ApplyFittedSpec, so the auto-fit path
+        // repopulates it immediately and this only fires for a manual change.
+        AutoFitBadge = null;
+
         // Only Advanced mode has the user editing the family directly. Outside it the
         // notation owns the family, so a family write is never a reason to disown the
         // notation.
@@ -422,6 +478,101 @@ public partial class StageRow : ObservableObject
             _suppressNotationSync = false;
         }
     }
+
+    /// <summary>
+    /// Applies a G/G/c auto-fit result to this row, taking the fitted family's
+    /// <b>spread only</b> (Phase 8K, D-151, ruling A11).
+    /// </summary>
+    /// <remarks>
+    /// The fitted spec's <c>Mean</c> is deliberately discarded. It is the mean of
+    /// the observed data, whereas the run's location parameter is μ and the mean
+    /// is derived from it as <c>1/μ</c> (D-150). Writing the data's mean onto the
+    /// row would make <c>ServiceRate</c> and <c>Mean</c> disagree and trip D-147 the
+    /// first time an auto-fitted stage was run. <see cref="ConfigPanelViewModel.BuildSpec"/>
+    /// re-derives the mean from μ, so only the spread has to travel this way.
+    /// </remarks>
+    /// <param name="spec">The winning fit. Its family and spread parameters are read; its mean is not.</param>
+    public void ApplyFittedSpec(DistributionSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+
+        // The notation sync is suppressed because in Advanced mode a family write
+        // marks the row "Custom" — which would erase the G/G/c the user just chose and
+        // hide the fact that an auto-fit had run at all.
+        _suppressNotationSync = true;
+        try
+        {
+            ServiceFamily = spec.Family;
+            switch (spec.Family)
+            {
+                // Exponential and Deterministic are fully described by their mean, so
+                // there is no spread to carry across.
+                case DistributionFamily.Exponential:
+                case DistributionFamily.Deterministic:
+                    break;
+                case DistributionFamily.Normal:
+                case DistributionFamily.Lognormal:
+                    ServiceStdDev = FormatNumber(spec.StdDev);
+                    break;
+                case DistributionFamily.Gamma:
+                    // Scale is derived from Mean/k, so carrying the fitted θ across
+                    // would contradict the μ the run is actually configured with.
+                    ServiceShape = FormatNumber(spec.Shape);
+                    break;
+                case DistributionFamily.Uniform:
+                    // The fitted bounds are turned back into the half-width the user
+                    // sees, because the bounds are derived from μ at build time.
+                    ServiceSpread = spec.Min is { } lo && spec.Max is { } hi
+                        ? FormatNumber((hi - lo) / 2.0)
+                        : null;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(spec),
+                        spec.Family,
+                        "The fitter returned a family this row cannot represent.");
+            }
+        }
+        finally
+        {
+            _suppressNotationSync = false;
+        }
+
+        // μ is the run's only location parameter, so it decides the stage's mean. If
+        // the user already set one it is kept — a typed μ is a deliberate answer and
+        // the fitter does not get to overwrite it. A blank one is filled from the fit,
+        // which is the whole reason a G/G/c stage can run at all.
+        if (string.IsNullOrWhiteSpace(MuValue) && spec.Mean > 0)
+        {
+            MuValue = (1.0 / spec.Mean).ToString("R", CultureInfo.InvariantCulture);
+            IsMuFittedLocally = true;
+        }
+
+        InlineError = null;
+    }
+
+    /// <summary>
+    /// Puts the model notation back to what it was before the change that
+    /// triggered an auto-fit, so a G/G/c selection that could not be fitted does
+    /// not leave the row claiming a family it never received.
+    /// </summary>
+    public void RevertSelectedModel() => SelectedModel = _previousModel ?? "M/M/1";
+
+    /// <summary>
+    /// Records why this row cannot be built, in the row's single inline error
+    /// channel.
+    /// </summary>
+    /// <param name="message">Cause and remedy, phrased for the user.</param>
+    public void SetInlineError(string message) => InlineError = message;
+
+    /// <summary>
+    /// Formats a fitted parameter for the row's text field. Invariant culture and
+    /// the round-trip ("R") format, because the value is parsed straight back by
+    /// <see cref="ConfigPanelViewModel.BuildSpec"/>; a locale decimal comma would
+    /// make the row silently unbuildable on the machine that fitted it.
+    /// </summary>
+    private static string? FormatNumber(double? value) =>
+        value is { } v && v > 0 ? v.ToString("R", CultureInfo.InvariantCulture) : null;
 
     /// <summary>Notation shown when the families no longer match any shorthand.</summary>
     public const string CustomModel = "Custom";
