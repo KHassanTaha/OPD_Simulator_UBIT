@@ -38,8 +38,13 @@ public static class GeneralDistributionFitter
     /// Below this many samples no family is fitted. Chi-square needs a usable number
     /// of bins and the parameters are not meaningfully estimated from a handful of
     /// points, so a short sample is reported as insufficient rather than mis-fitted.
+    /// <para>
+    /// <c>internal</c> rather than <c>private</c> so <see cref="GammaFitter"/> can
+    /// re-test the same threshold after it excludes non-positive samples, instead of
+    /// hard-coding a second copy of 20 that could drift away from this one.
+    /// </para>
     /// </summary>
-    private const int MinimumSampleCount = 20;
+    internal const int MinimumSampleCount = 20;
 
     /// <summary>Classical lower bound on an expected bin frequency for a trustworthy χ².</summary>
     private const double MinimumExpectedBinCount = 5.0;
