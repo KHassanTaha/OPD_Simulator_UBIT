@@ -2,6 +2,131 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 17:45
+Branch: fix/post-merge-8e
+Status: In-Progress (pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8J — App plumbing so per-stage service families reach Core (D-147)
+- Phase 8J — one additive `#if DEBUG` invariant in `StageSpec` binding a spec's mean to its rate (D-147, resolves D-146's deferral)
+- Phase 8J — 8 tests in `Phase8JTests.cs`, plus a 9th added after a mutation test exposed a coverage hole (D-148)
+- Phase 8J — proved end-to-end behaviour is byte-identical to pre-8J instead of asserting it
+- Phase 8J — headless gate render + exact baseline literals through the real `MainWindow` path
+
+In Progress
+Nothing. 8J is complete and gated; 8K is not started.
+
+What is complete:
+`SimulationParameters` carries per-stage `ServiceFamilies` + `ServiceRates`; the coordinator passes μ through
+unchanged; the per-stage count mismatch is refused loudly; per-stage chi-square uses the configured family;
+one DEBUG-only assertion ties a spec's mean to its rate. All 253 pre-existing App tests pass untouched.
+
+What remains:
+Phase 8K — a per-stage service-family control in the UI, and removal of the derived
+`SimulationParameters.ServiceDistribution` shim plus its two `MainViewModel` read sites. Until then every
+reachable run is still M/M/c, because one dropdown configures the whole run.
+
+Next Session Should Start With
+Phase 8K, only on owner instruction. Do not start it unprompted.
+
+Phase 8K — per-stage distribution UI: replace the single service-family dropdown and delete the
+`ServiceDistribution` shim (D-147 records it as a transitional compatibility property with two known
+read sites in `MainViewModel`).
+
+Blocked
+None. One item needs owner eyes rather than a fix: **visual inspection of
+`logs/screenshots/phase-8j-same-behaviour.png` is owner-required** — this agent cannot read images, so the
+frame is verified only as a valid 1200×760 PNG of 104,492 bytes produced by a passing render test. A
+real-display launch is likewise still unverified on this Wayland host (D-089), as for every prior phase.
+
+Git State
+Commits made this session:
+  - `042f0b1` feat: per-stage distribution specs flow from App to Core (Phase 8J) — the three App files,
+    the additive Core `#if DEBUG` block, `Phase8JTests.cs` (8), DECISIONS D-147
+  - `c594af4` test: verify per-stage family reaches engine sampler (Phase 8J follow-up) — the 9th test
+    (`Coordinator_DeterministicFamily_ReachesEngineSampler`), `Phase8JScreenshot.cs`, DECISIONS D-148,
+    DEV_LAUNCH §6 + changelog + header, TODO, CONTEXT §1.2
+  - this `docs:` commit records the two hashes above, which the preceding commits could not contain
+    (same pattern as `3f7ed3f` for 8I and `a192ea2` for 8H)
+
+Pushed to origin: Yes — `fix/post-merge-8e`. Nothing was pushed under this branch before 8J, so there was
+no already-pushed 8J commit to amend; the phase went in as two commits (plumbing, then the coverage
+follow-up) rather than one amended commit.
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build -c Release: **PASS** — 0 errors, 0 warnings
+dotnet build -c Debug: **PASS** — 0 errors, 0 warnings
+dotnet test -c Release: **PASS** — 482 passed, 0 failed (Core 114 / Data 71 / Cli 35 / App 262)
+dotnet test -c Debug: **PASS** — 482 passed, 0 failed (identical breakdown)
+Warnings: 0
+
+Mutation test — fail-then-pass (D-148)
+The seven briefed tests all passed while the coordinator was **dropping the per-stage spec entirely** — the
+exact defect 8J exists to fix. `git stash`-free reproduction: replace
+`specs.Add(new StageSpec(name, parameters.ServerCounts[i], mu, new DistributionSpec(family, Mean: 1.0 / mu)))`
+with `specs.Add(new StageSpec(name, parameters.ServerCounts[i], mu))`.
+
+  1. Mutation applied → `Coordinator_DeterministicFamily_ReachesEngineSampler` **FAILS**:
+     `Assert.All() Failure: 28 out of 28 items in the collection did not pass.`
+     `Expected: 1.25   Actual: 0.827270481` (also 0.6290694283, 2.4254999558 …) — the sampler had fallen back
+     to Exponential.
+  2. Full suite under the mutation: **480/480 green**, which is how the hole was found.
+  3. Correct code restored → the test **PASSES** (1 test, 30 ms).
+  4. Full suite with the fix: **482 green** in Release and Debug.
+
+Byte-identity evidence (not assumed)
+Pre-8J output of the gate configuration captured with `git stash` and diffed against post-8J: **identical**
+on `error`, `served=96`, `avgWait=6.361255218169437`, `avgSystem=11.361565824351594`,
+`avgQueue=1.2026765790581488`, `utilisation=0.5420211776308005`, `throughput=0.5671883320871884`,
+`operating=169.25595004172766`, and all three per-stage rows. Those doubles are now pinned as exact
+literals in `Phase8JScreenshot.cs`, re-checked through the real `MainWindow` + `ConfigPanelViewModel` path.
+The equality is arithmetic, not luck: the mean was `1/μ` before (Core's implicit fallback) and is `1/μ`
+after (supplied explicitly), and the sampler rate is `1/(1/μ)` either way.
+
+Files Touched
+src/OpdSimulator.App/Models/SimulationParameters.cs: modified (two `init` lists; `ServiceDistribution` derived)
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: modified (per-stage specs, count guard, per-stage fit family)
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (build both lists; `MapStringToFamily`; `using`)
+src/OpdSimulator.Core/Stages/StageSpec.cs: modified (additive `#if DEBUG` assertion only)
+tests/OpdSimulator.App.Tests/Phase8JTests.cs: added (8 tests)
+tests/OpdSimulator.App.Tests/Phase8JScreenshot.cs: added (1 test, writes the evidence PNG)
+
+docs/DECISIONS.md: added D-147, D-148
+docs/PROGRESS.md: this entry
+docs/TODO.md: Phase 8J `[x]`, Phase 8K row opened
+docs/DEV_LAUNCH.md: §6 counts, changelog row, Last-verified header
+docs/CONTEXT.md: §1.2 reachability + the "never invert a mean" rule
+
+Decisions Made
+D-147 — per-stage `ServiceFamilies`/`ServiceRates` on the record; μ passed through unchanged; relative
+`1e-9` DEBUG invariant (docs/DECISIONS.md, `### D-147`)
+D-148 — per-stage distribution verification must observe the effect at the sampler, not just that A
+produced B (docs/DECISIONS.md, `### D-148`)
+
+Assumptions Added/Changed
+`[UNVERIFIED]` The suite count is **482, not the 481 predicted** — the AGENTS §18 screenshot walkthrough is
+itself a test, so 481 + 1. Recorded rather than reconciled away; §6 states 482 with the breakdown.
+`[UNVERIFIED]` Visual state of the rendered frame is unconfirmed (agent cannot read images).
+
+Notes for Next Session
+- **Three deviations from the brief, all deliberate and all recorded in D-147:** `ServiceRates` is
+  `IReadOnlyList<double?>` rather than `IReadOnlyList<double>` because FitFromData mode has no as-entered μ
+  for a data-covered stage; the two lists are `init` body properties rather than positional parameters
+  because a positional default would force defaults onto all twelve existing parameters; and
+  `ServiceDistribution` survives as a derived setter-less shim because `MainViewModel` reads it and is
+  outside 8J's file set.
+- `SimulationParameters_NoLongerHasServiceDistribution` asserts by **reflection** (no primary-constructor
+  parameter, no setter), because a C# test cannot name a member that is supposed to be absent. It does not
+  assert the property is gone.
+- The App can express only a family and a mean per stage. Gamma shape, Normal sd and Uniform bounds are
+  not reachable from the UI, so those families fall back to sampler defaults derived from the mean.
+- `MapStringToFamily` duplicates Data's private `ToFamily` mapping (D-145). They must stay in step; a family
+  rename in one place will not be noticed in the other. A shared mapper is a candidate for a later phase.
+- Pre-existing drift noticed and **not** fixed (rule 3): the DEV_LAUNCH §12 changelog has rows for 8E but
+  none for 8F, 8G, 8H or 8I.
+
 Session Handoff — 2026-09-26 17:05
 Branch: fix/post-merge-8e
 Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
