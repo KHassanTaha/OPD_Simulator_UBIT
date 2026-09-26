@@ -40,7 +40,10 @@ public sealed record RunOutcome(
 /// <see cref="ArgumentOutOfRangeException"/>(exitProbability) — the fitted
 /// p_exit = 1.0 case — surfaces its Core wording. The clearer
 /// "every row in the loaded data exits after Screening…" banner is emitted
-/// before the topology is built, because the fitted value is known.
+/// before the topology is built, because the fitted value is known. That
+/// refusal is conditional on the network having a downstream stage: a
+/// single-stage network has none, so a fitted p_exit = 1.0 is correct there
+/// and the run proceeds with p_exit normalised to 0 (Phase 8E, D-139).
 /// </para>
 /// <para>
 /// Run dispatch (5c.3): every mode records a trace through a
@@ -83,13 +86,26 @@ public static class SimulationCoordinator
 
         // ── Resolve routing (D-008/D-015/D-104) ─────────────────────────────
         double exitProbability = ResolveExitProbability(parameters, binding);
-        if (exitProbability >= 1.0)
+
+        // Exit routing only means something when there IS a downstream stage to
+        // reach. In a single-stage network every patient leaves after the only
+        // stage, so a fitted p_exit = 1.0 is the correct (and only possible)
+        // behaviour and must not be refused (Phase 8E, D-139).
+        bool hasDownstreamStage = parameters.StageNames.Count >= 2;
+
+        if (exitProbability >= 1.0 && hasDownstreamStage)
         {
             // Only a fitted value can reach 1.0 here: manual overrides are
             // config-validated to [0, 1). Surface the specific "no downstream
             // route" meaning instead of the raw Core message (5-F).
             return Refused(fits, exitProbability, FittedPExitEqualsOneMessage);
         }
+
+        // For a single-stage network the exit probability is a routing no-op.
+        // NetworkTopology requires exitProbability ∈ [0, 1) and only applies the
+        // exit route when it is > 0, so normalising to 0 leaves every patient
+        // exiting after the sole stage — identical routing, no refusal.
+        double routingExitProbability = hasDownstreamStage ? exitProbability : 0.0;
 
         // ── Resolve the per-stage topology from manual-or-fitted values ─────
         double? arrivalRate = parameters.ManualArrivalRate ?? binding?.FittedArrivalRate;
@@ -105,14 +121,14 @@ public static class SimulationCoordinator
                 string.Format(MissingServiceRateMessage, stageResult.MissingStageName ?? "?"));
         }
 
-        int exitStageIndex = exitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
+        int exitStageIndex = routingExitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
 
         // G4: build INSIDE the try so a topology-level refusal (the fitted
         // p_exit = 1.0 Constructor OutOfRange) becomes a banner, never an
         // unhandled exception.
         try
         {
-            var topology = new NetworkTopology(arrivalRate.Value, stageResult.Specs!, exitStageIndex, exitProbability);
+            var topology = new NetworkTopology(arrivalRate.Value, stageResult.Specs!, exitStageIndex, routingExitProbability);
 
             var traceLevel = TraceLevelFromName(parameters.TraceLevelName);
             var sink = new CollectionTraceSink(traceLevel);

@@ -2,6 +2,76 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 14:50
+Branch: fix/post-merge-8e
+Status: Clean
+
+Done
+- Phase 8E / Bug 1 — a one-stage network no longer refuses a fitted `p_exit = 1.0` (D-139)
+- Phase 8E / Bug 2 — the dropdown focus ring is the brand green and stays visible (§16.7)
+- Phase 8E / Bug 3 — the dropdown opens on the full list, mouse clicks commit, and × clears without closing the popup (D-140)
+- Phase 8E / Bug 4 — the Clear-all dialog uses 24 / 16 / 24 / 12 theme-token spacing
+
+In Progress
+- None
+
+What is complete:
+- `src/OpdSimulator.App/Services/SimulationCoordinator.cs`: the `FittedPExitEqualsOneMessage` refusal is now gated on `hasDownstreamStage = parameters.StageNames.Count >= 2`. A one-stage run passes `routingExitProbability = 0.0` to `NetworkTopology` and to the `exitStageIndex` ternary (Core's `< 1` invariant untouched), while the resolved fitted `1.0` is still reported in the successful `RunOutcome`. The 2+/3-stage message, the manual-override path and `Phase5RunFlowTests.FittedPExitOne_RefusesWithEveryRowExitsAfterScreeningBanner` are unchanged and still green (D-139).
+- `src/OpdSimulator.App/Controls/SearchableDropdown.axaml`: `TextBox:focus` / `TextBox:focus-visible` set `BrushBrandGreen` + `ThicknessFieldBorder`. The unfocused "no border" moved from a local `BorderThickness="0"` to a plain `TextBox` setter, because a local value outranks every style setter and would have silently kept the ring invisible. `IsLightDismissEnabled` is now `False` with the rationale in a comment (D-140).
+- `src/OpdSimulator.App/Controls/SearchableDropdown.axaml.cs`: `OpenPopup` clears the filter under `_filteringFromProgrammaticSet` and re-marks the committed value via `SetListSelectionSilently`; new `ItemList` `SelectionChanged` (commits user selections), `GotFocus` and `LostFocus` handlers; `OnClearClick` nulls the value, clears the filter, keeps the full list open, and is wrapped in `_suppressListCommit`; `ClosePopup`'s `ItemsSource = null` teardown is suppressed so it can never be read as a commit; a `TopLevel.PointerPressed` hook is attached in `OpenPopup` and removed in `ClosePopup` / `Popup.Closed` so an outside press still closes the dropdown.
+- `src/OpdSimulator.App/Controls/ThemedDialog.axaml`: outer `Padding` = `ThicknessSpaceL` (24), title→message 16 and message→buttons 24 as the `Spacing` of two nested `StackPanels`, button `ColumnSpacing` = `SpaceS` (12). The first attempt used Thicknesses mixing a literal with a `DynamicResource` and failed with two `AVLN2005` errors — Avalonia cannot parse that form, hence the nested-Spacing shape.
+- Tests: new `tests/OpdSimulator.App.Tests/Phase8EFixTests.cs` (8 — 3 topology refusals, focus brush, open-all, item-click commit, clear-then-select + outside press, dialog tokens) and `Phase8EScreenshots.cs` (2 frames). The temporary `ZzProbeTests` probe file used to diagnose Bug 3 was deleted before the gate run.
+- Docs: D-139 and D-140 logged, TODO Phase 8E row `[x]` plus two capture-only rows, DEV_LAUNCH "Last verified" + changelog row, USER_MANUAL §9 error table + changelog row.
+
+What remains:
+- Owner review of the two frames and of the interactive ×-click path (see Blocked).
+- Phase 6 (Help + presets) and the polish backlog — must not start until instructed.
+
+Next Session Should Start With
+- Await owner review/merge of `fix/post-merge-8e` per §11.5.
+- Eyeball `logs/screenshots/phase-8e-dropdown-open.png` and `phase-8e-clear-dialog.png` and confirm the × click, then close the two capture rows.
+- Address polish-backlog rows as directed.
+
+Blocked
+- None blocking the work. Two verification gaps are captured in `docs/TODO.md` (polish backlog, 8E rows): (1) the headless harness cannot route a synthesised pointer press to the × `Border` — the test raises the control's own routed `PointerPressed` instead, so the real click path still needs interactive confirmation (§18); (2) this host has no image input, so neither frame was eyeballed by the agent — geometry is asserted numerically, appearance is not.
+- **Brief deviation, flagged:** the brief's gate item (a) named `samples/sample_3stage_clinic.csv` as the `p_exit = 1.0` reproducer. That file fits `p_exit = 0.7` (14 Screening / 6 Doctor exits) and cannot reproduce the refusal. `samples/sample_patients.csv` is the real reproducer — a single-stage file whose every row departs at Screening — and is what the tests use.
+
+Git State
+Commits made this session: `fix: single-stage p_exit guard, dropdown selection, focus style, dialog padding (Phase 8E)` (single commit: code, tests, docs and this handoff)
+Pushed to origin: Yes — pushed with this commit (per §11.4)
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 427 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 244)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: topology-gated refusal + one-stage routing normalisation
+src/OpdSimulator.App/Controls/SearchableDropdown.axaml: focus styles, unfocused thickness setter, light dismiss off
+src/OpdSimulator.App/Controls/SearchableDropdown.axaml.cs: open/clear/selection state machine, suppression guards, outside-press hook
+src/OpdSimulator.App/Controls/ThemedDialog.axaml: nested-StackPanel spacing rewrite
+tests/OpdSimulator.App.Tests/Phase8EFixTests.cs: new (8 tests)
+tests/OpdSimulator.App.Tests/Phase8EScreenshots.cs: new (2 frames)
+docs/DECISIONS.md: D-139, D-140
+docs/PROGRESS.md: this handoff
+docs/TODO.md: Phase 8E row `[x]`, two capture-only rows
+docs/DEV_LAUNCH.md: "Last verified" + changelog row
+docs/USER_MANUAL.md: §9 error row + changelog row
+
+Decisions Made
+- D-139 — the fitted `p_exit = 1.0` refusal is gated on the topology having a downstream stage; one-stage routing normalises to `0.0` and the reported fitted value is untouched
+- D-140 — `SearchableDropdown` owns its outside-press closing instead of `Popup.IsLightDismissEnabled`, because the × lives outside the popup
+
+Assumptions Added/Changed
+- [VERIFIED] `samples/sample_patients.csv` is a single-stage file (only screening timing columns) whose every row departs at Screening, so its fitted `p_exit` is exactly 1.0 — it is the file the single-stage refusal repros on. (Measured this session with `awk` over the file and asserted in `Phase8EFixTests`.)
+- [VERIFIED] `samples/sample_3stage_clinic.csv` fits `p_exit = 0.7` (14 Screening / 6 Doctor departures), so it cannot reproduce the `p_exit = 1.0` refusal.
+- [VERIFIED] `ResourceDictionary`'s indexer does not walk into `MergedResources`; Theme.axaml keys must be read with `TryGetResource`. Cost two NREs in the first test draft and is now a `Theme(...)` helper in `Phase8EFixTests`.
+
+Notes for Next Session
+- The 2026-09-26 pass verified only Release build + full suite + two headless frames. It did **not** re-run the dead-state restore, the CLI checks or a real-display launch; DEV_LAUNCH "Last verified" says so explicitly rather than claiming a full re-verification.
+- If the × click misbehaves in the real app, the first thing to check is the outside-press hook: it is attached to the `TopLevel` only while the popup is open, and it deliberately ignores presses whose source is inside `ComboHost` or the `ItemList`.
+
 Session Handoff — 2026-09-18 06:59
 Branch: feat/milestone-7-model-driven
 Status: Clean
