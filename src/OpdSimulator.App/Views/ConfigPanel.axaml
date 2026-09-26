@@ -13,10 +13,18 @@
          single tab stop (its inner TextBox) and validates on blur (FR-UI-17). -->
     <Grid RowDefinitions="*,Auto,Auto">
 
+        <!-- Phase 8F (D-142): the padding moved OFF the ScrollViewer and onto a
+             Border wrapping the content. ScrollViewer.Padding is not part of
+             the scrollable extent — measured on this panel, Extent came out
+             32 px short of the content's own height (content − 2×padding), so
+             its bottom padding was dead space the user could never scroll to
+             and the last section stayed clipped under the pinned footer.
+             Border.Padding is part of the desired size, so it scrolls. A
+             StackPanel cannot host it — Avalonia's Panel has no Padding. -->
         <ScrollViewer Grid.Row="0"
-                      VerticalScrollBarVisibility="Auto"
-                      Padding="{DynamicResource ThicknessWindowPadding}">
+                      VerticalScrollBarVisibility="Auto">
 
+            <Border Padding="{DynamicResource ThicknessWindowPadding}">
             <StackPanel Spacing="{DynamicResource SpaceM}">
 
                 <!-- Phase 7C: top-level data-source selector. Fit the
@@ -375,7 +383,18 @@
                     </StackPanel>
                 </controls:CollapsibleSection>
 
+                <!-- Phase 8F scroll buffer: the PinnedFooterBar sits directly
+                     under this ScrollViewer, so the last section has to be able
+                     to travel clear of it. This is a real element inside the
+                     scrollable content (and sits inside the content padding),
+                     so it extends the scrollable extent — a taller
+                     ScrollViewer.Padding would not have. Height is the SpaceL
+                     token, so it restyles with the theme. -->
+                <Border Height="{DynamicResource SpaceL}"
+                        Background="Transparent"/>
+
             </StackPanel>
+            </Border>
         </ScrollViewer>
 
         <!-- FR-UI-9 / D-128: names exactly which required input is missing

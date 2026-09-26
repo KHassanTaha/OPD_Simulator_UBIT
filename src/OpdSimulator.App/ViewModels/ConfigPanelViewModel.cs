@@ -1547,6 +1547,21 @@ public partial class ConfigPanelViewModel : ObservableObject
 /// </summary>
 public partial class StageRow : ObservableObject
 {
+    /// <summary>
+    /// Guards the two-way <see cref="SelectedModel"/> ⇄ <see cref="Servers"/>
+    /// sync against re-entrancy. Writing one side raises the other side's
+    /// change notification, which would otherwise bounce straight back and
+    /// either recurse or thrash the field the user is still typing in
+    /// (Phase 8F, D-143).
+    /// </summary>
+    private bool _suppressModelServerSync;
+
+    /// <summary>Wires the servers field into the model-notation sync (Phase 8F, D-143).</summary>
+    public StageRow()
+    {
+        Servers.ValueChanged += (_, _) => OnServersValueChanged();
+    }
+
     [ObservableProperty]
     private string _stageName = "";
 
@@ -1654,10 +1669,86 @@ public partial class StageRow : ObservableObject
             return;
         }
 
-        var parsed = ModelNotationParser.Parse(value);
+        // A model set programmatically (including by the servers sync below)
+        // may not be one of the listed notations. Parse throws on anything it
+        // does not recognise, so a bad value must not be able to crash a run
+        // from a plain field edit.
+        ModelNotationParser.ParsedModel parsed;
+        try
+        {
+            parsed = ModelNotationParser.Parse(value);
+        }
+        catch (ArgumentException)
+        {
+            Log.Warning("Stage '{Stage}': ignoring unparseable model notation '{Model}'.", StageName, value);
+            return;
+        }
+
         ArrivalFamily = parsed.ArrivalFamily;
         ServiceFamily = parsed.ServiceFamily;
-        Servers.Value = parsed.ServerCount.ToString();
+
+        // Writing Servers re-enters this row through Servers.ValueChanged; the
+        // guard stops the round trip from rewriting SelectedModel underneath
+        // the user (Phase 8F, D-143).
+        _suppressModelServerSync = true;
+        try
+        {
+            Servers.Value = parsed.ServerCount.ToString();
+        }
+        finally
+        {
+            _suppressModelServerSync = false;
+        }
+    }
+
+    /// <summary>
+    /// Reverse half of the model-notation sync: typing a server count rewrites
+    /// the trailing number of the notation, so M/M/2 + 3 servers reads M/M/3
+    /// instead of leaving a stale model selected (Phase 8F, D-143).
+    /// </summary>
+    private void OnServersValueChanged()
+    {
+        if (_suppressModelServerSync || UseAdvancedSetup)
+        {
+            return;
+        }
+
+        var current = SelectedModel;
+        if (string.IsNullOrEmpty(current))
+        {
+            return;
+        }
+
+        // Only whole counts ≥ 1 can be represented, and the dropdown only
+        // offers 1–5 servers. Anything else (a blank field mid-edit, "0", "9",
+        // "abc") leaves the notation alone rather than fabricating an option
+        // that is not in the list — the inline field error owns that case.
+        if (!int.TryParse(Servers.Value, out var count) || count < 1)
+        {
+            return;
+        }
+
+        var slash = current.LastIndexOf('/');
+        if (slash < 0)
+        {
+            return;
+        }
+
+        var candidate = $"{current[..(slash + 1)]}{count}";
+        if (!ModelNotationParser.StandardModels.Contains(candidate) || candidate == current)
+        {
+            return;
+        }
+
+        _suppressModelServerSync = true;
+        try
+        {
+            SelectedModel = candidate;
+        }
+        finally
+        {
+            _suppressModelServerSync = false;
+        }
     }
 
     /// <summary>True while this row's servers field is invalid.</summary>

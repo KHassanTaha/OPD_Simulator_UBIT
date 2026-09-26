@@ -2,6 +2,90 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 16:05
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8F / 8F.1 — the Fluent system accent is pinned to the brand green, so the UI no longer inherits the machine's OS accent (D-141)
+- Phase 8F / 8F.2 — the config panel scrolls all the way to the last section, clear of the pinned footer (D-142)
+- Phase 8F / 8F.3 — a stage's server count and its Model notation can no longer disagree (D-143)
+
+In Progress
+- None — Phase 8F is complete and gated; waiting on owner review.
+
+What is complete:
+
+- **8F.1 (D-141) — `src/OpdSimulator.App/App.axaml.cs`.** `App.Initialize` now calls `PinSystemAccentToBrand`, which reads `ColorBrandGreen` from Theme.axaml and assigns it to `FluentTheme.Palettes[Light].Accent` and `[Dark].Accent`, mutating an existing entry in place rather than replacing it, and logging a warning on either skip path.
+  - The prescribed fix **cannot work on this stack**, and this was measured rather than assumed. Avalonia 11.3.3 has no `SystemAccentColor` resource — `Application.Resources.TryGetResource("SystemAccentColor")` misses and `FluentTheme` exposes no such key. The resource that actually drives the highlight is `SystemControlHighlightAccentBrush`, which resolved to `#0078D7` (the machine accent). Assigning the palette entry changes that brush; declaring the loose keys would have been a plausible-looking no-op that left the UI blue. `ThemeAccent_IsBrandGreen_NotSystemDefault` asserts `SystemAccentColor` does *not* exist, so the broken approach cannot be reintroduced quietly.
+  - Two facts the gate forced, neither visible by inspection: `Palettes` throws "only supports Light and Dark variants" if given `ThemeVariant.Default`, and `ColorPaletteResources` exposes a single `Accent` knob — there is no `AccentLight1`/`AccentDark1` ladder to populate.
+  - Override safety was measured: injecting an Accent-only entry changed exactly **1 of 25** probed Fluent brush resources and left the other 24 byte-identical, so the rest of the theme cannot be silently wrecked.
+  - The CollapsibleSection header binds **no** accent brush (title and chevron are `BrushTextOnBrand` on a `BrushBrandGreen` bar), so the brief's "replace any `SystemControlHighlightAccent*` binding" had nothing to replace. The blue came from the Fluent-styled `ToggleButton`'s own focus/checked visuals — which is why the fix belongs at the palette rather than on the control.
+
+- **8F.2 (D-142) — `src/OpdSimulator.App/Views/ConfigPanel.axaml`.** `Padding` moved off the `ScrollViewer` onto a `Border` wrapping the content, plus a trailing `Border Height="{DynamicResource SpaceL}"` as the scroll buffer.
+  - Root cause: `ScrollViewer.Padding` is **not** part of the scrollable extent. Measured on the real panel, `Extent.Height` was 2962 while the content was 2994 — exactly `content − 2×padding` — so the bottom padding was dead space the user could never scroll to. This also means the brief's "add bottom padding" could never have worked, and neither could a bigger spacer: the content is arranged clamped to the short extent, so the first attempt (a 24 px spacer) still left the last section 8 px clipped. `Border.Padding` is part of the desired size, so it scrolls.
+  - After the change: `Extent` 3026 (= 2994 + 32), and at maximum scroll the content bottom lands exactly on the viewport bottom with the last section's bottom edge **56 px clear** (24 buffer + 16 padding + 16 window padding).
+  - A `StackPanel` cannot host the padding — Avalonia's `Panel` has no `Padding` property, which is why the `Border` wrapper exists. `RowDefinitions="*,Auto,Auto"` was already correct and was left untouched.
+
+- **8F.3 (D-143) — `src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs`, `StageRow`.** `Servers.ValueChanged` rewrites the notation's trailing number; `OnSelectedModelChanged` writes the count; both sit behind one `_suppressModelServerSync` `try/finally` guard.
+  - The supplied sketch assumed `Servers` was an `[ObservableProperty] int` with a generated `OnServersChanged(int)` hook. It is a get-only `ConfigFieldViewModel` with a string `Value`, so the hook is a subscription to its `ValueChanged` event.
+  - The sketch's reverse sync would have **crashed**: appending the raw number for a count of 9 fabricates "M/M/9", which is not in `StandardModels`, so the next `ModelNotationParser.Parse` throws out of a property setter. The sync now writes only listed values, leaving the inline field error to own the invalid case. `OnSelectedModelChanged` additionally catches `ArgumentException` from `Parse` and logs a warning.
+
+- **Tests.** New `Phase8FTests.cs` (7) and `Phase8FScreenshots.cs` (2). One pre-existing test needed a locator update: `Phase5dScreenshot` found the config scroller via `s.Content is StackPanel`, which the `Border` wrapper invalidated — it now locates the scroller by the sections it contains, which is what the test actually meant. The two other `s.Content is StackPanel` locators in the suite address the Results panel and were unaffected.
+
+What remains:
+- Owner review and merge of `fix/post-merge-8e` (§11.5).
+- The two carry-over verification gaps below.
+- Phase 8G — must not start until instructed.
+
+Next Session Should Start With
+- Await owner review/merge of `fix/post-merge-8e`.
+- Eyeball `logs/screenshots/phase-8f-focus-green.png` and `phase-8f-config-bottom.png`.
+- Then Phase 8G (per-stage general fitting), only on instruction.
+
+Blocked
+- None blocking the work. Verification gaps recorded in `docs/TODO.md` rather than papered over:
+  - **No interactive launch.** The host is Wayland with no image input, so gate items 3(a)–3(e) were verified headlessly (D-089 method) and numerically, not by a human clicking through. Per AGENTS §18 the frames' geometry and resolved colours are asserted, but "does the header *look* green" needs your eyes.
+  - **Accent override lives in code, not XAML** (D-141). A reader auditing only `Theme.axaml` will not see the pin. The two accent tests are the only alarm if a future Avalonia upgrade moves the `Accent` knob; a startup assertion logging the resolved accent at Information level is the suggested follow-up.
+
+Git State
+Commits made this session: `fix: system accent override, config scroll buffer, server-model sync (Phase 8F)`
+Pushed to origin: Yes — `fix/post-merge-8e`
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 errors / 0 warnings (Release, whole solution)
+dotnet test: PASS — 436 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 253), baseline 427, +9
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/App.axaml.cs: `PinSystemAccentToBrand` — pins the Fluent accent from Theme.axaml
+src/OpdSimulator.App/Views/ConfigPanel.axaml: padding moved to a content `Border`; `SpaceL` scroll buffer added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: `StageRow` two-way model/servers sync behind one re-entrancy guard
+tests/OpdSimulator.App.Tests/Phase8FTests.cs: new (7 tests)
+tests/OpdSimulator.App.Tests/Phase8FScreenshots.cs: new (2 frames)
+tests/OpdSimulator.App.Tests/Phase5dScreenshot.cs: scroller locator no longer assumes `Content is StackPanel`
+docs/DECISIONS.md: D-141, D-142, D-143
+docs/TODO.md: Phase 8F `[x]`, two capture-only rows
+docs/PROGRESS.md: this handoff
+
+Decisions Made
+- D-141 — pin the accent via `FluentTheme.Palettes[…].Accent`; the prescribed `SystemAccentColor` keys are inert on Avalonia 11.3.3
+- D-142 — move the config padding off the `ScrollViewer` onto the content, because ScrollViewer padding is not scrollable
+- D-143 — two-way model/servers sync behind one guard, writing only notations that exist in `StandardModels`
+
+Assumptions Added/Changed
+- [VERIFIED] Avalonia 11.3.3's Fluent theme takes its accent from `ColorPaletteResources.Accent` per theme variant, and `SystemControlHighlightAccentBrush` is the resource derived from it. (Measured: brush `#0078D7` → brand green on injection; 24 of 25 other probed brush resources unchanged.)
+- [VERIFIED] `FluentTheme.Palettes` accepts only `ThemeVariant.Light` and `ThemeVariant.Dark`; adding `Default` throws.
+- [VERIFIED] `ScrollViewer.Padding` is excluded from the scrollable extent on this panel (`Extent` = content − 2×padding); `Border.Padding` is not.
+- [VERIFIED] Avalonia's `Panel` (and therefore `StackPanel`) has no `Padding` property.
+- [UNVERIFIED] That the CollapsibleSection header *appears* brand green to a human on a machine whose OS accent is neither blue nor orange. The resolved colours are asserted; the appearance is not, because this host cannot display or view the frames.
+
+Notes for Next Session
+- G/G/1 is untouched and per-stage general fitting is still Phases 8G–8J, as the brief required. `ModelNotationParser` and `StandardModels` were not modified — the 8F.3 sync needed only the prefix substring, so the forbidden-file constraint held.
+- Phase 8F touched no Core, Data or Cli code. The only non-8F change in the diff is the `Phase5dScreenshot` locator, which the `Border` wrapper forced.
+- If the accent ever looks wrong again after an Avalonia upgrade, check `FluentTheme.Palettes` first and run `ThemeAccent_IsBrandGreen_NotSystemDefault` — it asserts the brush, not the palette, so it fails whichever way the knob moves.
+
 Session Handoff — 2026-09-26 14:50
 Branch: fix/post-merge-8e
 Status: Clean
