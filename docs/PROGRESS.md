@@ -2,6 +2,81 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+Session Handoff — 2026-09-26 16:12
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8G / 8G.1 — MathNet.Numerics 5.0.0 confirmed already referenced by Core; no csproj touched
+- Phase 8G / 8G.2–8G.4 — `IDistributionSampler`, `DistributionFamily`, `DistributionSpec`, and the six sealed samplers
+- Phase 8G / 8G.3 — `MathNetRandomAdapter : System.Random` bridges MathNet 5.0.0 to the project's `IRandomSource`
+- Phase 8G / 8G.5 — Gamma kept scale-based publicly with the `beta = 1/θ` conversion to MathNet's rate form
+- Phase 8G / 8G.6 — `DistributionSamplerFactory` validates per family and names the offending field
+- Phase 8G / 8G.7 — new class is `ExponentialDistributionSampler`; legacy `ExponentialSampler` untouched, retired in 8H
+
+In Progress
+- Nothing. Phase 8G is closed out and the gate passed; 8H is not started.
+
+What is complete:
+The whole of Phase 8G. Ten new Core files in `OpdSimulator.Core/Distributions` (contract ×3, adapter ×1, samplers ×6 — the factory makes 11) and one new Core test file with 18 tests. Gate green.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F and 8G).
+- Phase 8H: wire the samplers into the Engine and retire the legacy `ExponentialSampler`. NOT STARTED, per instruction.
+- Pre-existing, unrelated: the `phase-8f-*.png` frames were never eyeballed by the agent (this host has no image input), and the 8F.1 accent override lives in code rather than XAML. Both are open rows in TODO.md.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8H. Do not begin it unprompted.
+2. On go, confirm the branch state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **454 green** (Core 108 / Data 58 / Cli 35 / App 253), not the 436 this session started from.
+
+Blocked
+None.
+
+Git State
+Commits made this session: 1 pending — `feat: Core distribution samplers for six families (Phase 8G)`.
+
+Pushed to origin: Yes — `fix/post-merge-8e` (commit hash reported in chat at push time).
+
+Uncommitted changes: None once the commit lands; the working tree was clean at reconcile and the only writes this session are the 12 new files plus DECISIONS/TODO/PROGRESS.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 454 passed, 0 failed (Core 108 / Data 58 / Cli 35 / App 253; +18 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Distributions/IDistributionSampler.cs: added
+src/OpdSimulator.Core/Distributions/DistributionFamily.cs: added
+src/OpdSimulator.Core/Distributions/DistributionSpec.cs: added
+src/OpdSimulator.Core/Distributions/MathNetRandomAdapter.cs: added
+src/OpdSimulator.Core/Distributions/ExponentialDistributionSampler.cs: added
+src/OpdSimulator.Core/Distributions/DeterministicSampler.cs: added
+src/OpdSimulator.Core/Distributions/NormalSampler.cs: added
+src/OpdSimulator.Core/Distributions/LognormalSampler.cs: added
+src/OpdSimulator.Core/Distributions/GammaSampler.cs: added
+src/OpdSimulator.Core/Distributions/UniformSampler.cs: added
+src/OpdSimulator.Core/Distributions/DistributionSamplerFactory.cs: added
+tests/OpdSimulator.Core.Tests/DistributionSamplerTests.cs: added (18 tests)
+
+docs/DECISIONS.md: modified (D-144)
+docs/TODO.md: modified (Phase 8G row [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-144 — six `IDistributionSampler` families over MathNet.Numerics 5.0.0, with a `System.Random` adapter preserving the project's `IRandomSource`
+
+Assumptions Added/Changed
+- None. No new domain assumptions were introduced; 8G adds infrastructure only and does not change any CONTEXT.md assumption.
+
+Notes for Next Session
+- **The two library traps are documented, not just fixed.** Anyone re-reading `GammaSampler` will see why `beta = 1/θ` is there; anyone touching `MathNetRandomAdapter` will see why every override matters. Do not "simplify" either one without reading D-144.
+- `MathNet.Numerics.Random.IRandomSource` is gone in 5.0.0. If a future phase suggests wrapping `IRandomSource` in a MathNet `IRandomSource`, that advice is wrong for this version.
+- The adapter delegates `NextBytes` one draw per byte, so a 4-byte fill costs 4 draws. The delegation test asserts the running count (1, 4, 7, 8, 12, 16) and will fail if that changes — update the test, not the count.
+- Exponential is the only family not going through MathNet. It duplicates the legacy transform on purpose so 8H can swap callers without changing the sampled sequence for a given seed.
+- The samplers are currently reachable only from tests. That is expected for 8G; 8H is what makes them live.
+
 Session Handoff — 2026-09-26 16:05
 Branch: fix/post-merge-8e
 Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
