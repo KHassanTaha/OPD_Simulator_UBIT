@@ -33,11 +33,11 @@ Blocked
 None.
 
 Git State
-Commits made this session: 1 pending — `feat: Core distribution samplers for six families (Phase 8G)`.
+Commits made this session: `364595f` feat: Core distribution samplers for six families (Phase 8G)
 
-Pushed to origin: Yes — `fix/post-merge-8e` (commit hash reported in chat at push time).
+Pushed to origin: Yes — `364595f` on `fix/post-merge-8e` (`73bc32b..364595f`).
 
-Uncommitted changes: None once the commit lands; the working tree was clean at reconcile and the only writes this session are the 12 new files plus DECISIONS/TODO/PROGRESS.
+Uncommitted changes: None — working tree clean after the push.
 
 Build & Test
 dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
