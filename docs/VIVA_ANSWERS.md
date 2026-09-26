@@ -202,3 +202,92 @@ the comparison to steady-state runs — the analytical formulas do not apply to 
 more simulated minutes. (3) `dotnet test` — 414 tests including the run-flow
 tests that assert refusal banners, trace detail by level, and multi-day day
 counts.
+
+## Phase 8K — Per-stage service families and G/G/c auto-fit (2026-09-26)
+
+### Q: Each stage has its own distribution now — how do you pick one, and how do you know it is right?
+
+Two independent routes, and the simulator never mixes them.
+
+**Route 1, by hand.** Turn on **Advanced** on a stage row and pick its
+**Service distribution** from the six families. Each family then shows exactly
+one extra field, and it is always a *spread* field, never a location one:
+σ for Normal and Lognormal, shape k for Gamma, half-width w for Uniform, and
+nothing for Exponential or Deterministic. The mean service time is still the μ
+you typed. The architecture rule is that **μ is the only location parameter**
+(D-150) — one family cannot disagree with itself about where it is centred,
+which was the actual bug in the earlier draft where a row could name both a μ
+and a raw parameter.
+
+**Route 2, from the data.** Load a file, set a stage to `G/G/c`, and the
+simulator runs an AIC search across all six families against that stage's
+historical service times. It then keeps your `G/G/c` on screen, shows a badge
+naming the winner, fills μ **only if you left it blank**, and copies across
+the spread the winning family needs. The family is the fitter's decision; the
+μ stays yours.
+
+**How do you know it is right?** Two independent checks, and they are
+deliberately not the same check:
+
+- *Input side* — is the fitted family a reasonable model of the historical
+  data? Inter-arrival and service histograms, the fitted PDF, and a
+  chi-square goodness-of-fit verdict. This is the Input tab.
+- *Output side* — did the engine actually produce the distribution that was
+  configured? Each stage's generated service times are binned and
+  chi-square tested **against that stage's configured spec** (D-157).
+
+The second one is the interesting one, because it is where the project was
+wrong for a while. The verification used to *refit* the engine's own output
+and then test that refit against the same samples. That answers a question
+nobody asked — it reports how well the service's own estimate fitted itself,
+which passes for any output that is *some* plausible distribution. Worse, it
+was handed a single family repeated across the stages, so it could not even
+see a per-stage difference. Now each stage is judged against its own spec,
+and a misconfigured or unconfigured stage is *named* instead of quietly
+defaulted to exponential.
+
+### Q: Why does one stage's chi-square say "not applicable" while the others show a curve?
+
+Because that stage's service family has no spread to bin. **Deterministic**
+service means every service takes exactly the same time, so there is no
+variation to histogram and no distribution to test it against. Exponential,
+Normal, Lognormal, Gamma and Uniform all have a genuine spread, so those
+stages get a real curve and a real verdict.
+
+Two further cases produce a stated reason instead of a curve, and both are
+information rather than failure: a **unconfigured** stage (no spec was built
+for it, which the master principle says must never be silently defaulted), and
+a stage whose configured spread is so narrow that the chi-square binning runs
+out of expected counts — which is genuine evidence that the configuration and
+the output disagree.
+
+### Q: What is the μ-only-location rule, and why is it stated as an invariant rather than a convention?
+
+Because it is checkable. The invariant is
+
+    ServiceRate  ==  1 / ServiceDistribution.Mean  ==  μ
+
+with all three coming from one resolved value, so the assertion cannot be
+satisfied by coincidence. It is enforced by a `StageSpec` assertion that is
+compiled under `#if DEBUG` (D-147) — which is why the release gate is not
+sufficient on its own: a Release-only test run literally cannot observe the
+check. Every Phase 8K gate has therefore been run in Debug as well as Release.
+
+The rule exists because of a concrete failure it prevents. Gamma is specified
+by shape and scale, and its mean is `k · Scale`. If μ and the raw parameters
+were both entered independently they could describe two different
+distributions at once, and nothing downstream would catch it. Deriving
+`Scale = mean / k` and `Min/Max = mean ± w` from the one mean removes the
+possibility rather than testing for it afterwards.
+
+### Q: A stage's family dropdown is greyed out and the badge says something. Why?
+
+That is `G/G/c` working as intended. `G` names no family on purpose — the
+whole point is that the family is unknown until it is fitted — so the family
+dropdown stays disabled while the notation is `G/G/c`, and the badge names
+whatever the fitter chose. If you have **not** loaded a data file, or the file
+does not cover that stage, there is nothing to fit from, so the simulator
+refuses: it reverts the notation, changes nothing else, and puts the reason on
+the row. A refusal with a stated cause is the designed outcome; silently
+keeping a family it could not determine would not be.
+

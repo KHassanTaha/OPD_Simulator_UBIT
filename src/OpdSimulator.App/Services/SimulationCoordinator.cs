@@ -238,16 +238,26 @@ public static class SimulationCoordinator
                 continue;
             }
 
-            // The family comes from the per-stage spec; the mean is re-derived from the
-            // μ that actually won, so ServiceRate and ServiceDistribution.Mean are
-            // consistent by construction. Inverting Mean to recover μ is deliberately
-            // NOT done — that round trip is not bit-reversible (D-146 caveat 1).
-            var family = parameters.ServiceFamilies[i].Family;
+            // The configured spec is carried through WHOLE, so each stage's spread
+            // (σ, shape k, half-width w and the Min/Max and Scale derived from them)
+            // reaches the engine. Only the mean is replaced, and it is re-derived from
+            // the μ that actually won, so ServiceRate and ServiceDistribution.Mean stay
+            // consistent by construction (D-147). Inverting Mean to recover μ is
+            // deliberately NOT done — that round trip is not bit-reversible
+            // (D-146 caveat 1).
+            //
+            // This line used to build a fresh `new DistributionSpec(family, Mean: 1/mu)`,
+            // which silently DISCARDED the spread: DistributionSamplerFactory then
+            // refused every non-Exponential stage with an opaque Core exception
+            // ("Normal distribution requires StdDev > 0"), so the per-stage family
+            // selection this phase exists to deliver could not actually run. See
+            // docs/BLOCKERS.md B-010.
+            var spec = parameters.ServiceFamilies[i] with { Mean = 1.0 / mu };
             specs.Add(new StageSpec(
                 name,
                 parameters.ServerCounts[i],
                 mu,
-                new DistributionSpec(family, Mean: 1.0 / mu)));
+                spec));
         }
 
         if (specs.Count != stageCount)

@@ -2,6 +2,40 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-26 20:40
+Branch: `fix/post-merge-8e`
+Status: Blocked (one ruling needed — B-011)
+
+### Done
+- **B-010 fixed and verified (D-158).** Owner ruled "GO"; `SimulationCoordinator.BuildStageSpecs` now carries the configured spec through whole and substitutes only the mean — `parameters.ServiceFamilies[i] with { Mean = 1.0 / mu }` (D-158). Applied the owner's patch verbatim; the one deliberate deviation is that the existing **three-level** μ chain (`ServiceRates ?? ManualServiceRates ?? FittedRateFor`) was kept rather than the two-level chain in the instruction, because collapsing it would regress manual-mode and FitFromData precedence.
+- **Phase 8K.8 gate closed.** Release **and** Debug 0/0, **544/544 green in each** (CLI 35 / Data 92 / Core 114 / App 303), up from 535.
+- **`phase-8k-verification-mixed.png` regenerated from a genuinely mixed run** — Exponential / Deterministic / Gamma — replacing the all-Exponential stand-in. The frame's limitations paragraph was deleted because the limitation was.
+- **Docs:** D-158 added; B-010 moved to Resolved; **B-011 raised**; `TODO` 8K.8 marked `[x]`; `USER_MANUAL` corrected (it still claimed "the engine currently samples exponentially for every stage" — the exact thing B-010 fixed); `VIVA_ANSWERS` Phase 8K section; `DEV_LAUNCH` counts, Debug-gate warning and Last-verified.
+
+### The finding that needs your ruling — B-011
+Verifying the fix surfaced a defect it does **not** cover. `with { Mean = ... }` substitutes only `Mean`, but Gamma's `Scale = mean/k` and Uniform's `Min`/`Max = mean ∓ w` are **mean-derived stored fields**, so a changed mean leaves them stale and the sampler factory throws.
+
+**It is not a regression, and I checked rather than assumed.** I probed the pre-fix coordinator on the same input: it threw for **all three** families (`StdDev > 0`, `Shape > 0`, `Min < Max`). The fix narrowed it to Gamma and Uniform. So blast radius shrank; it was already broken and stays broken for these two.
+
+Reachable from the GUI: a Gamma or Uniform row with **blank μ** while the comma list supplies μ → unhandled `ArgumentException` instead of a field-level message. Normal, Lognormal, Exponential, Deterministic are fine — `StdDev` is mean-independent, which is exactly why Normal went green on the first try.
+
+Two sub-cases, and only one is fixable by re-deriving:
+1. **Old mean valid, new mean differs** → re-derive. `Scale = newMean / Shape`; for Uniform recover `w = (Max − Min)/2` then `Min/Max = newMean ∓ w`. This is the rule `BuildSpec` already applies, so it is not a new design.
+2. **Old mean is NaN** (row μ blank) → the spread is genuinely *undefined*, because k and w only mean something relative to a mean. No re-derivation helps; `w` is NaN. This must be a clean `BuildSpec` refusal plus closing the comma-list hole in the D-128 Start gate.
+
+Recommended: approve (1) as a one-line extension, and authorise (2) as a `BuildSpec` refusal. Both change what the user is told or what the engine samples, so I stopped rather than assume.
+
+### Verification (AGENTS §18)
+| Requirement | How verified | Result |
+|---|---|---|
+| B-010 fix | 4 family tests observe the **sampler's output** (sd vs σ, bounds vs Min/Max, variance vs mean²/k, positivity + centring), not the spec — the spec is what the bug discarded | green |
+| B-010 mutation | reverted the fix → **5 tests fail** (4 family + mixed screenshot); restored, `git diff` clean | fail-then-pass |
+| Gate item 3(a) — M/M/1 + M/D/2 + M/M/3 | `Coordinator_MixedFamilyRun_M_D_StageHasNoServiceVarianceWhileM_M_StagesDo`: Screening sd = 0.0 and every draw = 4.0; Reception/Doctor sd > 0.1; Screening card has no curve and the note "Deterministic — chi-square not applicable."; Reception/Doctor carry chi-square verdicts | green |
+| Mixed frame honesty | assertions tightened: Reception + Doctor must have `HasSeries`, Screening must not. Previously the frame would have passed with every stage degraded to a note — the shape of the bug, not the fix | green |
+| Release + Debug gate | 0/0 and 544/544 in each; Debug mandatory because D-147 is `#if DEBUG` | pass |
+
+Two test-parameter corrections, both the instability guard working correctly rather than bugs: λ was raised 0.1 → 0.3 in the screenshot run because 12 patients was too thin to histogram, and the family tests use λ = 0.2 because Normal(mean 2.5) on one server is unstable above λ = 0.4.
+
 ## Session Handoff — 2026-09-26 — Phase 8K.6–8K.7 complete, 8K.8 BLOCKED on B-010
 
 **Branch:** `fix/post-merge-8e` · **Status:** Blocked (one ruling needed)

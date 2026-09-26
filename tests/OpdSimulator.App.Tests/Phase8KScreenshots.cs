@@ -145,25 +145,25 @@ public class Phase8KScreenshots
             var main = RequireMain(window);
             ForceAllWidgetsVisible(main.Results);
 
-            // Per-stage verification, produced by a REAL run (D-157).
+            // Per-stage verification, produced by a REAL run (D-157), with three
+            // genuinely DIFFERENT families so this frame is what its name says.
             //
-            // KNOWN LIMITATION, recorded as BLOCKER-8K-1: every stage here is
-            // Exponential even though the frame is named "mixed", because
-            // SimulationCoordinator.BuildStageSpecs rebuilds each engine spec as
-            // `new DistributionSpec(family, Mean: 1.0 / mu)` and therefore DROPS the
-            // configured spread. DistributionSamplerFactory then refuses any
-            // non-Exponential stage ("Normal distribution requires StdDev > 0"), so a
-            // genuinely mixed run cannot execute yet. The per-stage verdict plumbing
-            // this frame is meant to evidence IS exercised for real here, and the
-            // mixed-family behaviour is covered directly by
-            // Phase8BVerificationTests.VerifyAll_MixedStageParameters_*; what is
-            // missing is only the end-to-end run. Changing the coordinator would change
-            // what the engine samples, so it is held for an owner ruling.
+            // B-010 is fixed: the coordinator now carries each configured spec through
+            // whole (`with { Mean = 1.0 / mu }`), so the spread reaches the engine and a
+            // mixed run can finally execute. The families are chosen to evidence BOTH
+            // card treatments in one frame:
+            //   Reception M/M/1 Exponential -> a real chi-square curve
+            //   Screening M/D/2 Deterministic -> the "not applicable" note, because a
+            //     deterministic service has no spread to bin
+            //   Doctor M/G/3 Gamma -> a real curve from a k-parameterised family, and the
+            //     proof that Scale (mean-dependent) survived the substitution intact
+            // The means match the mu RunThreeStage configures (0.5, 0.25, 0.2), so only
+            // the FAMILY differs between stages (D-150).
             var specs = new List<DistributionSpec>
             {
                 new(DistributionFamily.Exponential, Mean: 2.0),
-                new(DistributionFamily.Exponential, Mean: 4.0),
-                new(DistributionFamily.Exponential, Mean: 5.0),
+                new(DistributionFamily.Deterministic, Mean: 4.0),
+                new(DistributionFamily.Gamma, Mean: 5.0, Shape: 2.5, Scale: 5.0 / 2.5),
             };
             var result = RunThreeStage(main, specs, "sample_3stage_variable.csv");
 
@@ -195,12 +195,25 @@ public class Phase8KScreenshots
                 c => Assert.True(c.HasSeries || !string.IsNullOrWhiteSpace(c.Caption)));
 
             window.UpdateLayout();
-            Assert.All(
-                main.SimulationVerification.Charts,
-                c => Assert.True(
-                    c.ChartContent is not null,
-                    $"card '{c.Title}' has no chart content; caption was: {c.Caption}"));
-            Assert.All(main.SimulationVerification.Charts, c => Assert.True(c.HasSeries));
+
+            // The M/M/1 and M/G/3 stages must show real curves. Without this the frame
+            // would still pass if every stage fell back to a note, which is the shape of
+            // the B-010 bug rather than the fix.
+            var curved = main.SimulationVerification.Charts
+                .Where(c => c.Title.Contains("Reception") || c.Title.Contains("Doctor"))
+                .ToList();
+            Assert.Equal(2, curved.Count);
+            Assert.All(curved, c => Assert.True(
+                c.HasSeries && c.ChartContent is not null,
+                $"'{c.Title}' should carry a chi-square curve; caption was: {c.Caption}"));
+
+            // The M/D/2 stage must NOT show a curve, and must say why. This is the
+            // end-to-end counterpart of Coordinator_MixedFamilyRun_M_D_Stage... in
+            // Phase8KTests, which asserts the same refusal on the service level.
+            var deterministic = main.SimulationVerification.Charts
+                .Single(c => c.Title.Contains("Screening"));
+            Assert.False(deterministic.HasSeries);
+            Assert.Contains("not applicable", deterministic.Caption, StringComparison.OrdinalIgnoreCase);
 
             var frame = Capture(window, "phase-8k-verification-mixed.png");
             Assert.True(frame >= 512, "verification-mixed frame missing or suspiciously small");
@@ -275,7 +288,12 @@ public class Phase8KScreenshots
     {
         var config = new ConfigPanelViewModel();
         config.ParametersIsOptionalEnabled = true;
-        config.ManualLambda.Value = "0.1";
+        // lambda is raised from 0.1 so the chi-square cards have a usable sample: at
+        // 0.1 over one clinic morning the run drew only 12 patients, which is too thin
+        // to histogram convincingly. 0.3 is still stable at every stage: the binding
+        // constraint is Reception (mu 0.5, one server) at rho = 0.6, and the coordinator
+        // refuses a run at rho >= 1.
+        config.ManualLambda.Value = "0.3";
         config.ManualMuPerStage.Value = "0.5, 0.25, 0.2";
         config.StageRows[0].Servers.Value = "1";
         config.StageRows[1].Servers.Value = "2";

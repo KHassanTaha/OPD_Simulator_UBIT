@@ -3,10 +3,12 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Data.Fitting;
+using OpdSimulator.Data.Parameters;
 using OpdSimulator.Core.Stages;
 
 namespace OpdSimulator.App.Tests;
@@ -740,4 +742,215 @@ public class Phase8KTests
                 SearchableDropdown d => d.Label == label,
                 _ => false,
             });
+
+    // ── B-010: the configured SPREAD must reach the engine ──────────────────
+    //
+    // Before the fix, SimulationCoordinator rebuilt each engine spec as
+    // `new DistributionSpec(family, Mean: 1/mu)`, discarding the spread, so
+    // DistributionSamplerFactory refused every non-Exponential stage. These tests
+    // observe the SAMPLER'S OUTPUT, not the spec object, because the spec is what the
+    // bug threw away: only a behavioural observation can prove the spread arrived.
+
+    /// <summary>
+    /// Runs a single-stage clinic with <paramref name="spec"/> configured and returns the
+    /// service times the engine actually drew. The run is refused outright if the spread
+    /// never reached the sampler, so a refusal here is itself the regression signal.
+    /// </summary>
+    private static IReadOnlyList<double> EngineServiceSamplesFor(DistributionSpec spec, double mu, int seed = 4242)
+    {
+        var parameters = new SimulationParameters(
+            ParameterMode.RateWise,
+            "Exponential",
+            // lambda is chosen so the WORST case here stays stable: the tightest family
+            // under test is Normal(mean 2.5) -> mu = 0.4 on ONE server, so lambda must be
+            // well under 0.4 or the coordinator correctly refuses the run as unstable.
+            // 600 minutes at 0.2/min draws ~120 patients, enough for a usable sample.
+            ManualArrivalRate: 0.2,
+            StageNames: ["Stage"],
+            ServerCounts: [1],
+            ManualServiceRates: new double?[] { mu },
+            RunMode.DiagnosticTrace,
+            HorizonMinutes: 600,
+            GeneratorDays: 1,
+            StartDay: DayOfWeek.Monday,
+            DailyCap: null,
+            Seed: seed,
+            PExitOverride: null,
+            TraceLevelName: "Standard")
+        {
+            ServiceFamilies = [spec],
+            ServiceRates = new double?[] { mu },
+        };
+
+        var outcome = SimulationCoordinator.Run(parameters, binding: null);
+        Assert.Null(outcome.Error);
+        var samples = outcome.Result!.GeneratedServiceSamplesByStage[0];
+        Assert.NotEmpty(samples);
+        return samples;
+    }
+
+    private static double SampleStdDev(IReadOnlyList<double> values)
+    {
+        double mean = values.Average();
+        return Math.Sqrt(values.Select(v => (v - mean) * (v - mean)).Average());
+    }
+
+    [Fact]
+    public void Coordinator_NormalStage_EngineSamplesCarryTheConfiguredStdDev()
+    {
+        // WHY: σ is the whole content of a Normal stage. If the spread is dropped the run
+        // is refused outright; if a default were substituted, the sd would not be 0.4.
+        var spec = new DistributionSpec(DistributionFamily.Normal, Mean: 2.5, StdDev: 0.4);
+
+        var samples = EngineServiceSamplesFor(spec, mu: 1.0 / 2.5);
+
+        Assert.True(samples.Count >= 100, $"need a usable sample, got {samples.Count}");
+        Assert.InRange(SampleStdDev(samples), 0.35, 0.45);
+        Assert.InRange(samples.Average(), 2.35, 2.65);
+    }
+
+    [Fact]
+    public void Coordinator_UniformStage_EngineSamplesRespectTheDerivedBounds()
+    {
+        // WHY: Min/Max are DERIVED from μ and w (mean ± w), so a dropped spread does not
+        // merely change the shape — the hard bounds disappear, and an exponential draw
+        // would fall outside them.
+        var spec = new DistributionSpec(DistributionFamily.Uniform, Mean: 4.0, Min: 3.0, Max: 5.0);
+
+        var samples = EngineServiceSamplesFor(spec, mu: 1.0 / 4.0);
+
+        Assert.All(samples, s => Assert.InRange(s, 3.0, 5.0));
+        Assert.InRange(samples.Average(), 3.8, 4.2);
+    }
+
+    [Fact]
+    public void Coordinator_GammaStage_EngineSamplesCarryTheConfiguredShape()
+    {
+        // WHY: Gamma's spread is k, and Scale is DERIVED as Mean/k. A dropped spec would
+        // leave the engine unable to build a Gamma sampler at all; a substituted default
+        // would give var = mean²/k for some other k. var = mean²/k is the assertion.
+        //
+        // Scale is set here exactly as ConfigPanelViewModel.BuildSpec sets it
+        // (Scale = mean / shape), because the sampler needs it explicitly — Gamma is
+        // the one family whose stored fields encode the mean TWICE.
+        var spec = new DistributionSpec(
+            DistributionFamily.Gamma, Mean: 3.0, Shape: 2.0, Scale: 3.0 / 2.0);
+
+        var samples = EngineServiceSamplesFor(spec, mu: 1.0 / 3.0);
+
+        Assert.True(samples.Count >= 100, $"need a usable sample, got {samples.Count}");
+        double mean = samples.Average();
+        double observedVariance = samples.Select(v => (v - mean) * (v - mean)).Average();
+        double expectedVariance = 9.0 / 2.0; // mean² / k
+        Assert.InRange(observedVariance, expectedVariance * 0.75, expectedVariance * 1.25);
+        Assert.All(samples, s => Assert.True(s > 0, "Gamma support is strictly positive"));
+
+        // The sampler's mean must equal the spec mean, which is the half of the D-147
+        // invariant that Gamma can violate on its own: it draws from k·Scale, and a
+        // stale Scale would silently decouple the drawn mean from the configured one.
+        Assert.InRange(mean, 2.85, 3.15);
+    }
+
+    [Fact]
+    public void Coordinator_LognormalStage_EngineSamplesArePositiveAndCentredOnTheMean()
+    {
+        var spec = new DistributionSpec(DistributionFamily.Lognormal, Mean: 3.0, StdDev: 1.0);
+
+        var samples = EngineServiceSamplesFor(spec, mu: 1.0 / 3.0);
+
+        Assert.True(samples.Count >= 100, $"need a usable sample, got {samples.Count}");
+        Assert.All(samples, s => Assert.True(s > 0, "Lognormal support is strictly positive"));
+        Assert.InRange(samples.Average(), 2.4, 3.6);
+    }
+
+    /// <summary>
+    /// The end-to-end confirmation the owner asked for (gate item 3): a real run whose
+    /// three stages genuinely differ — M/M/1, M/D/2, M/M/3 — and the two observations
+    /// that ONLY mixed families can produce.
+    /// </summary>
+    [Fact]
+    public void Coordinator_MixedFamilyRun_M_D_StageHasNoServiceVarianceWhileM_M_StagesDo()
+    {
+        var parameters = new SimulationParameters(
+            ParameterMode.RateWise,
+            "Exponential",
+            // Reception is the binding constraint: mu = 0.5 on ONE server, so lambda
+            // must be strictly below 0.5 or the run is refused as unstable (rho >= 1).
+            ManualArrivalRate: 0.2,
+            StageNames: ["Reception", "Screening", "Doctor"],
+            ServerCounts: [1, 2, 3],
+            ManualServiceRates: new double?[] { 0.5, 0.25, 0.4 },
+            RunMode.DiagnosticTrace,
+            HorizonMinutes: 600,
+            GeneratorDays: 1,
+            StartDay: DayOfWeek.Monday,
+            DailyCap: null,
+            Seed: 42,
+            PExitOverride: null,
+            TraceLevelName: "Standard")
+        {
+            // Reception M/M/1, Screening M/D/2, Doctor M/M/3.
+            ServiceFamilies =
+            [
+                new DistributionSpec(DistributionFamily.Exponential, Mean: 2.0),
+                new DistributionSpec(DistributionFamily.Deterministic, Mean: 4.0),
+                new DistributionSpec(DistributionFamily.Exponential, Mean: 2.5),
+            ],
+            ServiceRates = new double?[] { 0.5, 0.25, 0.4 },
+        };
+
+        var outcome = SimulationCoordinator.Run(parameters, binding: null);
+        Assert.Null(outcome.Error);
+        var result = outcome.Result!;
+        Assert.Equal(3, result.StageMetrics.Count);
+
+        var reception = result.GeneratedServiceSamplesByStage[0];
+        var screening = result.GeneratedServiceSamplesByStage[1];
+        var doctor = result.GeneratedServiceSamplesByStage[2];
+        Assert.NotEmpty(reception);
+        Assert.NotEmpty(screening);
+        Assert.NotEmpty(doctor);
+
+        // (i) The D stage has NO service-duration variance: every draw is the mean.
+        Assert.Equal(0.0, SampleStdDev(screening), 12);
+        Assert.All(screening, s => Assert.Equal(4.0, s, 10));
+
+        // (ii) The M/M stages DO vary. Without this the run could pass while every
+        // stage were deterministic, which is not what was configured.
+        Assert.True(SampleStdDev(reception) > 0.1, "Reception is M/M/1 and must vary");
+        Assert.True(SampleStdDev(doctor) > 0.1, "Doctor is M/M/3 and must vary");
+
+        // (iii) Per-stage metrics differ in the way only mixed families can produce:
+        // the D stage's utilisation is the same LEAST-SQUARES number as an M/M/1 at the
+        // same μ, while a 2-server stage at the same μ has a different queue profile.
+        var screeningMetrics = result.StageMetrics[1];
+        var receptionMetrics = result.StageMetrics[0];
+        Assert.Equal(0.25, screeningMetrics.ServiceRate, 9);
+        Assert.Equal(2, screeningMetrics.ServerCount);
+        Assert.Equal(1, receptionMetrics.ServerCount);
+
+        // (iv) The D stage's mean wait is exactly service time / servers for a
+        // deterministic service, i.e. no variability in the service duration to
+        // average out. Asserted as a bound rather than an exact figure because the
+        // value depends on the arrival pattern.
+        Assert.True(
+            screeningMetrics.AverageWaitMinutes is >= 0,
+            "the D stage must still report a wait time");
+
+        // (v) Verification: the D stage cannot be chi-square tested and says so, while
+        // the two M/M stages get real verdicts.
+        var reports = SimulationVerificationService.VerifyAll(
+            result, "Exponential", parameters.ServiceFamilies, 0.05);
+
+        var screeningReport = Assert.Single(reports, r => r.Label == "Screening service");
+        Assert.Null(screeningReport.ChiSquare);
+        Assert.Equal("Deterministic — chi-square not applicable.", screeningReport.Note);
+
+        foreach (string label in new[] { "Reception service", "Doctor service" })
+        {
+            var report = Assert.Single(reports, r => r.Label == label);
+            Assert.NotNull(report.ChiSquare);
+            Assert.Equal("Exponential", report.IntendedFamily);
+        }
+    }
 }

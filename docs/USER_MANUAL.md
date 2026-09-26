@@ -262,15 +262,42 @@ two extra dropdowns — **Arrival distribution** and **Service distribution** �
 so you can set the two families independently. Turn it back off to return to
 the single Model shortcut.
 
-Two things to know (current behaviour, not a fault):
+**Each stage has its own service family.** The three stages really are
+sampled differently, so an M/M/1 + M/D/2 + M/G/3 network behaves as three
+different models rather than three copies of M/M/1.
 
-- Arrivals come from one stream, so the whole network uses the **first
-  stage's** arrival family; and today all stages **share one service
-  family** — changing a later stage's family is remembered in the form but
-  does not yet change the engine's service sampling.
-- **Deterministic** and **General** are offered for notation completeness.
-  The engine currently samples **exponentially** for every stage, so an
-  M/D/1 or G/G/1 run behaves like M/M/1.
+One field per family, for **spread** only. The mean service time stays the
+**μ** you typed — it is the only location parameter, and the family never
+moves it. Each family adds exactly one extra field describing how much the
+service times vary:
+
+| Family | Extra field | Meaning |
+|---|---|---|
+| Exponential (M) | — | memoryless; no extra field needed |
+| Deterministic (D) | — | every service takes exactly the same time |
+| Normal, Lognormal | **Standard deviation σ** | typical spread around the mean |
+| Gamma | **Shape k** | spread as a shape; higher k is more predictable |
+| Uniform | **Half-width w** | service times are spread evenly within mean ± w |
+
+Only the one field your family uses is shown — the others are hidden, so a
+Gamma row never asks you for a σ. **Uniform additionally refuses w ≥ mean**,
+because that would put the lower bound at zero or below and a negative
+service time is not a service time; the field explains this itself.
+
+**G/G/c and General** mean "work the family out for me". Pick a `G/G/c`
+shortcut, load a data file, and the simulator searches all six families for
+the one that best fits that stage's historical service times, then:
+
+- keeps your **G/G/c** on screen and shows a badge naming the family it chose;
+- **fills in μ only if you left it blank** — a μ you typed is never overwritten;
+- copies across the **spread** the winning family needs, so its field appears
+  ready to edit;
+- and if it cannot (no data loaded, no family fits, or the file does not cover
+  that stage) it **changes nothing** and tells you which of those it was.
+
+One thing to know: arrivals come from one stream, so the whole network uses
+the **first stage's** arrival family. Service families, by contrast, are set
+per stage.
 
 ### Horizon
 
