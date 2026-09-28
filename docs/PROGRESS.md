@@ -2,6 +2,81 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-26 21:30
+Branch: `fix/post-merge-8e`
+Status: In-Progress
+
+### Done
+- **FOLLOW-UP (B-011) — Gamma/Uniform mean-derived spread**, now marked `[x]` in `TODO.md`. The recorded diagnosis (comma list) was wrong; the real defect was the file-covered branch passing the coordinator's deliberate `null` rate as the spec's mean.
+- **Phase 8K part 2b** — the μ a stage resolves against (`rate`) and the mean its spec is built from (`specRate`) are now separate values in `TryBuildRunParameters` (D-159).
+- **B-011 case 2** — a Gamma/Uniform stage with no finite positive μ is refused with a field-level `InlineError` naming the stage, the three places to enter μ, and the family.
+- **B-011 finite-rate rule** — the refusal condition is `double.IsFinite(mu) && mu > 0`, not just `> 0`. `double.TryParse("1e400")` returns `true` with `+∞`; in rate-wise mode that built a Gamma with mean 0, `Scale` 0 and **no error at all**. Mean-wise mode hides the bug (the inversion yields 0, which `> 0` already refuses), so the regression test sets rate-wise mode deliberately.
+
+### In Progress
+None. Part 2b is complete and committed; awaiting the owner's review/merge.
+
+What is complete:
+9 new tests — the 6 named in the ruling, plus a fitted-branch test, a Start-gate block naming the stage, a Uniform blank-μ comma-list run asserting every draw lands inside the derived bounds, and the non-finite case. Suite 544 → **554** (CLI 35 / Data 92 / Core 114 / App 313). The D-128 Start gate needed **no code change** — `CollectFitModeGaps` already resolves through `EffectiveMu` (fitted → comma list → row) and is now pinned by tests so gate and build cannot drift.
+
+What remains:
+Owner visual inspection of the four Phase 8K PNGs. This agent cannot read an image, so the screenshot assertions are the proof until the owner looks.
+
+### Next Session Should Start With
+Nothing in Phase 8K. Per owner instruction, stop here. Phase 8 (docs) is the next `[ ]` row in `TODO.md` and must not begin without an explicit "go".
+
+### Blocked
+None. B-010 and B-011 are both in `docs/BLOCKERS.md` under Resolved.
+
+### Git State
+Commits made this session: `b55798c` — per-stage family selection and G/G/1 auto-fit (Phase 8K), pushed. Prior on this branch: `50f9a6a`, `9c5a4ec`, `1c9c8d8`, `65a3ea8` — all pushed.
+
+Pushed to origin: Yes — all five commits are on `origin/fix/post-merge-8e`.
+
+Uncommitted changes: None.
+
+### Build & Test
+dotnet build -c Release: PASS — 0 errors / 0 warnings
+
+dotnet build -c Debug: PASS — 0 errors / 0 warnings
+
+dotnet test -c Release: PASS — 554 passed, 0 failed (Cli 35 / Data 92 / Core 114 / App 313)
+
+dotnet test -c Debug: PASS — 554 passed, 0 failed (Cli 35 / Data 92 / Core 114 / App 313)
+
+Warnings: 0
+
+### Files Touched
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified — `rate`/`specRate` split, finite-positive refusal for Gamma/Uniform
+
+tests/OpdSimulator.App.Tests/Phase8KTests.cs: modified — 9 new tests
+
+docs/DECISIONS.md: modified — D-159
+
+docs/BLOCKERS.md: modified — B-011 moved to Resolved with the corrected diagnosis
+
+docs/TODO.md: modified — B-011 follow-up marked `[x]`
+
+docs/DEV_LAUNCH.md: modified — 544 → 554
+
+docs/USER_MANUAL.md: modified — Gamma/Uniform need μ before Start
+
+docs/PROGRESS.md: modified — this handoff
+
+### Decisions Made
+D-159 — the μ a stage resolves against and the mean its spec is built from are two values → `docs/DECISIONS.md`
+
+### Assumptions Added/Changed
+None. No new `[UNVERIFIED]` assumption was taken this session.
+
+### Notes for Next Session
+Three mutations were used as proof, each caught and reverted:
+  (a) `specRate = fitted` → `specRate = null` fails `BuildSpec_Gamma_FittedStage_BlankMu_SpecIsBuiltFromTheFittedRate`;
+  (b) removing the Gamma/Uniform refusal fails `BuildSpec_Gamma_NoMuAnywhere_RefusesCleanly`;
+  (c) dropping `double.IsFinite` fails `BuildSpec_Gamma_NonFiniteMuAnywhere_RefusesCleanly`.
+An earlier attempt at (a) produced **zero** failures, which is why the fitted-branch test exists: the six tests named in the ruling all pass whether or not the bug is present.
+Two test-setup traps, both found by a failing assertion rather than by reasoning. (1) Setting a row's `Servers` re-derives the model notation and **resets** that row's service family to Exponential, so the family must be assigned after the server count. (2) Assigning a field the value it already holds raises no change event, so the Start gate silently keeps a stale verdict; the test type-then-clears μ to force re-evaluation, which is also what a real user does.
+Two disclosed deviations remain on the record: `GeneralDistributionFitter.MinimumSampleCount` is `internal` rather than the literal `private` the phase brief specified (D-156), and the mixed screenshot frame uses Exponential/Deterministic/Gamma while the separate end-to-end test uses the M/M/1 + M/D/2 + M/M/3 triple from the brief.
+
 ## Session Handoff — 2026-09-26 20:40
 Branch: `fix/post-merge-8e`
 Status: Blocked (one ruling needed — B-011)

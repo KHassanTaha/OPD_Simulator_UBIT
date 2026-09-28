@@ -295,6 +295,15 @@ the one that best fits that stage's historical service times, then:
 - and if it cannot (no data loaded, no family fits, or the file does not cover
   that stage) it **changes nothing** and tells you which of those it was.
 
+**Gamma and Uniform need a service rate before you can start.** Their spread
+is measured *from* the mean service time — Gamma's scale is the mean divided
+by its shape, and Uniform's bounds are the mean plus or minus its half-width —
+so with no μ there is no number to apply the spread to. If you leave μ blank
+on a Gamma or Uniform stage and nothing else supplies it (a data file that
+covers that stage, or the per-stage μ list), the stage shows a red message
+naming the three places you can enter it, and **Start stays disabled**. The
+other four families have no such requirement.
+
 One thing to know: arrivals come from one stream, so the whole network uses
 the **first stage's** arrival family. Service families, by contrast, are set
 per stage.

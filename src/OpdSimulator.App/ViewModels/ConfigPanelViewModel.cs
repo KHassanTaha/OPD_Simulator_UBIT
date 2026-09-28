@@ -1621,18 +1621,30 @@ public partial class ConfigPanelViewModel : ObservableObject
             // A null entry tells the coordinator to use the fitted rate. In fit
             // mode a fitted rate therefore wins (7C.5); only uncovered stages
             // fall through to the comma list, then to the per-stage field.
+            //
+            // `rate` is what the COORDINATOR resolves against, and `specRate` is what
+            // the spec is BUILT from. They differ in exactly one case — a stage the
+            // file covers, where the fitted rate is deliberately left null above so
+            // the coordinator keeps 7C.5's precedence. The MEAN, though, is not
+            // unknown in that case (D-159, B-011 case 1): the fit already knows it, so
+            // the spec is built from it and its mean-dependent fields come out
+            // complete. Building from null instead left Gamma's `Scale = mean/k` and
+            // Uniform's `Min`/`Max = mean ∓ w` as NaN, and the sampler factory then
+            // threw on a configuration the Start gate had every reason to accept.
             double? rate;
+            double? specRate;
             if (SourceMode == DataSourceMode.EnterManually)
             {
-                rate = Convert(ParseRawPositive(row.MuValue));
+                rate = specRate = Convert(ParseRawPositive(row.MuValue));
             }
-            else if (FittedRateFor(row.StageName) is > 0)
+            else if (FittedRateFor(row.StageName) is > 0 and var fitted)
             {
                 rate = null;
+                specRate = fitted;
             }
             else
             {
-                rate = rowIndex < commaRates.Length && commaRates[rowIndex] is { } comma
+                rate = specRate = rowIndex < commaRates.Length && commaRates[rowIndex] is { } comma
                     ? comma
                     : Convert(ParseRawPositive(row.MuValue));
             }
@@ -1640,15 +1652,63 @@ public partial class ConfigPanelViewModel : ObservableObject
             manualRates.Add(rate);
             serviceRates.Add(rate);
 
-            // Phase 8K (D-150): build the spec from the family and the SAME `rate`
-            // that goes into serviceRates, so Mean and ServiceRate cannot disagree.
-            // Null is passed through untouched, never defaulted: a blank μ must reach
-            // the coordinator as "fit me" and be refused loudly there, not be turned
-            // into a zero-mean spec that throws somewhere further downstream.
-            // Cleared here, before the check, so fixing the field clears the error on
+            // Phase 8K (D-150): build the spec from the family and the SAME resolved μ
+            // the coordinator will use, so Mean and ServiceRate cannot disagree.
+            //
+            // Cleared here, before the checks, so fixing the field clears the error on
             // the very next attempt (FR-UI-17) rather than needing a separate reset.
             row.InlineError = string.Empty;
-            var spec = BuildSpec(row, rate);
+
+            // B-011 case 2: no μ from any of the three sources, for a family that cannot
+            // be built without one. Refuse HERE, naming the stage and the field, instead
+            // of building a NaN-mean spec and letting the coordinator discover it — the
+            // refusal that eventually surfaced ("requires Scale > 0", from inside Core)
+            // named a spread field the user never touched.
+            //
+            // SCOPE, and it is deliberate: this fires for Gamma and Uniform ONLY. Those
+            // two encode the mean a SECOND time — `Scale = mean/k` and
+            // `Min`/`Max = mean ∓ w` — so an unknown mean leaves them NaN and the
+            // sampler throws on a configuration the Start gate had every reason to
+            // accept. Exponential, Deterministic, Normal and Lognormal need no mean at
+            // build time: their spread is either absent or a mean-independent σ, and a
+            // blank μ for them still means "fit me at run time" (D-104/7C.5) — the Path A
+            // workflow §19.1 requires, where a user uploads a file and types no
+            // parameters. Refusing every family here broke exactly that (9 tests), so
+            // the check is scoped to the families where the failure was reachable.
+            // "finite positive", not merely "> 0": double.TryParse happily accepts
+            // "Infinity" and "1e400" (the latter overflows to +∞), so a μ that LOOKS
+            // present would otherwise pass this test and build a spec with mean 0.
+            // FittedRateFor already rejects non-finite rates (line 1388); this line is
+            // what keeps the comma list and the row field to the same standard.
+            // "finite positive", not merely "> 0": double.TryParse accepts "1e400" and
+            // returns +infinity, so a mu that LOOKS present would otherwise pass this
+            // test. In rate-wise mode nothing downstream catches it -- the spec is built
+            // with mean 0, no error is raised, and the simulation quietly produces
+            // meaningless output. That is worse than a refusal, so it is refused.
+            // FittedRateFor already rejects non-finite rates; this line holds the
+            // comma list and the row field to the same standard.
+            // "finite positive", not merely "> 0": double.TryParse accepts "1e400" and
+            // returns +infinity, so a mu that LOOKS present would otherwise pass this
+            // test. In rate-wise mode nothing downstream catches it -- the spec is built
+            // with mean 0, no error is raised, and the simulation quietly produces
+            // meaningless output. That is worse than a refusal, so it is refused.
+            // FittedRateFor already rejects non-finite rates; this line holds the
+            // comma list and the row field to the same standard.
+            bool muResolved = specRate is { } resolvedMu
+                && double.IsFinite(resolvedMu)
+                && resolvedMu > 0;
+            if (!muResolved
+                && row.ServiceFamily is DistributionFamily.Gamma or DistributionFamily.Uniform)
+            {
+                row.InlineError =
+                    $"No service rate for {row.StageName}: enter μ on the row, in the " +
+                    $"per-stage μ list, or load a data file that covers {row.StageName}. " +
+                    $"A {row.ServiceFamily} stage needs a mean service time before its " +
+                    "spread can be applied.";
+                return null;
+            }
+
+            var spec = BuildSpec(row, specRate);
             if (spec is null)
             {
                 // BuildSpec has written the reason on the row. Refusing the run here is

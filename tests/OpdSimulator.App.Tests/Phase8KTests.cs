@@ -953,4 +953,359 @@ public class Phase8KTests
             Assert.Equal("Exponential", report.IntendedFamily);
         }
     }
+
+    // ── B-011: the mean is encoded TWICE for two families, so it must be resolved ──
+    //
+    // Gamma stores `Scale = mean/k` and Uniform stores `Min`/`Max = mean ∓ w`. Neither
+    // can be built without a mean, so a spec built from an unresolved μ comes out with
+    // NaN in those fields and DistributionSamplerFactory throws. Exponential,
+    // Deterministic, Normal and Lognormal are unaffected: their spread is absent or a
+    // mean-independent σ.
+
+    [Fact]
+    public void BuildSpec_Gamma_MeanChange_RedrivesScale()
+    {
+        // WHY: Scale is what makes the SAMPLED mean equal the configured mean
+        // (k · Scale = k · (mean/k) = mean). If a changed μ left the old Scale in
+        // place, the engine would silently draw a different mean than the one the user
+        // typed — no exception, just wrong numbers. So this asserts the relationship,
+        // not one literal value.
+        var row = new StageRow { ServiceFamily = DistributionFamily.Gamma, ServiceShape = "2" };
+
+        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.5);
+        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.25);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(2.0, first!.Mean, 10);
+        Assert.Equal(1.0, first.Scale!.Value, 10);
+        Assert.Equal(4.0, second!.Mean, 10);
+        Assert.Equal(2.0, second.Scale!.Value, 10);
+
+        // The invariant itself: the sampler's mean tracks the configured mean.
+        Assert.Equal(first.Mean, first.Shape!.Value * first.Scale!.Value, 10);
+        Assert.Equal(second.Mean, second.Shape!.Value * second.Scale!.Value, 10);
+    }
+
+    [Fact]
+    public void BuildSpec_Uniform_MeanChange_RedrivesBounds()
+    {
+        // WHY: for Uniform the MEAN IS the midpoint of the bounds, so a stale bound
+        // moves the distribution rather than merely rescaling it. Half-width w = 0.5
+        // is held constant on purpose; only the mean moves.
+        var row = new StageRow { ServiceFamily = DistributionFamily.Uniform, ServiceSpread = "0.5" };
+
+        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.25);
+        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.1);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(4.0, first!.Mean, 10);
+        Assert.Equal(3.5, first.Min!.Value, 10);
+        Assert.Equal(4.5, first.Max!.Value, 10);
+        Assert.Equal(10.0, second!.Mean, 10);
+        Assert.Equal(9.5, second.Min!.Value, 10);
+        Assert.Equal(10.5, second.Max!.Value, 10);
+
+        // The midpoint of the bounds IS the mean — the reason the bounds must be
+        // re-derived rather than carried over.
+        Assert.Equal(first.Mean, (first.Min!.Value + first.Max!.Value) / 2, 10);
+        Assert.Equal(second.Mean, (second.Min!.Value + second.Max!.Value) / 2, 10);
+    }
+
+    [Fact]
+    public void BuildSpec_Gamma_BlankMu_CommaListSuppliesMean_Accepted()
+    {
+        // WHY: a blank row μ with the comma list supplying it is a documented,
+        // supported configuration (fit mode, stage the file does not cover). It must
+        // build a COMPLETE spec, not a NaN one.
+        var panel = Panel(3);
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // The per-stage μ list lives in the OPTIONAL Parameters section, so it does
+        // not participate until that section is switched on (D-103). Without this the
+        // comma list is silently empty and the test would pass for the wrong reason.
+        panel.ParametersIsOptionalEnabled = true;
+        panel.StageRows[1].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[1].ServiceShape = "2";
+        panel.StageRows[1].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "0.5, 0.25, 0.4";
+
+        var parameters = panel.TryBuildRunParameters();
+
+        Assert.NotNull(parameters);
+        var spec = parameters!.ServiceFamilies[1];
+        Assert.Equal(DistributionFamily.Gamma, spec.Family);
+        Assert.Equal(4.0, spec.Mean, 10);
+        Assert.Equal(2.0, spec.Scale!.Value, 10);
+        Assert.False(double.IsNaN(spec.Mean));
+        Assert.False(double.IsNaN(spec.Scale!.Value));
+    }
+
+    [Fact]
+    public void BuildSpec_Gamma_NoMuAnywhere_RefusesCleanly()
+    {
+        // WHY: this is the B-011 case-2 contract. The refusal must name the stage and
+        // say where to put μ. The failure it replaces named "Scale > 0" — a spread
+        // field the user never sees for a Gamma row's problem — and came from Core.
+        var panel = Panel(3);
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // The per-stage μ list lives in the OPTIONAL Parameters section, so it does
+        // not participate until that section is switched on (D-103). Without this the
+        // comma list is silently empty and the test would pass for the wrong reason.
+        panel.ParametersIsOptionalEnabled = true;
+        panel.StageRows[1].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[1].ServiceShape = "2";
+        panel.StageRows[1].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = string.Empty;
+
+        var parameters = panel.TryBuildRunParameters();
+
+        Assert.Null(parameters);
+        var row = panel.StageRows[1];
+        Assert.True(row.HasInlineError);
+        Assert.Contains("Screening", row.InlineError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Gamma", row.InlineError, StringComparison.OrdinalIgnoreCase);
+        // The message must be actionable, so it names the three places μ can come from.
+        Assert.Contains("per-stage", row.InlineError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StartGate_Gamma_BlankMuCommaListPresent_Enabled()
+    {
+        // WHY: the gate must consult the SAME three-level chain the coordinator uses,
+        // so it never blocks a row the coordinator can resolve — and, by the same
+        // token, never passes one the coordinator cannot. D-128.
+        //
+        // The stage is renamed to one the file does not cover, so the comma list is
+        // genuinely the source of μ rather than a bystander.
+        var panel = Panel(1);
+        panel.ApplyLoadedFile(SamplePath("sample_3stage_clinic.csv"));
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // The per-stage μ list lives in the OPTIONAL Parameters section, so it does
+        // not participate until that section is switched on (D-103). Without this the
+        // comma list is silently empty and the test would pass for the wrong reason.
+        panel.ParametersIsOptionalEnabled = true;
+        panel.StageRows[0].StageName = "Triage";
+        panel.StageRows[0].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[0].ServiceShape = "2";
+        panel.StageRows[0].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "0.4";
+
+        Assert.True(panel.StartIsEnabled, $"Start blocked: {panel.StartBlockedMessage}");
+        Assert.Equal(string.Empty, panel.StartBlockedMessage);
+    }
+
+    [Fact]
+    public void Coordinator_GammaBlankMuCommaList_DoesNotThrow()
+    {
+        // WHY: the end-to-end proof. Before the fix this combination threw
+        // ArgumentException out of the coordinator ("Invalid parametrization for the
+        // distribution") because the spec's Scale was NaN. An end-to-end run that
+        // completes is the only assertion that covers the whole chain.
+        var panel = Panel(1);
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // The per-stage μ list lives in the OPTIONAL Parameters section, so it does
+        // not participate until that section is switched on (D-103). Without this the
+        // comma list is silently empty and the test would pass for the wrong reason.
+        panel.ParametersIsOptionalEnabled = true;
+        panel.StageRows[0].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[0].ServiceShape = "2";
+        panel.StageRows[0].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "0.5";
+        panel.ManualLambda.Value = "0.2";
+        panel.StageRows[0].Servers.Value = "2";
+        // Diagnostic trace runs a raw window of minutes, so the sample size is under
+        // this test's control; the calendar modes would cap it at one clinic morning.
+        panel.IsDiagnosticTrace = true;
+        panel.HorizonMinutes.Value = "600";
+
+        var parameters = panel.TryBuildRunParameters();
+        Assert.NotNull(parameters);
+        Assert.Equal(RunMode.DiagnosticTrace, parameters!.RunMode);
+
+        var outcome = SimulationCoordinator.Run(parameters, binding: null);
+
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Result);
+        var samples = outcome.Result!.GeneratedServiceSamplesByStage[0];
+        Assert.NotEmpty(samples);
+        Assert.All(samples, v => Assert.True(v > 0, "Gamma support is strictly positive"));
+        // The drawn mean must match the resolved μ's mean, i.e. 1/0.5 = 2.
+        Assert.InRange(samples.Average(), 1.8, 2.2);
+    }
+
+    [Fact]
+    public void BuildSpec_Gamma_FittedStage_BlankMu_SpecIsBuiltFromTheFittedRate()
+    {
+        // WHY: this is the branch B-011 case 1 actually changed, and a mutation that
+        // reverted it was caught by NOTHING until this test existed — the other five
+        // tests all take the comma-list path, where the coordinator rate and the
+        // resolved rate are already the same value.
+        //
+        // The situation: the file COVERS this stage, so `rate` is deliberately left
+        // null to preserve 7C.5's precedence (the coordinator fits it). But the MEAN
+        // is not unknown — the fit already knows it — so the spec must be built from
+        // it. Built from null instead, `Scale = mean/k` came out NaN and the sampler
+        // threw on a configuration the Start gate had every reason to accept.
+        var panel = Panel(3);
+        panel.ParametersIsOptionalEnabled = true;
+        panel.ApplyLoadedFile(SamplePath("sample_3stage_variable.csv"));
+        panel.SourceMode = DataSourceMode.FitFromData;
+        panel.StageRows[1].MuValue = string.Empty;
+        // lambda is low, and the untouched rows get spare servers, purely so the run
+        // is stable: the coordinator refuses rho >= 1, and Doctor's fitted mu of 0.2
+        // on a single server is exactly on the boundary at lambda 0.2.
+        panel.ManualLambda.Value = "0.1";
+        // Servers must be set BEFORE the family: the `/c` in the model notation owns
+        // the server count, so writing it re-derives the row's notation and resets the
+        // family back to Exponential. The family is therefore assigned last.
+        panel.StageRows[0].Servers.Value = "2";
+        panel.StageRows[1].Servers.Value = "2";
+        panel.StageRows[2].Servers.Value = "3";
+        panel.StageRows[1].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[1].ServiceShape = "2";
+        panel.IsDiagnosticTrace = true;
+        panel.HorizonMinutes.Value = "600";
+        Assert.Equal(DistributionFamily.Gamma, panel.StageRows[1].ServiceFamily);
+
+        // The fitted rate this stage resolves to, read back from the binding rather
+        // than hardcoded, so the expectation states the RULE not a magic number.
+        double fitted = panel.Binding!.FittedServiceRates[1];
+        Assert.True(fitted > 0, "the fixture must yield a positive fitted rate");
+
+        var parameters = panel.TryBuildRunParameters();
+        Assert.NotNull(parameters);
+
+        // 7C.5 precedence preserved: the coordinator still resolves μ itself.
+        Assert.Null(parameters!.ServiceRates[1]);
+
+        // But the spec is complete, because the mean was knowable all along.
+        var spec = parameters.ServiceFamilies[1];
+        Assert.Equal(DistributionFamily.Gamma, spec.Family);
+        Assert.Equal(1.0 / fitted, spec.Mean, 10);
+        Assert.False(double.IsNaN(spec.Mean));
+        Assert.Equal((1.0 / fitted) / 2.0, spec.Scale!.Value, 10);
+        Assert.False(double.IsNaN(spec.Scale!.Value));
+
+        // And the run it produces must not throw, which was the whole defect.
+        var outcome = SimulationCoordinator.Run(parameters, panel.Binding);
+        Assert.Null(outcome.Error);
+        var samples = outcome.Result!.GeneratedServiceSamplesByStage[1];
+        Assert.NotEmpty(samples);
+        Assert.InRange(samples.Average(), (1.0 / fitted) * 0.8, (1.0 / fitted) * 1.2);
+    }
+
+    [Fact]
+    public void StartGate_Gamma_BlankMuNoCommaList_BlockedWithTheStageNamed()
+    {
+        // WHY: item 3(b) of the B-011 ruling. The gate must block a row whose μ cannot
+        // be resolved, and it must name WHICH stage — D-128 requires a disabled control
+        // to explain itself (FR-UI-7), so a bare "cannot start" is not enough.
+        var panel = Panel(3);
+        panel.ParametersIsOptionalEnabled = true;
+        panel.ApplyLoadedFile(SamplePath("sample_3stage_variable.csv"));
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // The row is renamed to a stage the file does NOT cover, and the comma list is
+        // given only two entries for three rows. So all three sources come up empty for
+        // it: no fitted rate (name absent), no comma part (index 2), no row μ (blank).
+        // Naming a real stage name here would be wrong — the fit would legitimately
+        // supply its μ and the gate would rightly stay open.
+        panel.StageRows[2].StageName = "Triage";
+        panel.StageRows[2].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "0.5, 0.25";
+        panel.StageRows[2].Servers.Value = "2";
+        panel.StageRows[2].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[2].ServiceShape = "2";
+
+        // Re-clear the field so the gate actually re-evaluates. Assigning a value that
+        // is already empty raises no change, so the gate would still be holding the
+        // verdict from when ApplyLoadedFile ran (when the fitted rate covered the row).
+        // Type-then-clear is what a user actually does, and it is what raises the event.
+        panel.StageRows[2].MuValue = "0.3";
+        panel.StageRows[2].MuValue = string.Empty;
+
+        Assert.False(panel.StartIsEnabled);
+        Assert.Contains("Triage", panel.StartBlockedMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("μ", panel.StartBlockedMessage);
+
+        // The gate is the first line of defence, not the only one: the build refuses
+        // too, so a row that reaches the coordinator cannot produce an opaque Core
+        // exception.
+        Assert.Null(panel.TryBuildRunParameters());
+        Assert.True(panel.StageRows[2].HasInlineError);
+        Assert.Contains("Triage", panel.StageRows[2].InlineError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Coordinator_UniformBlankMuCommaList_BoundsFollowTheResolvedMean()
+    {
+        // WHY: item 3(c) of the ruling. Uniform is the other family that stores the
+        // mean a second time, and unlike Gamma its half-width is not recoverable from
+        // the spec — it exists only on the row. So the comma-list path has to produce
+        // correct bounds AND a run that completes with every sample inside them.
+        var panel = Panel(1);
+        panel.ParametersIsOptionalEnabled = true;
+        panel.SourceMode = DataSourceMode.FitFromData;
+        panel.ManualLambda.Value = "0.2";
+        panel.StageRows[0].Servers.Value = "2";
+        panel.StageRows[0].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "0.25";
+        panel.StageRows[0].ServiceFamily = DistributionFamily.Uniform;
+        panel.StageRows[0].ServiceSpread = "0.5";
+        panel.IsDiagnosticTrace = true;
+        panel.HorizonMinutes.Value = "600";
+        Assert.Equal(DistributionFamily.Uniform, panel.StageRows[0].ServiceFamily);
+
+        var parameters = panel.TryBuildRunParameters();
+        Assert.NotNull(parameters);
+
+        var spec = parameters!.ServiceFamilies[0];
+        Assert.Equal(4.0, spec.Mean, 10);
+        Assert.Equal(3.5, spec.Min!.Value, 10);
+        Assert.Equal(4.5, spec.Max!.Value, 10);
+
+        var outcome = SimulationCoordinator.Run(parameters, binding: null);
+        Assert.Null(outcome.Error);
+        var samples = outcome.Result!.GeneratedServiceSamplesByStage[0];
+        Assert.NotEmpty(samples);
+        // Every draw inside the derived bounds is the observable form of "the engine
+        // got the bounds", and it fails loudly if the bounds were left NaN or stale.
+        Assert.All(samples, v => Assert.InRange(v, 3.5, 4.5));
+        Assert.InRange(samples.Average(), 3.8, 4.2);
+    }
+
+    [Fact]
+    public void BuildSpec_Gamma_NonFiniteMuAnywhere_RefusesCleanly()
+    {
+        // WHY: the B-011 ruling says "finite positive mu", and the two hand-typed
+        // sources are not naturally finite-checked. "1e400" parses to +infinity
+        // (double.TryParse returns TRUE), so without the IsFinite guard the row looks
+        // like it HAS a rate, skips the refusal, and builds a Gamma with mean 0 and
+        // Scale 0 -- a silently wrong simulation rather than a refused one, which is
+        // the worse outcome of the two. Verified: the guard is what makes these two
+        // assertions pass, not the surrounding validation.
+        var panel = Panel(1);
+        panel.ParametersIsOptionalEnabled = true;
+        panel.SourceMode = DataSourceMode.FitFromData;
+        // Rate-wise, deliberately. Mean-wise would hide the bug: it inverts mu, so +inf
+        // becomes 0 and the plain "> 0" check already refuses. Rate-wise passes +inf
+        // straight through, which is the case this guard exists for.
+        panel.ParameterMode = ParameterMode.RateWise;
+        panel.ManualLambda.Value = "0.2";
+        panel.StageRows[0].Servers.Value = "2";
+        panel.StageRows[0].ServiceFamily = DistributionFamily.Gamma;
+        panel.StageRows[0].ServiceShape = "2";
+        panel.StageRows[0].MuValue = "1e400";
+
+        Assert.Null(panel.TryBuildRunParameters());
+        Assert.True(panel.StageRows[0].HasInlineError);
+        Assert.Contains("Reception", panel.StageRows[0].InlineError, StringComparison.OrdinalIgnoreCase);
+
+        // Same rule via the comma list, so both hand-typed sources are covered.
+        panel.StageRows[0].MuValue = string.Empty;
+        panel.ManualMuPerStage.Value = "1e400";
+
+        Assert.Null(panel.TryBuildRunParameters());
+        Assert.True(panel.StageRows[0].HasInlineError);
+    }
 }
