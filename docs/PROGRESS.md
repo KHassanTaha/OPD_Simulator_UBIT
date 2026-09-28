@@ -2,6 +2,701 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-26 21:30
+Branch: `fix/post-merge-8e`
+Status: In-Progress
+
+### Done
+- **FOLLOW-UP (B-011) — Gamma/Uniform mean-derived spread**, now marked `[x]` in `TODO.md`. The recorded diagnosis (comma list) was wrong; the real defect was the file-covered branch passing the coordinator's deliberate `null` rate as the spec's mean.
+- **Phase 8K part 2b** — the μ a stage resolves against (`rate`) and the mean its spec is built from (`specRate`) are now separate values in `TryBuildRunParameters` (D-159).
+- **B-011 case 2** — a Gamma/Uniform stage with no finite positive μ is refused with a field-level `InlineError` naming the stage, the three places to enter μ, and the family.
+- **B-011 finite-rate rule** — the refusal condition is `double.IsFinite(mu) && mu > 0`, not just `> 0`. `double.TryParse("1e400")` returns `true` with `+∞`; in rate-wise mode that built a Gamma with mean 0, `Scale` 0 and **no error at all**. Mean-wise mode hides the bug (the inversion yields 0, which `> 0` already refuses), so the regression test sets rate-wise mode deliberately.
+
+### In Progress
+None. Part 2b is complete and committed; awaiting the owner's review/merge.
+
+What is complete:
+9 new tests — the 6 named in the ruling, plus a fitted-branch test, a Start-gate block naming the stage, a Uniform blank-μ comma-list run asserting every draw lands inside the derived bounds, and the non-finite case. Suite 544 → **554** (CLI 35 / Data 92 / Core 114 / App 313). The D-128 Start gate needed **no code change** — `CollectFitModeGaps` already resolves through `EffectiveMu` (fitted → comma list → row) and is now pinned by tests so gate and build cannot drift.
+
+What remains:
+Owner visual inspection of the four Phase 8K PNGs. This agent cannot read an image, so the screenshot assertions are the proof until the owner looks.
+
+### Next Session Should Start With
+Nothing in Phase 8K. Per owner instruction, stop here. Phase 8 (docs) is the next `[ ]` row in `TODO.md` and must not begin without an explicit "go".
+
+### Blocked
+None. B-010 and B-011 are both in `docs/BLOCKERS.md` under Resolved.
+
+### Git State
+Commits made this session: `b55798c` — per-stage family selection and G/G/1 auto-fit (Phase 8K), pushed. Prior on this branch: `50f9a6a`, `9c5a4ec`, `1c9c8d8`, `65a3ea8` — all pushed.
+
+Pushed to origin: Yes — all five commits are on `origin/fix/post-merge-8e`.
+
+Uncommitted changes: None.
+
+### Build & Test
+dotnet build -c Release: PASS — 0 errors / 0 warnings
+
+dotnet build -c Debug: PASS — 0 errors / 0 warnings
+
+dotnet test -c Release: PASS — 554 passed, 0 failed (Cli 35 / Data 92 / Core 114 / App 313)
+
+dotnet test -c Debug: PASS — 554 passed, 0 failed (Cli 35 / Data 92 / Core 114 / App 313)
+
+Warnings: 0
+
+### Files Touched
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified — `rate`/`specRate` split, finite-positive refusal for Gamma/Uniform
+
+tests/OpdSimulator.App.Tests/Phase8KTests.cs: modified — 9 new tests
+
+docs/DECISIONS.md: modified — D-159
+
+docs/BLOCKERS.md: modified — B-011 moved to Resolved with the corrected diagnosis
+
+docs/TODO.md: modified — B-011 follow-up marked `[x]`
+
+docs/DEV_LAUNCH.md: modified — 544 → 554
+
+docs/USER_MANUAL.md: modified — Gamma/Uniform need μ before Start
+
+docs/PROGRESS.md: modified — this handoff
+
+### Decisions Made
+D-159 — the μ a stage resolves against and the mean its spec is built from are two values → `docs/DECISIONS.md`
+
+### Assumptions Added/Changed
+None. No new `[UNVERIFIED]` assumption was taken this session.
+
+### ### Notes for Next Session — TODO audit 2026-09-26
+Asked whether `TODO.md` was current. It was not. An audit of every `[ ]`/`[?]` row against the
+code found **four stale rows and one real defect**, plus structural corruption in `BLOCKERS.md`.
+None of this was caught by the 8K tests; it was found by reading the docs against the source.
+- **Fixed 2026-09-26 — stale rows, now `[x]`:**
+  - 7B finding a ("service families are currently global") — fixed by 8J + 8K (D-147/149/150/158).
+  - 7B finding b ("Deterministic and General are display placeholders", D-127) — fixed by 8K. The
+    old viva wording "offered as notation, treated as M" is now **superseded and must not be used**.
+  - "Phase order check" — spent; superseded with the real current order (8x done → Phase 8 next).
+- **New finding, left `[ ]` and correctly owner-gated:** the Model section's global **"Service
+  distribution" dropdown no longer affects the run at all**. 8K made per-stage families
+  authoritative, but the control at `ConfigPanel.axaml:90` is still rendered, enabled, and bound
+  to a property now read in exactly one place (`MainViewModel.SyncInputAnalysis`, for the Input
+  tab's charts). `SimulationCoordinator.cs:201` returns the *derived* `parameters.ServiceDistribution`,
+  not the dropdown. A visible enabled control that silently does nothing fails AGENTS §16.1.
+  This is a sharper version of 7B finding c, which had only complained about duplicate labels.
+  Three options are written into the row; (b) write-through to `DefaultStageServiceFamily` is least
+  surprising. **Not started** — out of Phase 8K scope and it is the owner's call.
+- **`BLOCKERS.md` was structurally corrupt** (pre-existing, not from this session's work): three
+  duplicate `## Resolved` headings, an empty `## Active`, and **B-006/B-007 filed under
+  `## Resolved` while their own Status lines said "Blocked"** — yet three `TODO.md` rows are `[?]`
+  BLOCKED on exactly those two, which AGENTS §9.2 forbids. Repaired: one `## Active` holding
+  B-007 and B-006, one `## Resolved`, and the duplicated B-005 stub entry deleted. B-007's target
+  date ("before the final demo, planned 2026-09-16") had also expired; rewritten to say the pass now
+  gates **final acceptance**.
+
+Notes for Next Session
+Three mutations were used as proof, each caught and reverted:
+  (a) `specRate = fitted` → `specRate = null` fails `BuildSpec_Gamma_FittedStage_BlankMu_SpecIsBuiltFromTheFittedRate`;
+  (b) removing the Gamma/Uniform refusal fails `BuildSpec_Gamma_NoMuAnywhere_RefusesCleanly`;
+  (c) dropping `double.IsFinite` fails `BuildSpec_Gamma_NonFiniteMuAnywhere_RefusesCleanly`.
+An earlier attempt at (a) produced **zero** failures, which is why the fitted-branch test exists: the six tests named in the ruling all pass whether or not the bug is present.
+Two test-setup traps, both found by a failing assertion rather than by reasoning. (1) Setting a row's `Servers` re-derives the model notation and **resets** that row's service family to Exponential, so the family must be assigned after the server count. (2) Assigning a field the value it already holds raises no change event, so the Start gate silently keeps a stale verdict; the test type-then-clears μ to force re-evaluation, which is also what a real user does.
+Two disclosed deviations remain on the record: `GeneralDistributionFitter.MinimumSampleCount` is `internal` rather than the literal `private` the phase brief specified (D-156), and the mixed screenshot frame uses Exponential/Deterministic/Gamma while the separate end-to-end test uses the M/M/1 + M/D/2 + M/M/3 triple from the brief.
+
+## Session Handoff — 2026-09-26 20:40
+Branch: `fix/post-merge-8e`
+Status: Blocked (one ruling needed — B-011)
+
+### Done
+- **B-010 fixed and verified (D-158).** Owner ruled "GO"; `SimulationCoordinator.BuildStageSpecs` now carries the configured spec through whole and substitutes only the mean — `parameters.ServiceFamilies[i] with { Mean = 1.0 / mu }` (D-158). Applied the owner's patch verbatim; the one deliberate deviation is that the existing **three-level** μ chain (`ServiceRates ?? ManualServiceRates ?? FittedRateFor`) was kept rather than the two-level chain in the instruction, because collapsing it would regress manual-mode and FitFromData precedence.
+- **Phase 8K.8 gate closed.** Release **and** Debug 0/0, **544/544 green in each** (CLI 35 / Data 92 / Core 114 / App 303), up from 535.
+- **`phase-8k-verification-mixed.png` regenerated from a genuinely mixed run** — Exponential / Deterministic / Gamma — replacing the all-Exponential stand-in. The frame's limitations paragraph was deleted because the limitation was.
+- **Docs:** D-158 added; B-010 moved to Resolved; **B-011 raised**; `TODO` 8K.8 marked `[x]`; `USER_MANUAL` corrected (it still claimed "the engine currently samples exponentially for every stage" — the exact thing B-010 fixed); `VIVA_ANSWERS` Phase 8K section; `DEV_LAUNCH` counts, Debug-gate warning and Last-verified.
+
+### The finding that needs your ruling — B-011
+Verifying the fix surfaced a defect it does **not** cover. `with { Mean = ... }` substitutes only `Mean`, but Gamma's `Scale = mean/k` and Uniform's `Min`/`Max = mean ∓ w` are **mean-derived stored fields**, so a changed mean leaves them stale and the sampler factory throws.
+
+**It is not a regression, and I checked rather than assumed.** I probed the pre-fix coordinator on the same input: it threw for **all three** families (`StdDev > 0`, `Shape > 0`, `Min < Max`). The fix narrowed it to Gamma and Uniform. So blast radius shrank; it was already broken and stays broken for these two.
+
+Reachable from the GUI: a Gamma or Uniform row with **blank μ** while the comma list supplies μ → unhandled `ArgumentException` instead of a field-level message. Normal, Lognormal, Exponential, Deterministic are fine — `StdDev` is mean-independent, which is exactly why Normal went green on the first try.
+
+Two sub-cases, and only one is fixable by re-deriving:
+1. **Old mean valid, new mean differs** → re-derive. `Scale = newMean / Shape`; for Uniform recover `w = (Max − Min)/2` then `Min/Max = newMean ∓ w`. This is the rule `BuildSpec` already applies, so it is not a new design.
+2. **Old mean is NaN** (row μ blank) → the spread is genuinely *undefined*, because k and w only mean something relative to a mean. No re-derivation helps; `w` is NaN. This must be a clean `BuildSpec` refusal plus closing the comma-list hole in the D-128 Start gate.
+
+Recommended: approve (1) as a one-line extension, and authorise (2) as a `BuildSpec` refusal. Both change what the user is told or what the engine samples, so I stopped rather than assume.
+
+### Verification (AGENTS §18)
+| Requirement | How verified | Result |
+|---|---|---|
+| B-010 fix | 4 family tests observe the **sampler's output** (sd vs σ, bounds vs Min/Max, variance vs mean²/k, positivity + centring), not the spec — the spec is what the bug discarded | green |
+| B-010 mutation | reverted the fix → **5 tests fail** (4 family + mixed screenshot); restored, `git diff` clean | fail-then-pass |
+| Gate item 3(a) — M/M/1 + M/D/2 + M/M/3 | `Coordinator_MixedFamilyRun_M_D_StageHasNoServiceVarianceWhileM_M_StagesDo`: Screening sd = 0.0 and every draw = 4.0; Reception/Doctor sd > 0.1; Screening card has no curve and the note "Deterministic — chi-square not applicable."; Reception/Doctor carry chi-square verdicts | green |
+| Mixed frame honesty | assertions tightened: Reception + Doctor must have `HasSeries`, Screening must not. Previously the frame would have passed with every stage degraded to a note — the shape of the bug, not the fix | green |
+| Release + Debug gate | 0/0 and 544/544 in each; Debug mandatory because D-147 is `#if DEBUG` | pass |
+
+Two test-parameter corrections, both the instability guard working correctly rather than bugs: λ was raised 0.1 → 0.3 in the screenshot run because 12 patients was too thin to histogram, and the family tests use λ = 0.2 because Normal(mean 2.5) on one server is unstable above λ = 0.4.
+
+## Session Handoff — 2026-09-26 — Phase 8K.6–8K.7 complete, 8K.8 BLOCKED on B-010
+
+**Branch:** `fix/post-merge-8e` · **Status:** Blocked (one ruling needed)
+
+### Done
+- **8K.6 G/G/c auto-fit** — the `HandleAutoFitRequested` path: all three refusals (no usable data, no winner, stage not covered by the file) revert the notation and leave the fitter's own reason on the single `InlineError` channel; success transfers only the spread, fills a blank μ from `1/fittedSpec.Mean`, sets `IsMuFittedLocally`, and keeps the user's `G/G/1` on screen. Logged **D-151**.
+- **8K.6 tests, closing a recorded gap** — the earlier TODO line claimed the refusals were "implemented and tested"; they were not (`HandleAutoFitRequested` had **no** test). 8 tests now cover success, blank-μ fill, user-μ preservation, family application, both refusals, badge retirement and error supersession. Success unblocked by `sample_3stage_variable.csv` (**D-152**); `sample_3stage_clinic.csv` retained as the refusal fixture.
+- **8K.7 configured-spec verification** (**D-157**) — output verification now tests the engine's samples against the **configured** per-stage `DistributionSpec` instead of refitting them. `FittedDistribution.FromSpec` (**D-154**) renders a spec as a distribution with a NaN likelihood because nothing was fitted. The `General`-as-Exponential branch and the `Repeat(shim)` fallbacks are **deleted**; an unconfigured stage reports `not configured`. `MainViewModel`'s two shim sites replaced. Analytical M/M/c widget fed real per-stage names so its existing all-or-nothing refusal (**D-155**) can fire. D-153 (Uniform `w ≥ mean`) logged — implemented earlier, never recorded.
+
+### In Progress / Blocked
+- **B-010 — `SimulationCoordinator` drops every stage's configured spread, so no non-Exponential stage can run.** `SimulationCoordinator.cs:250` rebuilds each engine spec as `new DistributionSpec(family, Mean: 1.0/mu)`; the spread (`StdDev` / `Shape` / `Min`+`Max`) is discarded, and `DistributionSamplerFactory` refuses the stage (`Normal distribution requires StdDev > 0`). Found by the screenshot gate, not by inspection. Needs an owner ruling because it changes what the engine samples. 8K.6/8K.7 are unaffected and green. Detail and the proposed one-line fix in `docs/BLOCKERS.md` B-010.
+
+### Verification (AGENTS §18)
+| Requirement | How verified | Result |
+|---|---|---|
+| 8K.6 auto-fit success + 3 refusals | 8 tests in `Phase8KTests` | green |
+| 8K.7 configured-spec verification | 6 new tests in `Phase8BVerificationTests`, 9 `FromSpec` tests in `FittingTests` | green |
+| Verification never refits | **mutation**: refit restored in the stage path → 3 tests fail incl. both discriminators; reverted, `git diff` clean | fail-then-pass |
+| Auto-fit not vacuous | **mutation A13**: `FitBest` stubbed to always refuse → 5 tests fail; reverted, `git diff` clean | fail-then-pass |
+| Release gate | build 0/0, **539/539 green** (CLI 35 / Data 92 / Core 114 / App 298) | pass |
+| Debug gate (required — D-147 is `#if DEBUG`) | build 0/0, **539/539 green** | pass |
+| 4 evidence frames | `Phase8KScreenshots` — asserts badge text, per-family field visibility, realised chart controls | 4 PNGs written |
+
+Suite 501 → **539** across the phase (+38).
+
+### Three defects the tests found (none found by inspection)
+1. `ChiSquareTest` throws `InvalidOperationException` when expected bin counts fall below 1. Unreachable under a refit, **reachable now** whenever a configured spread is narrower than the output — so it is caught and surfaced as a card note rather than blanking the widget.
+2. My first regression test was **not discriminating**: a mutation restoring the refit still passed it, because the refit refits the *same family*. Rewritten to separate the **parameters** (spec `Normal(20,1)` vs output `Normal(2,1)`), which no refit can survive.
+3. Asserting `p > α` on a *correctly specified* distribution is a coin flip by construction — α rejects 5% of the time, and one seed returned `p = 0.036`. Both directions now average p over 5 seeds (matching: mean p > α; mismatched: p < 0.001 per seed).
+
+### Notes for the next session
+- Evidence limitation: `phase-8k-verification-mixed.png` is a real three-stage run but **all stages are Exponential**, because a mixed run cannot execute (B-010). The frame evidences D-157's per-stage plumbing; the mixed-family behaviour is proven directly in `Phase8BVerificationTests`. Stated in the test that writes the frame.
+- Screenshot frames are headless; **visual inspection is owner-required** (this model cannot read a PNG) — the asserts are the proof, as in the 8J gate.
+- `GeneralDistributionFitter.MinimumSampleCount` was widened `private` → `internal` in Step B (D-156) against a literal no-touch instruction, to avoid a second copy of 20. Already pushed; flagged rather than hidden.
+- D-152 was committed for the fixture before the configured-spec ruling claimed it; that decision is logged as **D-157**, with forward pointers in both entries.
+- **8K.8 is not complete.** Remaining: mixed-family frame after B-010, `DEV_LAUNCH` / `USER_MANUAL` / `VIVA_ANSWERS` updates, owner visual inspection.
+
+## Phase 8K.0–8K.5 — per-stage family selection — 2026-09-26
+
+**Branch:** `fix/post-merge-8e` · **Status:** In-Progress (8K.6–8K.8 remain)
+
+### Done
+- 8K.0 `StageRow` extracted byte-identically into its own file (D-149), committed and pushed as `a491783` before any behavioural change.
+- 8K.1 families are `DistributionFamily` enums end to end; `ParsedModel` carries two nullable families so `G/G/c` is representable; `G/G/c` raises `AutoFitRequested` instead of guessing; 15 fixed notations; `MapStringToFamily` deleted (D-150).
+- 8K.2 `BuildSpec(row, rate)` is the single place a family becomes a `DistributionSpec`. μ is the only location parameter — mean `= 1/μ` for all six, with σ / k / w as the only spread inputs and `Scale = Mean/k`, `Min/Max = Mean ± w` derived. Uniform refuses `w ≥ mean`.
+- 8K.3 `StageRowControl` extracted from the inline template; one spread field per family, μ visible for all six.
+- 8K.4 explicit new-stage defaults, seeded on construction; `ApplyDefaultsToAllStages` is the only retroactive path.
+- 18 tests in `Phase8KTests.cs` + 1 in `Phase7BTests.cs` = **19**.
+
+### Two real defects the tests found
+1. **Derived visibility properties were never raised.** `NeedsStdDev` / `NeedsShape` / `NeedsSpread` / `HasSpreadError` are computed, and a computed property nobody raises is a property the binding system never re-reads. The user changed a stage's family and the row kept rendering the *previous* family's input — a silent misconfiguration with plausible-looking numbers. Fixed by `RaiseDerivedSpreadNotifications()` on the family change and an `OnSpreadErrorChanged` hook. This is the failure mode §18 exists to prevent, and it was invisible to inspection because the XAML binding is correct; only exercising the control exposed it.
+2. **The Advanced toggle's `IsVisible` was bound instead of its checked state**, so the test found a null control where it expected a hidden one.
+
+### Ruling C correction, recorded
+The first proposal let a stage enter μ *and* the family's raw parameters and reconcile them. A temporary probe showed this produces
+`StageSpec 'Probe': ServiceRate (2) disagrees with ServiceDistribution.Mean (2), which implies a rate of 0.5.`
+— the numbers are equal and the assertion still fires, because the mid-point is the wrong quantity. The owner's corrected ruling (D-150) removes the disagreement instead of detecting it: one location parameter, spread derived. Probe files removed; all six families re-probed under the corrected architecture and accepted by `StageSpec` (μ = 0.5 → Mean = 2; Gamma k = 2 → Scale = 1; Uniform w = 0.5 → Min 1.5 / Max 2.5).
+
+### Gate
+| Check | Result |
+|---|---|
+| `dotnet build -c Release` | 0 errors, 0 warnings |
+| `dotnet test -c Release` | **501 / 501** (Core 114 / Data 71 / Cli 35 / App 281) |
+| `dotnet build -c Debug` | 0 errors, 0 warnings |
+| `dotnet test -c Debug` | **501 / 501** — required, because D-147 is `#if DEBUG` and a Release-only run cannot observe it |
+
+Test count is 19 over the 482 baseline, landing on the specified 501 exactly. The first draft of `Phase8KTests.cs` used two 6-case `[Theory]`s and standalone methods, which reported 32 cases and a 515 total; those are now single cases looping internally, so the suite count reflects behaviours specified rather than families enumerated.
+
+### Not yet done
+8K.6 (G/G/c auto-fit — nothing subscribes to `AutoFitRequested` yet), 8K.7 (per-stage verification and AIC/p-value badge), 8K.8 (manual gate, screenshots, docs, final commit). `ServiceDistribution` / `MainViewModel` shim reads are still in place and are part of 8K.6.
+
+---
+
+Session Handoff — 2026-09-26 17:45
+Branch: fix/post-merge-8e
+Status: In-Progress (pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8J — App plumbing so per-stage service families reach Core (D-147)
+- Phase 8J — one additive `#if DEBUG` invariant in `StageSpec` binding a spec's mean to its rate (D-147, resolves D-146's deferral)
+- Phase 8J — 8 tests in `Phase8JTests.cs`, plus a 9th added after a mutation test exposed a coverage hole (D-148)
+- Phase 8J — proved end-to-end behaviour is byte-identical to pre-8J instead of asserting it
+- Phase 8J — headless gate render + exact baseline literals through the real `MainWindow` path
+
+In Progress
+Nothing. 8J is complete and gated; 8K is not started.
+
+What is complete:
+`SimulationParameters` carries per-stage `ServiceFamilies` + `ServiceRates`; the coordinator passes μ through
+unchanged; the per-stage count mismatch is refused loudly; per-stage chi-square uses the configured family;
+one DEBUG-only assertion ties a spec's mean to its rate. All 253 pre-existing App tests pass untouched.
+
+What remains:
+Phase 8K — a per-stage service-family control in the UI, and removal of the derived
+`SimulationParameters.ServiceDistribution` shim plus its two `MainViewModel` read sites. Until then every
+reachable run is still M/M/c, because one dropdown configures the whole run.
+
+Next Session Should Start With
+Phase 8K, only on owner instruction. Do not start it unprompted.
+
+Phase 8K — per-stage distribution UI: replace the single service-family dropdown and delete the
+`ServiceDistribution` shim (D-147 records it as a transitional compatibility property with two known
+read sites in `MainViewModel`).
+
+Blocked
+None. One item needs owner eyes rather than a fix: **visual inspection of
+`logs/screenshots/phase-8j-same-behaviour.png` is owner-required** — this agent cannot read images, so the
+frame is verified only as a valid 1200×760 PNG of 104,492 bytes produced by a passing render test. A
+real-display launch is likewise still unverified on this Wayland host (D-089), as for every prior phase.
+
+Git State
+Commits made this session:
+  - `042f0b1` feat: per-stage distribution specs flow from App to Core (Phase 8J) — the three App files,
+    the additive Core `#if DEBUG` block, `Phase8JTests.cs` (8), DECISIONS D-147
+  - `c594af4` test: verify per-stage family reaches engine sampler (Phase 8J follow-up) — the 9th test
+    (`Coordinator_DeterministicFamily_ReachesEngineSampler`), `Phase8JScreenshot.cs`, DECISIONS D-148,
+    DEV_LAUNCH §6 + changelog + header, TODO, CONTEXT §1.2
+  - this `docs:` commit records the two hashes above, which the preceding commits could not contain
+    (same pattern as `3f7ed3f` for 8I and `a192ea2` for 8H)
+
+Pushed to origin: Yes — `fix/post-merge-8e`. Nothing was pushed under this branch before 8J, so there was
+no already-pushed 8J commit to amend; the phase went in as two commits (plumbing, then the coverage
+follow-up) rather than one amended commit.
+
+Uncommitted changes: None.
+
+Build & Test
+dotnet build -c Release: **PASS** — 0 errors, 0 warnings
+dotnet build -c Debug: **PASS** — 0 errors, 0 warnings
+dotnet test -c Release: **PASS** — 482 passed, 0 failed (Core 114 / Data 71 / Cli 35 / App 262)
+dotnet test -c Debug: **PASS** — 482 passed, 0 failed (identical breakdown)
+Warnings: 0
+
+Mutation test — fail-then-pass (D-148)
+The seven briefed tests all passed while the coordinator was **dropping the per-stage spec entirely** — the
+exact defect 8J exists to fix. `git stash`-free reproduction: replace
+`specs.Add(new StageSpec(name, parameters.ServerCounts[i], mu, new DistributionSpec(family, Mean: 1.0 / mu)))`
+with `specs.Add(new StageSpec(name, parameters.ServerCounts[i], mu))`.
+
+  1. Mutation applied → `Coordinator_DeterministicFamily_ReachesEngineSampler` **FAILS**:
+     `Assert.All() Failure: 28 out of 28 items in the collection did not pass.`
+     `Expected: 1.25   Actual: 0.827270481` (also 0.6290694283, 2.4254999558 …) — the sampler had fallen back
+     to Exponential.
+  2. Full suite under the mutation: **480/480 green**, which is how the hole was found.
+  3. Correct code restored → the test **PASSES** (1 test, 30 ms).
+  4. Full suite with the fix: **482 green** in Release and Debug.
+
+Byte-identity evidence (not assumed)
+Pre-8J output of the gate configuration captured with `git stash` and diffed against post-8J: **identical**
+on `error`, `served=96`, `avgWait=6.361255218169437`, `avgSystem=11.361565824351594`,
+`avgQueue=1.2026765790581488`, `utilisation=0.5420211776308005`, `throughput=0.5671883320871884`,
+`operating=169.25595004172766`, and all three per-stage rows. Those doubles are now pinned as exact
+literals in `Phase8JScreenshot.cs`, re-checked through the real `MainWindow` + `ConfigPanelViewModel` path.
+The equality is arithmetic, not luck: the mean was `1/μ` before (Core's implicit fallback) and is `1/μ`
+after (supplied explicitly), and the sampler rate is `1/(1/μ)` either way.
+
+Files Touched
+src/OpdSimulator.App/Models/SimulationParameters.cs: modified (two `init` lists; `ServiceDistribution` derived)
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: modified (per-stage specs, count guard, per-stage fit family)
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (build both lists; `MapStringToFamily`; `using`)
+src/OpdSimulator.Core/Stages/StageSpec.cs: modified (additive `#if DEBUG` assertion only)
+tests/OpdSimulator.App.Tests/Phase8JTests.cs: added (8 tests)
+tests/OpdSimulator.App.Tests/Phase8JScreenshot.cs: added (1 test, writes the evidence PNG)
+
+docs/DECISIONS.md: added D-147, D-148
+docs/PROGRESS.md: this entry
+docs/TODO.md: Phase 8J `[x]`, Phase 8K row opened
+docs/DEV_LAUNCH.md: §6 counts, changelog row, Last-verified header
+docs/CONTEXT.md: §1.2 reachability + the "never invert a mean" rule
+
+Decisions Made
+D-147 — per-stage `ServiceFamilies`/`ServiceRates` on the record; μ passed through unchanged; relative
+`1e-9` DEBUG invariant (docs/DECISIONS.md, `### D-147`)
+D-148 — per-stage distribution verification must observe the effect at the sampler, not just that A
+produced B (docs/DECISIONS.md, `### D-148`)
+
+Assumptions Added/Changed
+`[UNVERIFIED]` The suite count is **482, not the 481 predicted** — the AGENTS §18 screenshot walkthrough is
+itself a test, so 481 + 1. Recorded rather than reconciled away; §6 states 482 with the breakdown.
+`[UNVERIFIED]` Visual state of the rendered frame is unconfirmed (agent cannot read images).
+
+Notes for Next Session
+- **Three deviations from the brief, all deliberate and all recorded in D-147:** `ServiceRates` is
+  `IReadOnlyList<double?>` rather than `IReadOnlyList<double>` because FitFromData mode has no as-entered μ
+  for a data-covered stage; the two lists are `init` body properties rather than positional parameters
+  because a positional default would force defaults onto all twelve existing parameters; and
+  `ServiceDistribution` survives as a derived setter-less shim because `MainViewModel` reads it and is
+  outside 8J's file set.
+- `SimulationParameters_NoLongerHasServiceDistribution` asserts by **reflection** (no primary-constructor
+  parameter, no setter), because a C# test cannot name a member that is supposed to be absent. It does not
+  assert the property is gone.
+- The App can express only a family and a mean per stage. Gamma shape, Normal sd and Uniform bounds are
+  not reachable from the UI, so those families fall back to sampler defaults derived from the mean.
+- `MapStringToFamily` duplicates Data's private `ToFamily` mapping (D-145). They must stay in step; a family
+  rename in one place will not be noticed in the other. A shared mapper is a candidate for a later phase.
+- Pre-existing drift noticed and **not** fixed (rule 3): the DEV_LAUNCH §12 changelog has rows for 8E but
+  none for 8F, 8G, 8H or 8I.
+
+Session Handoff — 2026-09-26 17:05
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8I — `StageSpec` gains an optional `DistributionSpec`; the Engine builds one sampler per stage (D-146)
+- Phase 8I — proved the exponential RNG stream is byte-identical to pre-8I instead of assuming it
+- Phase 8I — 6 tests: exponential default, explicit override, M/D/1 constant times, zero variance with a control, heterogeneous M/M/1 + M/D/2 + M/M/3, byte-identity digests
+
+In Progress
+- Nothing. Phase 8I is closed out and the gate passed; 8J is not started.
+
+What is complete:
+The whole of Phase 8I. Two Core source files and one new Core test file.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F, 8G, 8H, 8I).
+- Phase 8J: surface per-stage families in the UI — `SimulationParameters`, the stage row, and persistence of the choice. NOT STARTED, per instruction.
+- Candidate follow-up, not yet a task: `ServiceRate` and `ServiceDistribution` can now disagree and nothing validates the relationship (see D-146). Worth deciding when 8J starts producing these values.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8J. Do not begin it unprompted.
+2. On go, confirm state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **473 green** (Core 114 / Data 71 / Cli 35 / App 253).
+
+Blocked
+None.
+
+Git State
+Commits made this session: `85e112a` feat: per-stage distribution dispatch in the Core engine (Phase 8I)
+
+Pushed to origin: Yes — `85e112a` on `fix/post-merge-8e`.
+
+Uncommitted changes: None — working tree clean after the push.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 473 passed, 0 failed (Core 114 / Data 71 / Cli 35 / App 253; +6 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Stages/StageSpec.cs: modified (optional serviceDistribution + ServiceDistribution + EffectiveServiceDistribution)
+src/OpdSimulator.Core/Engine/Engine.cs: modified (per-stage sampler array; shared service sampler removed)
+tests/OpdSimulator.Core.Tests/StageFamilyDispatchTests.cs: added (6 tests)
+
+docs/DECISIONS.md: modified (D-146)
+docs/TODO.md: modified (Phase 8I row [x])
+docs/PROGRESS.md: modified (this handoff)
+docs/CONTEXT.md: modified (§1.2 cross-reference, §2.2 canonical note)
+
+Decisions Made
+- D-146 — `StageSpec` gains an optional `DistributionSpec`; the Engine builds per-stage samplers; the exponential path is held to -ln(U)/λ to preserve RNG-stream compatibility
+
+Assumptions Added/Changed
+- None. CONTEXT.md §2.2 records an `[IMPLEMENTED]` fact about the Engine, not a new domain assumption. No assumption was tagged or changed.
+
+Notes for Next Session
+- **The Engine can now do per-stage families, but the app still cannot reach it.** `SimulationCoordinator.cs:200` still builds 3-argument `StageSpec`s, so every stage is M/M/c at runtime. If 8J is skipped or deferred, 8I is latent capability only — do not describe it to the professor as a user-visible feature.
+- **The pre-8I golden lives in the test, not in a fixture file.** `Engine_ExponentialStage_StillByteIdenticalToLegacy` pins FNV-1a digests of the raw bytes of all ~30,000 draws per stage, captured from the pre-8I build at a192ea2 via `git stash`. If a future phase legitimately changes the exponential path, that test is the tripwire — do not simply update the digests, because they encode the D-054 contract. Reproduce the capture the same way (stash the change, run, compare) rather than reading a number off a failing test.
+- **The 13.7 % rate round-trip caveat.** The exponential fallback derives rate as `1/(1/μ)`, which is not bit-equal to μ for many arbitrary doubles. Every existing fixture rate is exact, so nothing is currently affected, and a given config stays deterministic either way. If 8J ever surfaces a user-entered μ that is not round-trip-exact, service times may differ by one ulp from a pre-8I trace of the same model. Details in D-146.
+- **A deterministic stage consumes zero RNG draws.** So a deterministic run and an exponential run on the same seed diverge immediately — they are different models, not the same model sampled twice. This cost one wrong assertion while writing the tests; do not reintroduce a count comparison between them.
+- **`StageSpec` was intentionally NOT made a positional record.** The phase brief showed it that way, but PascalCase parameters would have broken ~20 named-argument call sites in `EngineTests.cs`/`NetworkTopologyTests.cs`, outside the phase's file set. Kept the explicit-constructor shape and appended an optional parameter. Recorded in D-146 so it is not "corrected" by mistake later.
+- Inter-arrivals remain exponential throughout; the arrival process is M/M/c by definition. 8I changed the service side only.
+
+Session Handoff — 2026-09-26 16:40
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8H — `GeneralDistributionFitter`: the auto-fit path that picks a family from data by AIC (D-145)
+- Phase 8H — added the missing `Data → Core` project reference, the one edge AGENTS §4 always claimed
+- Phase 8H — `DistributionFitResult` + `GeneralFitResult` records, and the five family candidates with Deterministic excluded
+- Phase 8H — 13 tests including five synthetic-family recoveries and both sides of the `< 5` expected-bin-count boundary
+
+In Progress
+- Nothing. Phase 8H is closed out and the gate passed; 8I is not started.
+
+What is complete:
+The whole of Phase 8H. Three new Data files in `OpdSimulator.Data/Fitting`, one new Data test file, and one added `ProjectReference`.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F, 8G and 8H).
+- Phase 8I: surface the auto-fit path in the UI. NOT STARTED, per instruction.
+- Pre-existing, unrelated: the `phase-8f-*.png` frames were never eyeballed by the agent (this host has no image input), and the 8F.1 accent override lives in code rather than XAML. Both are open rows in TODO.md.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8I. Do not begin it unprompted.
+2. On go, confirm the branch state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **467 green** (Core 108 / Data 71 / Cli 35 / App 253), not the 454 this session started from.
+
+Blocked
+None.
+
+Git State
+Commits made this session: `ea4aaa2` feat: general distribution fitter with AIC model selection (Phase 8H)
+
+Pushed to origin: Yes — `ea4aaa2` on `fix/post-merge-8e`.
+
+Uncommitted changes: None — working tree clean after the push.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 467 passed, 0 failed (Core 108 / Data 71 / Cli 35 / App 253; +13 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Data/OpdSimulator.Data.csproj: modified (one added ProjectReference to Core, nothing else)
+src/OpdSimulator.Data/Fitting/DistributionFitResult.cs: added
+src/OpdSimulator.Data/Fitting/GeneralFitResult.cs: added
+src/OpdSimulator.Data/Fitting/GeneralDistributionFitter.cs: added
+tests/OpdSimulator.Data.Tests/GeneralDistributionFitterTests.cs: added (13 tests)
+
+docs/DECISIONS.md: modified (D-145)
+docs/TODO.md: modified (Phase 8H row [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-145 — `GeneralDistributionFitter` selects a family by AIC over the existing Data fitters; Deterministic is excluded because it is a user choice, not a fit result; Data now references Core
+
+Assumptions Added/Changed
+- None. No new domain assumptions were introduced; 8H adds infrastructure only and changes no CONTEXT.md assumption.
+
+Notes for Next Session
+- **The Gamma/exponential margin is the number to remember: 1.87 AIC.** On exponential data the winner beats Gamma by under 2 AIC, because Gamma with k≈1 is nearly exponential. The test is deterministic at seed 42 so it will not flake, but do not present that recovery as robust evidence. Every other family wins by 100+ AIC. Gamma's own recovery wins by 394.6.
+- **`ToSpec` is a translation layer, not a convenience.** The fitters report MathNet's shape–**rate** for Gamma and (μ, σ) of *ln X* for Lognormal; Core's samplers want shape–**scale** and mean/sd *of X*. Both are the D-144 trap in reverse. Do not "simplify" by passing fitted parameters straight through.
+- **Two rejection paths, deliberately different.** A candidate rejected before fitting has `Spec.Mean = NaN`; one rejected after fitting keeps its real diagnostics. `FitBest_RejectedBeforeFit_CarriesPlaceholderSpecWithNaNMean` and `FitBest_SmallSample_ExpectedBinCountBelow5_RejectsEveryCandidate` pin both. If you ever see NaN AICs in a report, the candidate never fitted.
+- **Family identity is still a string in Data's public API** (`IDistributionFitter.Name`, used by `App/Services/FitsService.cs` and `Cli/Commands/FitCommand.cs`) and an enum in Core. `GeneralDistributionFitter.ToFamily` is the only bridge. Left alone because 8H forbids touching App and Cli — worth closing in a later phase.
+- **AIC picks the winner; a chi-square rejection does not disqualify.** A family whose p-value is below alpha can still win on likelihood, because the brief specified rejection only on the `< 5` rule. All five recovery winners pass their own chi-square, but a real dataset could in principle be won by a family its own test rejects. Flagged in D-145 as a known limitation.
+- **"n ≥ 20" does not mean "a usable fit".** With equal-probability bins the `< 5` rule also fires at n ∈ {20…24} and {26…29}. Both boundaries are pinned by tests.
+- `Data.Tests` sees Core transitively through Data; no test-project reference was added, and none is needed unless that changes.
+
+Session Handoff — 2026-09-26 16:12
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8G / 8G.1 — MathNet.Numerics 5.0.0 confirmed already referenced by Core; no csproj touched
+- Phase 8G / 8G.2–8G.4 — `IDistributionSampler`, `DistributionFamily`, `DistributionSpec`, and the six sealed samplers
+- Phase 8G / 8G.3 — `MathNetRandomAdapter : System.Random` bridges MathNet 5.0.0 to the project's `IRandomSource`
+- Phase 8G / 8G.5 — Gamma kept scale-based publicly with the `beta = 1/θ` conversion to MathNet's rate form
+- Phase 8G / 8G.6 — `DistributionSamplerFactory` validates per family and names the offending field
+- Phase 8G / 8G.7 — new class is `ExponentialDistributionSampler`; legacy `ExponentialSampler` untouched, retired in 8H
+
+In Progress
+- Nothing. Phase 8G is closed out and the gate passed; 8H is not started.
+
+What is complete:
+The whole of Phase 8G. Ten new Core files in `OpdSimulator.Core/Distributions` (contract ×3, adapter ×1, samplers ×6 — the factory makes 11) and one new Core test file with 18 tests. Gate green.
+
+What remains:
+- Owner review/merge of `fix/post-merge-8e` (the branch now carries 8E, 8F and 8G).
+- Phase 8H: wire the samplers into the Engine and retire the legacy `ExponentialSampler`. NOT STARTED, per instruction.
+- Pre-existing, unrelated: the `phase-8f-*.png` frames were never eyeballed by the agent (this host has no image input), and the 8F.1 accent override lives in code rather than XAML. Both are open rows in TODO.md.
+
+Next Session Should Start With
+1. Wait for the owner's go on 8H. Do not begin it unprompted.
+2. On go, confirm the branch state first: `git status`, `git log --oneline -3`, `dotnet build -c Release`, `dotnet test -c Release --no-build` — the expected baseline is now **454 green** (Core 108 / Data 58 / Cli 35 / App 253), not the 436 this session started from.
+
+Blocked
+None.
+
+Git State
+Commits made this session: `364595f` feat: Core distribution samplers for six families (Phase 8G)
+
+Pushed to origin: Yes — `364595f` on `fix/post-merge-8e` (`73bc32b..364595f`).
+
+Uncommitted changes: None — working tree clean after the push.
+
+Build & Test
+dotnet build: PASS — 0 errors, 0 warnings (Release, whole solution)
+
+dotnet test: PASS — 454 passed, 0 failed (Core 108 / Data 58 / Cli 35 / App 253; +18 this session)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Distributions/IDistributionSampler.cs: added
+src/OpdSimulator.Core/Distributions/DistributionFamily.cs: added
+src/OpdSimulator.Core/Distributions/DistributionSpec.cs: added
+src/OpdSimulator.Core/Distributions/MathNetRandomAdapter.cs: added
+src/OpdSimulator.Core/Distributions/ExponentialDistributionSampler.cs: added
+src/OpdSimulator.Core/Distributions/DeterministicSampler.cs: added
+src/OpdSimulator.Core/Distributions/NormalSampler.cs: added
+src/OpdSimulator.Core/Distributions/LognormalSampler.cs: added
+src/OpdSimulator.Core/Distributions/GammaSampler.cs: added
+src/OpdSimulator.Core/Distributions/UniformSampler.cs: added
+src/OpdSimulator.Core/Distributions/DistributionSamplerFactory.cs: added
+tests/OpdSimulator.Core.Tests/DistributionSamplerTests.cs: added (18 tests)
+
+docs/DECISIONS.md: modified (D-144)
+docs/TODO.md: modified (Phase 8G row [x])
+docs/PROGRESS.md: modified (this handoff)
+
+Decisions Made
+- D-144 — six `IDistributionSampler` families over MathNet.Numerics 5.0.0, with a `System.Random` adapter preserving the project's `IRandomSource`
+
+Assumptions Added/Changed
+- None. No new domain assumptions were introduced; 8G adds infrastructure only and does not change any CONTEXT.md assumption.
+
+Notes for Next Session
+- **The two library traps are documented, not just fixed.** Anyone re-reading `GammaSampler` will see why `beta = 1/θ` is there; anyone touching `MathNetRandomAdapter` will see why every override matters. Do not "simplify" either one without reading D-144.
+- `MathNet.Numerics.Random.IRandomSource` is gone in 5.0.0. If a future phase suggests wrapping `IRandomSource` in a MathNet `IRandomSource`, that advice is wrong for this version.
+- The adapter delegates `NextBytes` one draw per byte, so a 4-byte fill costs 4 draws. The delegation test asserts the running count (1, 4, 7, 8, 12, 16) and will fail if that changes — update the test, not the count.
+- Exponential is the only family not going through MathNet. It duplicates the legacy transform on purpose so 8H can swap callers without changing the sampled sequence for a given seed.
+- The samplers are currently reachable only from tests. That is expected for 8G; 8H is what makes them live.
+
+Session Handoff — 2026-09-26 16:05
+Branch: fix/post-merge-8e
+Status: In-Progress (committed and pushed; awaiting owner review/merge per §11.5)
+
+Done
+- Phase 8F / 8F.1 — the Fluent system accent is pinned to the brand green, so the UI no longer inherits the machine's OS accent (D-141)
+- Phase 8F / 8F.2 — the config panel scrolls all the way to the last section, clear of the pinned footer (D-142)
+- Phase 8F / 8F.3 — a stage's server count and its Model notation can no longer disagree (D-143)
+
+In Progress
+- None — Phase 8F is complete and gated; waiting on owner review.
+
+What is complete:
+
+- **8F.1 (D-141) — `src/OpdSimulator.App/App.axaml.cs`.** `App.Initialize` now calls `PinSystemAccentToBrand`, which reads `ColorBrandGreen` from Theme.axaml and assigns it to `FluentTheme.Palettes[Light].Accent` and `[Dark].Accent`, mutating an existing entry in place rather than replacing it, and logging a warning on either skip path.
+  - The prescribed fix **cannot work on this stack**, and this was measured rather than assumed. Avalonia 11.3.3 has no `SystemAccentColor` resource — `Application.Resources.TryGetResource("SystemAccentColor")` misses and `FluentTheme` exposes no such key. The resource that actually drives the highlight is `SystemControlHighlightAccentBrush`, which resolved to `#0078D7` (the machine accent). Assigning the palette entry changes that brush; declaring the loose keys would have been a plausible-looking no-op that left the UI blue. `ThemeAccent_IsBrandGreen_NotSystemDefault` asserts `SystemAccentColor` does *not* exist, so the broken approach cannot be reintroduced quietly.
+  - Two facts the gate forced, neither visible by inspection: `Palettes` throws "only supports Light and Dark variants" if given `ThemeVariant.Default`, and `ColorPaletteResources` exposes a single `Accent` knob — there is no `AccentLight1`/`AccentDark1` ladder to populate.
+  - Override safety was measured: injecting an Accent-only entry changed exactly **1 of 25** probed Fluent brush resources and left the other 24 byte-identical, so the rest of the theme cannot be silently wrecked.
+  - The CollapsibleSection header binds **no** accent brush (title and chevron are `BrushTextOnBrand` on a `BrushBrandGreen` bar), so the brief's "replace any `SystemControlHighlightAccent*` binding" had nothing to replace. The blue came from the Fluent-styled `ToggleButton`'s own focus/checked visuals — which is why the fix belongs at the palette rather than on the control.
+
+- **8F.2 (D-142) — `src/OpdSimulator.App/Views/ConfigPanel.axaml`.** `Padding` moved off the `ScrollViewer` onto a `Border` wrapping the content, plus a trailing `Border Height="{DynamicResource SpaceL}"` as the scroll buffer.
+  - Root cause: `ScrollViewer.Padding` is **not** part of the scrollable extent. Measured on the real panel, `Extent.Height` was 2962 while the content was 2994 — exactly `content − 2×padding` — so the bottom padding was dead space the user could never scroll to. This also means the brief's "add bottom padding" could never have worked, and neither could a bigger spacer: the content is arranged clamped to the short extent, so the first attempt (a 24 px spacer) still left the last section 8 px clipped. `Border.Padding` is part of the desired size, so it scrolls.
+  - After the change: `Extent` 3026 (= 2994 + 32), and at maximum scroll the content bottom lands exactly on the viewport bottom with the last section's bottom edge **56 px clear** (24 buffer + 16 padding + 16 window padding).
+  - A `StackPanel` cannot host the padding — Avalonia's `Panel` has no `Padding` property, which is why the `Border` wrapper exists. `RowDefinitions="*,Auto,Auto"` was already correct and was left untouched.
+
+- **8F.3 (D-143) — `src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs`, `StageRow`.** `Servers.ValueChanged` rewrites the notation's trailing number; `OnSelectedModelChanged` writes the count; both sit behind one `_suppressModelServerSync` `try/finally` guard.
+  - The supplied sketch assumed `Servers` was an `[ObservableProperty] int` with a generated `OnServersChanged(int)` hook. It is a get-only `ConfigFieldViewModel` with a string `Value`, so the hook is a subscription to its `ValueChanged` event.
+  - The sketch's reverse sync would have **crashed**: appending the raw number for a count of 9 fabricates "M/M/9", which is not in `StandardModels`, so the next `ModelNotationParser.Parse` throws out of a property setter. The sync now writes only listed values, leaving the inline field error to own the invalid case. `OnSelectedModelChanged` additionally catches `ArgumentException` from `Parse` and logs a warning.
+
+- **Tests.** New `Phase8FTests.cs` (7) and `Phase8FScreenshots.cs` (2). One pre-existing test needed a locator update: `Phase5dScreenshot` found the config scroller via `s.Content is StackPanel`, which the `Border` wrapper invalidated — it now locates the scroller by the sections it contains, which is what the test actually meant. The two other `s.Content is StackPanel` locators in the suite address the Results panel and were unaffected.
+
+What remains:
+- Owner review and merge of `fix/post-merge-8e` (§11.5).
+- The two carry-over verification gaps below.
+- Phase 8G — must not start until instructed.
+
+Next Session Should Start With
+- Await owner review/merge of `fix/post-merge-8e`.
+- Eyeball `logs/screenshots/phase-8f-focus-green.png` and `phase-8f-config-bottom.png`.
+- Then Phase 8G (per-stage general fitting), only on instruction.
+
+Blocked
+- None blocking the work. Verification gaps recorded in `docs/TODO.md` rather than papered over:
+  - **No interactive launch.** The host is Wayland with no image input, so gate items 3(a)–3(e) were verified headlessly (D-089 method) and numerically, not by a human clicking through. Per AGENTS §18 the frames' geometry and resolved colours are asserted, but "does the header *look* green" needs your eyes.
+  - **Accent override lives in code, not XAML** (D-141). A reader auditing only `Theme.axaml` will not see the pin. The two accent tests are the only alarm if a future Avalonia upgrade moves the `Accent` knob; a startup assertion logging the resolved accent at Information level is the suggested follow-up.
+
+Git State
+Commits made this session: `fix: system accent override, config scroll buffer, server-model sync (Phase 8F)`
+Pushed to origin: Yes — `fix/post-merge-8e`
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 errors / 0 warnings (Release, whole solution)
+dotnet test: PASS — 436 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 253), baseline 427, +9
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/App.axaml.cs: `PinSystemAccentToBrand` — pins the Fluent accent from Theme.axaml
+src/OpdSimulator.App/Views/ConfigPanel.axaml: padding moved to a content `Border`; `SpaceL` scroll buffer added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: `StageRow` two-way model/servers sync behind one re-entrancy guard
+tests/OpdSimulator.App.Tests/Phase8FTests.cs: new (7 tests)
+tests/OpdSimulator.App.Tests/Phase8FScreenshots.cs: new (2 frames)
+tests/OpdSimulator.App.Tests/Phase5dScreenshot.cs: scroller locator no longer assumes `Content is StackPanel`
+docs/DECISIONS.md: D-141, D-142, D-143
+docs/TODO.md: Phase 8F `[x]`, two capture-only rows
+docs/PROGRESS.md: this handoff
+
+Decisions Made
+- D-141 — pin the accent via `FluentTheme.Palettes[…].Accent`; the prescribed `SystemAccentColor` keys are inert on Avalonia 11.3.3
+- D-142 — move the config padding off the `ScrollViewer` onto the content, because ScrollViewer padding is not scrollable
+- D-143 — two-way model/servers sync behind one guard, writing only notations that exist in `StandardModels`
+
+Assumptions Added/Changed
+- [VERIFIED] Avalonia 11.3.3's Fluent theme takes its accent from `ColorPaletteResources.Accent` per theme variant, and `SystemControlHighlightAccentBrush` is the resource derived from it. (Measured: brush `#0078D7` → brand green on injection; 24 of 25 other probed brush resources unchanged.)
+- [VERIFIED] `FluentTheme.Palettes` accepts only `ThemeVariant.Light` and `ThemeVariant.Dark`; adding `Default` throws.
+- [VERIFIED] `ScrollViewer.Padding` is excluded from the scrollable extent on this panel (`Extent` = content − 2×padding); `Border.Padding` is not.
+- [VERIFIED] Avalonia's `Panel` (and therefore `StackPanel`) has no `Padding` property.
+- [UNVERIFIED] That the CollapsibleSection header *appears* brand green to a human on a machine whose OS accent is neither blue nor orange. The resolved colours are asserted; the appearance is not, because this host cannot display or view the frames.
+
+Notes for Next Session
+- G/G/1 is untouched and per-stage general fitting is still Phases 8G–8J, as the brief required. `ModelNotationParser` and `StandardModels` were not modified — the 8F.3 sync needed only the prefix substring, so the forbidden-file constraint held.
+- Phase 8F touched no Core, Data or Cli code. The only non-8F change in the diff is the `Phase5dScreenshot` locator, which the `Border` wrapper forced.
+- If the accent ever looks wrong again after an Avalonia upgrade, check `FluentTheme.Palettes` first and run `ThemeAccent_IsBrandGreen_NotSystemDefault` — it asserts the brush, not the palette, so it fails whichever way the knob moves.
+
+Session Handoff — 2026-09-26 14:50
+Branch: fix/post-merge-8e
+Status: Clean
+
+Done
+- Phase 8E / Bug 1 — a one-stage network no longer refuses a fitted `p_exit = 1.0` (D-139)
+- Phase 8E / Bug 2 — the dropdown focus ring is the brand green and stays visible (§16.7)
+- Phase 8E / Bug 3 — the dropdown opens on the full list, mouse clicks commit, and × clears without closing the popup (D-140)
+- Phase 8E / Bug 4 — the Clear-all dialog uses 24 / 16 / 24 / 12 theme-token spacing
+
+In Progress
+- None
+
+What is complete:
+- `src/OpdSimulator.App/Services/SimulationCoordinator.cs`: the `FittedPExitEqualsOneMessage` refusal is now gated on `hasDownstreamStage = parameters.StageNames.Count >= 2`. A one-stage run passes `routingExitProbability = 0.0` to `NetworkTopology` and to the `exitStageIndex` ternary (Core's `< 1` invariant untouched), while the resolved fitted `1.0` is still reported in the successful `RunOutcome`. The 2+/3-stage message, the manual-override path and `Phase5RunFlowTests.FittedPExitOne_RefusesWithEveryRowExitsAfterScreeningBanner` are unchanged and still green (D-139).
+- `src/OpdSimulator.App/Controls/SearchableDropdown.axaml`: `TextBox:focus` / `TextBox:focus-visible` set `BrushBrandGreen` + `ThicknessFieldBorder`. The unfocused "no border" moved from a local `BorderThickness="0"` to a plain `TextBox` setter, because a local value outranks every style setter and would have silently kept the ring invisible. `IsLightDismissEnabled` is now `False` with the rationale in a comment (D-140).
+- `src/OpdSimulator.App/Controls/SearchableDropdown.axaml.cs`: `OpenPopup` clears the filter under `_filteringFromProgrammaticSet` and re-marks the committed value via `SetListSelectionSilently`; new `ItemList` `SelectionChanged` (commits user selections), `GotFocus` and `LostFocus` handlers; `OnClearClick` nulls the value, clears the filter, keeps the full list open, and is wrapped in `_suppressListCommit`; `ClosePopup`'s `ItemsSource = null` teardown is suppressed so it can never be read as a commit; a `TopLevel.PointerPressed` hook is attached in `OpenPopup` and removed in `ClosePopup` / `Popup.Closed` so an outside press still closes the dropdown.
+- `src/OpdSimulator.App/Controls/ThemedDialog.axaml`: outer `Padding` = `ThicknessSpaceL` (24), title→message 16 and message→buttons 24 as the `Spacing` of two nested `StackPanels`, button `ColumnSpacing` = `SpaceS` (12). The first attempt used Thicknesses mixing a literal with a `DynamicResource` and failed with two `AVLN2005` errors — Avalonia cannot parse that form, hence the nested-Spacing shape.
+- Tests: new `tests/OpdSimulator.App.Tests/Phase8EFixTests.cs` (8 — 3 topology refusals, focus brush, open-all, item-click commit, clear-then-select + outside press, dialog tokens) and `Phase8EScreenshots.cs` (2 frames). The temporary `ZzProbeTests` probe file used to diagnose Bug 3 was deleted before the gate run.
+- Docs: D-139 and D-140 logged, TODO Phase 8E row `[x]` plus two capture-only rows, DEV_LAUNCH "Last verified" + changelog row, USER_MANUAL §9 error table + changelog row.
+
+What remains:
+- Owner review of the two frames and of the interactive ×-click path (see Blocked).
+- Phase 6 (Help + presets) and the polish backlog — must not start until instructed.
+
+Next Session Should Start With
+- Await owner review/merge of `fix/post-merge-8e` per §11.5.
+- Eyeball `logs/screenshots/phase-8e-dropdown-open.png` and `phase-8e-clear-dialog.png` and confirm the × click, then close the two capture rows.
+- Address polish-backlog rows as directed.
+
+Blocked
+- None blocking the work. Two verification gaps are captured in `docs/TODO.md` (polish backlog, 8E rows): (1) the headless harness cannot route a synthesised pointer press to the × `Border` — the test raises the control's own routed `PointerPressed` instead, so the real click path still needs interactive confirmation (§18); (2) this host has no image input, so neither frame was eyeballed by the agent — geometry is asserted numerically, appearance is not.
+- **Brief deviation, flagged:** the brief's gate item (a) named `samples/sample_3stage_clinic.csv` as the `p_exit = 1.0` reproducer. That file fits `p_exit = 0.7` (14 Screening / 6 Doctor exits) and cannot reproduce the refusal. `samples/sample_patients.csv` is the real reproducer — a single-stage file whose every row departs at Screening — and is what the tests use.
+
+Git State
+Commits made this session: `fix: single-stage p_exit guard, dropdown selection, focus style, dialog padding (Phase 8E)` (single commit: code, tests, docs and this handoff)
+Pushed to origin: Yes — pushed with this commit (per §11.4)
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS — 0 warnings / 0 errors (Release, whole solution)
+dotnet test: PASS — 427 passed, 0 failed (Core 90 / Data 58 / Cli 35 / App 244)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: topology-gated refusal + one-stage routing normalisation
+src/OpdSimulator.App/Controls/SearchableDropdown.axaml: focus styles, unfocused thickness setter, light dismiss off
+src/OpdSimulator.App/Controls/SearchableDropdown.axaml.cs: open/clear/selection state machine, suppression guards, outside-press hook
+src/OpdSimulator.App/Controls/ThemedDialog.axaml: nested-StackPanel spacing rewrite
+tests/OpdSimulator.App.Tests/Phase8EFixTests.cs: new (8 tests)
+tests/OpdSimulator.App.Tests/Phase8EScreenshots.cs: new (2 frames)
+docs/DECISIONS.md: D-139, D-140
+docs/PROGRESS.md: this handoff
+docs/TODO.md: Phase 8E row `[x]`, two capture-only rows
+docs/DEV_LAUNCH.md: "Last verified" + changelog row
+docs/USER_MANUAL.md: §9 error row + changelog row
+
+Decisions Made
+- D-139 — the fitted `p_exit = 1.0` refusal is gated on the topology having a downstream stage; one-stage routing normalises to `0.0` and the reported fitted value is untouched
+- D-140 — `SearchableDropdown` owns its outside-press closing instead of `Popup.IsLightDismissEnabled`, because the × lives outside the popup
+
+Assumptions Added/Changed
+- [VERIFIED] `samples/sample_patients.csv` is a single-stage file (only screening timing columns) whose every row departs at Screening, so its fitted `p_exit` is exactly 1.0 — it is the file the single-stage refusal repros on. (Measured this session with `awk` over the file and asserted in `Phase8EFixTests`.)
+- [VERIFIED] `samples/sample_3stage_clinic.csv` fits `p_exit = 0.7` (14 Screening / 6 Doctor departures), so it cannot reproduce the `p_exit = 1.0` refusal.
+- [VERIFIED] `ResourceDictionary`'s indexer does not walk into `MergedResources`; Theme.axaml keys must be read with `TryGetResource`. Cost two NREs in the first test draft and is now a `Theme(...)` helper in `Phase8EFixTests`.
+
+Notes for Next Session
+- The 2026-09-26 pass verified only Release build + full suite + two headless frames. It did **not** re-run the dead-state restore, the CLI checks or a real-display launch; DEV_LAUNCH "Last verified" says so explicitly rather than claiming a full re-verification.
+- If the × click misbehaves in the real app, the first thing to check is the outside-press hook: it is attached to the `TopLevel` only while the popup is open, and it deliberately ignores presses whose source is inside `ComboHost` or the `ItemList`.
+
 Session Handoff — 2026-09-18 06:59
 Branch: feat/milestone-7-model-driven
 Status: Clean

@@ -28,6 +28,9 @@
 2. **Screening** — Single queue, two parallel screening tables.
 3. **Doctor** — Single queue, three parallel doctors (only for patients not exited after screening).
 
+Each stage's `c` above is fixed, but the service distribution `S` is per-stage and
+selectable in the model — see §2.2.
+
 ### 1.3 Early Exit Points
 A patient may exit after **Screening** with a probability `p_exit`. This is an empirical parameter estimated from the `departure_stage` column in the uploaded data (see §5.4).
 
@@ -62,6 +65,29 @@ Examples:
 - `M/M/1` = exponential arrivals, exponential service, 1 server.
 - `M/M/2` = our screening stage.
 - `M/M/3` = our doctor stage.
+
+> **[IMPLEMENTED — Phase 8I, 2026-09-26]** The **Core Engine now dispatches each stage
+> on its own service distribution**, so the `S` code is chosen per stage rather than being
+> fixed to `M` for the whole network: a `StageSpec` carries an optional `DistributionSpec`,
+> and a stage declared with only (name, c, μ) still resolves to `M/M/c` via the
+> exponential fallback. All six families from §3.3 are available, and stages may differ
+> within one run — M/M/1 + M/D/2 + M/M/3 is a legal topology. The inter-arrival code `A`
+> remains `M` (exponential) throughout: the arrival process is M/M/c by definition, and
+> 8I changed the service side only.
+>
+> **Reachable from Core and App as of Phase 8J, but not yet from the UI.** The Engine
+> can do this, and 8J wired the App to supply a family per stage: `SimulationParameters`
+> now carries `ServiceFamilies` + `ServiceRates` and `SimulationCoordinator` builds each
+> `StageSpec` with μ passed through unchanged. **But there is still one service-family
+> dropdown for the whole run, so every stage is still configured alike and every
+> reachable run is still M/M/c.** Giving each stage its own control — and removing the
+> vestigial `SimulationParameters.ServiceDistribution` shim that `MainViewModel` reads —
+> is Phase 8K. See D-146, D-147.
+>
+> **μ is carried as a rate, never as a mean.** `ServiceRates[i]` is μ per minute exactly
+> as entered; the spec's `Mean` is derived from it. Recovering μ by inverting a mean is
+> not bit-reversible (13.7 % of arbitrary doubles fail the round trip, D-146), so no code
+> path does it.
 
 ### 2.3 Why ρ ≥ 1 Means the System Is Unstable
 

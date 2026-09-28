@@ -31,7 +31,6 @@
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBox x:Name="FilterBox"
                          Grid.Column="0"
-                         BorderThickness="0"
                          Background="Transparent"
                          CornerRadius="0"
                          Padding="{DynamicResource ThicknessFieldPadding}"
@@ -39,7 +38,31 @@
                          GotFocus="OnFilterGotFocus"
                          LostFocus="OnFilterLostFocus"
                          TextChanged="OnFilterTextChanged"
-                         KeyDown="OnFilterKeyDown"/>
+                         KeyDown="OnFilterKeyDown">
+                    <!-- Phase 8E / Bug 2: Avalonia's Fluent theme paints a blue
+                         focus ring on TextBox. Replace the accent with the brand
+                         green from the theme; the ring stays VISIBLE (keyboard
+                         pass, AGENTS §16.7) — only its colour changes. Overridden
+                         here, in the control's own style block, not in Theme.axaml,
+                         so no other TextBox in the app is affected.
+                         The unfocused "no border" is a plain TextBox setter rather
+                         than a local BorderThickness="0": a local value outranks
+                         every style setter, so it would have silently beaten the
+                         :focus rule and left the ring invisible. -->
+                    <TextBox.Styles>
+                        <Style Selector="TextBox">
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </Style>
+                        <Style Selector="TextBox:focus">
+                            <Setter Property="BorderBrush" Value="{DynamicResource BrushBrandGreen}"/>
+                            <Setter Property="BorderThickness" Value="{DynamicResource ThicknessFieldBorder}"/>
+                        </Style>
+                        <Style Selector="TextBox:focus-visible">
+                            <Setter Property="BorderBrush" Value="{DynamicResource BrushBrandGreen}"/>
+                            <Setter Property="BorderThickness" Value="{DynamicResource ThicknessFieldBorder}"/>
+                        </Style>
+                    </TextBox.Styles>
+                </TextBox>
                 <Border x:Name="ClearButton"
                         Grid.Column="1"
                         IsVisible="False"
@@ -66,7 +89,16 @@
 
         <Popup x:Name="DropdownPopup"
                Placement="BottomEdgeAlignedLeft"
-               IsLightDismissEnabled="True">
+               IsLightDismissEnabled="False">
+            <!-- Phase 8E / Bug 3: light dismiss is switched OFF on purpose.
+                 The × clear button sits outside the popup, so a light-dismiss
+                 click tore the list down in the middle of the clear handler:
+                 the committed value was restored from the tearing-down list and
+                 the popup was left closed, so "clear, then pick" could not be
+                 completed. Outside clicks are still handled — losing focus
+                 closes the popup, through OnFilterLostFocus / OnListLostFocus —
+                 and Escape / selection / filter blur behave as before. This
+                 only stops the teardown from racing the clear. -->
             <Border Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
@@ -79,6 +111,9 @@
                          Background="Transparent"
                          BorderThickness="0"
                          KeyboardNavigation.TabNavigation="Cycle"
+                         SelectionChanged="OnListSelectionChanged"
+                         GotFocus="OnListGotFocus"
+                         LostFocus="OnListLostFocus"
                          KeyDown="OnListKeyDown"/>
             </Border>
         </Popup>

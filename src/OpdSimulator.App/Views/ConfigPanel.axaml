@@ -13,10 +13,18 @@
          single tab stop (its inner TextBox) and validates on blur (FR-UI-17). -->
     <Grid RowDefinitions="*,Auto,Auto">
 
+        <!-- Phase 8F (D-142): the padding moved OFF the ScrollViewer and onto a
+             Border wrapping the content. ScrollViewer.Padding is not part of
+             the scrollable extent — measured on this panel, Extent came out
+             32 px short of the content's own height (content − 2×padding), so
+             its bottom padding was dead space the user could never scroll to
+             and the last section stayed clipped under the pinned footer.
+             Border.Padding is part of the desired size, so it scrolls. A
+             StackPanel cannot host it — Avalonia's Panel has no Padding. -->
         <ScrollViewer Grid.Row="0"
-                      VerticalScrollBarVisibility="Auto"
-                      Padding="{DynamicResource ThicknessWindowPadding}">
+                      VerticalScrollBarVisibility="Auto">
 
+            <Border Padding="{DynamicResource ThicknessWindowPadding}">
             <StackPanel Spacing="{DynamicResource SpaceM}">
 
                 <!-- Phase 7C: top-level data-source selector. Fit the
@@ -177,6 +185,37 @@
                                              IsExpanded="{Binding IsStagesSectionExpanded, Mode=TwoWay}"
                                              HelpText="Named stages through which every patient flows. The stage list defines topology only (name + server count); the service rate μ comes from the loaded data or the Parameters section (5d.1, D-112).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
+                        <!-- Phase 8K (D-150, task 8K.4): the defaults that seed NEW
+                             rows. Deliberately not a run-wide override — a stage's own
+                             family always wins for that stage, and changing a default
+                             leaves existing rows untouched. Propagation is the explicit
+                             Apply button below, never a side effect of typing here. -->
+                        <TextBlock Text="Defaults for new stages"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextSecondary}"/>
+                        <TextBlock Classes="Caption"
+                                   TextWrapping="Wrap"
+                                   Text="Stages added from now on start with these families. Stages already listed keep whatever they have; use Apply to all stages to change them."/>
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="{DynamicResource SpaceM}">
+                            <controls:SearchableDropdown Label="Default arrival family"
+                                                         Placeholder="e.g., Exponential"
+                                                         Tooltip="Arrival family stamped onto newly added stages. The run itself uses the Model section's inter-arrival distribution — arrivals are generated engine-wide, so this is the label each stage carries."
+                                                         Items="{Binding StageFamilyOptions}"
+                                                         SelectedItem="{Binding DefaultStageArrivalFamily, Mode=TwoWay}"
+                                                         HelpAnchor="default-arrival-family"/>
+                            <controls:SearchableDropdown Label="Default service family"
+                                                         Placeholder="e.g., Exponential"
+                                                         Tooltip="Service family stamped onto newly added stages"
+                                                         Items="{Binding StageFamilyOptions}"
+                                                         SelectedItem="{Binding DefaultStageServiceFamily, Mode=TwoWay}"
+                                                         HelpAnchor="default-service-family"/>
+                            <Button Content="Apply to all stages"
+                                    VerticalAlignment="Bottom"
+                                    Command="{Binding ApplyDefaultsToAllStagesCommand}"
+                                    Classes="GhostButton"
+                                    ToolTip.Tip="Set every stage listed below to the two default families, replacing any per-stage choice"/>
+                        </StackPanel>
                         <controls:ValidatedField x:Name="StageCountField"
                                                  Label="Number of stages"
                                                  Watermark="1–5"
@@ -186,83 +225,14 @@
                                                  ErrorMessage="{Binding StageCount.ErrorMessage}"
                                                  HelpAnchor="stage-count"
                                                  views:ConfigPanelValidation.ValidationKey="stage-count"/>
+                        <!-- Phase 8K: the row is a reusable control (D-150). It was an
+                             inline DataTemplate until the spread inputs made it too long
+                             to keep beside the panel. -->
                         <ItemsControl x:Name="StagesList"
                                       ItemsSource="{Binding StageRows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="viewModels:StageRow">
-                                    <Border Classes="PanelCard"
-                                            Margin="0,0,0,8"
-                                            Padding="{DynamicResource ThicknessSpaceS}">
-                                        <StackPanel Spacing="{DynamicResource SpaceS}">
-                                            <TextBlock Text="Stage name"
-                                                       FontSize="{DynamicResource FontSizeCaption}"
-                                                       Foreground="{DynamicResource BrushTextSecondary}"/>
-                                            <TextBox Text="{Binding StageName, Mode=TwoWay}"
-                                                     Watermark="e.g., Reception"
-                                                     ToolTip.Tip="Display name for this stage"/>
-                                            <controls:ValidatedField Label="Servers"
-                                                                     Watermark="e.g., 2"
-                                                                     Tooltip="Number of parallel servers at this stage (≥ 1)"
-                                                                     Value="{Binding Servers.Value, Mode=TwoWay}"
-                                                                     HasError="{Binding Servers.HasError}"
-                                                                     ErrorMessage="{Binding Servers.ErrorMessage}"
-                                                                     HelpAnchor="servers"
-                                                                     views:ConfigPanelValidation.ValidationKey="servers"/>
-                                            <!-- Phase 7B: Kendall model shortcut
-                                                 (M = exponential, D = deterministic,
-                                                 G = general; final digit = servers).
-                                                 Advanced reveals independent family
-                                                 dropdowns and hides the shortcut. -->
-                                            <controls:SearchableDropdown Label="Model"
-                                                                         Placeholder="e.g., M/M/2"
-                                                                         Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
-                                                                         Items="{Binding ModelOptions}"
-                                                                         SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
-                                                                         IsVisible="{Binding !UseAdvancedSetup}"
-                                                                         HelpAnchor="stage-model"/>
-                                            <ToggleSwitch Content="Advanced"
-                                                          IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
-                                                          ToolTip.Tip="Set the arrival and service distribution families independently"/>
-                                            <controls:SearchableDropdown Label="Arrival distribution"
-                                                                         Placeholder="e.g., Exponential"
-                                                                         Tooltip="Distribution family for the time between arrivals at this stage"
-                                                                         Items="{Binding DistributionFamilies}"
-                                                                         SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
-                                                                         IsVisible="{Binding UseAdvancedSetup}"
-                                                                         HelpAnchor="stage-arrival-distribution"/>
-                                            <controls:SearchableDropdown Label="Service distribution"
-                                                                         Placeholder="e.g., Exponential"
-                                                                         Tooltip="Distribution family for this stage's service times"
-                                                                         Items="{Binding DistributionFamilies}"
-                                                                         SelectedItem="{Binding ServiceFamily, Mode=TwoWay}"
-                                                                         IsVisible="{Binding UseAdvancedSetup}"
-                                                                         HelpAnchor="stage-service-distribution"/>
-                                            <StackPanel Spacing="2"
-                                                        IsVisible="{Binding $parent[ItemsControl].DataContext.IsCommaListMuVisible}">
-                                                <TextBlock Text="Service rate μ"
-                                                           FontSize="{DynamicResource FontSizeCaption}"
-                                                           Foreground="{DynamicResource BrushTextSecondary}"/>
-                                                <TextBlock Text="{Binding ServiceRateLabel}"
-                                                           Classes="Caption"
-                                                           TextWrapping="Wrap"
-                                                           ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
-                                            </StackPanel>
-                                            <!-- Phase 7C: the editable per-stage μ. Always
-                                                 shown in manual mode; in fit mode it appears
-                                                 only when the data has no fitted rate for this
-                                                 stage (7C.4/7C.5). -->
-                                            <controls:ValidatedField Label="Service rate μ"
-                                                                     Watermark="e.g., 0.8"
-                                                                     Tooltip="Manual service rate for this stage, interpreted by the Parameter mode and Time unit; only needed when the data does not supply one"
-                                                                     Unit="/ min"
-                                                                     IsVisible="{Binding IsMuVisible}"
-                                                                     Value="{Binding MuValue, Mode=TwoWay}"
-                                                                     HasError="{Binding MuHasError}"
-                                                                     ErrorMessage="{Binding MuError}"
-                                                                     HelpAnchor="stage-mu"
-                                                                     views:ConfigPanelValidation.ValidationKey="stage-mu"/>
-                                        </StackPanel>
-                                    </Border>
+                                    <controls:StageRowControl/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -375,7 +345,18 @@
                     </StackPanel>
                 </controls:CollapsibleSection>
 
+                <!-- Phase 8F scroll buffer: the PinnedFooterBar sits directly
+                     under this ScrollViewer, so the last section has to be able
+                     to travel clear of it. This is a real element inside the
+                     scrollable content (and sits inside the content padding),
+                     so it extends the scrollable extent — a taller
+                     ScrollViewer.Padding would not have. Height is the SpaceL
+                     token, so it restyles with the theme. -->
+                <Border Height="{DynamicResource SpaceL}"
+                        Background="Transparent"/>
+
             </StackPanel>
+            </Border>
         </ScrollViewer>
 
         <!-- FR-UI-9 / D-128: names exactly which required input is missing

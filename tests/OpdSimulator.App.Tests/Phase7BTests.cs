@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 
@@ -22,12 +23,17 @@ namespace OpdSimulator.App.Tests;
 /// </summary>
 public class Phase7BTests
 {
+    /// <summary>
+    /// The fifteen notations the model dropdown must offer, in the owner's fixed
+    /// order (Phase 8K, Ruling 4). G/G/c is offered for every count 1-5 so a
+    /// multi-stage network can auto-fit a family per stage.
+    /// </summary>
     private static readonly string[] ExpectedModels =
     {
         "M/M/1", "M/M/2", "M/M/3", "M/M/4", "M/M/5",
         "M/D/1", "M/D/2", "M/D/3",
         "D/M/1", "D/M/2",
-        "G/G/1",
+        "G/G/1", "G/G/2", "G/G/3", "G/G/4", "G/G/5",
     };
 
     // ── Parser ──────────────────────────────────────────────────────────
@@ -37,8 +43,8 @@ public class Phase7BTests
     {
         var parsed = ModelNotationParser.Parse("M/M/1");
 
-        Assert.Equal("Exponential", parsed.ArrivalFamily);
-        Assert.Equal("Exponential", parsed.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ServiceFamily);
         Assert.Equal(1, parsed.ServerCount);
     }
 
@@ -47,8 +53,8 @@ public class Phase7BTests
     {
         var parsed = ModelNotationParser.Parse("M/M/3");
 
-        Assert.Equal("Exponential", parsed.ArrivalFamily);
-        Assert.Equal("Exponential", parsed.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ServiceFamily);
         Assert.Equal(3, parsed.ServerCount);
     }
 
@@ -57,8 +63,8 @@ public class Phase7BTests
     {
         var parsed = ModelNotationParser.Parse("M/D/2");
 
-        Assert.Equal("Exponential", parsed.ArrivalFamily);
-        Assert.Equal("Deterministic", parsed.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Deterministic, parsed.ServiceFamily);
         Assert.Equal(2, parsed.ServerCount);
     }
 
@@ -67,8 +73,8 @@ public class Phase7BTests
     {
         var parsed = ModelNotationParser.Parse("D/M/1");
 
-        Assert.Equal("Deterministic", parsed.ArrivalFamily);
-        Assert.Equal("Exponential", parsed.ServiceFamily);
+        Assert.Equal(DistributionFamily.Deterministic, parsed.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, parsed.ServiceFamily);
         Assert.Equal(1, parsed.ServerCount);
     }
 
@@ -77,8 +83,8 @@ public class Phase7BTests
     {
         var parsed = ModelNotationParser.Parse("G/G/1");
 
-        Assert.Equal("General", parsed.ArrivalFamily);
-        Assert.Equal("General", parsed.ServiceFamily);
+        Assert.Null(parsed.ArrivalFamily);
+        Assert.Null(parsed.ServiceFamily);
         Assert.Equal(1, parsed.ServerCount);
     }
 
@@ -105,9 +111,9 @@ public class Phase7BTests
     }
 
     [Fact]
-    public void Parser_StandardModels_HasExactly11Entries()
+    public void Parser_StandardModels_HasExactly15Entries()
     {
-        Assert.Equal(11, ModelNotationParser.StandardModels.Count);
+        Assert.Equal(15, ModelNotationParser.StandardModels.Count);
         Assert.Equal(ExpectedModels, ModelNotationParser.StandardModels);
     }
 
@@ -124,13 +130,33 @@ public class Phase7BTests
     // ── StageRow ────────────────────────────────────────────────────────
 
     [Fact]
+    public void ModelNotationParser_GGc_ReturnsNullFamilies_ForAutoFit()
+    {
+        // Why it matters: "G" is not a family the engine can sample — it is an
+        // instruction to pick one from the data. Before Phase 8K the parser
+        // invented a "General" pseudo-family that no DistributionFamily member
+        // matched, so every consumer had to special-case it and a typo in the
+        // pipeline would surface as a runtime miss rather than a compile error.
+        // Null says "not chosen yet" honestly, and keeps the notation usable for
+        // every server count 1-5, not just 1.
+        foreach (var servers in new[] { 1, 2, 3, 4, 5 })
+        {
+            var parsed = ModelNotationParser.Parse($"G/G/{servers}");
+
+            Assert.Null(parsed.ArrivalFamily);
+            Assert.Null(parsed.ServiceFamily);
+            Assert.Equal(servers, parsed.ServerCount);
+        }
+    }
+
+    [Fact]
     public void StageRow_DefaultModel_IsMM1()
     {
         var row = new StageRow();
 
         Assert.Equal("M/M/1", row.SelectedModel);
-        Assert.Equal("Exponential", row.ArrivalFamily);
-        Assert.Equal("Exponential", row.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ServiceFamily);
         Assert.Equal("1", row.Servers.Value);
     }
 
@@ -139,7 +165,7 @@ public class Phase7BTests
     {
         var row = new StageRow { SelectedModel = "D/M/2" };
 
-        Assert.Equal("Deterministic", row.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Deterministic, row.ArrivalFamily);
     }
 
     [Fact]
@@ -147,7 +173,7 @@ public class Phase7BTests
     {
         var row = new StageRow { SelectedModel = "M/D/2" };
 
-        Assert.Equal("Deterministic", row.ServiceFamily);
+        Assert.Equal(DistributionFamily.Deterministic, row.ServiceFamily);
     }
 
     [Fact]
@@ -164,8 +190,8 @@ public class Phase7BTests
         var row = new StageRow { UseAdvancedSetup = true, SelectedModel = "M/M/5" };
 
         Assert.Equal("M/M/5", row.SelectedModel);
-        Assert.Equal("Exponential", row.ArrivalFamily);
-        Assert.Equal("Exponential", row.ServiceFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ArrivalFamily);
+        Assert.Equal(DistributionFamily.Exponential, row.ServiceFamily);
         Assert.Equal("1", row.Servers.Value);
     }
 

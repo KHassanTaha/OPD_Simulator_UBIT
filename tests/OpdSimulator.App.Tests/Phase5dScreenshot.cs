@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using OpdSimulator.App.Controls;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 
@@ -51,8 +52,12 @@ public class Phase5dScreenshot
 
         try
         {
+            // Locate the config scroller by what it contains, not by the type of
+            // its content: Phase 8F (D-142) wrapped the content StackPanel in a
+            // Border so the padding is part of the scrollable extent, which
+            // broke a `s.Content is StackPanel` locator.
             var scroll = host.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Content is StackPanel);
+                .Single(s => s.GetVisualDescendants().OfType<CollapsibleSection>().Any());
             var root = FindRepoRoot(AppContext.BaseDirectory);
             var shotDir = Path.Combine(root, "logs", "screenshots");
             Directory.CreateDirectory(shotDir);

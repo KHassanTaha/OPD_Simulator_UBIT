@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 
 namespace OpdSimulator.App.ViewModels;
@@ -84,13 +85,13 @@ public partial class SimulationVerificationViewModel : ObservableObject
     /// Thread-safe: call from the UI thread.
     /// </summary>
     /// <param name="result">The completed engine result, or null when the run was refused.</param>
-    /// <param name="arrivalFamily">Configured inter-arrival distribution family.</param>
-    /// <param name="serviceFamilies">Configured service family per stage.</param>
+    /// <param name="arrivalFamily">Configured inter-arrival distribution family NAME. The inter-arrival series is still verified by refitting it, because no configured arrival spec is carried on the run parameters yet; see the remarks on <see cref="SimulationVerificationService.VerifyAll"/>.</param>
+    /// <param name="serviceSpecs">Configured service specification per stage, in stage order. Each stage is verified against its own spec, never a refit (Phase 8K, D-154).</param>
     /// <param name="alpha">Significance level the verdicts are decided at.</param>
     public void ApplyAsync(
         SimulationResult? result,
         string arrivalFamily,
-        System.Collections.Generic.IReadOnlyList<string> serviceFamilies,
+        IReadOnlyList<DistributionSpec> serviceSpecs,
         double alpha)
     {
         if (result is null)
@@ -102,7 +103,7 @@ public partial class SimulationVerificationViewModel : ObservableObject
         int generation = ++_generation;
         Task.Run(() =>
         {
-            var prepared = SimulationVerificationService.VerifyAll(result, arrivalFamily, serviceFamilies, alpha);
+            var prepared = SimulationVerificationService.VerifyAll(result, arrivalFamily, serviceSpecs, alpha);
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _generation)
@@ -124,7 +125,7 @@ public partial class SimulationVerificationViewModel : ObservableObject
     public void Apply(
         SimulationResult? result,
         string arrivalFamily,
-        System.Collections.Generic.IReadOnlyList<string> serviceFamilies,
+        IReadOnlyList<DistributionSpec> serviceSpecs,
         double alpha)
     {
         if (result is null)
@@ -134,7 +135,7 @@ public partial class SimulationVerificationViewModel : ObservableObject
         }
 
         ++_generation;
-        ApplyPrepared(SimulationVerificationService.VerifyAll(result, arrivalFamily, serviceFamilies, alpha));
+        ApplyPrepared(SimulationVerificationService.VerifyAll(result, arrivalFamily, serviceSpecs, alpha));
     }
 
     /// <summary>

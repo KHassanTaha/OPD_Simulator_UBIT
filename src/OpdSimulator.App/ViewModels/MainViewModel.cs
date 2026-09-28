@@ -289,13 +289,14 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var serviceFamilies = Enumerable
-            .Repeat(parameters.ServiceDistribution, outcome.Result.StageMetrics.Count)
-            .ToList();
+        // Per-stage specs, not one family repeated: 8K lets each stage differ, and the
+        // verifier must test each stage against the distribution that stage actually
+        // used. The old Repeat(shim) path made a Normal stage verify as if it were the
+        // first stage's family.
         SimulationVerification.ApplyAsync(
             outcome.Result,
             parameters.InterArrivalDistribution,
-            serviceFamilies,
+            parameters.ServiceFamilies,
             Config.SignificanceLevelForRun);
     }
 
@@ -317,8 +318,13 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var serviceFamilies = Enumerable
-            .Repeat(parameters.ServiceDistribution, outcome.Result.StageMetrics.Count)
+        // Analytical comparison is M/M/c only, and AnalyticalValidationService refuses a
+        // run outright if ANY stage is not Exponential. It therefore takes family NAMES,
+        // not specs: handing it the real per-stage names is what makes that refusal
+        // actually fire for a mixed-configuration run, which the old
+        // Repeat(ServiceDistribution) shim could never do.
+        var serviceFamilies = parameters.ServiceFamilies
+            .Select(spec => spec.Family.ToString())
             .ToList();
         var stageInputs = outcome.Result.StageMetrics
             .Select(m => (m.ArrivalRate, m.ServiceRate, m.ServerCount))

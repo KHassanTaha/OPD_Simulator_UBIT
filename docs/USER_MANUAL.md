@@ -262,15 +262,51 @@ two extra dropdowns — **Arrival distribution** and **Service distribution** �
 so you can set the two families independently. Turn it back off to return to
 the single Model shortcut.
 
-Two things to know (current behaviour, not a fault):
+**Each stage has its own service family.** The three stages really are
+sampled differently, so an M/M/1 + M/D/2 + M/G/3 network behaves as three
+different models rather than three copies of M/M/1.
 
-- Arrivals come from one stream, so the whole network uses the **first
-  stage's** arrival family; and today all stages **share one service
-  family** — changing a later stage's family is remembered in the form but
-  does not yet change the engine's service sampling.
-- **Deterministic** and **General** are offered for notation completeness.
-  The engine currently samples **exponentially** for every stage, so an
-  M/D/1 or G/G/1 run behaves like M/M/1.
+One field per family, for **spread** only. The mean service time stays the
+**μ** you typed — it is the only location parameter, and the family never
+moves it. Each family adds exactly one extra field describing how much the
+service times vary:
+
+| Family | Extra field | Meaning |
+|---|---|---|
+| Exponential (M) | — | memoryless; no extra field needed |
+| Deterministic (D) | — | every service takes exactly the same time |
+| Normal, Lognormal | **Standard deviation σ** | typical spread around the mean |
+| Gamma | **Shape k** | spread as a shape; higher k is more predictable |
+| Uniform | **Half-width w** | service times are spread evenly within mean ± w |
+
+Only the one field your family uses is shown — the others are hidden, so a
+Gamma row never asks you for a σ. **Uniform additionally refuses w ≥ mean**,
+because that would put the lower bound at zero or below and a negative
+service time is not a service time; the field explains this itself.
+
+**G/G/c and General** mean "work the family out for me". Pick a `G/G/c`
+shortcut, load a data file, and the simulator searches all six families for
+the one that best fits that stage's historical service times, then:
+
+- keeps your **G/G/c** on screen and shows a badge naming the family it chose;
+- **fills in μ only if you left it blank** — a μ you typed is never overwritten;
+- copies across the **spread** the winning family needs, so its field appears
+  ready to edit;
+- and if it cannot (no data loaded, no family fits, or the file does not cover
+  that stage) it **changes nothing** and tells you which of those it was.
+
+**Gamma and Uniform need a service rate before you can start.** Their spread
+is measured *from* the mean service time — Gamma's scale is the mean divided
+by its shape, and Uniform's bounds are the mean plus or minus its half-width —
+so with no μ there is no number to apply the spread to. If you leave μ blank
+on a Gamma or Uniform stage and nothing else supplies it (a data file that
+covers that stage, or the per-stage μ list), the stage shows a red message
+naming the three places you can enter it, and **Start stays disabled**. The
+other four families have no such requirement.
+
+One thing to know: arrivals come from one stream, so the whole network uses
+the **first stage's** arrival family. Service families, by contrast, are set
+per stage.
 
 ### Horizon
 
@@ -757,7 +793,7 @@ Shows a visual token for the next arriving patient:
 |---------|---------|------------|
 | `ρ ≥ 1 at stage X` | The system is unstable — arrivals outpace service | Lower the arrival rate, add servers, or use different data |
 | `Nothing to run yet: enter an arrival rate λ…or load a valid data file.` | No λ is available from Parameters or the loaded data | Enter a manual λ (§5 step 5) or upload data |
-| `p_exit = 1.0: every row…exits after Screening…` | Fitted `p_exit` is 1.0, so no patient reaches the Doctor stage | Load different data, or override `p_exit` below 1 in Parameters |
+| `p_exit = 1.0: every row…exits after Screening…` | Fitted `p_exit` is 1.0 **and your network has a later stage**, so no patient would ever reach it | Load different data, or override `p_exit` below 1 in Parameters. With a **single stage** there is nothing downstream to reach, so this message does not appear and the run proceeds normally. |
 | `File is missing required columns` | Excel file does not match expected format | Check column names; see §7.1 |
 | `Row N: missing value` | Dirty data | Clean the row in Excel and re-upload |
 | `Departure stage 'X' must be 'Screening' or 'Doctor'` | Invalid exit stage (ui) | Fix the `departure_stage` cell to `Screening` or `Doctor` |
@@ -788,6 +824,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-09-26 | Phase 8E: four fixes you may notice. (1) A **single-stage** network now runs even when the fitted `p_exit` is 1.0 — the "every row exits after Screening" message only appears when there is a later stage to reach (§9). (2) Dropdown fields show a **green** focus ring instead of the system blue, matching the rest of the app; the ring is still there when you tab through the form. (3) Opening a dropdown that already has a value now lists **all** the options instead of only the current one, **clicking an option selects it**, and **× clears the value and leaves the list open** so you can pick a replacement straight away. (4) The Clear-all confirmation dialog has more breathing room. §9 and the field descriptions updated |
 | 2026-09-18 | Phase 7D: the **Data** section and the old **Input Analysis** tab are merged into one **Input** tab (tabs are now **Simulation \| Input \| Token Generator \| Help**). The upload button, data preview table, validation banner, distribution-fit charts and the stage-mismatch warning all live on the Input tab. The **data preview** is no longer a Results widget (the "Customise results" list drops it). The Simulation tab's Data section becomes a **Data source status strip** showing which file is in use (or "Entering parameters manually") with a **Manage input →** link to the Input tab, plus a one-line reminder when the file's stages differ from the configured list. §4, §5 step 8, §6 and the "Data source" field description updated |
 | 2026-09-18 | Phase 7C: a **Data source** dropdown at the top chooses between **Fit from an uploaded data file** (default — Data section + comma-list μ override shown) and **Enter parameters manually** (Data section hidden; per-stage **Service rate μ** fields become editable; p_exit defaults to 0.4). **Start Calculation is now a completeness gate** — it stays disabled and a banner names exactly what is missing (D-128, supersedes the old "runnable in principle" behaviour). See §Config fields → "Data source" and "Service rate" |
 | 2026-09-18 | Phase 7B: each stage row now has a **Model** dropdown (Kendall shortcuts like M/M/2, M/D/1, G/G/1) that sets the row's server count and distribution families, plus an **Advanced** toggle that reveals independent **Arrival distribution** / **Service distribution** dropdowns (§Config fields → "Per-stage model setup"). Deterministic/General are notation-only placeholders — the engine still samples exponentially |
