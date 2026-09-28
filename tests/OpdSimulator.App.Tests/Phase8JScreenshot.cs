@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.App.Views;
 using Xunit;
 
@@ -51,7 +52,10 @@ public class Phase8JScreenshot
             config.ManualLambda.Value = "0.5";
             config.ManualMuPerStage.Value = "0.8, 0.6, 0.4";
             config.PExit.Value = "0.4";
-            config.ServiceDistribution = "Exponential";
+            // Phase 8L: "Exponential throughout" goes through the one source the
+            // UI writes to, then onto every row.
+            config.DefaultStageServiceFamily = DistributionFamily.Exponential;
+            config.ApplyDefaultsToAllStagesCommand.Execute(null);
             config.InterArrivalDistribution = "Exponential";
             config.Seed.Value = "42";
             config.StageRows[1].Servers.Value = "2";

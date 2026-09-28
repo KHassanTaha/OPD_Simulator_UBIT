@@ -203,10 +203,6 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private string? _interArrivalDistribution = "Exponential";
 
-    /// <summary>Selected service distribution (label; value maps in the VM).</summary>
-    [ObservableProperty]
-    private string? _serviceDistribution = "Exponential";
-
     /// <summary>Significance level α for every chi-square verdict (strictly between 0 and 1; default 0.05, D-113).</summary>
     public ConfigFieldViewModel SignificanceLevel { get; } = new() { Value = "0.05" };
 
@@ -295,6 +291,21 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     /// <summary>The per-stage rows, resized live when <see cref="StageCount"/> changes.</summary>
     public ObservableCollection<StageRow> StageRows { get; } = new();
+
+    /// <summary>
+    /// Every stage's own service family, as the Input tab consumes it (Phase 8L).
+    /// The one place the rows are projected into that shape, so the tab cannot
+    /// diverge from the coordinator's per-stage chi-square, which reads the same
+    /// families off the same rows.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a plain computed property with no change notification: callers
+    /// read it when something has already told them to re-derive (a binding change,
+    /// an α change, or <see cref="StageServiceFamiliesChanged"/>), so raising a
+    /// property-changed event here would only duplicate that trigger.
+    /// </remarks>
+    public IReadOnlyList<StageServiceFamily> StageServiceFamilies
+        => StageRows.Select(row => new StageServiceFamily(row.StageName, row.ServiceFamily)).ToList();
 
     /// <summary>
     /// Whether the p_exit override is shown. Per spec it appears only when 2+
@@ -916,6 +927,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     public event EventHandler? DataBindingChanged;
 
+    /// <summary>
+    /// Raised when any stage row's <see cref="StageRow.ServiceFamily"/> changes
+    /// (Phase 8L). The Input tab's per-stage chi-square is computed against each
+    /// stage's own family, so it has to be re-derived when that changes — and
+    /// nothing else in this class re-raises a panel-level notification for a row
+    /// edit. Before 8L the tab listened to a single global dropdown that no longer
+    /// affected anything, so it never refreshed on the edit that actually mattered.
+    /// </summary>
+    public event EventHandler? StageServiceFamiliesChanged;
+
     internal void RaiseDataBindingChanged() => DataBindingChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
@@ -1038,7 +1059,10 @@ public partial class ConfigPanelViewModel : ObservableObject
         // Parameters toggle is locked on, so it must be cleared from fit mode.
         SourceMode = DataSourceMode.FitFromData;
         InterArrivalDistribution = "Exponential";
-        ServiceDistribution = "Exponential";
+        // Phase 8L: the old reset wrote the deleted global `ServiceDistribution`
+        // string. The value that actually matters is the one new stages are seeded
+        // from, so that is what goes back to its default.
+        DefaultStageServiceFamily = DistributionFamily.Exponential;
         SignificanceLevel.Value = "0.05";
         IsRateWise = true;
         IsMeanWise = false;
@@ -1141,6 +1165,21 @@ public partial class ConfigPanelViewModel : ObservableObject
             // whether a file is loaded and can reach its samples, so the row asks and
             // the answer is applied here (Phase 8K, D-151).
             row.AutoFitRequested += (_, _) => HandleAutoFitRequested(row);
+            // Phase 8L: forward a row's family change to panel level. The Input tab
+            // tests each stage's samples against that stage's own family, so it must
+            // refresh when the user picks a different one. Subscribing to the row's
+            // own PropertyChanged is the least of the three options here: the row has
+            // no semantic "family changed" event (it has AutoFitRequested, which means
+            // the opposite direction), and nothing else in this class re-raises for a
+            // row edit. Row and panel end up mutually referenced, which the collector
+            // reclaims together — the same shape as the ValueChanged subscriptions above.
+            row.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(StageRow.ServiceFamily))
+                {
+                    StageServiceFamiliesChanged?.Invoke(this, EventArgs.Empty);
+                }
+            };
             StageRows.Add(row);
         }
 

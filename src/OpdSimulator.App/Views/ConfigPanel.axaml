@@ -87,12 +87,6 @@
                                                      Items="{Binding Distributions}"
                                                      SelectedItem="{Binding InterArrivalDistribution, Mode=TwoWay}"
                                                      HelpAnchor="inter-arrival-distribution"/>
-                        <controls:SearchableDropdown Label="Service distribution"
-                                                     Placeholder="Choose a distribution…"
-                                                     Tooltip="Theoretical distribution for per-patient service times"
-                                                     Items="{Binding Distributions}"
-                                                     SelectedItem="{Binding ServiceDistribution, Mode=TwoWay}"
-                                                     HelpAnchor="service-distribution"/>
                         <controls:ValidatedField x:Name="SignificanceLevelField"
                                                  Label="Significance level (α)"
                                                  Watermark="e.g., 0.05"
@@ -204,9 +198,9 @@
                                                          Items="{Binding StageFamilyOptions}"
                                                          SelectedItem="{Binding DefaultStageArrivalFamily, Mode=TwoWay}"
                                                          HelpAnchor="default-arrival-family"/>
-                            <controls:SearchableDropdown Label="Default service family"
+                            <controls:SearchableDropdown Label="Default service family for new stages"
                                                          Placeholder="e.g., Exponential"
-                                                         Tooltip="Service family stamped onto newly added stages"
+                                                         Tooltip="Service family stamped onto newly added stages, and the value Apply to all stages writes to every existing stage. Each stage's own family is what the run and the Input tab's per-stage chi-square use."
                                                          Items="{Binding StageFamilyOptions}"
                                                          SelectedItem="{Binding DefaultStageServiceFamily, Mode=TwoWay}"
                                                          HelpAnchor="default-service-family"/>

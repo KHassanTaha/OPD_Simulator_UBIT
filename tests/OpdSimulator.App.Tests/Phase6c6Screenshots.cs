@@ -53,7 +53,7 @@ public class Phase6c6Screenshots
             // Phase 7D: the fit analysis lives inside the Input tab, which only
             // renders it once a file is loaded.
             main.InputTab.SetLoadedFile(binding);
-            main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
+            main.InputAnalysis.Apply(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05);
             Assert.Equal(4, main.InputAnalysis.Charts.Count); // histogram + chi-square per fit
             Assert.Equal("Chi-square: Inter-arrival", main.InputAnalysis.Charts[1].Title);
             Assert.Equal("Chi-square: Screening service", main.InputAnalysis.Charts[3].Title);

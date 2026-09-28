@@ -98,7 +98,7 @@ public class Phase6c3ChiSquareTests
     private static FitReport FitSample()
     {
         var binding = DataAnalyzer.Analyze(SamplePath(SampleCsv));
-        var fit = InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05)
+        var fit = InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05)
             .Single(r => r.Label == "Inter-arrival");
         Assert.NotNull(fit.ChiSquare);
         return fit;
