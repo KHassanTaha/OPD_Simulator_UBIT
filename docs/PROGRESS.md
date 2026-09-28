@@ -68,7 +68,33 @@ D-159 — the μ a stage resolves against and the mean its spec is built from ar
 ### Assumptions Added/Changed
 None. No new `[UNVERIFIED]` assumption was taken this session.
 
-### Notes for Next Session
+### ### Notes for Next Session — TODO audit 2026-09-26
+Asked whether `TODO.md` was current. It was not. An audit of every `[ ]`/`[?]` row against the
+code found **four stale rows and one real defect**, plus structural corruption in `BLOCKERS.md`.
+None of this was caught by the 8K tests; it was found by reading the docs against the source.
+- **Fixed 2026-09-26 — stale rows, now `[x]`:**
+  - 7B finding a ("service families are currently global") — fixed by 8J + 8K (D-147/149/150/158).
+  - 7B finding b ("Deterministic and General are display placeholders", D-127) — fixed by 8K. The
+    old viva wording "offered as notation, treated as M" is now **superseded and must not be used**.
+  - "Phase order check" — spent; superseded with the real current order (8x done → Phase 8 next).
+- **New finding, left `[ ]` and correctly owner-gated:** the Model section's global **"Service
+  distribution" dropdown no longer affects the run at all**. 8K made per-stage families
+  authoritative, but the control at `ConfigPanel.axaml:90` is still rendered, enabled, and bound
+  to a property now read in exactly one place (`MainViewModel.SyncInputAnalysis`, for the Input
+  tab's charts). `SimulationCoordinator.cs:201` returns the *derived* `parameters.ServiceDistribution`,
+  not the dropdown. A visible enabled control that silently does nothing fails AGENTS §16.1.
+  This is a sharper version of 7B finding c, which had only complained about duplicate labels.
+  Three options are written into the row; (b) write-through to `DefaultStageServiceFamily` is least
+  surprising. **Not started** — out of Phase 8K scope and it is the owner's call.
+- **`BLOCKERS.md` was structurally corrupt** (pre-existing, not from this session's work): three
+  duplicate `## Resolved` headings, an empty `## Active`, and **B-006/B-007 filed under
+  `## Resolved` while their own Status lines said "Blocked"** — yet three `TODO.md` rows are `[?]`
+  BLOCKED on exactly those two, which AGENTS §9.2 forbids. Repaired: one `## Active` holding
+  B-007 and B-006, one `## Resolved`, and the duplicated B-005 stub entry deleted. B-007's target
+  date ("before the final demo, planned 2026-09-16") had also expired; rewritten to say the pass now
+  gates **final acceptance**.
+
+Notes for Next Session
 Three mutations were used as proof, each caught and reverted:
   (a) `specRate = fitted` → `specRate = null` fails `BuildSpec_Gamma_FittedStage_BlankMu_SpecIsBuiltFromTheFittedRate`;
   (b) removing the Gamma/Uniform refusal fails `BuildSpec_Gamma_NoMuAnywhere_RefusesCleanly`;
