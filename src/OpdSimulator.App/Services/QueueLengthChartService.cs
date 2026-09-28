@@ -12,7 +12,17 @@ public sealed record QueueChartPoint(double Time, int Length);
 /// <summary>One stage's queue-length line data.</summary>
 /// <param name="StageName">Stage name, used for the chart legend entry.</param>
 /// <param name="Points">Decimated points, first and last always kept (D-122).</param>
-public sealed record QueueStageSeries(string StageName, IReadOnlyList<QueueChartPoint> Points);
+/// <param name="StageName">The stage the line describes.</param>
+/// <param name="Points">Sampled (time, queue length) points in time order.</param>
+public sealed record QueueStageSeries(string StageName, IReadOnlyList<QueueChartPoint> Points)
+{
+    /// <summary>
+    /// Position of the stage in the run's stage list. The builder keys the
+    /// palette off this (not off the name) so the same stage is the same colour
+    /// in every chart even after a stage is renamed (Phase 8M, D-163).
+    /// </summary>
+    public int StageIndex { get; init; }
+}
 
 /// <summary>
 /// Pure, engine-independent description of the queue-length-over-time chart
@@ -80,13 +90,15 @@ public static class QueueLengthChartService
         }
 
         int pointCount = 0;
+        int stageIndex = 0;
         foreach (var stage in result.StageMetrics)
         {
             var points = Decimate(stage.QueueLengthSeries, MaxPoints)
                 .Select(sample => new QueueChartPoint(sample.Time, sample.Length))
                 .ToList();
-            series.Add(new QueueStageSeries(stage.StageName, points));
+            series.Add(new QueueStageSeries(stage.StageName, points) { StageIndex = stageIndex });
             pointCount += points.Count;
+            stageIndex++;
         }
 
         return new QueueLengthChartData(pointCount > 0, series);

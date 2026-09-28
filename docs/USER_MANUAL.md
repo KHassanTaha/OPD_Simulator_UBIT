@@ -501,18 +501,44 @@ Shows what the engine's own servers actually did during a run (one bar per
 server, grouped by stage). Until a run finishes it shows
 *"Run a simulation to see utilisation."*
 
+**What one bar means.** A bar is **one server's contribution to its stage's
+utilisation** — the minutes that server was busy, divided by *(number of
+servers in the stage × total operating time)*. It is deliberately not the
+server's own utilisation, because of this consequence:
+
+> **The bars of one stage always add up to that stage's utilisation** — the
+> same number printed in the metrics table.
+
+A three-doctor stage at 60% utilisation draws three bars of 20% each, and
+20 + 20 + 20 = 60, which is the figure beside it. If you want one server's own
+utilisation, hover the bar: the tooltip gives both the contribution and the
+server utilisation it came from.
+
 How to read it:
 
-- A **green** bar means that server worked roughly like its
-  stage-mates. The bar turns **amber** when a server deviates from its
-  stage's **average utilisation** by more than **0.15** — e.g. one doctor
-  doing far more (or far less) work than the other two.
-- Hover a bar for the tooltip: the server's utilisation plus the exact gap
-  ("Above average by 17.5%" / "Below average by 17.5%").
-- The thin line across each stage marks that stage's average utilisation.
-- This chart shows what the stage-level numbers hide: stage utilisation is
-  the *mean* of all its servers, so a very busy plus a very idle server can
-  average out to "looks fine".
+- A bar's **colour is its stage**, not its value: the same stage is the same
+  colour in this chart, in the queue-length chart, in the waiting-time
+  histogram, and in the stage legend above the charts. A run with more stages
+  than the palette has colours cycles through a hue-shifted variant rather
+  than repeating one.
+- A bar turns **amber** when that server deviates from its stage's **average
+  utilisation** by more than **0.15** (15 percentage points) — e.g. one doctor
+  doing far more, or far less, work than the other two. The amber marker sits
+  **on top of** the bar, and the text below the chart repeats the same fact,
+  so the colour is never the only cue.
+- The **dashed line** across each stage marks the **equal-share benchmark**:
+  what a server would contribute if the stage's work were split perfectly
+  evenly. Bars above the line carried more than their share; bars below it
+  carried less. The gap between a bar and its line *is* the imbalance.
+- The Y axis is **fixed**, running from 0 to `1 ÷ (fewest servers in the
+  run)`. It is deliberately not rescaled to fit each run, so two runs of the
+  same clinic are directly comparable and no bar is ever cut off at the top.
+  The trade-off is that a clinic with many servers at every stage gets a
+  flatter-looking chart, because the honest ceiling for a six-server stage is
+  one sixth.
+- The **per-server list** under the chart names every server, its contribution
+  and its utilisation, and marks the deviating ones — the same numbers the
+  chart draws, in text.
 
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input
@@ -525,15 +551,25 @@ shows *"Run a simulation to see queue length over time."*
 
 How to read it:
 
-- Each line jumps when a patient joins or leaves that stage's queue, so a
-  steady low line means the stage is coping and a climbing curve means queues
-  are building up (a sign the ρ ≥ 1 instability check should have caught).
+- Each line is a **step**, not a slope. The engine only changes a queue
+  length at an event — a patient arrives or leaves — so the line stays flat
+  and jumps. A smooth diagonal between two points would draw a queue length
+  the clinic never actually had, which is why the chart does not use one.
+- A steady low step means the stage is coping; steps that climb and stay
+  high mean queues are building up (a sign the ρ ≥ 1 instability check should
+  have caught).
+- **Colour is the stage**, and the busiest stage is drawn **behind** the
+  quieter ones, so where the lines overlap the smaller curve stays visible on
+  top rather than being hidden by the larger one.
+- The Y axis stops one patient above the tallest queue the run recorded, so
+  the peak does not touch the frame.
 - Long runs are **downsampled** to at most 2000 points per stage so the
   chart stays readable. The caption notes *"downsampled from N samples"*
   when that happens. Downsampling keeps the first and last points and the
   tallest queue peaks, so you can still see how bad the worst moment was.
-- The legend and the tooltips name the stage for each line. The X axis is
-  minutes since the sim's start time.
+- The legend above the charts lists the stages with their colours, so a line
+  can be traced back to its stage without hovering. The X axis is minutes
+  since the sim's start time.
 
 ### 6.6 Waiting-Time Distribution
 Shows how long patients actually **waited in each stage's queue** during a
@@ -667,6 +703,41 @@ A small Δ% (a few percent) means the engine agrees with queueing theory on
 that configuration — that is the validation. This widget is a **Results**
 widget: it needs a finished run, so it lives under "Customise results", never
 on the Input tab.
+
+### 6.10 View Calculations
+
+The **Overview** row of the results panel has a **View calculations** action.
+It opens a dialog listing, in plain text, every derivation behind the run you
+just finished. It is there for two readers: a clinic manager who wants to know
+where a number came from, and you, if you are asked to justify the simulation
+in the viva.
+
+The button is only available **after a run finishes** — before that there are
+no calculations to show, and the button is dimmed with a tooltip saying so.
+
+What it lists, in order:
+
+| Section | What it shows |
+|---------|---------------|
+| Run configuration | Parameter source ("fitted from …" / "entered manually"), random seed, run mode, start day, days generated, and the arrival window or daily cap if you set one |
+| Arrival process | The arrival rate λ, the mean inter-arrival 1/λ, and the rule the engine used |
+| Service processes | Per stage: the number of servers c, the rate μ per server, the capacity c·μ, the mean service time 1/μ, and the distribution family |
+| Utilisation | The rule (`utilisation = busy time ÷ operating time`), the operating time T, each stage's observed utilisation, and **each server's busy time in minutes** |
+| Flow balance | Patients served, throughput, mean queue length, mean wait, and p_exit with its expected split |
+| Per-stage result | Per stage: patients served, mean wait, mean queue length |
+
+Two things worth knowing:
+
+- **Busy time is marked `(derived)`.** The engine records each server's
+  *utilisation*, not its minutes; the minutes shown are that utilisation
+  multiplied by the operating time. The label tells you it was reconstructed
+  for display, so you never mistake it for a raw engine output.
+- **Every figure is dynamic.** A two-stage run prints two service rows, and a
+  stage with six servers prints six utilisation rows. Nothing in the list is
+  written for a particular clinic.
+
+Use **Copy** to put the whole thing on your clipboard — useful for pasting into
+a report or a viva answer sheet.
 
 ---
 

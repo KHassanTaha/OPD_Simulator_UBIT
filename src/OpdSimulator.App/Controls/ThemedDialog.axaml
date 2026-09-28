@@ -40,15 +40,37 @@
                                LineHeight="20"/>
                 </ScrollViewer>
 
-                <Grid ColumnDefinitions="*,Auto,Auto"
+                <!-- Phase 8M (D-164, FR-UI-29): optional rich body for dialogs that
+                     need more than a paragraph — the calculations dialog supplies
+                     sections, monospace figures and its own copy button through
+                     Body. Hidden for the message-only callers (ShowMessageAsync),
+                     so the confirm/error dialogs on this control are unchanged. -->
+                <!-- Visibility is set in code-behind by the Body setter; the
+                     ancestor-type binding cannot resolve inside the control's
+                     own XAML, and a self-contained dialog is simpler with an
+                     explicit IsVisible than with a name lookup. -->
+                <ContentControl x:Name="DialogBodyHost" IsVisible="False"/>
+
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto"
                       ColumnSpacing="{DynamicResource SpaceS}">
+                    <!-- Copy-to-clipboard, shown only when CopyText is set. The
+                         calculations dialog is long enough that a reader will
+                         want to paste it into their own notes (D-164). -->
                     <Button Grid.Column="1"
+                            x:Name="CopyButton"
+                            Classes="GhostButton"
+                            Click="OnCopyClick"
+                            Content="Copy"
+                            MinWidth="88"
+                            HorizontalAlignment="Right"
+                            IsVisible="False"/>
+                    <Button Grid.Column="2"
                             x:Name="SecondaryButton"
                             Classes="GhostButton"
                             Click="OnSecondaryClick"
                             MinWidth="88"
                             HorizontalAlignment="Right"/>
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="3"
                             x:Name="PrimaryButton"
                             Classes="PrimaryButton"
                             Click="OnPrimaryClick"

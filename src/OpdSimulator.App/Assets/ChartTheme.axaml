@@ -18,9 +18,12 @@
 
     <!-- Series colours: the four-stage queue-over-time chart (6c.5) needs at
          least four mutually distinct series colours (green, teal, violet,
-         vermillion). -->
-    <SolidColorBrush x:Key="BrushChartSeries1" Color="{StaticResource ColorBrandGreen}"/>
-    <SolidColorBrush x:Key="BrushChartSeries2" Color="{StaticResource ColorAccentInfo}"/>
+         vermillion). Derived from ColorChartSeries1..4 so the brushes and the
+         StageColourPalette service read ONE definition per colour (Phase 8M,
+         D-163); repointed from ColorBrandGreen/ColorAccentInfo, which hold the
+         identical values. -->
+    <SolidColorBrush x:Key="BrushChartSeries1" Color="{StaticResource ColorChartSeries1}"/>
+    <SolidColorBrush x:Key="BrushChartSeries2" Color="{StaticResource ColorChartSeries2}"/>
     <SolidColorBrush x:Key="BrushChartSeries3" Color="{StaticResource ColorChartSeries3}"/>
     <SolidColorBrush x:Key="BrushChartSeries4" Color="{StaticResource ColorChartSeries4}"/>
 

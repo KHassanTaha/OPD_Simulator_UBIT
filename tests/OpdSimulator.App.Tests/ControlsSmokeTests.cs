@@ -213,8 +213,12 @@ public class ControlsSmokeTests
 
         var again = new ThemedDialog { Title = "Confirm", Message = "Continue?" };
         again.Show();
-        // Declared order in the template: Secondary, then Primary.
-        var buttons = again.GetVisualDescendants().OfType<Button>().Take(2).ToList();
+        // Visible buttons in declared order: Secondary, then Primary. The filter
+        // is on IsVisible rather than on a fixed index because Phase 8M (D-164)
+        // added a third, conditionally shown Copy button to this control; a
+        // message-only dialog must still see exactly the two it always had.
+        var buttons = again.GetVisualDescendants().OfType<Button>()
+            .Where(b => b.IsVisible).ToList();
         Assert.Equal(2, buttons.Count);
 
         buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -222,7 +226,8 @@ public class ControlsSmokeTests
 
         var third = new ThemedDialog { Title = "Confirm", Message = "Continue?" };
         third.Show();
-        var primary = third.GetVisualDescendants().OfType<Button>().Skip(1).First();
+        var primary = third.GetVisualDescendants().OfType<Button>()
+            .Where(b => b.IsVisible).Skip(1).First();
         primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal(ThemedDialogResult.Primary, third.Result);
 

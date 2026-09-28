@@ -373,6 +373,20 @@ The rate-wise / mean-wise parameter-mode selector SHALL live at the top of the P
 **FR-UI-24 (Time-Span Presets)**
 The Horizon section SHALL offer a time-span preset selector (15 minutes, 1 hour, 1 day, 1 week, 1 month, or custom days). Sub-day presets SHALL bound the minutes horizon; day-or-longer presets SHALL resolve to a generator-day count (1 week → 6 open days, 1 month → 26 open days); custom days SHALL be a validated numeric entry.
 
+**FR-UI-27 (Stage-Identical Chart Colour)**
+Every chart that plots a stage SHALL take that stage's colour from one shared palette keyed by **stage index**, so a stage is the same colour in the queue-length chart, the waiting-time histogram, the per-server utilisation chart and the stage legend. The palette SHALL be defined by theme resources and SHALL wrap (by hue shift) for runs with more stages than the palette defines, rather than repeating a colour. A stage index SHALL be the only input to the lookup, so a chart that reorders its series for legibility SHALL NOT change the colours.
+
+**FR-UI-28 (Per-Server Utilisation Readability)**
+The per-server utilisation widget SHALL satisfy all of:
+- A **step** line chart wherever a quantity is piecewise constant (queue length over time), so no value is drawn that the engine did not record.
+- A **fixed** vertical scale derived from the configuration (server counts), not from the values in the current run, so two runs are comparable and no bar is clipped.
+- A **textual account of the imbalance**, in addition to the colour: a per-server detail list and a fixed caption naming the benchmark and the deviation rule.
+- A **dynamic stage legend**, generated from the stages actually present in the result — never a hardcoded stage list.
+- A **label on every category** of a categorical axis, verified against the rendered chart rather than the data behind it.
+
+**FR-UI-29 (View Calculations)**
+The Results panel SHALL offer a **View calculations** action that opens a themed dialog listing, as plain text, the derivations behind the run: run configuration and parameter provenance, the arrival process, the per-stage service processes (c, μ, capacity, mean service, family), utilisation and each server's **derived** busy time, flow balance (served, throughput, mean wait, mean queue, p_exit), and the per-stage result. The text SHALL be produced by a pure, unit-tested function of the result and its parameters, SHALL contain no per-network hardcoding, and SHALL be copyable to the clipboard. The dialog SHALL reuse the existing themed dialog control rather than introduce a second one.
+
 ### 5.2 Data Handling
 
 **FR-DATA-1:** Accept `.xlsx` (primary) or `.csv` (fallback).
@@ -419,6 +433,7 @@ Note: This FR affects HISTORICAL validation only. SIMULATED per-server utilisati
 - Server-assignment policy: random among idle servers (see DECISIONS.md).
 - Operating time (denominator) = time from the day's first arrival to its last service end — identical for historical and simulated values.
 - The imbalance flag applies to both simulated and historical per-server utilisation.
+- **Rendering (Phase 8M, D-160).** The per-server utilisation widget draws each server's **contribution** to its stage's utilisation — `busy ÷ (server count × operating time)` — so the bars of a stage sum to exactly the stage utilisation reported alongside them. The widget SHALL draw one column series per stage (not per server), mark a deviating server with an amber marker on the same bar, draw a dashed **equal-share** reference line at `stage utilisation ÷ server count`, and fix the vertical axis at `1 ÷ (smallest server count in the run)`. Amber SHALL mean `|server utilisation − stage utilisation| > 0.15` and SHALL be accompanied by a textual cue, never colour alone.
 **FR-STAT-8 (Visual Output for Fits):** For each fitted distribution (inter-arrival, per-stage service), the simulator SHALL render a histogram of the observed data with the fitted PDF (or PMF) overlaid on the same axes. Bin count for the histogram matches the chi-square bin count (FR-STAT-3) to keep the visual and the test consistent.
 **FR-VAL-1 (Per-Stage Stability Check):** Before running, compute ρᵢ = λᵢ / (cᵢ · μᵢ) for every stage i, where λᵢ is derived from the external arrival rate λ₀ and the routing probabilities. If any ρᵢ ≥ 1, refuse to run and report ALL unstable stages with their λᵢ, cᵢ, μᵢ, and ρᵢ. Display the computed values as per FR-STAT-6.
 **FR-VAL-2:** Hard assertion: 0 ≤ utilisation ≤ 1 per server. Failure crashes the run with diagnostic.
