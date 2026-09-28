@@ -2,6 +2,7 @@ namespace OpdSimulator.App.Services;
 
 using System.Globalization;
 using OpdSimulator.App.Models;
+using OpdSimulator.Core.Distributions;
 
 /// <summary>
 /// Common shape of the raw chart data behind an Input Analysis card, so a
@@ -63,6 +64,29 @@ public sealed record ChiSquareChartData(
     IReadOnlyList<double> Expected) : IInputChartData;
 
 /// <summary>
+/// The service family configured for ONE stage (Phase 8L).
+/// </summary>
+/// <param name="StageName">
+/// The stage this applies to, matched case-insensitively against the stage
+/// names the loaded data file reports. A name is required rather than an index
+/// because the configured rows and the data file's stages are two independent
+/// lists: they can differ in length and in order, and a stage-mismatch is a
+/// supported state (5d.3, D-114). Indexing across them would silently test one
+/// stage's data against another stage's family.
+/// </param>
+/// <param name="Family">
+/// The family that stage's own service times are tested against. This is the
+/// per-stage value Phase 8K introduced; before it, a single global family was
+/// applied to every stage (8L).
+/// </param>
+/// <remarks>
+/// Matching convention mirrors <c>SimulationCoordinator.FamilyNameFor</c> — look
+/// up by name, fall back to the first configured family — so the Input tab and
+/// the Results Panel cannot disagree about which family a stage uses.
+/// </remarks>
+public sealed record StageServiceFamily(string StageName, DistributionFamily Family);
+
+/// <summary>
 /// Derives the Input Analysis charts from a loaded data binding (Phase 6C,
 /// 6c.2). Pure numbers with no UI types, so the binning and PDF scaling are
 /// testable without an Avalonia session. Mirrors
@@ -80,10 +104,22 @@ public static class InputAnalysisService
     /// one inter-arrival report plus one per detected stage. An unusable or
     /// arrival-less binding yields no reports (the tab keeps its empty state).
     /// </summary>
+    /// <param name="binding">The loaded data file's analysed binding.</param>
+    /// <param name="interArrivalFamily">
+    /// Family for the inter-arrival series. Still one global value, and that is
+    /// correct: arrivals come from a single engine-wide stream, so there is only
+    /// ever one inter-arrival family (§19.6 and the user manual both say so).
+    /// </param>
+    /// <param name="serviceFamilies">
+    /// Each stage's own configured family. Matched to the data file's stages by
+    /// name; a data stage with no configured match falls back to the first entry,
+    /// matching <c>SimulationCoordinator</c>.
+    /// </param>
+    /// <param name="alpha">Significance level for every goodness-of-fit verdict.</param>
     public static IReadOnlyList<FitReport> FitAll(
         DataBindingResult? binding,
         string interArrivalFamily,
-        string serviceFamily,
+        IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha)
     {
         if (binding is null || !binding.IsUsable || binding.FittedArrivalRate is null)
@@ -99,11 +135,40 @@ public static class InputAnalysisService
         {
             if (binding.ServiceMinutesByStage.TryGetValue(stage, out var times))
             {
-                reports.Add(FitsService.Fit($"{stage} service", times, serviceFamily, alpha));
+                // The family is a value object now, not a label: FitsService still takes
+                // a name because that is the Data layer's fitter-factory boundary, and
+                // the enum member names ARE those names (case-insensitive match in
+                // DistributionFitterFactory.TryCreate). A stage configured Deterministic
+                // has no fitter, so it yields a null report and the card shows its empty
+                // state — which is the honest answer: a constant has no distribution to
+                // test.
+                reports.Add(FitsService.Fit(
+                    $"{stage} service",
+                    times,
+                    FamilyFor(serviceFamilies, stage).ToString(),
+                    alpha));
             }
         }
 
         return reports;
+    }
+
+    /// <summary>
+    /// The configured family for one data stage: an exact case-insensitive name
+    /// match, else the first configured family. Mirrors
+    /// <c>SimulationCoordinator.FamilyNameFor</c> so both panels agree.
+    /// </summary>
+    private static DistributionFamily FamilyFor(IReadOnlyList<StageServiceFamily> configured, string stageName)
+    {
+        foreach (var entry in configured)
+        {
+            if (string.Equals(entry.StageName, stageName, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry.Family;
+            }
+        }
+
+        return configured.Count > 0 ? configured[0].Family : DistributionFamily.Exponential;
     }
 
     /// <summary>

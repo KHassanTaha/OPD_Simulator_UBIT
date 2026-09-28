@@ -187,7 +187,7 @@ public sealed class Phase8JTests
     [Fact]
     public void ConfigPanel_SingleDistribution_MapsToIdenticalSpecsPerStage()
     {
-        var config = ManualRun(muPerStage: [0.8, 0.6, 0.4], serviceFamily: "Exponential");
+        var config = ManualRun(muPerStage: [0.8, 0.6, 0.4], serviceFamily: DistributionFamily.Exponential);
 
         var parameters = config.TryBuildRunParameters()!;
 
@@ -285,13 +285,22 @@ public sealed class Phase8JTests
     /// A config panel in the same state as the launch-gate walkthrough: parameters
     /// supplied by hand, one μ per stage, no data file.
     /// </summary>
-    private static ConfigPanelViewModel ManualRun(double[] muPerStage, string serviceFamily = "Exponential")
+    private static ConfigPanelViewModel ManualRun(
+        double[] muPerStage,
+        DistributionFamily serviceFamily = DistributionFamily.Exponential)
     {
         var config = new ConfigPanelViewModel
         {
             ParametersIsOptionalEnabled = true,
-            ServiceDistribution = serviceFamily,
         };
+
+        // Phase 8L: "Exponential throughout" is per-stage state now, so it is
+        // written to the rows. The old global string is gone.
+        foreach (var row in config.StageRows)
+        {
+            row.ServiceFamily = serviceFamily;
+        }
+
         config.ManualLambda.Value = "0.5";
         config.PExit.Value = "0.4";
         config.ManualMuPerStage.Value = string.Join(", ", muPerStage);

@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.ViewModels;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.App.Views;
 
 namespace OpdSimulator.App.Tests;
@@ -161,7 +162,9 @@ public class Phase4ConfigTests
         vm.DailyCap.Value = "40";
         vm.TraceLevel = "Debug";
         vm.InterArrivalDistribution = "Poisson";
-        vm.ServiceDistribution = "Normal";
+        // Phase 8L: the global service string is gone; the value a reset must
+        // restore is the one new stages are seeded from.
+        vm.DefaultStageServiceFamily = DistributionFamily.Normal;
         vm.IsMeanWise = true;
         vm.StartDay = "Saturday";
 
@@ -169,7 +172,7 @@ public class Phase4ConfigTests
 
         Assert.Equal("No file loaded", vm.DataStatus);
         Assert.Equal("Exponential", vm.InterArrivalDistribution);
-        Assert.Equal("Exponential", vm.ServiceDistribution);
+        Assert.Equal(DistributionFamily.Exponential, vm.DefaultStageServiceFamily);
         Assert.True(vm.IsRateWise);
         Assert.False(vm.IsMeanWise);
         Assert.Equal("", vm.ManualLambda.Value);

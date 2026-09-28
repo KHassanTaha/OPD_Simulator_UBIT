@@ -30,7 +30,7 @@ public class Phase6c2HistogramTests
     {
         var binding = DataAnalyzer.Analyze(SamplePath(SampleCsv));
 
-        var reports = InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05);
+        var reports = InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05);
 
         Assert.Equal(2, reports.Count); // inter-arrival + the sample's single Screening stage
         Assert.Equal("Inter-arrival", reports[0].Label);
@@ -42,21 +42,21 @@ public class Phase6c2HistogramTests
     [Fact]
     public void FitAll_EmptyForUnusableBinding()
     {
-        Assert.Empty(InputAnalysisService.FitAll(null, "Exponential", "Exponential", 0.05));
+        Assert.Empty(InputAnalysisService.FitAll(null, "Exponential", TestStageFamilies.AllExponential(null), 0.05));
         Assert.Empty(InputAnalysisService.FitAll(
             new DataBindingResult(
                 null, null, Array.Empty<OpdSimulator.Data.Validation.ValidationIssue>(), null,
                 null, Array.Empty<string>(), Array.Empty<double>(), null, 0, 0, 0,
                 Array.Empty<double>(),
                 new Dictionary<string, IReadOnlyList<double>>()),
-            "Exponential", "Exponential", 0.05));
+            "Exponential", TestStageFamilies.AllExponential(null), 0.05));
     }
 
     [Fact]
     public void BuildHistogram_ReusesTheChiSquareBins_NeverRecomputes()
     {
         var binding = DataAnalyzer.Analyze(SamplePath(SampleCsv));
-        var fit = InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05)[0];
+        var fit = InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05)[0];
         var chi = fit.ChiSquare!;
 
         var chart = InputAnalysisService.BuildHistogram(fit);
@@ -74,7 +74,7 @@ public class Phase6c2HistogramTests
     public void BuildHistogram_FittedPdfIsDensityTimesBinWidthTimesN()
     {
         var binding = DataAnalyzer.Analyze(SamplePath(SampleCsv));
-        var fit = InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05)[0];
+        var fit = InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05)[0];
         var chi = fit.ChiSquare!;
         var edges = chi.BinEdges;
         double n = fit.Samples.Count;
@@ -94,7 +94,7 @@ public class Phase6c2HistogramTests
     public void BuildHistogram_BinLabelsAndCaptionDescribeFitAndVerdict()
     {
         var binding = DataAnalyzer.Analyze(SamplePath(SampleCsv));
-        var fit = InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05)[0];
+        var fit = InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05)[0];
 
         var chart = InputAnalysisService.BuildHistogram(fit);
 
@@ -140,7 +140,7 @@ public class Phase6c2HistogramTests
     {
         var vm = new InputAnalysisViewModel();
 
-        vm.Apply(null, "Exponential", "Exponential", 0.05);
+        vm.Apply(null, "Exponential", TestStageFamilies.AllExponential(null), 0.05);
 
         Assert.True(vm.IsEmpty);
         Assert.Empty(vm.Charts);
@@ -184,7 +184,7 @@ public class Phase6c2HistogramTests
     private static IReadOnlyList<IInputChartData> Prepare(DataBindingResult binding)
     {
         var charts = new System.Collections.Generic.List<IInputChartData>();
-        foreach (var fit in InputAnalysisService.FitAll(binding, "Exponential", "Exponential", 0.05))
+        foreach (var fit in InputAnalysisService.FitAll(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05))
         {
             charts.Add(InputAnalysisService.BuildHistogram(fit));
             if (fit.ChiSquare is not null)

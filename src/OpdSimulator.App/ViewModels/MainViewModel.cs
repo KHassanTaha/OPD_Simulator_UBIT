@@ -72,6 +72,9 @@ public partial class MainViewModel : ObservableObject
         Config.PropertyChanged += OnConfigPropertyChanged;
         Config.DataBindingChanged += OnConfigDataBindingChanged;
         Config.SignificanceLevel.PropertyChanged += OnSignificanceLevelChanged;
+        // Phase 8L: a row's family is an input to the Input tab's per-stage
+        // chi-square, so a family edit refreshes it.
+        Config.StageServiceFamiliesChanged += OnStageServiceFamiliesChanged;
 
         // One picker, one load path: both the config panel's Upload and the
         // Input tab's Upload converge on PickAndLoadDataFileAsync (RULING 3).
@@ -91,10 +94,17 @@ public partial class MainViewModel : ObservableObject
     /// choices change (user switches a dropdown), and keeps the data strip and
     /// the Input tab's mismatch warning in sync with the config.
     /// </summary>
+    /// <remarks>
+    /// Only the inter-arrival dropdown is watched here. The service side used to be
+    /// watched too, but that property no longer reached the run (Phase 8K made the
+    /// per-stage families authoritative), so watching it refreshed the tab in
+    /// response to an edit that changed nothing. Per-stage service families are
+    /// watched through <see cref="ConfigPanelViewModel.StageServiceFamiliesChanged"/>
+    /// instead, which fires for the edit that actually moves a verdict (8L).
+    /// </remarks>
     private void OnConfigPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ConfigPanelViewModel.InterArrivalDistribution)
-            or nameof(ConfigPanelViewModel.ServiceDistribution))
+        if (e.PropertyName is nameof(ConfigPanelViewModel.InterArrivalDistribution))
         {
             SyncInputAnalysis();
         }
@@ -143,15 +153,27 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Re-derives the Input Analysis charts from the current binding and the
-    /// same distribution choices the run will use. Runs the fit on the
-    /// background thread and builds the chart controls on the UI thread (G5).
+    /// distribution choices the run will use. Runs the fit on the background
+    /// thread and builds the chart controls on the UI thread (G5).
     /// </summary>
+    /// <remarks>
+    /// The service families are read per stage from the configured rows, not from
+    /// one global value (Phase 8L). That is the same source the coordinator and the
+    /// Results Panel use, so the Input tab and the Results Panel cannot disagree
+    /// about which family a stage was tested against. Inter-arrival stays a single
+    /// global value because arrivals really are one engine-wide stream.
+    /// </remarks>
     private void SyncInputAnalysis()
         => InputAnalysis.ApplyAsync(
             Config.Binding,
             Config.InterArrivalDistribution ?? "Exponential",
-            Config.ServiceDistribution ?? "Exponential",
+            Config.StageServiceFamilies,
             Config.SignificanceLevelForRun);
+
+    /// <summary>
+    /// A stage's family changed, so the tab's per-stage verdicts are stale.
+    /// </summary>
+    private void OnStageServiceFamiliesChanged(object? sender, EventArgs e) => SyncInputAnalysis();
 
     /// <summary>Mirrors the config panel's stage-mismatch state into the Input tab's warning.</summary>
     private void SyncStageMismatchToInputTab()

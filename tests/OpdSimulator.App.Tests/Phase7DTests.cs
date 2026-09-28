@@ -224,7 +224,7 @@ public class Phase7DTests
         var vm = new InputTabViewModel();
         var binding = DataAnalyzer.Analyze(SamplePath("sample_patients.csv"));
         vm.SetLoadedFile(binding);
-        vm.Analysis.Apply(binding, "Exponential", "Exponential", 0.05);
+        vm.Analysis.Apply(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05);
         Assert.False(vm.Analysis.IsEmpty);
 
         vm.Clear();
@@ -362,7 +362,7 @@ public class Phase7DTests
         try
         {
             vm.SetLoadedFile(binding);
-            vm.Analysis.Apply(binding, "Exponential", "Exponential", 0.05);
+            vm.Analysis.Apply(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05);
             window.UpdateLayout();
 
             var preview = window.GetVisualDescendants().OfType<DataPreviewTable>().Single();

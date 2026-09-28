@@ -61,13 +61,13 @@ public partial class InputAnalysisViewModel : ObservableObject
     public void ApplyAsync(
         DataBindingResult? binding,
         string interArrivalFamily,
-        string serviceFamily,
+        IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha)
     {
         int generation = ++_generation;
         Task.Run(() =>
         {
-            var prepared = Prepare(binding, interArrivalFamily, serviceFamily, alpha);
+            var prepared = Prepare(binding, interArrivalFamily, serviceFamilies, alpha);
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _generation)
@@ -90,11 +90,11 @@ public partial class InputAnalysisViewModel : ObservableObject
     public void Apply(
         DataBindingResult? binding,
         string interArrivalFamily,
-        string serviceFamily,
+        IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha)
     {
         ++_generation;
-        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamily, alpha));
+        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamilies, alpha));
     }
 
     /// <summary>
@@ -130,11 +130,11 @@ public partial class InputAnalysisViewModel : ObservableObject
     private static IReadOnlyList<IInputChartData> Prepare(
         DataBindingResult? binding,
         string interArrivalFamily,
-        string serviceFamily,
+        IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha)
     {
         var charts = new List<IInputChartData>();
-        foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamily, alpha))
+        foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamilies, alpha))
         {
             charts.Add(InputAnalysisService.BuildHistogram(fit));
             if (fit.ChiSquare is not null)

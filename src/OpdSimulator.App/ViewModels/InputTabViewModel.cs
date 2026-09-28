@@ -5,6 +5,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
+using OpdSimulator.App.Services;
 
 /// <summary>
 /// Phase 7D: drives the merged Input tab — the single home for the uploaded
@@ -134,6 +135,9 @@ public partial class InputTabViewModel : ObservableObject
         StatusText = "No file loaded.";
         HasStageMismatch = false;
         StageMismatchMessage = "";
-        _analysis.Apply(null, "Exponential", "Exponential", 0.05);
+        // Phase 8L: an empty per-stage list, not a placeholder "Exponential". There
+        // is no binding here, so FitAll returns before it reads any family — an
+        // empty list states that honestly instead of implying a family was chosen.
+        _analysis.Apply(null, "Exponential", Array.Empty<StageServiceFamily>(), 0.05);
     }
 }

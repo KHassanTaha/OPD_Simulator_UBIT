@@ -131,11 +131,15 @@ series, in fit order:
   caption repeats the verdict exactly as the results table shows it
   (χ² = …, df = …, p = … — Reject / Fail to reject).
 
-The cards update automatically whenever you load (or clear) a data file and
-whenever you change the Inter-arrival or Service distribution or the
-significance level in the **Model** section. If a fit could not be computed
-for a series, its card shows *"Fit unavailable for this series."* instead of
-a chart.
+The cards update automatically whenever you load (or clear) a data file,
+whenever you change the **Inter-arrival distribution** or the **significance
+level** in the **Model** section, and whenever you change any stage's service
+family on its row (the **Service distribution** dropdown under the row's
+**Advanced** toggle, or the **Default service family for new stages** dropdown
+together with **Apply to all stages**). Each stage's card is tested against
+*that stage's own* family, so the three service cards can disagree — that is
+expected, not a bug. If a fit could not be computed for a series, its card
+shows *"Fit unavailable for this series."* instead of a chart.
 
 ---
 

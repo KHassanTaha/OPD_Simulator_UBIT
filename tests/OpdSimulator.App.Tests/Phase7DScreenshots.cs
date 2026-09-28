@@ -73,7 +73,7 @@ public class Phase7DScreenshots
             var binding = DataAnalyzer.Analyze(SamplePath("sample_patients.csv"));
             Assert.True(binding.IsUsable, "the sample CSV must analyse cleanly for the screenshot");
             main.InputTab.SetLoadedFile(binding);
-            main.InputAnalysis.Apply(binding, "Exponential", "Exponential", 0.05);
+            main.InputAnalysis.Apply(binding, "Exponential", TestStageFamilies.AllExponential(binding), 0.05);
             Assert.Equal(4, main.InputAnalysis.Charts.Count); // histogram + chi-square per fit
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
