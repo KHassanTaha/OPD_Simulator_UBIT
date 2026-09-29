@@ -510,9 +510,15 @@ server's own utilisation, because of this consequence:
 > same number printed in the metrics table.
 
 A three-doctor stage at 60% utilisation draws three bars of 20% each, and
-20 + 20 + 20 = 60, which is the figure beside it. If you want one server's own
-utilisation, hover the bar: the tooltip gives both the contribution and the
-server utilisation it came from.
+20 + 20 + 20 = 60, which is the figure beside it.
+
+**A bar's height is not the server's utilisation.** It is that server's
+*share* of its stage. Wherever a per-server utilisation appears in this app —
+the bar tooltip, the per-server list below the chart, the calculations dialog,
+and the CLI report — **the server's own utilisation is shown next to it**, so
+you never have to guess which of the two you are reading. Divide the
+contribution by the stage's server count and you get the server's own
+utilisation; on a one-server stage the two are equal.
 
 How to read it:
 
@@ -536,9 +542,11 @@ How to read it:
   The trade-off is that a clinic with many servers at every stage gets a
   flatter-looking chart, because the honest ceiling for a six-server stage is
   one sixth.
-- The **per-server list** under the chart names every server, its contribution
-  and its utilisation, and marks the deviating ones — the same numbers the
-  chart draws, in text.
+- The **per-server list** under the chart names every server with **both**
+  numbers — its own utilisation and its contribution to the stage — and marks
+  the deviating ones, e.g. `Screening S2: 80.30 % busy, contributes 40.15 % of
+  stage  (stage util 60.23 %)`. Those are the same numbers the chart draws, in
+  text.
 
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input
@@ -722,16 +730,31 @@ What it lists, in order:
 | Run configuration | Parameter source ("fitted from …" / "entered manually"), random seed, run mode, start day, days generated, and the arrival window or daily cap if you set one |
 | Arrival process | The arrival rate λ, the mean inter-arrival 1/λ, and the rule the engine used |
 | Service processes | Per stage: the number of servers c, the rate μ per server, the capacity c·μ, the mean service time 1/μ, and the distribution family |
-| Utilisation | The rule (`utilisation = busy time ÷ operating time`), the operating time T, each stage's observed utilisation, and **each server's busy time in minutes** |
+| Utilisation | The rule (`utilisation = busy time ÷ operating time`), the operating time T, **the two per-server quantities defined below**, each stage's observed utilisation, and **each server's busy time in minutes** plus its **contribution** to the stage |
 | Flow balance | Patients served, throughput, mean queue length, mean wait, and p_exit with its expected split |
 | Per-stage result | Per stage: patients served, mean wait, mean queue length |
 
-Two things worth knowing:
+Three things worth knowing:
 
 - **Busy time is marked `(derived)`.** The engine records each server's
   *utilisation*, not its minutes; the minutes shown are that utilisation
   multiplied by the operating time. The label tells you it was reconstructed
   for display, so you never mistake it for a raw engine output.
+- **Each server has TWO numbers, and they are not the same number.** This is
+  the one thing worth reading twice:
+
+  | Quantity | What it is | Do these sum? |
+  |----------|------------|----------------|
+  | **server utilisation** | how busy *that server* was: `busy ÷ T` | **No.** Three doctors at 60% each would mean 180% of one doctor's capacity |
+  | **contribution** | that server's *share of its stage's* capacity: `busy ÷ (c × T)` | **Yes.** They add up to the stage utilisation |
+
+  So for a two-server screening stage, a server that is 75.5% busy
+  **contributes 37.75%**. The dialog prints both, the contribution line shows
+  the division it used (e.g. `6.37 ÷ (2 × 158.19)`), and a per-stage
+  "contributions sum" line shows the addition and that it matches the stage
+  figure. Nothing about this is a new engine measurement — it is arithmetic on
+  the two figures the engine already produced. On a **one-server** stage the
+  two quantities are equal, because the stage *is* the server.
 - **Every figure is dynamic.** A two-stage run prints two service rows, and a
   stage with six servers prints six utilisation rows. Nothing in the list is
   written for a particular clinic.

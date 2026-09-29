@@ -580,4 +580,452 @@ public class Phase8NDialogSizingTests
         return dir?.FullName
             ?? throw new InvalidOperationException("could not locate OpdSimulator.sln from " + start);
     }
+
+    // ---- Phase 8N follow-up 2: bottom buffer + contribution display (D-170, D-171)
+
+    /// <summary>
+    /// The owner's second report: scrolled to the bottom, the last lines of the
+    /// per-stage result sat under the footer's top edge.
+    /// <para>
+    /// The cause is the one D-142 measured for the config panel, and the reason
+    /// this test asserts a TRAILING ELEMENT rather than padding: a
+    /// <c>ScrollViewer</c>'s own padding is not part of the scrollable extent, so
+    /// increasing it cannot give the user one more pixel of travel. D-142 recorded
+    /// the arithmetic — extent came out <c>content − 2 × padding</c>. The buffer
+    /// has to be a real element inside the content so the extent accounts for it.
+    /// </para>
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_HasBottomBuffer()
+    {
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+        };
+        dialog.Show();
+        try
+        {
+            dialog.UpdateLayout();
+
+            // The buffer is the LAST child of the body StackPanel, inside the
+            // ScrollViewer, and taller than nothing.
+            var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            Assert.True(
+                scroller.GetVisualDescendants().OfType<Border>()
+                    .Any(b => ReferenceEquals(b.Name, "BottomBuffer")),
+                "the dialog must end its scrollable content with a trailing buffer element");
+
+            var buffer = scroller.GetVisualDescendants().OfType<Border>()
+                .Single(b => ReferenceEquals(b.Name, "BottomBuffer"));
+            Assert.True(
+                buffer.Bounds.Height > 0,
+                $"the bottom buffer must have real height, was {buffer.Bounds.Height}");
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    /// <summary>
+    /// The user-visible consequence of the buffer: at maximum scroll the last body
+    /// line is clear of the footer's top edge. Asserted as a position comparison
+    /// between the two, not as a buffer height — the height is the means, this is
+    /// the end (D-169's rule: assert what the user would see).
+    /// </summary>
+    /// <summary>
+    /// The user-visible consequence of the buffer: at maximum scroll the last body
+    /// line clears the footer's top edge by the amount the owner asked for
+    /// (~32 px), not merely by a non-negative amount.
+    /// <para>
+    /// <b>This test was wrong the first time and the mistake is the interesting
+    /// part.</b> It originally asserted only <c>lastBottom &lt;= footerTop</c> —
+    /// "the line is not <i>under</i> the footer" — and it <b>passed with the buffer
+    /// deleted</b>, because the content <c>Border</c>'s own <c>ThicknessSpaceL</c>
+    /// padding already gives 24 px of bottom clearance. A non-overlap assertion
+    /// measures nothing the padding did not already provide, so it would have
+    /// shipped a green gate over the reported defect. The D-169 lesson again, in a
+    /// new form: assert the thing that was asked for, and if the test still passes
+    /// after reverting the fix, it is testing the wrong property. Hence the
+    /// threshold below — 32 px, which 48 px of clearance satisfies and 24 px of
+    /// padding alone does not.
+    /// </para>
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_LastLineNotClippedAtScrollBottom()
+    {
+        // The owner's figure. Kept as a named constant rather than a literal in the
+        // assertion so the test and the requirement quote the same number.
+        const double RequiredClearance = 32;
+
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+        };
+        dialog.Show();
+        try
+        {
+            dialog.UpdateLayout();
+            var shrunk = ResizeAndSettle(dialog, 300);
+
+            var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            Assert.True(
+                scroller.Extent.Height > scroller.Viewport.Height,
+                "precondition: the body must overflow for this to mean anything");
+
+            // Scroll to the true maximum.
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            for (int pass = 0; pass < 3; pass++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                dialog.UpdateLayout();
+            }
+
+            // The footer's top edge, in window coordinates.
+            var footer = dialog.GetVisualDescendants().OfType<Border>()
+                .Single(b => b.BorderThickness.Top > 0);
+            var footerTop = footer.TranslatePoint(new Point(0, 0), dialog)!.Value.Y;
+            Assert.True(footerTop > 0 && footerTop < shrunk, $"footer top {footerTop} implausible for a {shrunk}px window");
+
+            // The last real body line. The trailing buffer is a Border with no
+            // content, so it contributes no TextBlock and needs no filtering —
+            // the deepest TextBlock in the scroller IS the last body line.
+            var lastLine = scroller.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Where(t => t.Text is not null && t.Text.Length > 0)
+                .OrderByDescending(t => t.TranslatePoint(new Point(0, 0), dialog)!.Value.Y)
+                .First();
+
+            var lastBottom = lastLine.TranslatePoint(new Point(0, 0), dialog)!.Value.Y
+                + lastLine.Bounds.Height;
+            var clearance = footerTop - lastBottom;
+            Assert.True(
+                clearance >= RequiredClearance,
+                $"the last line ends at y={lastBottom} and the footer starts at "
+                + $"y={footerTop}: only {clearance:F1}px of clearance at maximum "
+                + $"scroll, the owner asked for {RequiredClearance:F0}px. A negative "
+                + "value means the line is under the footer's top edge; a small "
+                + "positive one means the buffer is gone and only the content "
+                + "padding is left.");
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    /// <summary>
+    /// D-171: wherever a per-server utilisation is shown, the contribution is shown
+    /// beside it. This test walks the surfaces found in the step-2.1 sweep and
+    /// fails if any of them drops a value — the point being that a later edit which
+    /// removes one of them has to fail here rather than quietly shipping a chart
+    /// that lies about a server.
+    /// </summary>
+    [Fact]
+    public void PerServerDisplay_ShowsBothBusyAndContribution()
+    {
+        var result = TwoServerResult();
+
+        // Surface: the per-server detail rows under the utilisation chart.
+        var results = new ResultsPanelViewModel();
+        results.CompleteRun(
+            new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, null));
+        Assert.NotEmpty(results.PerServerDetailLines);
+        Assert.All(results.PerServerDetailLines, line =>
+        {
+            Assert.Contains("busy", line, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("contributes", line, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // Surface: the calculations dialog's utilisation block.
+        var text = CalculationsTextBuilder.Build(result, Parameters(), "entered manually");
+        Assert.Contains("contribution", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("utilisation", text, StringComparison.OrdinalIgnoreCase);
+
+        // Surface: the chart data the tooltip is formatted from. Both values must
+        // survive onto the bar, or a tooltip cannot show both.
+        var chart = UtilisationChartService.Build(result);
+        Assert.NotEmpty(chart.Bars);
+        Assert.All(chart.Bars, bar =>
+        {
+            Assert.InRange(bar.Utilisation, 0, 1);
+            Assert.InRange(bar.Contribution, 0, 1);
+        });
+        Assert.NotEmpty(chart.PerServerDetail);
+        Assert.All(chart.PerServerDetail, detail =>
+        {
+            Assert.InRange(detail.ServerUtilisation, 0, 1);
+            Assert.InRange(detail.Contribution, 0, 1);
+        });
+    }
+
+    /// <summary>
+    /// The arithmetic, pinned: a contribution is the server's own utilisation
+    /// divided by the stage's server count. Not a new metric — a display
+    /// transformation of two numbers the engine already produced.
+    /// </summary>
+    [Fact]
+    public void PerServerDisplay_ContributionEqualsBusyDivServerCount()
+    {
+        var chart = UtilisationChartService.Build(TwoServerResult());
+        Assert.NotEmpty(chart.Bars);
+
+        foreach (var bar in chart.Bars)
+        {
+            Assert.True(bar.ServerCount > 0, $"{bar.StageName} S{bar.ServerNumber} has no server count");
+            Assert.Equal(
+                bar.Utilisation / bar.ServerCount,
+                bar.Contribution,
+                precision: 12);
+        }
+
+        // And the same identity on the detail rows the chart caption is built from.
+        foreach (var detail in chart.PerServerDetail)
+        {
+            Assert.Equal(
+                detail.ServerUtilisation / detail.ServerCount,
+                detail.Contribution,
+                precision: 12);
+        }
+    }
+
+    /// <summary>
+    /// The property the two numbers exist to support: contributions sum to the
+    /// stage utilisation, per-server utilisations do not. This is the claim the
+    /// chart caption and the calculations block both make in words, so it is
+    /// asserted rather than asserted-about.
+    /// </summary>
+    [Fact]
+    public void PerServerDisplay_StageTotalEqualsSumOfContributions()
+    {
+        var chart = UtilisationChartService.Build(TwoServerResult());
+
+        foreach (var group in chart.Bars.GroupBy(b => b.StageName))
+        {
+            var sumOfContributions = group.Sum(b => b.Contribution);
+            var sumOfUtilisations = group.Sum(b => b.Utilisation);
+            var stageUtilisation = chart.PerServerDetail
+                .First(d => d.StageName == group.Key)
+                .StageUtilisation;
+
+            Assert.Equal(stageUtilisation, sumOfContributions, precision: 10);
+
+            // "Per-server utilisations do not sum" is only meaningful where there
+            // is more than one server. On a c = 1 stage the contribution IS the
+            // server's own utilisation, so the two sums are equal by definition
+            // and demanding a strict inequality there would fail for the right
+            // reason — the test would be wrong, not the code.
+            var serverCount = group.First().ServerCount;
+            if (serverCount > 1)
+            {
+                Assert.True(
+                    sumOfUtilisations > sumOfContributions + 1e-9,
+                    $"for {group.Key} (c = {serverCount}) the per-server utilisations "
+                    + $"({sumOfUtilisations:F4}) should NOT sum to the stage value the "
+                    + $"way the contributions ({sumOfContributions:F4}) do");
+            }
+            else
+            {
+                Assert.Equal(sumOfContributions, sumOfUtilisations, precision: 12);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A structural invariant: no single server can contribute more than its stage
+    /// as a whole, since the contributions partition it. True by construction, and
+    /// worth locking because the chart's y-axis ceiling depends on the same
+    /// relationship.
+    /// </summary>
+    [Fact]
+    public void PerServerDisplay_ContributionLessThanOrEqualStageUtil()
+    {
+        var chart = UtilisationChartService.Build(TwoServerResult());
+
+        Assert.All(chart.PerServerDetail, detail =>
+            Assert.True(
+                detail.Contribution <= detail.StageUtilisation + 1e-9,
+                $"{detail.StageName} S{detail.ServerNumber} contributes "
+                + $"{detail.Contribution:F4} but its stage utilisation is only "
+                + $"{detail.StageUtilisation:F4}"));
+    }
+
+    /// <summary>
+    /// Evidence: the calculations dialog scrolled to the bottom, showing the last
+    /// line clear of the footer by the buffer's width (D-170).
+    /// </summary>
+    [AvaloniaFact]
+    public void Render_CalculationsDialog_ScrolledToBottom_SavePhase8nCalculationsBufferPng()
+    {
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+            CopyText = "RUN CONFIGURATION\n  Rule: x",
+        };
+        dialog.Show();
+        try
+        {
+            ResizeAndSettle(dialog, 300);
+
+            var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            for (int pass = 0; pass < 3; pass++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                dialog.UpdateLayout();
+            }
+
+            // The whole point of the frame: the last line must clear the footer's top
+            // edge by the owner's 32 px, or the frame is evidence of the padding
+            // rather than of the buffer. A plain "not under the footer" check would
+            // pass with the buffer deleted — measured 26 px of clearance without it —
+            // so this asserts the threshold, matching
+            // CalculationsDialog_LastLineNotClippedAtScrollBottom.
+            var footer = dialog.GetVisualDescendants().OfType<Border>()
+                .Single(b => b.BorderThickness.Top > 0);
+            var footerTop = footer.TranslatePoint(new Point(0, 0), dialog)!.Value.Y;
+            var lowest = scroller.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Where(t => t.Text is not null && t.Text.Length > 0)
+                .Max(t => t.TranslatePoint(new Point(0, 0), dialog)!.Value.Y + t.Bounds.Height);
+            Assert.True(
+                footerTop - lowest >= 32,
+                $"frame would show the last line with only {footerTop - lowest:F1}px "
+                + $"of clearance (content ends at {lowest}, footer at {footerTop}); "
+                + "the owner asked for 32px, which only the trailing buffer delivers");
+
+            var frame = HeadlessScreenshot.Capture(dialog);
+            var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
+            Directory.CreateDirectory(shotDir);
+            var shotPath = Path.Combine(shotDir, "phase-8n-calculations-buffer.png");
+            frame.Save(shotPath);
+            Assert.True(
+                new FileInfo(shotPath).Length >= 512,
+                "buffer frame missing or suspiciously small");
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    /// <summary>
+    /// Evidence: a real three-stage run (Reception 1 / Screening 2 / Doctor 3) whose
+    /// per-server detail rows show both values side by side (D-171). A real run, not
+    /// a fixture, because the owner's scenario is a real run and because a real run
+    /// has unequal per-server utilisations — the case where showing only the
+    /// contribution is most misleading.
+    /// </summary>
+    [AvaloniaFact]
+    public void Render_PerServerDetail_WithBothValues_SavePhase8nContributionPng()
+    {
+        // A real three-stage run, so the numbers are the engine's own and the
+        // per-server split is genuinely unequal — the case where showing only the
+        // contribution is most misleading.
+        var sample = Path.Combine(
+            FindRepoRoot(AppContext.BaseDirectory), "samples", "sample_3stage_clinic.csv");
+        var binding = DataAnalyzer.Analyze(sample);
+        Assert.True(binding.IsUsable, "the multi-stage sample must analyse cleanly");
+
+        var config = new ConfigPanelViewModel();
+        config.ParametersIsOptionalEnabled = true;
+        config.ManualLambda.Value = "0.1";
+        config.ManualMuPerStage.Value = "0.8, 0.5, 0.4";
+        for (int i = 0; i < 3 && i < config.StageRows.Count; i++)
+        {
+            config.StageRows[i].Servers.Value = new[] { "1", "2", "3" }[i];
+        }
+
+        var parameters = config.TryBuildRunParameters()!;
+        var outcome = SimulationCoordinator.Run(parameters, binding);
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Result);
+
+        // The calculations dialog is the surface captured, not the collapsed
+        // "Per-server detail" section: that section ships with IsExpanded="False"
+        // and its item containers are not realised while it is closed, so a window
+        // capture of it would show no rows and prove nothing. The dialog renders
+        // every row unconditionally, and it is the receipt a viva examiner reads.
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(outcome.Result, parameters, "fitted from sample_3stage_clinic.csv"),
+        };
+        dialog.Show();
+        try
+        {
+            var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+
+            // Scroll the per-server block into view: the first contribution row.
+            var firstContribution = scroller.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .First(t => t.Text is not null
+                    && t.Text.Contains("— contribution", StringComparison.Ordinal));
+            var target = firstContribution.TranslatePoint(new Point(0, 0), dialog)!.Value.Y;
+            scroller.Offset = new Vector(0, Math.Max(0, target - 40));
+            for (int pass = 0; pass < 3; pass++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                dialog.UpdateLayout();
+            }
+
+            // Both values must be on screen, or the frame is not evidence: the
+            // server's own utilisation and its contribution, for real servers.
+            var visible = scroller.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Select(t => t.Text ?? string.Empty)
+                .ToList();
+            // The label and the value are SEPARATE TextBlocks (the dialog lays each
+            // field out as a label column and a value column), so "both values" is
+            // checked across the pair, not inside one string.
+            Assert.True(
+                visible.Any(t => t.Contains("— busy (derived)", StringComparison.Ordinal)
+                    && t.Contains("S1", StringComparison.Ordinal)),
+                "no per-server busy row visible; rendered texts: " + string.Join(" | ", visible));
+            Assert.True(
+                visible.Any(t => t.Contains("— contribution", StringComparison.Ordinal)
+                    && t.Contains("S1", StringComparison.Ordinal)),
+                "no per-server contribution row visible; rendered texts: " + string.Join(" | ", visible));
+            Assert.True(
+                visible.Any(t => t.Contains("of stage capacity", StringComparison.Ordinal)),
+                "the contribution rows carry no share-of-capacity wording");
+            Assert.True(
+                visible.Any(t => t.Contains("min", StringComparison.Ordinal)
+                    && t.Contains("utilisation", StringComparison.OrdinalIgnoreCase)),
+                "the busy rows carry no minutes-plus-utilisation pair");
+
+            var frame = HeadlessScreenshot.Capture(dialog);
+            var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
+            Directory.CreateDirectory(shotDir);
+            var shotPath = Path.Combine(shotDir, "phase-8n-contribution.png");
+            frame.Save(shotPath);
+            Assert.True(
+                new FileInfo(shotPath).Length >= 512,
+                "contribution frame missing or suspiciously small");
+        }
+        finally
+        {
+            dialog.Close();
+        }
+    }
+
+    /// <summary>
+    /// A stage mix with a known, deliberately unequal split, so the two displayed
+    /// numbers differ and a test cannot pass by confusing one for the other.
+    /// <list type="bullet">
+    /// <item>Reception, c = 1, server utilisation 0.82 → contribution 0.82. Here the
+    /// two numbers are equal by definition; a formula that divided by c + 1 would
+    /// be caught.</item>
+    /// <item>Screening, c = 2, servers 0.755 and 0.756 → contributions 0.3775 and
+    /// 0.378, summing to the 0.7555 stage utilisation, which is the mean of the
+    /// two per-server utilisations (D-121).</item>
+    /// </list>
+    /// </summary>
+    private static SimulationResult TwoServerResult() =>
+        Phase8MFixtures.ResultWithStages(
+            ("Reception", 1, 0.82, new[] { 0.82 }),
+            ("Screening", 2, 0.7555, new[] { 0.755, 0.756 }));
 }

@@ -420,3 +420,45 @@ operating time. Marking the difference means a reader can never mistake a
 reconstructed figure for a raw engine output. The dialog also names the
 parameter source ("fitted from …" or "entered manually"), so it is always
 clear which of the two configuration paths produced the numbers.
+
+### Q: Why does a server's contribution differ from its utilisation? Which one is the "real" number?
+
+Both are real; they answer different questions, and the project prints both
+wherever either appears, because a bar's height is the one that is easy to
+misread.
+
+- **server utilisation** = `busy time ÷ operating time` — how much of the
+  available time *that server* spent with a patient.
+- **contribution** = `busy time ÷ (c × operating time)` — that server's
+  **share of its stage's capacity**.
+
+The reason the contribution is what the chart draws is arithmetic, not taste:
+with every server of a stage drawn as a share, the bars of a stage add up
+exactly to the stage utilisation. A three-doctor stage at 60% utilisation
+becomes three bars of 20% each, and 20 + 20 + 20 = 60 — the same figure in the
+metrics table. Drawn as utilisations instead, the bars would sum to 180% and
+the chart would need a different axis ceiling for every different stage size.
+
+The consequence is that a bar's height **is not** a server's utilisation, which
+is the trap. A 37.75% bar can be a server that is 75.5% busy on a two-server
+stage, or a server that is 37.75% busy on a one-server stage. So the
+contribution is always shown with the server's own utilisation beside it — in
+the bar tooltip, the per-server list, the calculations dialog and the CLI — and
+the calculations block prints the division it used, so the reader can check it
+rather than trust it.
+
+Two details to have ready if asked:
+
+1. **Do the per-server utilisations sum?** No. Three doctors at 60% each sum
+   to 180%, which means nothing. The **contributions** sum, and their sum is
+   the stage utilisation. On a **one-server** stage the two quantities are
+   equal by definition, which is the case most likely to expose a formula that
+   divides by the wrong thing — so the test fixture deliberately includes a
+   one-server stage.
+2. **Is the contribution a new engine metric?** No. It is computed at display
+   time from two figures the engine already produces (`PerServerUtilisation`
+   and `ServerCount`). Nothing was added to `StageMetrics` or the engine's
+   result, because a metric stored for a display to show is in the wrong place:
+   the engine would then be carrying a figure that has no meaning outside this
+   chart, and a change to the definition would silently alter the engine's
+   output rather than its presentation.

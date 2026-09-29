@@ -77,7 +77,21 @@ public sealed record UtilisationServerDetail(
     int ServerNumber,
     double Contribution,
     double StageUtilisation,
-    bool IsOutlier);
+    bool IsOutlier)
+{
+    /// <summary>
+    /// The server's own utilisation — busy time ÷ operating time (Phase 8N
+    /// follow-up 2, D-171). The row has to carry both numbers: the contribution
+    /// is what the bar is drawn at, and without the server utilisation beside it a
+    /// reader cannot tell a 37.75 % bar on a 2-server stage from a genuinely idle
+    /// server. The two are related by <c>Contribution = ServerUtilisation / c</c>,
+    /// and only the contributions sum to the stage utilisation.
+    /// </summary>
+    public double ServerUtilisation { get; init; }
+
+    /// <summary>How many servers the owning stage has (the divisor for the contribution).</summary>
+    public int ServerCount { get; init; } = 1;
+}
 
 /// <summary>
 /// Pure, engine-independent description of the per-server utilisation chart
@@ -181,12 +195,18 @@ public static class UtilisationChartService
             {
                 foreach (var bar in bars.Skip(firstBarIndex))
                 {
+                    // D-171: carry the server's own utilisation alongside the
+                    // contribution, so every surface that shows one can show both.
                     details.Add(new UtilisationServerDetail(
                         bar.StageName,
                         bar.ServerNumber,
                         bar.Contribution,
                         average,
-                        bar.IsOutlier));
+                        bar.IsOutlier)
+                    {
+                        ServerUtilisation = bar.Utilisation,
+                        ServerCount = bar.ServerCount,
+                    });
                 }
 
                 // The benchmark is the equal share: what each server would

@@ -211,14 +211,14 @@
                     <ContentControl IsVisible="{Binding HasUtilisationChart}"
                                     Content="{Binding UtilisationChart}"/>
 
-                    <!-- Per-server detail (Phase 8M, D-160). Collapsed by
-                         default: the chart answers "who is out of line?", and this
-                         table is the receipt for anyone who wants the raw
-                         per-server numbers. -->
+                    <!-- Per-server detail (Phase 8M, D-160; both values D-171).
+                         Collapsed by default: the chart answers "who is out of
+                         line?", and this table is the receipt for anyone who wants
+                         the raw per-server numbers. -->
                     <controls:CollapsibleSection Title="Per-server detail"
                                                 IsVisible="{Binding HasUtilisationChart}"
                                                 IsExpanded="False"
-                                                HelpText="Every server's contribution and the stage utilisation it belongs to.">
+                                                HelpText="Every server's own utilisation and its contribution to the stage total.">
                         <ItemsControl ItemsSource="{Binding PerServerDetailLines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="x:String">

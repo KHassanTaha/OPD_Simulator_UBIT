@@ -211,6 +211,19 @@ public static class CalculationsTextBuilder
         Section(text, "UTILISATION");
         Field(text, "Rule", "utilisation = busy time ÷ operating time, measured over the whole run");
         Field(text, "Operating time T", $"{Num(result.OperatingTimeMinutes, 2)} min");
+
+        // D-171: two different numbers get called "utilisation", and the
+        // distinction is the whole point of the per-server block.
+        //   server utilisation = busy_i / T              how busy THAT server was
+        //   contribution       = busy_i / (c × T)        that server's share of the
+        //                                                  stage's capacity
+        // Per-server utilisations do NOT sum; contributions DO, and their sum is
+        // the stage utilisation. The arithmetic is printed rather than asserted
+        // because a reader in the viva who cannot reproduce the sum will not
+        // believe it.
+        Field(text, "Two values per server", "server utilisation = busy ÷ T; "
+            + "contribution = busy ÷ (c × T). Utilisations do not sum; contributions "
+            + "sum to the stage utilisation.");
         foreach (var stage in stageMetrics)
         {
             Field(text, $"{stage.StageName} — observed utilisation", Percent(stage.StageUtilisation));
@@ -219,6 +232,7 @@ public static class CalculationsTextBuilder
             // the engine records per-server utilisation, and T is the only way back
             // to minutes. It is labelled as derived so nobody reads it as raw output.
             var perServer = stage.PerServerUtilisation;
+            var serverCount = perServer.Count > 0 ? perServer.Count : stage.ServerCount;
             for (int i = 0; i < perServer.Count; i++)
             {
                 Field(
@@ -226,6 +240,24 @@ public static class CalculationsTextBuilder
                     $"  {stage.StageName} S{i + 1} — busy (derived)",
                     $"{Num(perServer[i] * result.OperatingTimeMinutes, 2)} min"
                     + $"  (utilisation {Percent(perServer[i])})");
+                Field(
+                    text,
+                    $"  {stage.StageName} S{i + 1} — contribution",
+                    serverCount > 0
+                        ? $"{Percent(perServer[i] / serverCount)} of stage capacity"
+                            + $"  ({Num(perServer[i] * result.OperatingTimeMinutes, 2)} ÷ "
+                            + $"({serverCount} × {Num(result.OperatingTimeMinutes, 2)}))"
+                        : "(server count unknown — contribution not computable)");
+            }
+
+            if (serverCount > 0 && perServer.Count > 0)
+            {
+                var sum = perServer.Sum(u => u / serverCount);
+                Field(
+                    text,
+                    $"{stage.StageName} — contributions sum",
+                    string.Join(" + ", perServer.Select(u => Percent(u / serverCount)))
+                    + $" = {Percent(sum)}  (matches the stage utilisation above)");
             }
         }
 

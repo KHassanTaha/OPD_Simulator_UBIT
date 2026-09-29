@@ -451,10 +451,22 @@ public partial class ResultsPanelViewModel : ObservableObject
     public string UtilisationCaption => UtilisationChartService.Caption;
 
     /// <summary>
-    /// Formats one line per server: "Reception S2: 16.67% (stage util 50.00%)",
-    /// with a trailing marker when the server deviates from its stage mean by more
-    /// than the imbalance threshold. The marker repeats the amber meaning in text
-    /// so the flag is not carried by colour alone (AGENTS §16.9).
+    /// Formats one line per server, carrying BOTH numbers the reader needs
+    /// (Phase 8N follow-up 2, D-171):
+    /// <c>"Reception S2: 50.00% busy, contributes 25.00% of stage  (stage util 50.00%)"</c>.
+    /// <para>
+    /// Both, not either. The bar is drawn at the contribution, so a reader who only
+    /// sees the contribution cannot tell a 25 % bar on a 2-server stage (server
+    /// perfectly busy at 50 %) from a server that really is idle at 25 %. Labelling
+    /// them separately is also what makes the arithmetic checkable: the reader can
+    /// divide one by the server count and get the other, and can add the
+    /// contributions to the stage utilisation.
+    /// </para>
+    /// <para>
+    /// A trailing marker is appended when the server deviates from its stage mean
+    /// by more than the imbalance threshold, so the amber flag is not carried by
+    /// colour alone (AGENTS §16.9).
+    /// </para>
     /// </summary>
     private static IReadOnlyList<string> FormatPerServerDetail(UtilisationChartData data)
     {
@@ -463,9 +475,10 @@ public partial class ResultsPanelViewModel : ObservableObject
         {
             var line = string.Format(
                 System.Globalization.CultureInfo.InvariantCulture,
-                "{0} S{1}: {2:P2} (stage util {3:P2})",
+                "{0} S{1}: {2:P2} busy, contributes {3:P2} of stage  (stage util {4:P2})",
                 detail.StageName,
                 detail.ServerNumber,
+                detail.ServerUtilisation,
                 detail.Contribution,
                 detail.StageUtilisation);
             lines.Add(detail.IsOutlier ? line + "  — deviating server" : line);

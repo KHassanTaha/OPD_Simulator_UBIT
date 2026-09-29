@@ -463,11 +463,20 @@ public static class ChartControlBuilder
     /// The hover text for an amber bar, naming the direction and size of the
     /// deviation so the colour is not the only signal (§16.9: red/amber is never
     /// the sole cue).
+    /// <para>
+    /// The deviation is computed on the server's own utilisation, not on the
+    /// contribution (D-121: the stage mean is the mean of the per-server
+    /// utilisations), so it carries that number and both the per-server utilisation
+    /// and the contribution for the reader to check it against (D-171). Without
+    /// them the delta is a number in isolation with nothing to divide or compare.
+    /// </para>
     /// </summary>
     private static string OutlierTooltipFor(UtilisationBarRow bar) =>
         $"{bar.StageName} · server {bar.ServerNumber} deviates\n" +
         $"{(bar.DeltaFromAverage > 0 ? "Above" : "Below")} its stage mean by " +
-        $"{Math.Abs(bar.DeltaFromAverage).ToString("P1", CultureInfo.InvariantCulture)}";
+        $"{Math.Abs(bar.DeltaFromAverage).ToString("P1", CultureInfo.InvariantCulture)}\n" +
+        $"{bar.Utilisation.ToString("P1", CultureInfo.InvariantCulture)} busy, " +
+        $"contributes {bar.Contribution.ToString("P1", CultureInfo.InvariantCulture)} of stage";
 
     /// <summary>
     /// Converts an Avalonia palette <see cref="Color"/> to the Skia colour

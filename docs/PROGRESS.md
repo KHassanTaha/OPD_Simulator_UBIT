@@ -2,6 +2,43 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-29 08:05
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (work committed; owner visual inspection outstanding)
+
+Done
+- [x] **Phase 8N follow-up 2 — bottom buffer (D-170).** The owner's report was that the last rows of the per-stage result sat under the footer's top edge at maximum scroll. A `ScrollViewer`'s own `Padding` is **not part of its scrollable extent** (D-142 measured `extent = content − 2 × padding`), so padding cannot buy clearance. The body now ends with a real `BottomBuffer` element inside the scrollable content, inside a `ThicknessSpaceL` `Border`; `RowsHost` carries no `Padding`.
+- [x] **Phase 8N follow-up 2 — per-server contribution shown everywhere (D-171).** The chart is drawn at the **contribution** (`perServerUtilisation / serverCount`, D-160), so a bar's height is not a server's utilisation. Chart tooltips (including the outlier tooltip, which reports a delta against the stage mean and so needs both numbers to be checkable), the per-server detail rows, the calculations dialog's `UTILISATION` block, and the CLI all now show **both**. **No engine change, no new `StageMetrics` field** — the contribution is a display-time transformation of two figures the engine already produces.
+- [x] **The calculations block prints the derivation, not just the result:** a definition line, a per-server division (`6.37 ÷ (2 × 158.19)`) and a per-stage `contributions sum` line that states it matches the stage figure.
+- [x] **Two new records carry both values:** `UtilisationServerDetail` gained `ServerUtilisation` and `ServerCount` as `init`-only display properties populated from the matching `UtilisationBarRow`.
+- [x] **Six required tests + two frame tests** (App 371 → 379): `CalculationsDialog_HasBottomBuffer`, `CalculationsDialog_LastLineNotClippedAtScrollBottom`, `PerServerDisplay_ShowsBothBusyAndContribution`, `ContributionEqualsBusyDivServerCount`, `StageTotalEqualsSumOfContributions`, `ContributionLessThanOrEqualStageUtil`, plus the two render tests. `Phase8MChartTests.PerServerDetailLinesUpWithBars` was strengthened to require both values.
+- [x] **Regression proof by revert:** with `BottomBuffer` deleted, the buffer tests fail at **26.0 px** of clearance; with the fix, **50 px** against the 32 px asked for.
+- [x] **Gate:** Release **and** Debug `0 errors / 0 warnings` (`--no-incremental`); **620/620 green in both** (Cli 35 / Data 92 / Core 114 / App 379).
+- [x] **Evidence discipline (D-166) held:** two **new** filenames only — `phase-8n-calculations-buffer.png` (47,456 B, 800×400) and `phase-8n-contribution.png` (129,664 B, 800×800). `phase-8n-calculations.png` md5-verified identical (`3fdac621…`) and `phase-8n-calculations-resized.png` left alone. Both new frames use the control's declared 800 px width; no test supplied a size.
+- [x] **Docs:** D-170, D-171, TODO, BLOCKERS (B-012 → thirteen frames), DEV_LAUNCH, USER_MANUAL §6.4 + the calculations table, VIVA_ANSWERS (two new questions).
+
+In Progress
+Nothing. The implementation, gate, and documentation are complete.
+
+What is complete:
+Both fixes, their tests, the revert proofs, the gate, and all seven documentation files, on the existing branch (no new branch — the ruling was a follow-up to the same defect).
+
+Three findings from this session are worth carrying forward, because each was a case of a test that looked right and was not:
+
+1. **A non-overlap assertion measured nothing.** The clearance test originally asserted "the last line is not *under* the footer" and **passed with the buffer deleted**, because the content `Border`'s padding alone gives 24 px. It now asserts the owner's 32 px as a named constant, and the frame-writing test uses the same threshold. The general rule: after writing a fix, delete it and confirm the test goes red. A test that stays green is measuring something else.
+2. **A collapsed section is not a screenshot surface.** The "Per-server detail" rows live in a `CollapsibleSection` that ships `IsExpanded="False"`, and its `ItemsControl` does not realise its item containers while closed — expanding it in the headless tree still produced no row `TextBlock`s. A window capture of it would have been a green frame showing nothing, which is the D-166 failure in a new dress. The evidence surface is the calculations dialog, which renders every row unconditionally. **Not fixed here** — changing the section's default expansion is a UX ruling, not a test fix.
+3. **A c = 1 stage breaks a "utilisations do not sum" assertion.** On a one-server stage the contribution *equals* the server's own utilisation and the two sums are equal by definition; the first version of the test failed there, and the test was wrong rather than the code. The fixture keeps a c = 1 stage deliberately, so a formula that divided by `c + 1` cannot pass.
+
+What remains:
+**Owner visual inspection of the two new frames.** B-012 is now thirteen frames. Check `phase-8n-calculations-buffer.png` (is there visible air between the last line and the buttons at maximum scroll?) and `phase-8n-contribution.png` (are the two per-server numbers legible side by side, and does the rows' extra width wrap acceptably at 640 px?). This agent has no image input (D-089). Note also that the contribution frame is the calculations dialog by design, not the chart's detail list — see finding 2.
+
+Next Session Should Start With
+Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
+Owner review of the two new 8N frames (B-012), which blocks nothing else in Phase 8 Docs.
+
+---
+
 ## Session Handoff — 2026-09-29 07:10
 Branch: `fix/phase-8n-dialog-sizing`
 Status: In-Progress (work committed; owner visual inspection outstanding)

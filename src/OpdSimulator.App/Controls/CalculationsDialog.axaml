@@ -57,13 +57,32 @@
              They are laid out in a Grid (Auto,*) rather than a StackPanel so the
              label column takes only the width its longest label needs and every
              remaining pixel goes to the value — the two columns were sharing one
-             monospace text block before, which is why the values were cut off. -->
+             monospace text block before, which is why the values were cut off.
+
+             D-170: the inset lives on a content Border, not on the ScrollViewer,
+             and the trailing spacer is a real element inside that content. Both
+             matter for the same measured reason D-142 recorded for the config
+             panel: ScrollViewer.Padding is NOT part of the scrollable extent, so
+             its bottom padding is space the user can never scroll to — which is
+             why the last lines sat under the footer. Border.Padding IS part of
+             the desired size and scrolls. The spacer exists because padding alone
+             was not enough at the bottom edge. -->
         <ScrollViewer x:Name="RowsHost"
                       Grid.Row="1"
-                      Padding="{DynamicResource ThicknessSpaceL}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <ContentControl x:Name="RowsContainer"/>
+            <Border Padding="{DynamicResource ThicknessSpaceL}">
+                <StackPanel>
+                    <ContentControl x:Name="RowsContainer"/>
+
+                    <!-- The bottom buffer. The last body row must be able to travel
+                         clear of the footer's top edge, so the content ends in a
+                         real element the extent accounts for. Height is the SpaceL
+                         token, so it restyles with the theme (§16.3). -->
+                    <Border x:Name="BottomBuffer"
+                            Height="{DynamicResource SpaceL}"/>
+                </StackPanel>
+            </Border>
         </ScrollViewer>
 
         <!-- Row 2: the footer. A SIBLING of the ScrollViewer, never its child, so

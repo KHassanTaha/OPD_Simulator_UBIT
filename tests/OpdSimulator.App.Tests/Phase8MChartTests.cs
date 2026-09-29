@@ -187,11 +187,16 @@ public class Phase8MChartTests
                 Array.Empty<string>(), 0.4, null));
 
         // One detail line per server, each naming its stage and number, and each
-        // saying the contribution AND the stage utilisation it belongs to.
+        // saying the server's OWN utilisation, its contribution, and the stage
+        // utilisation it belongs to. D-171 added the first two: the bar is drawn at
+        // the contribution, so a line carrying only that is ambiguous between a
+        // busy server on a many-server stage and a genuinely idle one.
         Assert.Equal(11, results.PerServerDetailLines.Count);
         Assert.All(results.PerServerDetailLines, line =>
         {
             Assert.Contains("S", line, StringComparison.Ordinal);
+            Assert.Contains("busy", line, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("contributes", line, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("stage util", line, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("%", line, StringComparison.Ordinal);
         });
