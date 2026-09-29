@@ -2,6 +2,73 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-29 07:10
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (work committed; owner visual inspection outstanding)
+
+Done
+- [x] **Phase 8N follow-up — calculations dialog resize (D-169)** (new TODO row). Root cause: vertical `StackPanel` root, not a footer-inside-ScrollViewer. Root is now `Grid RowDefinitions="Auto,*,Auto"`; footer pinned in its own `Auto` row; `SizeToContent="Manual"` + `Height="800"`.
+- [x] **D-165's "no fixed `Height`" clause retired** — its locking test (`double.IsNaN(Height)`) replaced by `CalculationsDialog_DeclaredHeight_IsBoundedAndTheBodyTakesTheRemainder`. Reversal recorded in D-169, not hidden.
+- [x] **Four new tests** (`_Footer_VisibleAfterVerticalResize`, `_ScrollViewer_ScrollsAfterResize`, `_MinHeight_PreventsUnusableShrink`, `_SizeToContent_IsManual`) + `ResizeAndSettle` helper + a ten-stage `TallResult` fixture.
+- [x] **Regression proof by revert:** 5 of 15 Phase 8N tests fail against the pre-fix XAML, 0 against the fix.
+- [x] **Gate:** Release **and** Debug `0 errors / 0 warnings` (`--no-incremental`); **612/612 green in both** (Cli 35 / Data 92 / Core 114 / App 371).
+- [x] **Evidence discipline (D-166):** `Render_CalculationsDialog_SavePhase8nCalculationsPng` retired **before** the gate; `phase-8n-calculations.png` md5-verified identical (`3fdac621…`) after the full Release *and* Debug run. New frame `phase-8n-calculations-resized.png` (28,495 B).
+- [x] **AGENTS §10.6** extended with the resize-test rule; **D-169** written; TODO / BLOCKERS / PROGRESS / DEV_LAUNCH / USER_MANUAL §6.11 / REQUIREMENTS FR-UI-29 updated.
+
+In Progress
+Nothing. The implementation, gate, and documentation are complete.
+
+What is complete:
+The fix, its tests, the gate, and all six documentation files. Committed on the existing branch (no new branch was cut — the ruling was a follow-up to the same defect).
+
+What remains:
+**Owner visual inspection of both screenshots.** B-012 is now eleven frames. Check the pair in order: `phase-8n-calculations-resized.png` first (is the footer at the bottom, is there a scrollbar), then `phase-8n-calculations.png`. Note the default frame **predates D-169** and shows the pre-fix `StackPanel` — it is not a picture of the fixed layout. This agent has no image input (D-089).
+
+Next Session Should Start With
+Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
+Owner review of the two calculations frames (B-012), which blocks nothing else in Phase 8 Docs.
+
+Blocked
+- **B-012** — eleven screenshot frames unaudited by a human; the two calculations frames are the priority pair.
+- **B-007** — M5 keyboard-only acceptance run not performed.
+- **B-006** — dead-state build on Windows unverified.
+
+Git State
+Commits made this session: `fix: calculations dialog footer stays visible on resize (Phase 8N follow-up)`
+Pushed to origin: pending — the branch was already pushed for Phase 8N, so only the new commit needs pushing.
+Uncommitted changes: none at the time of writing.
+
+Build & Test
+dotnet build: PASS — Release **0/0** and Debug **0/0**, both `--no-incremental`
+dotnet test: PASS — **612 passed, 0 failed** in Release; identical in Debug
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml: modified (root `Grid RowDefinitions="Auto,*,Auto"`, `SizeToContent="Manual"`, `Height="800"`, footer `Border` with separator)
+tests/OpdSimulator.App.Tests/Phase8NTests.cs: modified (4 new tests, `ResizeAndSettle`, `TallResult`, `NoFixedHeight` test replaced, screenshot writer swapped)
+docs/DECISIONS.md: D-169 added
+docs/TODO.md: follow-up row added `[x]`
+docs/BLOCKERS.md: B-012 updated (eleven frames, the pair, and the order to check them in)
+docs/PROGRESS.md: this entry
+docs/DEV_LAUNCH.md: new verification line, test counts 608 → 612, stale claim superseded
+docs/USER_MANUAL.md: §6.11 rewritten for the new resize behaviour
+docs/REQUIREMENTS.md: FR-UI-29 row updated
+AGENTS.md: §10.6 resize-test rule added
+logs/screenshots/phase-8n-calculations-resized.png: new
+logs/screenshots/phase-8n-calculations.png: **not touched** (md5 verified)
+
+Decisions Made
+- **D-169** — three-row root, `SizeToContent="Manual"` + `Height="800"`, footer in its own `Auto` row; supersedes D-165's no-fixed-Height clause. Records the two test-quality findings (`IsEffectivelyVisible` is not a bounds check; a resize test must assert the resize happened).
+
+Assumptions Added/Changed
+None. No new `[UNVERIFIED]` tag; nothing in `CONTEXT.md` changed.
+
+Notes for Next Session
+- The two frames in `logs/screenshots/` are **not** interchangeable evidence. The resized one is the only frame that can show the defect, because the default size is the size in which the bug does not appear. If the owner reports the resized frame still looks wrong, `AGENTS §10.6` requires a **new** filename rather than a re-render of either.
+- `Height="800"` means a short run now opens at 800 instead of collapsing to 400. Ruled, but it is the one visible behaviour change and is the first thing to re-check if a user finds the dialog unexpectedly tall.
+- The `Auto,*,Auto` root assumes the body is the only scrolling region. A future third region needs a fourth row; the `*` must not be given to the wrong band.
+
 ## Session Handoff — 2026-09-29 06:05
 Branch: `fix/phase-8n-dialog-sizing`
 Status: In-Progress (Phase 8N code, tests and docs complete and gated; awaiting owner visual inspection of the new frame, then merge)

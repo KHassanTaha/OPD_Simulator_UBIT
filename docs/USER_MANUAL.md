@@ -742,12 +742,12 @@ form, so it pastes cleanly into a plain-text document.
 
 ### 6.11 Reading the Calculations Dialog
 
-The dialog opens **800 pixels wide** and you can **resize it** by dragging its
-edges, between 640 and 1200 pixels. It grows taller with the length of the run
-and scrolls if it would otherwise push the buttons off the bottom, so the
-**Copy** and **Close** buttons are always reachable. If you make it shorter than
-its contents, a scroll bar appears on the body and the buttons stay put. Press
-**Escape** to close it.
+The dialog opens **800 × 800 pixels** and you can **resize it** by dragging its
+edges: between 640 and 1200 pixels wide, and between 400 and 800 pixels tall.
+Resize it freely — the **Copy** and **Close** buttons stay at the bottom of the
+window at every size, and the body scrolls behind them, so nothing becomes
+unreachable. You cannot drag it below 400 pixels tall. Press **Escape** to
+close it.
 
 The body is laid out in **two columns**: the label on the left, sized to fit the
 longest label, and the value on the right, taking all the remaining width. A
@@ -762,6 +762,10 @@ Two details that look like missing content but are not:
 - **Indented rows** — the per-server `busy (derived)` lines and the
   `expected share` lines — are indented to show they belong to the row above.
   In the clipboard text that same nesting is a pair of leading spaces.
+- **The buttons never move because they are not part of the scrolling area.**
+  The window is three horizontal bands: the title at the top, the scrolling
+  body in the middle taking whatever room is left, and the button row at the
+  bottom. Only the middle band scrolls.
 
 ---
 

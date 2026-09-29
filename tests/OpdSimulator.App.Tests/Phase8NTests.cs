@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
@@ -37,6 +38,12 @@ namespace OpdSimulator.App.Tests;
 /// These are structural assertions. They prove the layout cannot regress to "one
 /// no-wrap text block in a narrow window". They cannot prove the pixels look right;
 /// that is the owner's pass on <c>logs/screenshots/phase-8n-calculations.png</c>.
+/// </para>
+/// <para>
+/// D-169 (the resize follow-up) adds a second kind of assertion: a default-size
+/// screenshot cannot catch a bug that only appears when the user drags the window
+/// smaller, because the default size is not the failing size. Every resizable dialog
+/// therefore needs a test that actually resizes it — see AGENTS §10.6.
 /// </para>
 /// </remarks>
 public class Phase8NDialogSizingTests
@@ -139,24 +146,215 @@ public class Phase8NDialogSizingTests
     }
 
     /// <summary>
-    /// A fixed Height would clip a long run's buttons off the bottom. The dialog must
-    /// grow with its content and stop at MaxHeight, scrolling in between.
+    /// D-169 supersedes the original Phase 8N rule. This test used to assert
+    /// <c>double.IsNaN(dialog.Height)</c> — "the dialog must grow with its content" —
+    /// because the root was a vertical StackPanel and the only way to keep a long
+    /// run's buttons on screen was never to declare a height.
+    /// <para>
+    /// That rule is retired, not because it was wrong about the symptom but because
+    /// <c>SizeToContent</c> and user resize are mutually exclusive: with
+    /// <c>SizeToContent="Height"</c> the window owns its own height and the user's
+    /// drag is contested on the next layout pass. The dialog now declares
+    /// <c>Height="800"</c> and <c>SizeToContent="Manual"</c>.
+    /// </para>
+    /// <para>
+    /// The invariant being protected is unchanged in spirit — the buttons must never
+    /// be clipped off the bottom — but it is now guaranteed structurally, by the
+    /// footer sitting in an <c>Auto</c> row, rather than by content-driven sizing.
+    /// This test asserts the new mechanism.
+    /// </para>
     /// </summary>
     [AvaloniaFact]
-    public void CalculationsDialog_NoFixedHeightClipsContent()
+    public void CalculationsDialog_DeclaredHeight_IsBoundedAndTheBodyTakesTheRemainder()
     {
         var dialog = new CalculationsDialog { Title = "Calculations" };
         dialog.Show();
         dialog.UpdateLayout();
 
-        Assert.True(
-            double.IsNaN(dialog.Height),
-            $"the dialog must not declare a fixed Height, was {dialog.Height}");
-        Assert.True(dialog.MaxHeight > 0, "the dialog must bound itself with MaxHeight");
+        Assert.Equal(800, dialog.Height);
+        Assert.Equal(800, dialog.MaxHeight);
 
-        // The body scrolls, so content past the bound is reachable rather than lost.
+        // The body is the star row, so the window bounds it and it can scroll.
+        // This is what the missing MaxHeight on the ScrollViewer used to be needed for.
         var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+        Assert.Equal(1, Grid.GetRow(scroller));
         Assert.Equal(ScrollBarVisibility.Auto, scroller.VerticalScrollBarVisibility);
+
+        dialog.Close();
+    }
+
+    // ---- D-169: the resize follow-up ---------------------------------------------
+
+    /// <summary>
+    /// Resizes a shown window and settles the layout.
+    /// <para>
+    /// The headless platform applies a <c>Window.Height</c> change through the
+    /// dispatcher, not synchronously: setting the property and calling
+    /// <c>UpdateLayout()</c> alone leaves <c>Bounds.Height</c> at its old value.
+    /// Every test that claims to test a resize has to pump the queue, and then has to
+    /// ASSERT that the height really changed — otherwise the assertion silently
+    /// degrades into a default-size test, which is the exact failure D-169 exists to
+    /// prevent. That degradation is not hypothetical: the first version of these
+    /// tests passed against a dialog that had never actually shrunk.
+    /// </para>
+    /// </summary>
+    private static double ResizeAndSettle(CalculationsDialog dialog, double requestedHeight)
+    {
+        var before = dialog.Bounds.Height;
+        dialog.Height = requestedHeight;
+
+        for (int pass = 0; pass < 3; pass++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            dialog.UpdateLayout();
+        }
+
+        var after = dialog.Bounds.Height;
+        Assert.True(
+            after < before,
+            $"the resize never took effect: Bounds.Height stayed at {after} "
+            + $"(requested {requestedHeight}) — this test would prove nothing");
+
+        return after;
+    }
+
+    /// <summary>
+    /// The regression the owner found by hand: shrinking the dialog vertically made
+    /// the footer buttons vanish. The cause was a vertical <c>StackPanel</c> root,
+    /// which gives every child its desired height and lays the LAST child — the
+    /// footer — out at y≈2714 on an 800px window, i.e. ~1900px below the bottom edge.
+    /// The body never scrolled either, because with no bound to shrink into it grew
+    /// to its full content height (extent 2632 = viewport 2632).
+    /// <para>
+    /// Two things this test must NOT rely on, both learned the hard way:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <c>IsEffectivelyVisible</c> is a flag check, not a bounds check. Measured
+    /// against the broken layout it returned <c>True</c> for a button sitting 1914px
+    /// outside the window. The positional assertion below is the one that catches the
+    /// bug; the flag assertion is kept only because the ruling asked for it and because
+    /// it still catches a genuinely hidden control.
+    /// </description></item>
+    /// <item><description>
+    /// The height the test asks for (300) is below <c>MinHeight</c>, so Avalonia
+    /// coerces it to 400. Assertions are made against the height the dialog ACTUALLY
+    /// took. The point is that the footer survives whatever the user drags to, not
+    /// that a particular number is honoured.
+    /// </description></item>
+    /// </list>
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_Footer_VisibleAfterVerticalResize()
+    {
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+            CopyText = "RUN CONFIGURATION\n  Rule: x",
+        };
+        dialog.Show();
+        dialog.UpdateLayout();
+
+        var clientHeight = ResizeAndSettle(dialog, 300);
+        Assert.True(
+            clientHeight >= dialog.MinHeight - 0.5,
+            $"MinHeight should have coerced 300 up to {dialog.MinHeight}, got {clientHeight}");
+
+        foreach (var caption in new[] { "Copy", "Close" })
+        {
+            var button = dialog.GetVisualDescendants().OfType<Button>()
+                .Single(b => ReferenceEquals(b.Content, caption));
+
+            Assert.True(
+                button.IsEffectivelyVisible,
+                $"'{caption}' was hidden when the dialog was resized to {clientHeight}px");
+
+            // The assertion that actually catches the bug. Position relative to the
+            // window, so the check is "is it on screen" and not merely "is it laid out".
+            var origin = button.TranslatePoint(new Point(0, 0), dialog);
+            Assert.NotNull(origin);
+            Assert.True(
+                origin!.Value.Y + button.Bounds.Height <= clientHeight + 0.5,
+                $"'{caption}' sits at y={origin.Value.Y} with height {button.Bounds.Height}, "
+                + $"below the {clientHeight}px window — it is laid out but out of reach");
+        }
+
+        dialog.Close();
+    }
+
+    /// <summary>
+    /// The other half of the same bug: the body stopped scrolling. A ScrollViewer in
+    /// an unbounded container never overflows internally, so
+    /// <c>VerticalScrollBarVisibility="Auto"</c> had nothing to show — the overflow was
+    /// past the window, not inside the viewer.
+    /// <para>
+    /// The extent-vs-viewport check is asserted at the DEFAULT size as well as after the
+    /// resize, and deliberately so: measured against the broken layout, extent equalled
+    /// viewport (2632 = 2632) at the default size too. A resize-independent check is a
+    /// stronger net, and it fails with a clearer message than the resize does.
+    /// </para>
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_ScrollViewer_ScrollsAfterResize()
+    {
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+        };
+        dialog.Show();
+        dialog.UpdateLayout();
+
+        var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+
+        // At the default size: the body is bounded, so it overflows and can scroll.
+        Assert.True(
+            scroller.Extent.Height > scroller.Viewport.Height,
+            $"at the default size the body must be bounded and overflowing, "
+            + $"extent {scroller.Extent.Height} vs viewport {scroller.Viewport.Height}");
+
+        ResizeAndSettle(dialog, 300);
+
+        Assert.True(
+            scroller.Extent.Height > scroller.Viewport.Height,
+            $"the body must overflow so it can scroll, extent {scroller.Extent.Height} "
+            + $"vs viewport {scroller.Viewport.Height}");
+
+        scroller.Offset = new Vector(0, 40);
+        dialog.UpdateLayout();
+        Assert.True(
+            scroller.Offset.Y > 0,
+            $"the body did not scroll: offset stayed at {scroller.Offset.Y}");
+
+        dialog.Close();
+    }
+
+    /// <summary>
+    /// The dialog must not be shrinkable to a size where the footer and a useful
+    /// amount of body cannot both be on screen at once.
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_MinHeight_PreventsUnusableShrink()
+    {
+        var dialog = new CalculationsDialog { Title = "Calculations" };
+
+        Assert.True(
+            dialog.MinHeight >= 400,
+            $"the calculations dialog must not shrink below 400, MinHeight was {dialog.MinHeight}");
+    }
+
+    /// <summary>
+    /// <c>SizeToContent</c> makes the window size itself from its content, which means
+    /// the user's drag is contested on the next layout pass — the resize is either
+    /// undone or fights the layout. The dialog must take its size from the user.
+    /// </summary>
+    [AvaloniaFact]
+    public void CalculationsDialog_SizeToContent_IsManual()
+    {
+        var dialog = new CalculationsDialog { Title = "Calculations" };
+
+        Assert.Equal(SizeToContent.Manual, dialog.SizeToContent);
     }
 
     [AvaloniaFact]
@@ -260,56 +458,56 @@ public class Phase8NDialogSizingTests
     // ---- Phase 8N gate evidence -------------------------------------------------
 
     /// <summary>
-    /// Captures the fixed dialog at its declared size. Unlike the Phase 8M frame this
-    /// test sets no width: it renders the control exactly as a user meets it (D-166).
+    /// Captures the dialog AFTER a vertical resize — the state the owner actually hit
+    /// the bug in. A default-size frame cannot show this bug: the default size is not
+    /// the failing size (D-169).
     /// </summary>
+    /// <remarks>
+    /// This test replaces <c>Render_CalculationsDialog_SavePhase8nCalculationsPng</c>,
+    /// which was retired before the gate for the same reason the Phase 8M one was:
+    /// it re-rendered an already-cited evidence file on every run. AGENTS §10.6
+    /// forbids that. <c>phase-8n-calculations.png</c> still exists on disk and is
+    /// still the owner's to review; it simply no longer has a writer.
+    /// </remarks>
     [AvaloniaFact]
-    public void Render_CalculationsDialog_SavePhase8nCalculationsPng()
+    public void Render_CalculationsDialog_Resized_SavePhase8nCalculationsResizedPng()
     {
-        var window = new MainWindow();
-        window.Width = 1200;
-        window.Height = 900;
-        window.Show();
+        var dialog = new CalculationsDialog
+        {
+            Title = "Calculations",
+            Rows = CalculationsTextBuilder.BuildRows(TallResult(), Parameters(), "entered manually"),
+            CopyText = "RUN CONFIGURATION\n  Rule: x",
+        };
+
+        // No Width here. The control declares its own, which is the whole point of
+        // D-166 — a test may not render a size production never uses.
+        Assert.Equal(800, dialog.Width);
+        dialog.Show();
         try
         {
-            var main = (MainViewModel)window.DataContext!;
-            main.Results.StartRun();
-            main.Results.CompleteRun(
-                new RunOutcome(ShortResult(), Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, null),
-                Parameters(),
-                "fitted from sample_3stage_clinic.csv");
+            // The frame that matters: dragged as small as the owner can drag it.
+            var frameHeight = ResizeAndSettle(dialog, 300);
+            Assert.True(
+                frameHeight < 800,
+                $"the resized frame must be smaller than the default, was {frameHeight}");
 
-            var dialog = new CalculationsDialog
-            {
-                Title = "Calculations",
-                Rows = main.Results.CalculationsRows,
-                CopyText = main.Results.CalculationsText,
-            };
+            var scroller = dialog.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            Assert.True(
+                scroller.Extent.Height > scroller.Viewport.Height,
+                "the resized frame must show a scrollable body, not a clipped one");
 
-            // No Width here. The control declares its own, which is the whole point
-            // of D-166 — a test may not render a size production never uses.
-            Assert.Equal(800, dialog.Width);
-            dialog.Show();
-            try
-            {
-                dialog.UpdateLayout();
-                var frame = HeadlessScreenshot.Capture(dialog);
-                var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
-                Directory.CreateDirectory(shotDir);
-                var shotPath = Path.Combine(shotDir, "phase-8n-calculations.png");
-                frame.Save(shotPath);
-                Assert.True(
-                    new FileInfo(shotPath).Length >= 512,
-                    "calculations frame missing or suspiciously small");
-            }
-            finally
-            {
-                dialog.Close();
-            }
+            var frame = HeadlessScreenshot.Capture(dialog);
+            var shotDir = Path.Combine(FindRepoRoot(AppContext.BaseDirectory), "logs", "screenshots");
+            Directory.CreateDirectory(shotDir);
+            var shotPath = Path.Combine(shotDir, "phase-8n-calculations-resized.png");
+            frame.Save(shotPath);
+            Assert.True(
+                new FileInfo(shotPath).Length >= 512,
+                "resized calculations frame missing or suspiciously small");
         }
         finally
         {
-            window.Close();
+            dialog.Close();
         }
     }
 
@@ -332,6 +530,27 @@ public class Phase8NDialogSizingTests
         Phase8MFixtures.ResultWithStages(
             (LongStageName, 1, 0.8, new[] { 0.8 }),
             ("Screening", 2, 0.5, new[] { 0.75, 0.25 }));
+
+    /// <summary>
+    /// A ten-stage run, so the body is far taller than any window the user can drag
+    /// to. <c>BuildRows</c> looks μ up by stage INDEX with bounds checks, so a result
+    /// with more stages than the parameters describe is safe: the extra stages fall
+    /// back to "fitted from the loaded data file" and "engine default" rather than
+    /// throwing. That fallback is also convenient here — it keeps the fixture free of
+    /// a ten-stage parameter block it does not care about.
+    /// </summary>
+    private static SimulationResult TallResult() =>
+        Phase8MFixtures.ResultWithStages(
+            ("Reception and Registration Desk", 1, 0.8, new[] { 0.8 }),
+            ("Triage and Initial Consultation", 2, 0.65, new[] { 0.4, 0.25 }),
+            ("Screening by the Nursing Team", 2, 0.5, new[] { 0.3, 0.2 }),
+            ("Physician Consultation Room One", 3, 0.7, new[] { 0.3, 0.2, 0.2 }),
+            ("Physician Consultation Room Two", 2, 0.45, new[] { 0.25, 0.2 }),
+            ("Laboratory Sample Collection", 1, 0.6, new[] { 0.6 }),
+            ("Radiology Imaging Suite", 1, 0.75, new[] { 0.75 }),
+            ("Pharmacy Dispensary Counter", 2, 0.55, new[] { 0.3, 0.25 }),
+            ("Billing and Insurance Desk", 1, 0.4, new[] { 0.4 }),
+            ("Follow-up Scheduling Office", 1, 0.35, new[] { 0.35 }));
 
     private static SimulationParameters Parameters() =>
         new(
