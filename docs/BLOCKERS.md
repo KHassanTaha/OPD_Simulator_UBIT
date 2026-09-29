@@ -5,11 +5,12 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
-- **B-012:** Headless screenshot frames have never been looked at by a human, and the queue is now eleven frames deep.
+- **B-012:** Headless screenshot frames have never been looked at by a human, and **ten** frames are still outstanding.
   - Owner: Taha
-  - Impact: The evidence PNGs are captured automatically and their geometry/content is asserted numerically, but this host has **no image input** (D-089), so the agent cannot answer "does it look right". Every such frame therefore carries an unverified visual claim, and the count compounds: `phase-8e-*.png` (2), `phase-8k-*.png` (4), `phase-8m-*.png` (5). The assertions are real evidence of geometry, not of appearance, and AGENTS §18 is explicit that a UI requirement is not `[x]` without an observed result.
-  - Needed action: Open the eleven frames in `logs/screenshots/` and report anything wrong — clipped or overlapping labels, an unreadable axis, a legend that does not match the chart colours, a dialog whose text overflows. Phase 8M's frames are the priority: they are the evidence for the utilisation contribution scale, the amber markers, the step queue chart, the dynamic legend and the calculations dialog.
-  - Linked tasks: the `capture-only` rows in `TODO.md`, and the "Owner visual inspection is still outstanding" clauses on Phases 8E, 8K and 8M.
+  - Impact: The evidence PNGs are captured automatically and their geometry/content is asserted numerically, but this host has **no image input** (D-089), so the agent cannot answer "does it look right". Every such frame therefore carries an unverified visual claim, and the count compounds.
+  - **Correction 2026-09-29 (Phase 8N, option (a) ruling):** this entry previously read as though `phase-8m-calculations.png` had *failed* human review. It did not. That frame was rendered by a test that set `Width = 760`, so it was **clean**; the clipping was observed in the **running app**, which set no width and therefore ran at `ThemedDialog`'s declared 440. The two are different pictures, which is precisely why the mismatch went unnoticed for a phase. The genuine before/after pair is the owner's own app screenshot (before) against `phase-8n-calculations.png` (after) — **not** the 8M frame, which is now frozen as the worked example of D-166 rather than as a picture of the bug. The lesson is stronger than the original wording, not weaker: an assertion can be green, a frame can be clean, and the program can still be broken.
+  - Needed action: Open the **ten** remaining frames in `logs/screenshots/` and report anything wrong — clipped or overlapping labels, an unreadable axis, a legend that does not match the chart colours, a dialog whose text overflows. The list is `phase-8e-*.png` (2), `phase-8k-*.png` (4), and `phase-8m-{utilisation,utilisation-varied,queue-step,legend}.png` (4). `phase-8n-calculations.png` is the new priority alongside those, since it is the fix for the one defect this blocker has already produced.
+  - Linked tasks: the `capture-only` rows in `TODO.md`, and the "Owner visual inspection is still outstanding" clauses on Phases 8E, 8K, 8M and 8N.
   - Target: before the viva, where a screenshot of a wrong-looking chart is worse than no screenshot.
   - Status: blocked on the owner viewing the frames
 

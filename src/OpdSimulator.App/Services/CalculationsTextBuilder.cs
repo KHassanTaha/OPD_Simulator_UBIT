@@ -5,6 +5,45 @@ using System.Text;
 using OpdSimulator.App.Models;
 using OpdSimulator.Core.Engine;
 
+/// <summary>What a <see cref="CalculationRow"/> line represents (Phase 8N, D-165).</summary>
+public enum CalculationRowKind
+{
+    /// <summary>A section heading that spans both columns of the dialog.</summary>
+    Section,
+
+    /// <summary>A <c>label : value</c> pair occupying both grid columns.</summary>
+    Field,
+}
+
+/// <summary>
+/// One line of the calculations body, structured for a two-column render
+/// (Phase 8N, D-165).
+/// </summary>
+/// <remarks>
+/// <para>
+/// The dialog used to render the flat string from <see cref="CalculationsTextBuilder.Build"/>
+/// inside a single monospace <c>TextBlock</c> with wrapping switched off, which
+/// clipped the right-hand values and cut the buttons off. A flat string cannot
+/// fix that: there are no columns to widen and no way to let one value wrap
+/// without wrapping its label too.
+/// </para>
+/// <para>
+/// These rows are the same content in the same order, split so the renderer can
+/// lay each label and value out independently. The words are unchanged —
+/// <see cref="CalculationsTextBuilder.Build"/> is now rendered FROM these rows, so
+/// the clipboard text and the on-screen text cannot drift apart.
+/// </para>
+/// </remarks>
+/// <param name="kind">Whether this is a section heading or a label/value field.</param>
+/// <param name="Label">The heading text, or the field's label. Never carries leading spaces.</param>
+/// <param name="Value">The field's value. Empty for <see cref="CalculationRowKind.Section"/>.</param>
+/// <param name="IndentLevel">Nesting depth. The flat text conveyed this with leading spaces.</param>
+public sealed record CalculationRow(
+    CalculationRowKind Kind,
+    string Label,
+    string Value,
+    int IndentLevel);
+
 /// <summary>
 /// Builds the plain-text "View calculations" body (Phase 8M, D-164, FR-UI-29).
 /// </summary>
@@ -33,7 +72,12 @@ public static class CalculationsTextBuilder
     private static string Num(double value, int decimals = 4) =>
         value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 
-    /// <summary>Builds the calculations body for a finished run.</summary>
+    /// <summary>Builds the calculations body for a finished run, as flat monospace text.</summary>
+    /// <remarks>
+    /// Phase 8N (D-165) renders this FROM <see cref="BuildRows"/> rather than walking the
+    /// data a second time. One traversal, two shapes, no chance of the clipboard text and
+    /// the on-screen text disagreeing about what the run did.
+    /// </remarks>
     /// <param name="result">The finished run, or null when nothing has been run yet.</param>
     /// <param name="parameters">The parameters the run was launched with, if still known.</param>
     /// <param name="sourceDescription">
@@ -46,13 +90,72 @@ public static class CalculationsTextBuilder
         SimulationParameters? parameters,
         string? sourceDescription)
     {
-        if (result is null)
+        var rows = BuildRows(result, parameters, sourceDescription);
+        return rows.Count == 0 ? NoRunMessage : FlatText(rows);
+    }
+
+    /// <summary>
+    /// The single-source wording shown when nothing has been simulated yet. Both the
+    /// flat text and the dialog read it from here so the two cannot say different things.
+    /// </summary>
+    public static string NoRunMessage =>
+        "No simulation has been run yet, so there are no calculations to show.\n"
+        + "Configure a run and press Start Calculation.";
+
+    /// <summary>
+    /// Renders rows back into the flat, monospace, clipboard-friendly form. This is
+    /// the layout <see cref="Build"/> produced before Phase 8N and is unchanged:
+    /// two leading spaces, the label padded to 42, a colon, the value, a newline.
+    /// The only thing not reproduced is the nesting, which is re-created as the
+    /// leading spaces the flat format used.
+    /// </summary>
+    private static string FlatText(IReadOnlyList<CalculationRow> rows)
+    {
+        var text = new StringBuilder();
+        foreach (var row in rows)
         {
-            return "No simulation has been run yet, so there are no calculations to show.\n"
-                + "Configure a run and press Start Calculation.";
+            if (row.Kind == CalculationRowKind.Section)
+            {
+                if (text.Length > 0)
+                {
+                    text.Append('\n');
+                }
+
+                text.Append(row.Label).Append('\n');
+                text.Append(new string('-', row.Label.Length)).Append('\n');
+                continue;
+            }
+
+            var label = row.IndentLevel == 0
+                ? row.Label
+                : new string(' ', row.IndentLevel * 2) + row.Label;
+            text.Append("  ").Append(label.PadRight(42)).Append(": ").Append(row.Value).Append('\n');
         }
 
-        var text = new StringBuilder();
+        return text.ToString();
+    }
+
+    /// <summary>
+    /// The same content as <see cref="Build"/>, structured for a two-column render
+    /// (Phase 8N, D-165). Every word is identical to the flat form; only the shape
+    /// differs, so the dialog can widen the label column and wrap the value column
+    /// independently.
+    /// </summary>
+    /// <param name="result">The finished run, or null when nothing has been run yet.</param>
+    /// <param name="parameters">The parameters the run was launched with, if still known.</param>
+    /// <param name="sourceDescription">Where the parameters came from, in the user's terms.</param>
+    /// <returns>Rows in document order; empty when no run exists yet.</returns>
+    public static IReadOnlyList<CalculationRow> BuildRows(
+        SimulationResult? result,
+        SimulationParameters? parameters,
+        string? sourceDescription)
+    {
+        if (result is null)
+        {
+            return Array.Empty<CalculationRow>();
+        }
+
+        var text = new List<CalculationRow>();
 
         Section(text, "RUN CONFIGURATION");
         Field(text, "Parameter source", string.IsNullOrWhiteSpace(sourceDescription)
@@ -146,7 +249,7 @@ public static class CalculationsTextBuilder
             Field(text, $"{stage.StageName} — mean queue", Num(stage.AverageQueueLength, 4));
         }
 
-        return text.ToString();
+        return text;
     }
 
     /// <summary>μ actually configured for a stage, preferring the per-stage rate list.</summary>
@@ -177,19 +280,23 @@ public static class CalculationsTextBuilder
         return family is null ? null : family.ToString();
     }
 
-    /// <summary>Writes a section heading.</summary>
-    private static void Section(StringBuilder text, string title)
+    /// <summary>Adds a section heading row. The blank line the flat text used is
+    /// implied by section boundaries in the grid render (D-165).</summary>
+    private static void Section(List<CalculationRow> rows, string title) =>
+        rows.Add(new CalculationRow(CalculationRowKind.Section, title, string.Empty, 0));
+
+    /// <summary>Adds one <c>label : value</c> row.</summary>
+    /// <remarks>
+    /// Call sites bake the nesting into the label as leading spaces, which is how the
+    /// flat monospace text indented it. Those spaces are read back here as an indent
+    /// level and stripped from the label, so the dialog can indent the row with layout
+    /// instead of with invisible characters that a proportional font renders wrongly.
+    /// The flat renderer re-adds them, so <see cref="Build"/> is byte-identical.
+    /// </remarks>
+    private static void Field(List<CalculationRow> rows, string label, string value)
     {
-        if (text.Length > 0)
-        {
-            text.Append('\n');
-        }
-
-        text.Append(title).Append('\n');
-        text.Append(new string('-', title.Length)).Append('\n');
+        var trimmed = label.TrimStart();
+        var indent = (label.Length - trimmed.Length) / 2;
+        rows.Add(new CalculationRow(CalculationRowKind.Field, trimmed, value, indent));
     }
-
-    /// <summary>Writes one aligned <c>label : value</c> line.</summary>
-    private static void Field(StringBuilder text, string label, string value) =>
-        text.Append("  ").Append(label.PadRight(42)).Append(": ").Append(value).Append('\n');
 }

@@ -737,7 +737,31 @@ Two things worth knowing:
   written for a particular clinic.
 
 Use **Copy** to put the whole thing on your clipboard — useful for pasting into
-a report or a viva answer sheet.
+a report or a viva answer sheet. The clipboard text is the plain monospace
+form, so it pastes cleanly into a plain-text document.
+
+### 6.11 Reading the Calculations Dialog
+
+The dialog opens **800 pixels wide** and you can **resize it** by dragging its
+edges, between 640 and 1200 pixels. It grows taller with the length of the run
+and scrolls if it would otherwise push the buttons off the bottom, so the
+**Copy** and **Close** buttons are always reachable. If you make it shorter than
+its contents, a scroll bar appears on the body and the buttons stay put. Press
+**Escape** to close it.
+
+The body is laid out in **two columns**: the label on the left, sized to fit the
+longest label, and the value on the right, taking all the remaining width. A
+value too long for its column **wraps onto the next line** — it is never
+truncated, because a cut-off number is indistinguishable from a real one.
+
+Two details that look like missing content but are not:
+
+- **Section headings have no `----` underline on screen.** The underline is a
+  feature of the monospace *clipboard* format, where it makes the heading
+  stand out. It would be meaningless in a two-column layout.
+- **Indented rows** — the per-server `busy (derived)` lines and the
+  `expected share` lines — are indented to show they belong to the row above.
+  In the clipboard text that same nesting is a pair of leading spaces.
 
 ---
 

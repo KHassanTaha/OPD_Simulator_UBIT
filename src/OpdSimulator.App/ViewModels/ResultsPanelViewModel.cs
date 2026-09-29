@@ -1,5 +1,6 @@
 namespace OpdSimulator.App.ViewModels;
 
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -149,6 +150,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         _lastParameters = parameters;
         _parameterSource = sourceDescription;
         OnPropertyChanged(nameof(CalculationsText));
+        OnPropertyChanged(nameof(CalculationsRows));
         IsBusy = false;
         HasRun = true;
         IsWelcomeVisible = false;
@@ -326,6 +328,7 @@ public partial class ResultsPanelViewModel : ObservableObject
             // The calculations body is derived from the result, so the button's
             // enabled state and its text both move with a new run.
             OnPropertyChanged(nameof(CalculationsText));
+        OnPropertyChanged(nameof(CalculationsRows));
             OnPropertyChanged(nameof(HasCalculations));
         }
 
@@ -521,6 +524,14 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// </summary>
     public string CalculationsText => CalculationsTextBuilder.Build(
         _lastResult, _lastParameters, _parameterSource);
+
+    /// <summary>
+    /// The same calculations as <see cref="CalculationsText"/>, structured for the
+    /// dialog's two-column render (Phase 8N, D-165). Both properties read the same
+    /// three fields, so the on-screen rows and the copied text cannot disagree.
+    /// </summary>
+    public IReadOnlyList<CalculationRow> CalculationsRows =>
+        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource);
 
     /// <summary>True once a run has produced a result, so the button has something to show.</summary>
     public bool HasCalculations => _lastResult is not null;

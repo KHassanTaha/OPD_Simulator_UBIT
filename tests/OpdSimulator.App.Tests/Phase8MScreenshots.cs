@@ -75,66 +75,6 @@ public class Phase8MScreenshots
         });
     }
 
-    [AvaloniaFact]
-    public void Render_CalculationsDialog_SavePhase8mCalculationsPng()
-    {
-        var window = new MainWindow();
-        window.Width = 1200;
-        window.Height = 900;
-        window.Show();
-        try
-        {
-            if (window.DataContext is not MainViewModel main)
-            {
-                throw new InvalidOperationException("MainWindow must expose a MainViewModel DataContext");
-            }
-
-            RunThreeStage(main, servers: new[] { 1, 2, 3 }, mu: "0.8, 0.5, 0.4");
-            window.UpdateLayout();
-
-            // Build the same dialog the View Calculations button opens, so the
-            // frame shows the real body and the real Copy button.
-            var text = main.Results.CalculationsText;
-            Assert.Contains("RUN CONFIGURATION", text, StringComparison.Ordinal);
-
-            var body = new TextBlock
-            {
-                Text = text,
-                FontFamily = new FontFamily("JetBrains Mono, Cascadia Mono, Consolas, monospace"),
-                FontSize = 12,
-                TextWrapping = TextWrapping.NoWrap,
-            };
-            var dialog = new Controls.ThemedDialog
-            {
-                Title = "Calculations",
-                Body = new ScrollViewer
-                {
-                    MaxHeight = 460,
-                    Content = body,
-                },
-                CopyText = text,
-                Width = 760,
-            };
-            Assert.True(dialog.HasBody, "the calculations dialog must show its body");
-            Assert.True(dialog.HasCopyText, "the calculations dialog must offer Copy");
-            dialog.Show();
-            try
-            {
-                dialog.UpdateLayout();
-                long frame = Capture(dialog, "phase-8m-calculations.png");
-                Assert.True(frame >= 512, "calculations frame missing or suspiciously small");
-            }
-            finally
-            {
-                dialog.Close();
-            }
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
     /// <summary>
     /// Runs the real engine, asserts what the populated panel should contain,
     /// and captures one frame of the window tall enough to show the widgets.

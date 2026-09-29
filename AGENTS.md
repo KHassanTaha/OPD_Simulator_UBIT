@@ -296,6 +296,28 @@ Whenever you run the app yourself, copy the exact commands you used into `docs/D
 
 Never write "should work" in these docs. Only "verified on <OS> on <date>".
 
+**A test may not override the production sizing of what it renders (D-166).**
+A screenshot or structural test must not set `Width`, `MinWidth`, `MaxWidth`
+or `Height` on a control it is building. If a test needs a different size,
+the sizing belongs in the control's own XAML, so that the test and the app
+read the same declared value. A test that supplies a value the app does not
+supply is not a weaker test — it is a test of a different program, and it
+looks *more* confident than one that does not.
+
+This rule exists because of a real miss: the Phase 8M screenshot test set
+`Width = 760` on the calculations dialog while the production path set no
+width and ran at 440. The frame was clean, every assertion was green, and the
+dialog a user opened was clipped. See D-166.
+
+**Screenshot evidence is append-only (D-166).** Never overwrite a screenshot
+that is cited as evidence of a known defect — always add a new file with a
+new name. The old frame is the evidence that the defect existed, and the
+instinct to re-render the same filename deletes it. Unreviewed frames (queued
+in a blocker, never looked at) may be regenerated freely, because they carry
+no evidence. When retiring a screenshot test that wrote such a file, delete
+the test **before** running the gate, or the gate itself will overwrite the
+evidence on its way to proving everything else.
+
 ### 10.7 No Duplicate Instructions
 
 Each instruction in docs/DEV_LAUNCH.md and docs/USER_MANUAL.md must have

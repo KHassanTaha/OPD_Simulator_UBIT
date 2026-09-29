@@ -36,11 +36,17 @@ public partial class ResultsPanel : UserControl
     }
 
     /// <summary>
-    /// Opens the themed calculations dialog (Phase 8M, D-164, FR-UI-29). The body
-    /// is a read-only monospace TextBlock of the text the pure
-    /// <see cref="Services.CalculationsTextBuilder"/> produced, and the dialog's
-    /// own Copy button puts it on the clipboard.
+    /// Opens the calculations dialog (Phase 8M, D-164, FR-UI-29; re-laid-out in
+    /// Phase 8N, D-165). The body arrives as structured
+    /// <see cref="Services.CalculationRow"/> items so the dialog can widen the label
+    /// column and wrap the value column, and the dialog's own Copy button puts the
+    /// flat text on the clipboard.
     /// </summary>
+    /// <remarks>
+    /// D-166: nothing here sets Width, MinWidth or MaxWidth. Those live in
+    /// CalculationsDialog.axaml. A call site that overrides them is how the Phase 8M
+    /// screenshot test ended up rendering a dialog no user could see.
+    /// </remarks>
     private async void OnCalculationsRequested(object? sender, EventArgs e)
     {
         if (_results is null)
@@ -48,24 +54,10 @@ public partial class ResultsPanel : UserControl
             return;
         }
 
-        var body = new TextBlock
-        {
-            Text = _results.CalculationsText,
-            FontFamily = (Avalonia.Media.FontFamily)this.FindResource("FontFamilyMono")!,
-            FontSize = 12,
-            TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
-        };
-
-        var dialog = new Controls.ThemedDialog
+        var dialog = new Controls.CalculationsDialog
         {
             Title = "Calculations",
-            Body = new ScrollViewer
-            {
-                MaxHeight = 460,
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                Content = body,
-            },
+            Rows = _results.CalculationsRows,
             CopyText = _results.CalculationsText,
         };
 

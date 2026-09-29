@@ -2,6 +2,84 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-29 06:05
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (Phase 8N code, tests and docs complete and gated; awaiting owner visual inspection of the new frame, then merge)
+
+Done
+- [x] **Phase 8N — calculations dialog sizing and layout** (TODO.md)
+
+In Progress
+- Owner visual inspection of `logs/screenshots/phase-8n-calculations.png` against their own app screenshot (B-012; §18).
+
+What is complete:
+The calculations dialog is a dedicated `Controls/CalculationsDialog.axaml` **Window** declaring its own sizing
+(`Width=800`, `MinWidth=640`, `MaxWidth=1200`, `MinHeight=400`, `MaxHeight=800`, `CanResize=True`, no fixed
+`Height`), with a `Grid ColumnDefinitions="Auto,*"` body inside a `ScrollViewer` so values wrap instead of
+clipping, and a `*,Auto,Auto` footer. `BuildRows()` supplies the rows; `Build()` is rendered *from* them, so
+the clipboard and the screen cannot disagree. `ThemedDialog` untouched — its four callers are unaffected.
+
+The root cause was not the reported one. There was no two-column layout to widen: the body was one
+`TextBlock` with `TextWrapping=NoWrap` in a 440 px window, and the Phase 8M test had rendered it at **760 px**,
+a width production never used. That test/production size mismatch is the whole B-012 story, and it is now a
+standing rule in AGENTS §10.6 alongside append-only screenshot evidence.
+
+What remains:
+Owner eyeballs the new frame; B-012 still holds ten unviewed frames; Phase 8 docs row is next.
+
+Next Session Should Start With
+- Owner verdict on `phase-8n-calculations.png` (fix confirmed, or new defect).
+- `TODO.md` **Phase 8 — Docs**: DEV_LAUNCH dead-state re-verification, USER_MANUAL rewrite, REQUIREMENTS
+  re-derivation, VIVA_ANSWERS, DECISIONS sweep.
+
+Blocked
+- B-012 — ten screenshot frames unviewed; this host has no image input (D-089).
+
+Git State
+Commits made this session: `fix: Calculations dialog sizing and button layout (Phase 8N)`
+Pushed to origin: see the push line below — branch `fix/phase-8n-dialog-sizing`
+Uncommitted changes: docs only at handoff time, committed with the phase
+
+Build & Test
+dotnet build: PASS (Release 0/0 and Debug 0/0, both `--no-incremental`)
+dotnet test: PASS — 608 passed, 0 failed, in each of Release and Debug
+            (Cli 35 / Data 92 / Core 114 / App 367; net +10 = −1 retired, +11 new)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: modified (CalculationRow, BuildRows, Build rendered from rows, NoRunMessage)
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml: added
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml.cs: added
+src/OpdSimulator.App/Views/ResultsPanel.axaml.cs: modified (opens the new dialog; no width set)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (CalculationsRows alongside CalculationsText)
+tests/OpdSimulator.App.Tests/Phase8NTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8MScreenshots.cs: modified (calculations screenshot test retired)
+AGENTS.md: modified (§10.6 verification discipline)
+docs/DECISIONS.md: modified (D-165, D-166)
+docs/TODO.md: modified
+docs/BLOCKERS.md: modified (B-012 corrected)
+docs/DEV_LAUNCH.md: modified
+docs/USER_MANUAL.md: modified (§6.11)
+docs/REQUIREMENTS.md: modified (FR-UI-29)
+docs/PROGRESS.md: modified
+
+Decisions Made
+- D-165 — calculations dialog is its own Window with a two-column body; `Build()` rendered from the rows
+- D-166 — a test may not override production sizing; screenshot evidence is append-only
+
+Assumptions Added/Changed
+- None. No new `[UNVERIFIED]` assumption was introduced; CONTEXT.md is unchanged.
+
+Notes for Next Session
+- `phase-8m-calculations.png` is **frozen** and is not a picture of the bug — it is a clean 760 px render.
+  The genuine before/after pair is the owner's own app screenshot against `phase-8n-calculations.png`.
+  Do not re-render the 8M frame; its test is retired precisely so the gate cannot overwrite it.
+- Two test bugs were mine and are recorded here so they are not mistaken for product defects: a `[Fact]`
+  constructing a `Window` (needs `[AvaloniaFact]`), and walking a visual tree before `Show()`.
+- Disclosed: the 8M frame was re-saved by reconciliation test runs at 05:23 and 05:27, before ruling 4
+  existed and before the test was retired. Same fixed fixture, same 760 px, so materially the same image,
+  but the overwrites are stated rather than glossed.
+
 ## Resume — 2026-09-29 05:02 — reconciled: 3 findings
 
 ## Session Handoff — 2026-09-29 04:44
