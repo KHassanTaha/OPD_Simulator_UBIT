@@ -2,6 +2,8 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-29 05:02 — reconciled: 3 findings
+
 ## Session Handoff — 2026-09-29 04:44
 Branch: `fix/phase-8m-ui-clarity`
 Status: In-Progress (code + docs complete and gated; awaiting owner visual review of the five frames, then merge)
