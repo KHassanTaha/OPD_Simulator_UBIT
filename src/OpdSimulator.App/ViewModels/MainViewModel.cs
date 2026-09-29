@@ -53,6 +53,40 @@ public partial class MainViewModel : ObservableObject
     public event EventHandler<int>? TabSelectionChanged;
 
     /// <summary>
+    /// Which arrival-rate estimate the run should use: MLE or window (D-173,
+    /// ruling 7).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Owned HERE, at the top, because the control that sets it is on the Input
+    /// tab and the value it feeds is built on the Simulation tab. Holding it in
+    /// either panel would mean one of them keeps a copy, and two copies of a
+    /// parameter is how a run ends up using a λ the user did not pick.
+    /// </para>
+    /// <para>
+    /// Defaults to MLE. Window λ is the better estimator for the window a run
+    /// simulates over, but MLE is what the course teaches and what every
+    /// pre-existing result was produced with, so changing the default silently
+    /// would have moved every historical number.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    private LambdaSource selectedLambdaSource = LambdaSource.Mle;
+
+    /// <summary>
+    /// Pushes the choice down to the Input tab's radios whenever the shell
+    /// changes it from anywhere other than the radios themselves (D-173).
+    /// </summary>
+    /// <remarks>
+    /// A preset load, a config reset or a test can all set the field directly.
+    /// Without this the radio buttons would keep rendering the old choice while
+    /// the run used the new one — the display and the arithmetic disagreeing,
+    /// which is the failure this separation of ownership was built to prevent.
+    /// </remarks>
+    partial void OnSelectedLambdaSourceChanged(LambdaSource value)
+        => InputTab.RefreshLambdaSource();
+
+    /// <summary>
     /// Set by the root view to open the OS file picker. The single load path
     /// (RULING 3, Phase 7D): both Upload buttons route here.
     /// </summary>
@@ -61,6 +95,18 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         InputTab = new InputTabViewModel(InputAnalysis);
+
+        // Ruling 7: the choice lives here; both panels read and write it through
+        // delegates so no second copy is kept (D-173).
+        Config.LambdaSourceAccessor = () => SelectedLambdaSource;
+        InputTab.LambdaSourceAccessor = () => SelectedLambdaSource;
+        InputTab.LambdaSourceSetter = source => SelectedLambdaSource = source;
+
+        // The Input tab owns the window selection and derives the λ that
+        // selection implies; the config panel reads it at build time so the run
+        // uses the figure on screen (D-172).
+        Config.WindowLambdaAccessor = () => InputTab.SelectedWindowLambda;
+        Config.SelectedWindowAccessor = () => InputTab.SelectedWindow;
 
         // The verification widget lives in the Results panel, whose DataContext
         // is the ResultsPanelViewModel; share the single instance so its XAML
@@ -305,7 +351,7 @@ public partial class MainViewModel : ObservableObject
 
             Dispatcher.UIThread.Post(() =>
             {
-                Results.CompleteRun(outcome, parameters, DescribeParameterSource());
+                Results.CompleteRun(outcome, parameters, DescribeParameterSource(), Config.Binding);
                 ApplyVerification(outcome, parameters);
                 ApplyAnalyticalValidation(outcome, parameters);
             });

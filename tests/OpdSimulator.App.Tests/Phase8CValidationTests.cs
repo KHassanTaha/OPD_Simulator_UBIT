@@ -296,7 +296,8 @@ public class Phase8CValidationTests
             // long run stays cheap.
             main.Config.SourceMode = DataSourceMode.EnterManually;
             main.Config.IsDiagnosticTrace = true;
-            main.Config.HorizonMinutes.Value = "200000";
+            main.Config.Duration = DiagnosticDurationPreset.CustomMinutes;
+            main.Config.CustomMinutes.Value = "200000";
             main.Config.AdvancedIsOptionalEnabled = true;
             main.Config.Seed.Value = "42";
             main.Config.TraceLevel = "Minimal";

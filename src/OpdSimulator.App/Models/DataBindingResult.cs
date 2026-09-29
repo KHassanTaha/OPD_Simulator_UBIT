@@ -1,5 +1,7 @@
 namespace OpdSimulator.App.Models;
 
+using OpdSimulator.App.Services;
+
 /// <summary>
 /// What a successfully analysed data file contributes to the run: the original
 /// dataset, its validation verdict, and the fitted parameters the upload
@@ -17,8 +19,14 @@ namespace OpdSimulator.App.Models;
 /// <param name="ScreeningExits">Rows whose departure_stage is Screening.</param>
 /// <param name="DoctorExits">Rows whose departure_stage is Doctor.</param>
 /// <param name="ReceptionExcluded">Rows excluded from the p_exit denominator (left at Reception — reneging).</param>
-/// <param name="InterArrivalMinutes">Observed inter-arrival gaps, for fitting and charts.</param>
+/// <param name="InterArrivalMinutes">Observed inter-arrival gaps, for fitting and charts. Cross-session gaps are excluded (D-173).</param>
 /// <param name="ServiceMinutesByStage">Observed service times per clinic stage, for fitting and charts.</param>
+/// <remarks>
+/// <see cref="FittedArrivalRate"/> is MLE λ, kept under its original name and its
+/// original meaning. D-173 adds <see cref="WindowLambda"/> BESIDE it rather than
+/// renaming anything: two live estimates, one chosen by the user, and renaming the
+/// one every existing call site already reads would have bought nothing.
+/// </remarks>
 public sealed record DataBindingResult(
     string? SourcePath,
     OpdSimulator.Data.Loaders.DataSet? DataSet,
@@ -36,4 +44,27 @@ public sealed record DataBindingResult(
 {
     /// <summary>Whether the file loaded and every row passed validation.</summary>
     public bool IsUsable => DataSet is not null && ErrorMessage is null && Issues.Count == 0;
+
+    /// <summary>
+    /// λ₂ = total arrivals ÷ the file's operating minutes (D-173).
+    /// </summary>
+    /// <remarks>
+    /// The second arrival-rate estimate, and the one that matches the window a
+    /// run will actually simulate over. Null whenever <see cref="ObservedWindow"/>
+    /// is null (no operating sessions) or fewer than two arrivals exist, which
+    /// keeps it defined on exactly the same data as <see cref="FittedArrivalRate"/>.
+    /// </remarks>
+    public double? WindowLambda { get; init; }
+
+    /// <summary>
+    /// Operating time the file covers, or null when it declares no usable
+    /// session dates (D-172).
+    /// </summary>
+    public ObservationWindow? ObservedWindow { get; init; }
+
+    /// <summary>
+    /// Distinct session dates parsed from the optional <c>session_date</c> column
+    /// (D-175); null when the file has no such column.
+    /// </summary>
+    public IReadOnlyList<DateOnly>? SessionDates { get; init; }
 }

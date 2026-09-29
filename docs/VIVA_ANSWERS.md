@@ -462,3 +462,97 @@ Two details to have ready if asked:
    the engine would then be carrying a figure that has no meaning outside this
    chart, and a change to the definition would silently alter the engine's
    output rather than its presentation.
+
+## Phase 8O — Observation window, two arrival rates, Horizon (2026-09-29)
+
+### Q: Why does your app report two different arrival rates for one file?
+
+Because they answer two different questions, and the MLE is not a "corrected"
+version of the window rate.
+
+**MLE λ** is `1 ÷ mean of the within-session inter-arrival gaps`. It measures
+the rate *while patients were arriving*.
+
+**Window λ** is `total arrivals ÷ operating minutes in the window`. It includes
+the idle tail of each session — the last few minutes of every clinic morning
+when nobody walks in.
+
+On my six-session sample file they differ by about 55%, which is exactly why I
+show both rather than picking one silently. MLE is the default because it is the
+estimator the course teaches and it is what every earlier result in this
+project was produced with.
+
+**Why exclude cross-session gaps from the MLE?** An inter-arrival time is a
+property of an arrival process that is running. Between Saturday 10:58 and
+Monday 08:12 the clinic is shut — that is 2,700 minutes of no process, not one
+inter-arrival time. Including it would both drag the mean down (so MLE λ would
+fall) and put a huge value into a histogram whose exponential PDF has no
+support there, so the chi-square verdict would be about a sample the engine
+never drew from.
+
+### Q: Why is the clinic day 165 minutes and not 180? And why is "1 month" twenty days?
+
+165 is `11:00 − 08:15` in minutes. The clinic opens at 08:15, not 09:00 — I
+corrected that on 2026-09-29 (D-172); both `AGENTS.md` and `CONTEXT.md` had it
+wrong, and the 45-minute difference was silently changing every arrival count
+per session.
+
+The presets count **operating sessions**, not calendar days, because the clinic
+is open Monday–Thursday and Saturday. A file running Monday to the following
+Monday spans seven calendar days but only six operating sessions, and the
+missing 165 minutes are minutes in which no patient could have arrived.
+Dividing arrivals by them would produce a rate lower than the data supports.
+
+"One month" is four operating weeks = 20 sessions. That is an **approximation
+I declared rather than derived**, because there is no calendar month of this
+clinic to count: the pattern is five-day weeks, so a month has no fixed length.
+I say so in the UI and the manual rather than letting the label imply a
+precision it does not have.
+
+### Q: Your calculations dialog shows the run's λ, but the file covers a different window. Which is right?
+
+Both, and the dialog says which is which — that is D-176, and it was a real
+defect rather than a formatting preference.
+
+If you pick "1 week" on a six-session file you have changed the *divisor*. The
+run used `60 ÷ 825`; the file's own window would give `60 ÷ 990`. My first
+implementation printed the file's figure on the `λ — window` line, so the
+dialog reported `0.06061` for a run that sampled at `0.07273`. The receipt is
+the more dangerous half of that pair, because it is what a reader trusts.
+
+Printing the right number alone was not enough, and that is the part I nearly
+missed: the window line above it still described the *file's* window, so
+dividing the printed arrivals by the printed minutes would not give the printed
+λ. So the dialog now prints the division itself — `λ = 60 arrivals ÷ 825
+operating minutes` — and the two windows are named apart. You can check my
+arithmetic on screen, which is the point of a receipt.
+
+I proved the test is real by reverting the one line that fixes it: the test
+fails, showing the old wrong figure.
+
+### Q: Why did the Time span dropdown disappear?
+
+Because one control was answering two unrelated questions, and both answers
+were wrong in different ways.
+
+It set a calendar run's length *and* a diagnostic trace's arrival window from
+one list. "1 week" meant 5 operating days for the run length but 6 **calendar**
+days for the generator count, so a five-day clinic ran for six. Nothing
+asserted this, because the arithmetic in each place was individually correct —
+the two readings simply did not mean the same thing.
+
+The default was worse: `10000` minutes, about four operating sessions, which
+made the dropdown's first option a value no user would pick and produced a
+trace too long to read.
+
+So the length now has one owner per mode. A calendar run's length is the **Days**
+field and nothing else. A diagnostic trace's window is the **Duration**
+dropdown — 1 hour, 15 minutes, or Custom minutes — and it is *visible in
+diagnostic mode only*.
+
+One consequence I had to fix: a calendar run must not read that field at all. A
+user who mistyped the custom value, switched to Multi-day, and pressed Run was
+getting a silent refusal about a control scrolled out of sight. A run you are
+entitled to perform should never fail because of a control it does not show. I
+pinned both directions with a pair of tests, because the calendar-mode test
+would pass just as well if the field were ignored everywhere.

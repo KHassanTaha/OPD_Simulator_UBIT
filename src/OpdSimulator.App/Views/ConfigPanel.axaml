@@ -236,27 +236,13 @@
                 <!-- ───── 5 · Horizon ──────────────────────────────────── -->
                 <controls:CollapsibleSection Title="5 · Horizon"
                                              IsExpanded="{Binding IsHorizonSectionExpanded, Mode=TwoWay}"
-                                             HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 9:00–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105).">
+                                             HelpText="Simulation length, run mode and the clinic opening pattern (Mon–Thu &amp; Sat, 08:15–11:00, CONTEXT §1.1). The diagnostic trace mode runs a bounded minutes-horizon simulation that records every event (D-105, D-174).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
-                        <!-- Phase 7A: time-span presets above the run-mode radio.
-                             Short spans bound the window (15 / 60 minutes); day+
-                             spans drive the generator-day count (D-125). -->
-                        <controls:SearchableDropdown Label="Time span"
-                                                     Placeholder="Choose a span…"
-                                                     Tooltip="Length of the simulated window: 15 minutes, 1 hour, one full clinic day, a full clinic week (Mon/Tue/Wed/Thu/Sat), ≈ one month, or a custom number of days"
-                                                     Items="{Binding TimeSpanOptions}"
-                                                     SelectedItem="{Binding TimeSpanSelection, Mode=TwoWay}"
-                                                     HelpAnchor="time-span"/>
-                        <controls:ValidatedField x:Name="CustomDaysField"
-                                                 Label="Custom days"
-                                                 Watermark="e.g., 10"
-                                                 Tooltip="Number of consecutive clinic days to simulate (integer ≥ 1)"
-                                                 IsVisible="{Binding IsCustomDaysVisible}"
-                                                 Value="{Binding CustomDays.Value, Mode=TwoWay}"
-                                                 HasError="{Binding CustomDays.HasError}"
-                                                 ErrorMessage="{Binding CustomDays.ErrorMessage}"
-                                                 HelpAnchor="custom-days"
-                                                 views:ConfigPanelValidation.ValidationKey="custom-days"/>
+                        <!-- Run mode first, then the duration control that applies to
+                             it. D-174 removed the old "Time span" dropdown: it drove
+                             BOTH the diagnostic minutes and the calendar run length,
+                             which is how a "1 week" span came to mean six days for a
+                             five-day clinic (rulings 3, 6). -->
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{DynamicResource SpaceM}">
                             <RadioButton GroupName="RunMode"
@@ -300,16 +286,30 @@
                                                  ErrorMessage="{Binding DailyCap.ErrorMessage}"
                                                  HelpAnchor="daily-cap"
                                                  views:ConfigPanelValidation.ValidationKey="daily-cap"/>
-                        <controls:ValidatedField x:Name="HorizonField"
-                                                 Label="Horizon (minutes)"
-                                                 Watermark="e.g., 10000"
-                                                 Tooltip="Length of the arrival window for the diagnostic trace run"
-                                                 IsVisible="{Binding IsDiagnosticTrace}"
-                                                 Value="{Binding HorizonMinutes.Value, Mode=TwoWay}"
-                                                 HasError="{Binding HorizonMinutes.HasError}"
-                                                 ErrorMessage="{Binding HorizonMinutes.ErrorMessage}"
-                                                 HelpAnchor="horizon-minutes"
-                                                 views:ConfigPanelValidation.ValidationKey="horizon-minutes"/>
+                        <!-- Diagnostic duration (D-174, ruling 6). Sits after the run
+                             mode because it only applies to the diagnostic trace;
+                             the calendar modes take their length from the Days field
+                             above. -->
+                        <StackPanel IsVisible="{Binding IsDiagnosticTrace}"
+                                    Spacing="{DynamicResource SpaceM}">
+                            <controls:SearchableDropdown x:Name="DurationDropdown"
+                                                         Label="Duration"
+                                                         Placeholder="Choose a duration…"
+                                                         Tooltip="How many minutes of arrival window the diagnostic trace simulates. One hour by default: a trace prints every event, so a longer window is slow to read."
+                                                         Items="{Binding DurationOptions}"
+                                                         SelectedItem="{Binding DurationSelection, Mode=TwoWay}"
+                                                         HelpAnchor="duration"/>
+                            <controls:ValidatedField x:Name="CustomMinutesField"
+                                                     Label="Custom duration (minutes)"
+                                                     Watermark="e.g., 10000"
+                                                     Tooltip="Length of the arrival window for the diagnostic trace run (whole number of minutes ≥ 1)"
+                                                     IsVisible="{Binding IsCustomMinutesVisible}"
+                                                     Value="{Binding CustomMinutes.Value, Mode=TwoWay}"
+                                                     HasError="{Binding CustomMinutes.HasError}"
+                                                     ErrorMessage="{Binding CustomMinutes.ErrorMessage}"
+                                                     HelpAnchor="horizon-minutes"
+                                                     views:ConfigPanelValidation.ValidationKey="horizon-minutes"/>
+                        </StackPanel>
                     </StackPanel>
                 </controls:CollapsibleSection>
 

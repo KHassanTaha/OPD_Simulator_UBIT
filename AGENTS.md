@@ -101,7 +101,7 @@ OpdSimulator/
 ### Milestone 3: Multi-Stage Network
 - Extend engine to handle three stages with configurable servers.
 - Implement routing after screening (exit probability).
-- Incorporate clinic opening hours logic (Mon–Thu & Sat, 9:00–11:00 AM).
+- Incorporate clinic opening hours logic (Mon–Thu & Sat, 8:15–11:00 AM — 165 operating minutes per session (corrected 2026-09-29, D-172; was documented as 9:00 AM)).
 
 ### Milestone 4: Event Logging & Step-by-Step Trace
 - Enhance logging to output every event with state changes and calculations.

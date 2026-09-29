@@ -68,4 +68,56 @@ public static class TimeParser
 
         return false;
     }
+
+    /// <summary>
+    /// Attempts to parse a calendar date from a <c>session_date</c> cell (D-175).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Accepted inputs, in the order they are tried:
+    /// <list type="bullet">
+    /// <item><c>YYYY-MM-DD</c> — the ISO form the sample files and the UI emit.</item>
+    /// <item><c>YYYY-MM-DD HH:mm:ss</c> — the string form <c>ExcelLoader</c> produces
+    /// for a genuinely date-typed cell (it formats with <c>ToString("yyyy-MM-dd HH:mm:ss")</c>).
+    /// Without this branch the same multi-day data would validate from a .csv and
+    /// fail from an .xlsx, which is the kind of asymmetry that reads as a bug later.</item>
+    /// <item><c>YYYY-MM-DDTHH:mm:ss</c> — ISO-8601 date-time, same truncation.</item>
+    /// <item><c>DD/MM/YYYY</c> — a fallback for hand-entered files.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The time portion of a date-time input is <b>discarded</b>, not validated: a
+    /// <c>session_date</c> names the operating session a row belongs to, and the
+    /// row's own <c>arrival_time</c> carries the wall clock. Truncation happens at
+    /// the first space or <c>'T'</c> so a single rule covers both date-time forms.
+    /// </para>
+    /// <para>
+    /// This method is additive: <see cref="TryParse"/> is untouched, so every file
+    /// that loaded before D-175 still loads exactly the same way.
+    /// </para>
+    /// </remarks>
+    /// <param name="text">Raw cell text.</param>
+    /// <param name="date">On success, the parsed calendar date.</param>
+    /// <returns><see langword="true"/> when the value was parsed; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseDate(string text, out DateOnly date)
+    {
+        date = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        string t = text.Trim();
+
+        // Excel/ISO-8601 date-times carry a time we do not need. Cut at the first
+        // space or 'T' so "2026-09-15 08:15:00" and "2026-09-15T08:15:00" both
+        // reduce to the plain ISO date.
+        int cut = t.IndexOfAny(new[] { ' ', 'T' });
+        if (cut > 0)
+            t = t[..cut];
+
+        if (DateOnly.TryParseExact(t, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+            return true;
+
+        return DateOnly.TryParseExact(t, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+    }
 }

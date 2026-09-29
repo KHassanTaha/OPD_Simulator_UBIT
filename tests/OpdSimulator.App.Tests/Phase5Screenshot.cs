@@ -33,7 +33,8 @@ public class Phase5Screenshot
             config.AdvancedIsOptionalEnabled = true;
             config.TraceLevel = "Detailed";
             config.IsDiagnosticTrace = true;
-            config.HorizonMinutes.Value = "1500";
+            config.Duration = DiagnosticDurationPreset.CustomMinutes;
+            config.CustomMinutes.Value = "1500";
 
             var outcome = SimulationCoordinator.Run(config.TryBuildRunParameters()!, binding: null);
             Assert.Null(outcome.Error);

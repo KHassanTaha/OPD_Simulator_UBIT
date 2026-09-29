@@ -1,5 +1,6 @@
 namespace OpdSimulator.App.Models;
 
+using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Data.Parameters;
 
@@ -78,6 +79,71 @@ public sealed record SimulationParameters(
         Array.Empty<double?>();
 
     /// <summary>
+    /// Which arrival-rate estimate drives the run when no manual λ overrides it
+    /// (D-173).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Declared as an init property defaulting to <see cref="LambdaSource.Mle"/> so
+    /// every construction site that predates Phase 8O keeps the behaviour it had.
+    /// </para>
+    /// <para>
+    /// This carries the CHOICE, not the number. Putting the chosen λ into
+    /// <paramref name="ManualArrivalRate"/> would have been the smaller edit, but it
+    /// would have dressed a value the app FITTED from the user's data as one the
+    /// user TYPED — and that record is read back to label the run's provenance. So
+    /// the choice travels and the coordinator still decides the number, keeping
+    /// fitted and manual distinguishable everywhere downstream.
+    /// </para>
+    /// </remarks>
+    public LambdaSource LambdaSource { get; init; } = LambdaSource.Mle;
+
+    /// <summary>
+    /// The window λ for the window the user SELECTED on the Input tab, when one
+    /// has been resolved there (D-172, D-173).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null whenever the Input tab was not involved: the CLI builds parameters
+    /// directly, and a GUI run whose window selection has not been evaluated yet
+    /// has nothing to offer. The coordinator then uses the binding's own
+    /// <c>WindowLambda</c>, so both routes keep working — the same defence in
+    /// depth D-128 established for the config panel's Start gate.
+    /// </para>
+    /// <para>
+    /// This exists because <c>DataBindingResult.WindowLambda</c> is fixed at
+    /// analysis time from the AUTO-detected window, and a user who picks "1
+    /// week" on a six-day file has changed the divisor. Carrying the override
+    /// rather than mutating the binding keeps the auto-detected figure available
+    /// for the calculations dialog, which reports the observed window as read
+    /// from the file.
+    /// </para>
+    /// </remarks>
+    public double? WindowLambdaOverride { get; init; }
+
+    /// <summary>
+    /// The window <see cref="WindowLambdaOverride"/> was computed from, so a
+    /// receipt can print the division that produces it (D-173).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Carries the SELECTED window, not the file's own: the override is
+    /// <c>arrivals ÷ SelectedWindow.OperatingMinutes</c>, so without this the
+    /// calculations dialog would have to print the file's observed window as the
+    /// divisor of a number that was not computed from it. A reader dividing the
+    /// printed arrivals by the printed minutes would get a different λ from the
+    /// one printed above it.
+    /// </para>
+    /// <para>
+    /// Null whenever <see cref="WindowLambdaOverride"/> is null, and null when
+    /// the Input tab was not involved (CLI, unit tests). Equal to
+    /// <c>DataBindingResult.ObservedWindow</c> whenever the user left the
+    /// selection on Auto, which is the common case.
+    /// </para>
+    /// </remarks>
+    public ObservationWindow? SelectedWindow { get; init; }
+
+    /// <summary>
     /// The first stage's service family as a display name, for callers that still need one
     /// family for the whole run.
     /// </summary>
@@ -99,4 +165,22 @@ public sealed record SimulationParameters(
     /// </remarks>
     public string ServiceDistribution =>
         ServiceFamilies.Count > 0 ? ServiceFamilies[0].Family.ToString() : "Exponential";
+}
+
+/// <summary>
+/// Which of the two arrival-rate estimates a run should use (D-173).
+/// </summary>
+/// <remarks>
+/// The two estimates are not interchangeable and neither is a correction of the
+/// other: MLE λ describes the rate while patients were arriving, window λ
+/// describes the rate across the whole operating session. Both are always shown;
+/// this picks one, and MLE is the default because it is what the course teaches.
+/// </remarks>
+public enum LambdaSource
+{
+    /// <summary>λ = 1 / mean(inter-arrival gaps). The default.</summary>
+    Mle,
+
+    /// <summary>λ = total arrivals ÷ the file's operating minutes.</summary>
+    Window,
 }

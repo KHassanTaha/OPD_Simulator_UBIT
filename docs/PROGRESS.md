@@ -2,6 +2,96 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-29 Phase 8O
+Branch: `fix/phase-8o-window`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- [x] **The clinic's own opening hour was wrong in this project's documents.** `AGENTS.md` and `CONTEXT.md` both said 09:00–11:00. The clinic opens at **08:15**, so a session is **165 operating minutes** — every per-session arrival count and every window divisor in the project was 45 minutes a day out, silently, with no test able to see it because it was consistent. Corrected in both files and at the source (D-172).
+- [x] **Optional `session_date` column** (Data + App): three accepted forms, arrival order checked **within** each session, Friday/Sunday rows validator-clean but excluded from the window, and a closed-only file says so rather than computing a rate over time the clinic was shut.
+- [x] **Observation window as a set of operating sessions**, with presets 1/3/5/10/20 sessions (165/495/825/1650/3300 min) and custom operating **hours**. "One month" is declared an approximation, not derived — there is no calendar month of a five-day week.
+- [x] **Two arrival-rate estimates, both always shown**, with the divergence stated in percent and its direction, and **MLE as the default**. The **choice** travels on `SimulationParameters`, never the number.
+- [x] **`WindowLambdaOverride`**, so the panel and the engine cannot disagree after the user changes the divisor.
+- [x] **Horizon split (D-174)**: the `Time span` dropdown is gone. Calendar runs take length from **Days**; diagnostic traces from a new **Duration** dropdown visible in that mode alone. A calendar run does not read the custom field at all.
+- [x] **D-176 — the calculations receipt.** Found by review, not by a test: D-173 fixed the run path and left the mirror defect in the receipt.
+- [x] **Docs:** D-172..D-177, PRD v1.6.0, REQUIREMENTS (56/76, 73.7%), AGENTS, CONTEXT, TODO, USER_MANUAL §6.11/§7.1/§7.1a, VIVA_ANSWERS (four questions), BLOCKERS, DEV_LAUNCH.
+
+In Progress
+Nothing in code. The gate is green and the documentation is complete; what remains is owner-only.
+
+What is complete:
+The whole of Phase 8O — data layer, observation window, dual λ, Horizon split, calculations receipt, tests, evidence frames, and every documentation file.
+
+What remains:
+Owner visual inspection of the six new frames (§18 — this agent has no image input on this host, D-089), and the commit/push of this branch.
+
+Next Session Should Start With
+- Owner review of `logs/screenshots/phase-8o-*.png` (6 frames).
+- Merge `fix/phase-8o-window` into `main` once the frames are signed off.
+
+Blocked
+- B-012 — screenshot review, owner-only. Five new frames, plus the 8M/8N backlog.
+
+Git State
+Commits made this session: none yet — the work is staged in the working tree, uncommitted.
+
+Pushed to origin: No — the branch is local. `fix/phase-8n-dialog-sizing` is pushed; this one is not.
+
+Uncommitted changes: all of Phase 8O (src, tests, samples, docs, six new frames).
+
+Build & Test
+dotnet build: PASS (Release and Debug, 0 errors / 0 warnings, `--no-incremental`)
+
+dotnet test: PASS — 693 passed, 0 failed, in **each** of Release and Debug (Cli 35 / Data 114 / Core 114 / App 430)
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Data/Preprocess/TimeParser.cs: modified
+src/OpdSimulator.Data/Validation/DataValidator.cs: modified
+src/OpdSimulator.App/Services/DataAnalyzer.cs: modified
+src/OpdSimulator.App/Services/ObservationWindowService.cs: added
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: modified
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: modified
+src/OpdSimulator.App/Models/ObservationWindow.cs (in ObservationWindowService.cs): added
+src/OpdSimulator.App/Models/DataBindingResult.cs: modified
+src/OpdSimulator.App/Models/SimulationParameters.cs: modified
+src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified
+src/OpdSimulator.App/Views/InputTab.axaml: modified
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified
+src/OpdSimulator.App/Views/ConfigPanel.axaml.cs: modified
+tests/OpdSimulator.Data.Tests/SessionDateTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8OTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8OScreenshots.cs: added
+tests/OpdSimulator.App.Tests/Phase7ATests.cs: modified
+samples/sample_multiday.csv: added
+scripts/generate-multiday-fixture.py: added
+logs/screenshots/phase-8o-*.png: 5 added
+docs/DECISIONS.md, PRD.md, REQUIREMENTS.md, PROGRESS.md, TODO.md, BLOCKERS.md, DEV_LAUNCH.md, USER_MANUAL.md, VIVA_ANSWERS.md, CONTEXT.md: modified
+AGENTS.md: modified
+
+Decisions Made
+- D-172 — clinic day 08:15–11:00 (165 min); `session_date`; operating-session window; presets in operating minutes — docs/DECISIONS.md
+- D-173 — two λ estimates, both shown, divergence stated, MLE default, **choice** on parameters; `WindowLambdaOverride` — docs/DECISIONS.md
+- D-174 — the `Time span` dropdown is withdrawn; Days and Duration are separate owners — docs/DECISIONS.md
+- D-175 — the 8O frame set; custom hours uses the shared `ValidatedField` — docs/DECISIONS.md
+- D-176 — the receipt reports the run's window λ and prints the division — docs/DECISIONS.md
+- D-177 — one 8O frame is taken at the window size the app actually ships with — docs/DECISIONS.md
+
+Assumptions Added/Changed
+- [VERIFIED] The clinic opens at 08:15, not 09:00 (owner ruling, 2026-09-29) — CONTEXT.md
+- [VERIFIED] "One month" means four operating weeks (20 sessions) — CONTEXT.md
+- [VERIFIED] Friday/Sunday rows are valid data but not operating time — CONTEXT.md
+
+Notes for Next Session
+1. **Three tests were wrong, not the code, and each would have passed over a real defect** — the details are in the TODO entry and are the most useful thing in this session. The generalisable one: the custom-hours test asserted the *entered value* appeared in the readout when the readout reports the *divisor* by design, and the 1-hour duration test passed for the wrong reason because 60 is also the placeholder a calendar run carries.
+2. **`DataSet.RowCount` is the arrivals numerator** in the window-λ division, and it is the same figure the Input tab divides by — worth keeping in mind if the preview ever gains filtered rows.
+3. **The `Observation window` label was left alone deliberately.** An initial rename to `Observation window (from the file)` broke `Calculations_PrintsBothEstimatesAndTheSource`, which looks rows up by exact label; the disambiguation is better carried by the conditional `Selected window (used)` line. Do not "tidy" that label without re-running that test.
+4. **D-166 still binds:** the five 8O frames are unreviewed and may be regenerated freely. Once the owner has looked at them, do not re-run the screenshot tests.
+
 ## Session Handoff — 2026-09-29 08:05
 Branch: `fix/phase-8n-dialog-sizing`
 Status: In-Progress (work committed; owner visual inspection outstanding)
@@ -188,7 +278,7 @@ Notes for Next Session
 
 ## Session Handoff — 2026-09-29 04:44
 Branch: `fix/phase-8m-ui-clarity`
-Status: In-Progress (code + docs complete and gated; awaiting owner visual review of the five frames, then merge)
+Status: In-Progress (code + docs complete and gated; awaiting owner visual review of the six frames, then merge)
 
 ### Done
 - **Phase 8M** — marked `[x]` in `TODO.md`. Three owner findings (N1 labels, N2 bars that did not add up, N3 fabricated queue slopes) closed, plus the stage-colour unification and the "View calculations" derivations.
@@ -208,7 +298,7 @@ What is complete:
 **38 new tests, 560 → 598**, in five classes: `Phase8MChartTests` (10 — contribution scale, bar counts and per-stage sums parameterised 1/2/3 → 6 bars and 2/4/5 → 11 bars, equal-share line, amber threshold, per-server detail, the four-sentence caption), `Phase8MPaletteTests` (9), `Phase8MQueueAndCalculationsTests` (8), `Phase8MChartControlTests` (**6**, `[AvaloniaFact]` — the label defect is only observable on a rendered axis, so these assert the **built** `CartesianChart`), `Phase8MScreenshots` (5).
 
 ### What remains
-- **Owner visual review of the five PNGs** — see Blocked.
+- **Owner visual review of the six PNGs** — see Blocked.
 - Phase 8 (the docs row) is the next `[ ]` row in `TODO.md`.
 
 ### Next Session Should Start With

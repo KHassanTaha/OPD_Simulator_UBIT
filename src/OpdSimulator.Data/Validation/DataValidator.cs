@@ -17,8 +17,14 @@ using OpdSimulator.Data.Preprocess;
 /// except a stage cell may be blank when the patient exited at an earlier stage in the clinic flow
 /// (<see cref="ClinicStageOrder"/>), e.g. a Screening exit has no <c>doctor_*</c> times.</item>
 /// <item>Every time value parses via <see cref="TimeParser"/>.</item>
+/// <item>An optional <c>session_date</c> column (D-175), when present, parses on
+/// every row via <see cref="TimeParser.TryParseDate"/>. Rows on a closed day
+/// (Fri/Sun) are <b>permitted</b> and excluded from the observation window by
+/// <c>ObservationWindowService</c> instead — see D-175 for why they are not issues.</item>
 /// <item><c>departure_stage</c> ∈ {Screening, Doctor} (case-insensitive).</item>
-/// <item>Arrival times are monotonically non-decreasing.</item>
+/// <item>Arrival times are monotonically non-decreasing <b>within a session</b>. A
+/// change of <c>session_date</c> resets the comparison: a session boundary is not
+/// an out-of-order arrival (D-175).</item>
 /// <item>For each stage, <c>end ≥ start</c> (no inverted rows).</item>
 /// </list>
 /// All issues are collected — validation never stops at the first problem, so the
@@ -49,6 +55,11 @@ public static class DataValidator
         RequireColumn(issues, columns, "arrival_time");
         RequireColumn(issues, columns, "departure_stage");
 
+        // D-175: session_date is OPTIONAL. Its presence changes two things — every
+        // row must carry a parseable date, and arrival ordering is checked per
+        // session. Its absence means a single session, i.e. pre-8O behaviour.
+        bool hasSessionDate = columns.Contains("session_date");
+
         var stageSet = StagePairDetector.Detect(dataSet.Columns);
         if (stageSet.Pairs.Count == 0)
             issues.Add(new ValidationIssue(0, null,
@@ -59,6 +70,7 @@ public static class DataValidator
             issues.Add(new ValidationIssue(0, e, "Column ends with '_end' but no matching '<prefix>_start' column exists."));
 
         double? previousArrival = null;
+        string? previousSession = null;
 
         for (int i = 0; i < dataSet.Rows.Count; i++)
         {
@@ -72,14 +84,51 @@ public static class DataValidator
                 continue;
             }
 
+            // -- session_date (optional column, D-175) --
+            // A file WITHOUT the column is a single session and behaves exactly as
+            // before: no session key, no reset, previousSession stays null.
+            string? sessionKey = null;
+            if (hasSessionDate)
+            {
+                if (row.TryGetValue("session_date", out string? sessionText) && !string.IsNullOrWhiteSpace(sessionText))
+                {
+                    if (!TimeParser.TryParseDate(sessionText, out _))
+                    {
+                        issues.Add(new ValidationIssue(rowNumber, "session_date",
+                            $"Date value '{sessionText}' could not be parsed (expected YYYY-MM-DD)."));
+                    }
+                    else
+                    {
+                        sessionKey = sessionText.Trim();
+                    }
+                }
+                else
+                {
+                    issues.Add(new ValidationIssue(rowNumber, "session_date",
+                        "Missing value in a file that declares the session_date column."));
+                }
+            }
+
             // -- arrival_time --
             if (row.TryGetValue("arrival_time", out string? arrivalText) && !string.IsNullOrWhiteSpace(arrivalText))
             {
                 if (TimeParser.TryParse(arrivalText, out double arrival))
                 {
+                    // A new session restarts the ordering check. Arrival times are
+                    // time-of-day, so Monday 10:55 followed by Tuesday 08:15 reads
+                    // as a DECREASE (655 → 495) even though the file is in perfect
+                    // date order. Rejecting that would make every multi-day file
+                    // unusable, so the boundary clears the running maximum (D-175).
+                    if (sessionKey is not null
+                        && previousSession is not null
+                        && !string.Equals(sessionKey, previousSession, StringComparison.OrdinalIgnoreCase))
+                    {
+                        previousArrival = null;
+                    }
+
                     if (previousArrival is not null && arrival < previousArrival.Value)
                         issues.Add(new ValidationIssue(rowNumber, "arrival_time",
-                            $"Arrival time {arrivalText} is out of order (must be non-decreasing)."));
+                            $"Arrival time {arrivalText} is out of order (must be non-decreasing within a session)."));
                     previousArrival = arrival;
                 }
                 else
@@ -92,6 +141,9 @@ public static class DataValidator
             {
                 issues.Add(new ValidationIssue(rowNumber, "arrival_time", "Missing value in required column."));
             }
+
+            if (sessionKey is not null)
+                previousSession = sessionKey;
 
             // -- departure_stage --
             if (row.TryGetValue("departure_stage", out string? departureText) && !string.IsNullOrWhiteSpace(departureText))
