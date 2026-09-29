@@ -12,7 +12,7 @@
 - **Location:** OPD (Outpatient Department), multi-floor clinic.
 - **Operating days:** Monday–Thursday and Saturday.
 - **Closed:** Friday, Sunday.
-- **Official hours:** 9:00 AM – 11:00 AM.
+- **Official hours:** 8:15 AM – 11:00 AM (165 operating minutes). _(Corrected 2026-09-29, D-172 — was recorded as 9:00 AM.)_
 - **Observed reality:** Patients begin arriving around **8:15 AM**; tokens issued from reception; screening service can begin as early as **8:45 AM**.
 - **Patient cap:** Observed average of roughly 80–100 patients/day (subject to confirmation). Modelled implicitly; not enforced as a hard constraint unless the user sets it.
 - **No shifts:** Staff do not rotate within the 2-hour window.

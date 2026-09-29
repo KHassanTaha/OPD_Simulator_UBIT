@@ -141,7 +141,8 @@ public class Phase5cScreenshot
         config.AdvancedIsOptionalEnabled = true;
         config.TraceLevel = "Detailed";
         config.IsDiagnosticTrace = true;
-        config.HorizonMinutes.Value = "1500";
+        config.Duration = DiagnosticDurationPreset.CustomMinutes;
+            config.CustomMinutes.Value = "1500";
     }
 
     private static string FindRepoRoot(string start)

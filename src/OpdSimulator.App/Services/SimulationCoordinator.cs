@@ -108,7 +108,18 @@ public static class SimulationCoordinator
         double routingExitProbability = hasDownstreamStage ? exitProbability : 0.0;
 
         // ── Resolve the per-stage topology from manual-or-fitted values ─────
-        double? arrivalRate = parameters.ManualArrivalRate ?? binding?.FittedArrivalRate;
+        // A manual λ always wins — the user typed it. Otherwise the CHOSEN estimate
+        // drives the run (D-173). For the window estimate the Input tab's
+        // SELECTED window wins over the binding's auto-detected one, because the
+        // user changed the divisor; if neither exists — no Input tab, a file with
+        // no operating sessions, fewer than two arrivals — we fall back to MLE
+        // rather than refusing a run over a display preference.
+        double? arrivalRate = parameters.ManualArrivalRate
+            ?? (parameters.LambdaSource == LambdaSource.Window
+                ? parameters.WindowLambdaOverride
+                    ?? binding?.WindowLambda
+                    ?? binding?.FittedArrivalRate
+                : binding?.FittedArrivalRate);
         if (!(arrivalRate is > 0))
         {
             return Refused(fits, exitProbability, MissingArrivalRateMessage);

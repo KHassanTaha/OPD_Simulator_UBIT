@@ -69,6 +69,20 @@ public static class CalculationsTextBuilder
         (value * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
 
     /// <summary>Culture-invariant fixed-point, used for rates and times.</summary>
+    /// <summary>
+    /// The run mode as the user named it on the Horizon radios (D-174).
+    /// </summary>
+    /// <param name="mode">The recorded mode, or null when no run is recorded.</param>
+    /// <returns>A user-facing label, never the enum member name.</returns>
+    private static string RunModeLabel(RunMode? mode) =>
+        mode switch
+        {
+            RunMode.ClinicDay => "Single day",
+            RunMode.MultiDay => "Multi-day",
+            RunMode.DiagnosticTrace => "Diagnostic trace",
+            _ => "(not recorded)",
+        };
+
     private static string Num(double value, int decimals = 4) =>
         value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 
@@ -88,9 +102,10 @@ public static class CalculationsTextBuilder
     public static string Build(
         SimulationResult? result,
         SimulationParameters? parameters,
-        string? sourceDescription)
+        string? sourceDescription,
+        DataBindingResult? binding = null)
     {
-        var rows = BuildRows(result, parameters, sourceDescription);
+        var rows = BuildRows(result, parameters, sourceDescription, binding);
         return rows.Count == 0 ? NoRunMessage : FlatText(rows);
     }
 
@@ -148,7 +163,8 @@ public static class CalculationsTextBuilder
     public static IReadOnlyList<CalculationRow> BuildRows(
         SimulationResult? result,
         SimulationParameters? parameters,
-        string? sourceDescription)
+        string? sourceDescription,
+        DataBindingResult? binding = null)
     {
         if (result is null)
         {
@@ -162,14 +178,19 @@ public static class CalculationsTextBuilder
             ? "(not recorded)"
             : sourceDescription!);
         Field(text, "Random seed", parameters?.Seed.ToString(CultureInfo.InvariantCulture) ?? "(not recorded)");
-        Field(text, "Run mode", parameters?.RunMode.ToString() ?? "(not recorded)");
+
+        // D-174: the enum member name is an implementation detail ("ClinicDay"
+        // is what the class is called). The user picked from three radios, so the
+        // label says what they picked.
+        Field(text, "Run mode", RunModeLabel(parameters?.RunMode));
         if (parameters is not null)
         {
             Field(text, "Start day", parameters.StartDay.ToString());
             Field(text, "Days generated", parameters.GeneratorDays.ToString(CultureInfo.InvariantCulture));
             if (parameters.RunMode == RunMode.DiagnosticTrace)
             {
-                Field(text, "Arrival window", $"{Num(parameters.HorizonMinutes, 2)} min");
+                // Named "Duration" to match the dropdown the user set it in.
+                Field(text, "Duration (arrival window)", $"{Num(parameters.HorizonMinutes, 2)} min");
             }
 
             if (parameters.DailyCap is int cap)
@@ -187,6 +208,93 @@ public static class CalculationsTextBuilder
         {
             Field(text, "Mean inter-arrival 1/λ", $"{Num(1 / l, 3)} min");
             Field(text, "Rule", "i.i.d. inter-arrival times; sample the gap, then schedule the arrival");
+        }
+
+        // D-173: both estimates exist for a loaded file, and the run used one of
+        // them. The three λ lines are the point of this block — a reader who sees
+        // only the value that was used cannot tell that a second, materially
+        // different estimate was available, and would assume the choice was
+        // arbitrary.
+        //
+        // The window line reports the estimate the RUN used, which is the
+        // override when the user picked a window other than the file's own. The
+        // file's auto-detected figures are printed as well, under
+        // "from the file", so the receipt states both the observed window and
+        // the selected one instead of silently reporting the run's λ beside the
+        // file's divisor. Printing the override against the file's window would
+        // be worse than the defect it replaces: the reader could divide the
+        // printed arrivals by the printed minutes and fail to reproduce the λ
+        // printed above it.
+        if (parameters is not null && binding is not null)
+        {
+            Field(text, "λ source", parameters.LambdaSource == LambdaSource.Window
+                ? "window (arrivals ÷ operating minutes)"
+                : "MLE (1 ÷ mean within-session inter-arrival gap)");
+
+            if (binding.FittedArrivalRate is double mle and > 0)
+            {
+                Field(text, "λ — MLE", $"{Num(mle, 5)} patients/min");
+                Field(text, "  MLE rule", "λ = 1 ÷ mean gap. Cross-session gaps are excluded: "
+                    + "an inter-arrival distribution is a within-session property, so an "
+                    + "overnight closure is not an inter-arrival time.");
+            }
+
+            // The run's window λ: the selected-window figure when one was carried,
+            // else the binding's own. Null for the CLI, which has no Input tab.
+            double? appliedWindow = parameters.WindowLambdaOverride ?? binding.WindowLambda;
+            ObservationWindow? appliedFrom = parameters.SelectedWindow ?? binding.ObservedWindow;
+            bool selectedDiffersFromFile = parameters.WindowLambdaOverride is double sel
+                && binding.WindowLambda is double auto
+                && Math.Abs(sel - auto) > 1e-12;
+
+            if (appliedWindow is double win and > 0)
+            {
+                Field(text, selectedDiffersFromFile ? "λ — window (used)" : "λ — window",
+                    $"{Num(win, 5)} patients/min");
+                // The division is printed, not just the rule, whenever both halves
+                // of it are known — a rule the reader cannot run is not a receipt.
+                int arrivals = binding.DataSet?.RowCount ?? 0;
+                if (appliedFrom is { } win2 && arrivals > 0)
+                {
+                    Field(text, "  window rule",
+                        $"λ = {arrivals} arrivals ÷ {Num(win2.OperatingMinutes, 0)} operating "
+                        + $"minutes across {ObservationWindowService.Describe(win2)}.");
+                }
+                else
+                {
+                    Field(text, "  window rule",
+                        "λ = total arrivals ÷ operating minutes in the observation window.");
+                }
+            }
+
+            if (binding.ObservedWindow is { } window)
+            {
+                Field(text, "Observation window",
+                    $"{window.OperatingDays} operating " +
+                    $"{(window.OperatingDays == 1 ? "day" : "days")} " +
+                    $"({Num(window.OperatingMinutes, 0)} operating minutes)");
+            }
+
+            if (selectedDiffersFromFile && appliedFrom is { } chosen)
+            {
+                Field(text, "Selected window (used)",
+                    $"{ObservationWindowService.Describe(chosen)} — the run used this divisor, "
+                    + $"not the file's own window above");
+            }
+
+            // Divergence is about the two ESTIMATES, so it compares the run's
+            // window λ against the MLE beside it — not the file's auto-detected
+            // figure, which is no longer the one under discussion.
+            if (binding.FittedArrivalRate is double a and > 0
+                && appliedWindow is double b and > 0
+                && Math.Abs(a - b) > 1e-9)
+            {
+                Field(text, "Estimate divergence",
+                    $"{(b > a ? "Window" : "MLE")} is " +
+                    $"{Math.Abs(b - a) / a * 100:F1}% " +
+                    $"{(b > a ? "lower" : "higher")} than the other; the run used " +
+                    $"{(parameters.LambdaSource == LambdaSource.Window ? "window" : "MLE")}.");
+            }
         }
 
         Section(text, "SERVICE PROCESSES");

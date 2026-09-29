@@ -92,6 +92,76 @@
             <!-- Distribution-fit analysis for the loaded file -->
             <Border Height="1" Background="{DynamicResource BrushBorderDefault}"/>
 
+            <!-- ── Observation window (D-172) ─────────────────────────────────
+                 Sits above the fit charts because the window decides which
+                 window λ is offered, and the λ choice is what the charts
+                 describe. -->
+            <StackPanel Spacing="{DynamicResource SpaceXs}" IsVisible="{Binding HasFile}">
+                <TextBlock Text="Observation window"
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                <TextBlock Text="How much OPERATING time this file covers. The clinic is shut overnight and at the weekend, so those hours are not counted."
+                           Classes="Caption"
+                           TextWrapping="Wrap"/>
+                <ComboBox Name="WindowSelector"
+                          ItemsSource="{Binding WindowOptions}"
+                          SelectedItem="{Binding SelectedWindowLabel, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch"
+                          ToolTip.Tip="The window the file's session dates imply. 'Auto' reads the file; the presets override it."/>
+                <!-- FR-UI-17 via the shared ValidatedField: red 2px border, error
+                     icon, cause + remedy text, and an accessible name that carries
+                     the error to a screen reader. Built once, used here rather than
+                     hand-rolled (§16.5: duplicating UI logic is a defect). -->
+                <controls:ValidatedField
+                    IsVisible="{Binding IsCustomWindowSelected}"
+                    Label="Custom window (operating hours)"
+                    Watermark="e.g. 5.5"
+                    Unit="h"
+                    Value="{Binding CustomHours, Mode=TwoWay}"
+                    HasError="{Binding IsCustomWindowInvalid}"
+                    ErrorMessage="{Binding CustomWindowErrorText}"
+                    Tooltip="Operating hours the data covers. One clinic session is 2.75 hours, so 5.5 is two."
+                    HelpAnchor="observation-window"/>
+            </StackPanel>
+
+            <!-- ── Two λ estimates (rulings 2, 4, 7) ────────────────────────
+                 Both are always shown. Neither is presented as the correction
+                 of the other, and the user picks which one drives the run. -->
+            <Border IsVisible="{Binding HasFile}"
+                    Background="{DynamicResource BrushSurfaceSecondary}"
+                    CornerRadius="6"
+                    Padding="{DynamicResource ThicknessSpaceS}">
+                <StackPanel Spacing="{DynamicResource SpaceXs}">
+                    <TextBlock Text="Arrival rate (λ)"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding MleLambdaText}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding WindowLambdaText}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding LambdaDivergenceText}"
+                               Classes="Caption"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding !IsMleSelected}"/>
+
+                    <TextBlock Text="Use for this run"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,0"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <RadioButton Content="MLE (1 ÷ mean inter-arrival gap)"
+                                 GroupName="LambdaSource"
+                                 IsChecked="{Binding IsMleSelected, Mode=TwoWay}"
+                                 IsEnabled="{Binding HasMleLambda}"
+                                 ToolTip.Tip="The rate while patients were arriving. Cross-session gaps are excluded."/>
+                    <RadioButton Content="Window (arrivals ÷ operating minutes)"
+                                 GroupName="LambdaSource"
+                                 IsChecked="{Binding IsWindowSelected, Mode=TwoWay}"
+                                 IsEnabled="{Binding !IsWindowChoiceDisabled}"
+                                 ToolTip.Tip="The rate across the whole operating session, including the idle tail."/>
+                </StackPanel>
+            </Border>
+
             <StackPanel Spacing="{DynamicResource SpaceXs}" IsVisible="{Binding HasFile}">
                 <TextBlock Text="Distribution fit"
                            FontSize="{DynamicResource FontSizeTitle}"

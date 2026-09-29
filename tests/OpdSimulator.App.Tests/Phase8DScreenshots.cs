@@ -63,7 +63,8 @@ public class Phase8DScreenshots
             main.Config.AdvancedIsOptionalEnabled = true;
             main.Config.IsDiagnosticTrace = true;
             main.Config.TraceLevel = "Standard";
-            main.Config.HorizonMinutes.Value = "1500";
+            main.Config.Duration = DiagnosticDurationPreset.CustomMinutes;
+            main.Config.CustomMinutes.Value = "1500";
 
             var outcome = SimulationCoordinator.Run(main.Config.TryBuildRunParameters()!, binding: null);
             Assert.Null(outcome.Error);

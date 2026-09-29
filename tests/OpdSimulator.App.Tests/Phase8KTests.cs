@@ -1117,7 +1117,8 @@ public class Phase8KTests
         // Diagnostic trace runs a raw window of minutes, so the sample size is under
         // this test's control; the calendar modes would cap it at one clinic morning.
         panel.IsDiagnosticTrace = true;
-        panel.HorizonMinutes.Value = "600";
+        panel.Duration = DiagnosticDurationPreset.CustomMinutes;
+        panel.CustomMinutes.Value = "600";
 
         var parameters = panel.TryBuildRunParameters();
         Assert.NotNull(parameters);
@@ -1165,7 +1166,8 @@ public class Phase8KTests
         panel.StageRows[1].ServiceFamily = DistributionFamily.Gamma;
         panel.StageRows[1].ServiceShape = "2";
         panel.IsDiagnosticTrace = true;
-        panel.HorizonMinutes.Value = "600";
+        panel.Duration = DiagnosticDurationPreset.CustomMinutes;
+        panel.CustomMinutes.Value = "600";
         Assert.Equal(DistributionFamily.Gamma, panel.StageRows[1].ServiceFamily);
 
         // The fitted rate this stage resolves to, read back from the binding rather
@@ -1253,7 +1255,8 @@ public class Phase8KTests
         panel.StageRows[0].ServiceFamily = DistributionFamily.Uniform;
         panel.StageRows[0].ServiceSpread = "0.5";
         panel.IsDiagnosticTrace = true;
-        panel.HorizonMinutes.Value = "600";
+        panel.Duration = DiagnosticDurationPreset.CustomMinutes;
+        panel.CustomMinutes.Value = "600";
         Assert.Equal(DistributionFamily.Uniform, panel.StageRows[0].ServiceFamily);
 
         var parameters = panel.TryBuildRunParameters();

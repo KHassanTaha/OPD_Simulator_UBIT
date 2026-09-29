@@ -332,112 +332,103 @@ public partial class ConfigPanelViewModel : ObservableObject
         : IsMultiDay ? RunMode.MultiDay
         : RunMode.ClinicDay;
 
-    // ── Time-span presets (Phase 7A) ──────────────────────────────────────
+    // ── Diagnostic-trace duration (D-174, ruling 6) ───────────────────────
 
-    /// <summary>Time-span labels offered by the Horizon dropdown, in dropdown order (D-125).</summary>
-    public IReadOnlyList<string> TimeSpanOptions { get; } =
-        new[] { "15 minutes", "1 hour", "1 day", "1 week", "1 month", "Custom days…" };
+    /// <summary>
+    /// Duration labels for the diagnostic-trace run, in dropdown order, with
+    /// the default first (ruling 6).
+    /// </summary>
+    /// <remarks>
+    /// The default is 1 hour, not 15 minutes and not the old 10000-minute field.
+    /// A diagnostic trace prints every event, so its cost is paid per simulated
+    /// minute: the previous default produced a trace too long to read, and 15
+    /// minutes was too short to show a patient completing the network. One
+    /// operating session's worth of arrivals is the length that actually
+    /// demonstrates the engine.
+    /// </remarks>
+    public IReadOnlyList<string> DurationOptions { get; } =
+        new[] { "1 hour", "15 minutes", "Custom minutes…" };
 
-    /// <summary>Currently selected span preset (the label drives the dropdown via <see cref="TimeSpanSelection"/>).</summary>
+    /// <summary>Currently selected diagnostic duration (ruling 6).</summary>
     [ObservableProperty]
-    private TimeSpanPreset timeSpan = TimeSpanPreset.OneDay;
+    private DiagnosticDurationPreset duration = DiagnosticDurationPreset.OneHour;
 
-    /// <summary>The dropdown's committed label, kept in sync with <see cref="TimeSpan"/> (string-based SearchableDropdown seam).</summary>
+    /// <summary>The dropdown's committed label, kept in sync with <see cref="Duration"/>.</summary>
     [ObservableProperty]
-    private string timeSpanSelection = "1 day";
+    private string durationSelection = "1 hour";
 
-    /// <summary>Whether the "Custom days" field is shown — only while that span is selected.</summary>
+    /// <summary>Whether the custom-minutes field is shown (ruling 6).</summary>
     [ObservableProperty]
-    private bool isCustomDaysVisible;
+    private bool isCustomMinutesVisible;
 
-    /// <summary>Custom generator-days input, visible only for <see cref="TimeSpanPreset.CustomDays"/>.</summary>
+    /// <summary>Custom arrival-window minutes, visible only for <see cref="DiagnosticDurationPreset.CustomMinutes"/>.</summary>
     [ObservableProperty]
-    private ConfigFieldViewModel customDays = new();
+    private ConfigFieldViewModel customMinutes = new() { Value = "10000" };
 
-    partial void OnTimeSpanSelectionChanged(string value)
+    partial void OnDurationSelectionChanged(string value)
     {
-        var preset = ParseTimeSpanPreset(value);
-        if (preset != TimeSpan)
+        var preset = ParseDurationPreset(value);
+        if (preset != Duration)
         {
-            TimeSpan = preset;
+            Duration = preset;
         }
     }
 
-    partial void OnTimeSpanChanged(TimeSpanPreset value)
+    partial void OnDurationChanged(DiagnosticDurationPreset value)
     {
-        string label = TimeSpanLabel(value);
-        if (!string.Equals(TimeSpanSelection, label, StringComparison.Ordinal))
+        string label = DurationLabel(value);
+        if (!string.Equals(DurationSelection, label, StringComparison.Ordinal))
         {
-            TimeSpanSelection = label;
+            DurationSelection = label;
         }
 
-        IsCustomDaysVisible = value == TimeSpanPreset.CustomDays;
-        ApplyTimeSpanToRunMode();
+        IsCustomMinutesVisible = value == DiagnosticDurationPreset.CustomMinutes;
         RecomputeBlockingState();
     }
 
     /// <summary>
-    /// Resolves the span to a number of generator days, per D-125: the short
-    /// presets still span one operating day (bounded by their minute horizon);
-    /// "1 day" = one full operating day; "1 week" = 6 operating days
-    /// (Mon/Tue/Wed/Thu/Sat/Mon within a 7-day span); "1 month" ≈ 26 operating
-    /// days (30 × 5/7 ≈ 21.4 → 22, × 1.2 buffer → 26); Custom days = the
-    /// validated field value (0 when it does not parse — a multi-day run then
-    /// refuses at build time).
+    /// The diagnostic run's arrival window in minutes (ruling 6).
     /// </summary>
-    public int ResolveGeneratorDays() =>
-        TimeSpan switch
+    /// <returns>
+    /// 60 or 15 for the fixed presets; the validated field for Custom, or 0 when
+    /// that field does not parse — the run then refuses at build time rather
+    /// than silently simulating a default.
+    /// </returns>
+    public int ResolveDiagnosticMinutes() =>
+        Duration switch
         {
-            TimeSpanPreset.FifteenMinutes => 1,
-            TimeSpanPreset.OneHour => 1,
-            TimeSpanPreset.OneDay => 1,
-            TimeSpanPreset.OneWeek => 6,
-            TimeSpanPreset.OneMonth => 26,
-            TimeSpanPreset.CustomDays => int.TryParse(CustomDays.Value, out var days) && days >= 1 ? days : 0,
-            _ => 1,
+            DiagnosticDurationPreset.OneHour => DefaultDiagnosticMinutes,
+            DiagnosticDurationPreset.FifteenMinutes => 15,
+            _ => int.TryParse(CustomMinutes.Value, out var minutes) && minutes >= 1 ? minutes : 0,
         };
 
     /// <summary>
-    /// Applies the selected span to the run-mode's driving field when the mode
-    /// consumes it (D-125): multi-day takes GeneratorDays from the span;
-    /// single-day stays one full calendar day (the short presets bound it via
-    /// the effective horizon at build time instead). Diagnostic-trace mode is
-    /// deliberately untouched — its horizon stays the user's field.
+    /// The diagnostic run's default arrival window, in minutes (D-174 ruling 6).
     /// </summary>
-    private void ApplyTimeSpanToRunMode()
-    {
-        if (IsMultiDay)
-        {
-            Days.Value = ResolveGeneratorDays().ToString();
-        }
-    }
+    /// <remarks>
+    /// Also the value handed to a CALENDAR run's <c>HorizonMinutes</c>, which that
+    /// mode ignores. A constant rather than a second switch: the calendar modes
+    /// need *some* legal number in the record, and reusing the diagnostic default
+    /// says plainly that the field is inert here. Naming it keeps a reader from
+    /// wondering whether 60 is a clinic figure or a magic number.
+    /// </remarks>
+    public const int DefaultDiagnosticMinutes = 60;
 
-    private static string TimeSpanLabel(TimeSpanPreset preset) =>
+    private static string DurationLabel(DiagnosticDurationPreset preset) =>
         preset switch
         {
-            TimeSpanPreset.FifteenMinutes => "15 minutes",
-            TimeSpanPreset.OneHour => "1 hour",
-            TimeSpanPreset.OneDay => "1 day",
-            TimeSpanPreset.OneWeek => "1 week",
-            TimeSpanPreset.OneMonth => "1 month",
-            TimeSpanPreset.CustomDays => "Custom days…",
-            _ => "1 day",
+            DiagnosticDurationPreset.FifteenMinutes => "15 minutes",
+            DiagnosticDurationPreset.CustomMinutes => "Custom minutes…",
+            _ => "1 hour",
         };
 
-    private static TimeSpanPreset ParseTimeSpanPreset(string label) =>
+    private static DiagnosticDurationPreset ParseDurationPreset(string label) =>
         label switch
         {
-            "15 minutes" => TimeSpanPreset.FifteenMinutes,
-            "1 hour" => TimeSpanPreset.OneHour,
-            "1 day" => TimeSpanPreset.OneDay,
-            "1 week" => TimeSpanPreset.OneWeek,
-            "1 month" => TimeSpanPreset.OneMonth,
-            "Custom days…" => TimeSpanPreset.CustomDays,
-            _ => TimeSpanPreset.OneDay,
+            "15 minutes" => DiagnosticDurationPreset.FifteenMinutes,
+            "Custom minutes…" => DiagnosticDurationPreset.CustomMinutes,
+            _ => DiagnosticDurationPreset.OneHour,
         };
-
-    /// <summary>Arrival-window minutes for a diagnostic run (int ≥ 1, default 10000; D-105).</summary>
-    public ConfigFieldViewModel HorizonMinutes { get; } = new() { Value = "10000" };
 
     /// <summary>Number of clinic days (visible only in multi-day mode).</summary>
     public ConfigFieldViewModel Days { get; } = new();
@@ -471,7 +462,6 @@ public partial class ConfigPanelViewModel : ObservableObject
         // Daily-cap participates only in multi-day mode: leaving the mode
         // drops any stale inline error with the hidden field (D-105).
         DailyCap.ClearError();
-        ApplyTimeSpanToRunMode();
         RecomputeBlockingState();
     }
 
@@ -481,7 +471,6 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             IsMultiDay = false;
             IsDiagnosticTrace = false;
-            ApplyTimeSpanToRunMode();
             RecomputeBlockingState();
         }
     }
@@ -492,11 +481,14 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             IsSingleDay = false;
             IsMultiDay = false;
-            ValidateHorizonMinutes();
+            if (IsCustomMinutesVisible)
+            {
+                ValidateCustomMinutes();
+            }
         }
         else
         {
-            HorizonMinutes.ClearError();
+            CustomMinutes.ClearError();
         }
         RecomputeBlockingState();
     }
@@ -809,17 +801,17 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
-    /// <summary>Blur validation for the diagnostic-run horizon minutes field (integer ≥ 1; D-105).</summary>
-    public void ValidateHorizonMinutes()
+    /// <summary>Blur validation for the custom diagnostic minutes field (integer ≥ 1; D-174).</summary>
+    public void ValidateCustomMinutes()
     {
-        var value = HorizonMinutes.Value;
+        var value = CustomMinutes.Value;
         if (int.TryParse(value, out var n) && n >= 1)
         {
-            HorizonMinutes.ClearError();
+            CustomMinutes.ClearError();
         }
         else
         {
-            HorizonMinutes.SetError($"Horizon must be a whole number of minutes above 0. You entered \"{value}\".");
+            CustomMinutes.SetError($"Duration must be a whole number of minutes above 0. You entered \"{value}\".");
         }
 
         RecomputeBlockingState();
@@ -836,22 +828,6 @@ public partial class ConfigPanelViewModel : ObservableObject
         else
         {
             Days.SetError($"Days must be a whole number of at least 1. You entered \"{value}\".");
-        }
-
-        RecomputeBlockingState();
-    }
-
-    /// <summary>Blur validation for the custom-days span field (integer &gt; 0; only shown while that span is selected).</summary>
-    public void ValidateCustomDays()
-    {
-        var value = CustomDays.Value;
-        if (int.TryParse(value, out var n) && n >= 1)
-        {
-            CustomDays.ClearError();
-        }
-        else
-        {
-            CustomDays.SetError($"Days must be a whole number of at least 1. You entered \"{value}\".");
         }
 
         RecomputeBlockingState();
@@ -936,6 +912,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// affected anything, so it never refreshed on the edit that actually mattered.
     /// </summary>
     public event EventHandler? StageServiceFamiliesChanged;
+
+    /// <summary>
+    /// Reads the MLE-vs-window λ choice owned by <see cref="MainViewModel"/>
+    /// (D-173, ruling 7). Set once by the shell; null in standalone unit tests.
+    /// </summary>
+    /// <remarks>
+    /// A delegate rather than a property so this panel stores no second copy of
+    /// the choice — see <c>SelectedLambdaSource()</c>.
+    /// </remarks>
+    public Func<LambdaSource>? LambdaSourceAccessor { get; set; }
 
     internal void RaiseDataBindingChanged() => DataBindingChanged?.Invoke(this, EventArgs.Empty);
 
@@ -1081,9 +1067,8 @@ public partial class ConfigPanelViewModel : ObservableObject
         IsDiagnosticTrace = false;
         IsSingleDay = true;
         StartDay = "Monday";
-        TimeSpan = TimeSpanPreset.OneDay;
-        CustomDays.Value = "";
-        HorizonMinutes.Value = "10000";
+        Duration = DiagnosticDurationPreset.OneHour;
+        CustomMinutes.Value = "10000";
         Days.Value = "1";
         DailyCap.Value = "";
 
@@ -1110,8 +1095,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return StageCount;
         yield return Days;
         yield return DailyCap;
-        yield return HorizonMinutes;
-        yield return CustomDays;
+        yield return CustomMinutes;
         yield return Seed;
         foreach (var row in StageRows)
         {
@@ -1474,8 +1458,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         var blocked = StageCount.HasError
             || SignificanceLevel.HasError
             || (IsMultiDay && (Days.HasError || DailyCap.HasError))
-            || (IsDiagnosticTrace && HorizonMinutes.HasError)
-            || (TimeSpan == TimeSpanPreset.CustomDays && CustomDays.HasError)
+            || (IsDiagnosticTrace && IsCustomMinutesVisible && CustomMinutes.HasError)
             || StageRows.Any(row => row.HasErrors)
             || (ParametersIsOptionalEnabled && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))
             || (advancedInUse && Seed.HasError);
@@ -1594,19 +1577,16 @@ public partial class ConfigPanelViewModel : ObservableObject
             return null;
         }
 
-        // The short span presets bound the arrival window to 15 or 60 minutes
-        // (D-125); every other span uses the user's horizon field. The calendar
-        // run modes ignore this record field, so the override is harmless there.
-        int horizonMinutes;
-        if (TimeSpan is TimeSpanPreset.FifteenMinutes)
-        {
-            horizonMinutes = 15;
-        }
-        else if (TimeSpan is TimeSpanPreset.OneHour)
-        {
-            horizonMinutes = 60;
-        }
-        else if (!int.TryParse(HorizonMinutes.Value, out horizonMinutes) || horizonMinutes < 1)
+        // The diagnostic duration dropdown owns the arrival window (D-174 ruling 6);
+        // the free-text field backs only its Custom option. The calendar run modes
+        // do not read it AT ALL — they take their length from GeneratorDays — so
+        // a malformed hidden field must not refuse a run that never looks at it.
+        // Resolving it unconditionally would have done exactly that: a user who
+        // typed a bad custom value, switched to "Multi-day", and forgot the field
+        // was still there would find Start silently refusing, with the offending
+        // control scrolled out of sight.
+        int horizonMinutes = IsDiagnosticTrace ? ResolveDiagnosticMinutes() : DefaultDiagnosticMinutes;
+        if (horizonMinutes < 1)
         {
             return null;
         }
@@ -1801,8 +1781,53 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             ServiceFamilies = serviceFamilies,
             ServiceRates = serviceRates,
+            LambdaSource = SelectedLambdaSource(),
+            WindowLambdaOverride = WindowLambdaAccessor?.Invoke(),
+            // Read through the same delegate in the same object-initializer, so the
+            // window and the λ divided by it come from one state (D-173).
+            SelectedWindow = SelectedWindowAccessor?.Invoke(),
         };
     }
+
+    /// <summary>
+    /// Reads the user's MLE-vs-window λ choice (D-173, ruling 7).
+    /// </summary>
+    /// <remarks>
+    /// A delegate, not a stored field, so <see cref="MainViewModel"/> stays the only
+    /// place the value lives — the config panel reads the live value at build time
+    /// and keeps no copy that could fall out of step with it. Unset (the unit
+    /// tests construct this view model standalone) falls back to MLE, which is the
+    /// default the record already carries.
+    /// </remarks>
+    /// <returns>The chosen estimator, or <see cref="LambdaSource.Mle"/> if unwired.</returns>
+    private LambdaSource SelectedLambdaSource() => LambdaSourceAccessor?.Invoke() ?? LambdaSource.Mle;
+
+    /// <summary>
+    /// Reads the Input tab's window λ for the window the user selected, so the
+    /// run uses the same figure the Input tab displays (D-172, D-173).
+    /// </summary>
+    /// <remarks>
+    /// A delegate for the same reason as <see cref="LambdaSourceAccessor"/>: the
+    /// Input tab owns the window selection and re-derives this number whenever
+    /// the dropdown changes, so a stored copy here would be a second answer to a
+    /// question that already has one. Unset (standalone unit tests, and the CLI)
+    /// yields null, and the coordinator falls back to the binding's auto-detected
+    /// window λ.
+    /// </remarks>
+    public Func<double?>? WindowLambdaAccessor { get; set; }
+
+    /// <summary>
+    /// Reads the window the selected-window λ was divided by (D-173).
+    /// </summary>
+    /// <remarks>
+    /// A delegate for the same reason as <see cref="WindowLambdaAccessor"/>, and
+    /// the reason it is a SEPARATE delegate rather than a stored copy is the
+    /// receipt: the calculations dialog has to name the divisor of the λ that
+    /// ran, and a window captured at a different moment from the λ could name a
+    /// different one. Unset yields null and the receipt falls back to the
+    /// file's own observed window.
+    /// </remarks>
+    public Func<ObservationWindow?>? SelectedWindowAccessor { get; set; }
 
     /// <summary>
     /// Builds the <see cref="DistributionSpec"/> for one stage from its row's family
@@ -1951,16 +1976,21 @@ public partial class ConfigPanelViewModel : ObservableObject
 }
 
 /// <summary>
-/// Time-span presets for the Horizon section (Phase 7A, D-125). Short presets
-/// bound a run to a minute horizon; day+ presets drive a calendar run's
-/// generator-day count through <see cref="ConfigPanelViewModel.ResolveGeneratorDays"/>.
+/// Arrival-window presets for the Horizon section's DIAGNOSTIC mode (D-174).
 /// </summary>
-public enum TimeSpanPreset
+/// <remarks>
+/// This type was <c>TimeSpanPreset</c>, and its day-or-longer members drove a
+/// calendar run's generator-day count. That coupling is withdrawn: a calendar
+/// run's length is the <c>Days</c> field and nothing else, so a preset that can
+/// only be expressed in minutes has nothing to say about it. The rename is the
+/// point — the old name is a claim about scope that the type no longer has.
+/// </remarks>
+public enum DiagnosticDurationPreset
 {
-    FifteenMinutes,
+    /// <summary>60 simulated minutes. The default (D-174 ruling 6).</summary>
     OneHour,
-    OneDay,
-    OneWeek,
-    OneMonth,
-    CustomDays,
+    /// <summary>15 simulated minutes — long enough to see a few patients clear the network.</summary>
+    FifteenMinutes,
+    /// <summary>A user-entered number of arrival-window minutes.</summary>
+    CustomMinutes,
 }

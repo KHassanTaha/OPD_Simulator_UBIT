@@ -1,6 +1,6 @@
 # Product Requirements Document – OPD Clinic Queue Simulator
 
-**Version:** v1.5.0
+**Version:** v1.6.0
 **Date:** 2026-09-14
 **Author:** Taha Hassan
 **Course:** Simulation & Modelling
@@ -370,8 +370,8 @@ The Parameters section SHALL provide a searchable dropdown for the user to decla
 **FR-UI-23 (Parameter Mode Relocation)**
 The rate-wise / mean-wise parameter-mode selector SHALL live at the top of the Parameters section, adjacent to the time-unit selector and the manual λ/μ entries, so the user declares the interpretation and the unit together.
 
-**FR-UI-24 (Time-Span Presets)**
-The Horizon section SHALL offer a time-span preset selector (15 minutes, 1 hour, 1 day, 1 week, 1 month, or custom days). Sub-day presets SHALL bound the minutes horizon; day-or-longer presets SHALL resolve to a generator-day count (1 week → 6 open days, 1 month → 26 open days); custom days SHALL be a validated numeric entry.
+**FR-UI-24 (Horizon Duration, diagnostic mode only)** _(updated Phase 8O, D-174)_
+The former time-span preset selector is **removed**. A calendar run's length SHALL come only from the Horizon **Days** field (`RunMode.GeneratorDays`), and a diagnostic trace's arrival window SHALL come only from a new **Duration** dropdown, **visible in diagnostic-trace mode alone**. The Duration options SHALL be, in order: `1 hour` (**default**), `15 minutes`, `Custom minutes…`. A free-text field SHALL back only the `Custom minutes…` option, SHALL validate on blur, and a calendar run SHALL NOT read or be blocked by it. The earlier behaviour — one dropdown driving both the minutes horizon and a generator-day count, with `1 week` meaning 6 open days and `1 month` meaning 26 — is withdrawn; it ran a five-day clinic for six days.
 
 **FR-UI-27 (Stage-Identical Chart Colour)**
 Every chart that plots a stage SHALL take that stage's colour from one shared palette keyed by **stage index**, so a stage is the same colour in the queue-length chart, the waiting-time histogram, the per-server utilisation chart and the stage legend. The palette SHALL be defined by theme resources and SHALL wrap (by hue shift) for runs with more stages than the palette defines, rather than repeating a colour. A stage index SHALL be the only input to the lookup, so a chart that reorders its series for legibility SHALL NOT change the colours.
@@ -384,8 +384,16 @@ The per-server utilisation widget SHALL satisfy all of:
 - A **dynamic stage legend**, generated from the stages actually present in the result — never a hardcoded stage list.
 - A **label on every category** of a categorical axis, verified against the rendered chart rather than the data behind it.
 
+**FR-UI-30 (Observation Window and Dual Arrival-Rate Estimates)** _(new Phase 8O, D-172, D-173)_
+The Input tab SHALL, whenever a data file is loaded:
+- Derive an **observation window** from the file's optional `session_date` column: the count of **distinct** session dates falling on a clinic-open day, valued at **165 operating minutes** each (the clinic runs 08:15–11:00, Mon–Thu and Sat). A file with no `session_date` column SHALL be a single session. A file whose every session date falls on a closed day SHALL report no operating window and SHALL state that no operating sessions were detected.
+- Offer a window preset selector: `Auto (from file)`, `1 day`, `3 days`, `1 week`, `2 weeks`, `1 month`, `Custom…`, resolving to 1, 3, 5, 10 and 20 **operating** sessions respectively. `Custom…` SHALL accept operating **hours** and SHALL report its window in hours and minutes.
+- Show **both** arrival-rate estimates with their divisors named: **MLE λ** = `1 ÷ mean(within-session inter-arrival gaps)` and **window λ** = `total arrivals ÷ the selected window's operating minutes`. Neither SHALL be presented as a correction of the other, and the percentage divergence between them SHALL be stated with its direction.
+- Let the user choose which estimate drives the run, defaulting to **MLE**, and SHALL apply that choice to the simulation. The window the user selects SHALL change the divisor the run uses; a calendar run SHALL NOT be blocked by an invalid diagnostic duration.
+- The custom-hours input SHALL satisfy FR-UI-17 (inline cause-and-remedy message, error state, accessible name) via the shared `ValidatedField` control.
+
 **FR-UI-29 (View Calculations)**
-The Results panel SHALL offer a **View calculations** action that opens a themed dialog listing, as plain text, the derivations behind the run: run configuration and parameter provenance, the arrival process, the per-stage service processes (c, μ, capacity, mean service, family), utilisation and each server's **derived** busy time, flow balance (served, throughput, mean wait, mean queue, p_exit), and the per-stage result. The text SHALL be produced by a pure, unit-tested function of the result and its parameters, SHALL contain no per-network hardcoding, and SHALL be copyable to the clipboard. The dialog SHALL reuse the existing themed dialog control rather than introduce a second one.
+The Results panel SHALL offer a **View calculations** action that opens a themed dialog listing, as plain text, the derivations behind the run: run configuration and parameter provenance, the arrival process, the per-stage service processes (c, μ, capacity, mean service, family), utilisation and each server's **derived** busy time, flow balance (served, throughput, mean wait, mean queue, p_exit), and the per-stage result. The text SHALL be produced by a pure, unit-tested function of the result and its parameters, SHALL contain no per-network hardcoding, and SHALL be copyable to the clipboard. The dialog SHALL be a **dedicated resizable window** that declares its own sizing in its own XAML, with the footer outside the scrolling body — *superseding the earlier clause requiring reuse of the themed confirmation dialog, which D-165 reversed and D-169 further bounded: a 440-pixel message dialog cannot host a two-column layout, and a `StackPanel` root cannot keep a footer on screen.* Where the run was driven by a data file, the arrival block SHALL additionally report **which arrival-rate estimate the run used**, the value of both estimates, the observation window the file itself covers, the window the run actually used where that differs, and **the division that produces the window λ** (arrivals ÷ operating minutes) so the printed numbers are verifiable against each other on screen.
 
 ### 5.2 Data Handling
 
@@ -405,13 +413,17 @@ The Results panel SHALL offer a **View calculations** action that opens a themed
 
 Note: This FR affects HISTORICAL validation only. SIMULATED per-server utilisation is always available (see FR-STAT-7). The imbalance flag (max−min > 0.15, FR-STAT-7) applies to historical per-server utilisation too when the columns are present.
 
+**FR-DATA-12 (Optional `session_date` column):** The uploaded file MAY include a `session_date` column declaring which operating session each row belongs to. When present it SHALL be parsed in ISO date (`YYYY-MM-DD`), ISO datetime with a space or `T`, or `DD/MM/YYYY` form; an unparseable value SHALL be reported as a validation issue rather than guessed. Arrival-order validation SHALL reset at each session change. Rows dated on a clinic-closed day SHALL NOT be rejected — the file is historical and a Friday session is data, not an error — but SHALL be excluded from the observation window (FR-UI-30). The column SHALL be optional: a file without it SHALL behave exactly as it did before Phase 8O. _(new Phase 8O, D-172)_
+
+**FR-DATA-13 (Two arrival-rate estimates):** The system SHALL compute and expose both the MLE arrival rate and the observation-window arrival rate as separate values on the data binding, and SHALL exclude cross-session gaps from the MLE sample. The MLE sample and the reported inter-arrival sample SHALL be the same set, so the fitted rate and the Input tab's chi-square verdict describe the same data. `SessionDates` SHALL hold **distinct** dates in first-appearance order, never one entry per row. The estimation and the window choice SHALL be recorded as a **choice** (`LambdaSource`), not as a number placed in the manual-λ field, so that a fitted value is never reported as a user-typed one. _(new Phase 8O, D-173)_
+
 ### 5.3 Simulation Model
 
 **FR-SIM-1:** Model as a 3-stage serial network (defaults: 1, 2, 3 servers). The engine is **N-stage generic from day one** — the 3-stage network is a configuration, not a hard-coded structure. _(Owner clarification, 2026-09-13)_
 **FR-SIM-2:** DES with FEL. Events: Arrival, Reception End, Screening End, Doctor End.
 **FR-SIM-3:** Inter-arrival times from selected distribution; service times per stage from selected distribution (shared initially; per-stage enabled later).
 **FR-SIM-4:** `p_exit` applied after Screening. Estimated from data if available; otherwise user-configurable (default 0.5).
-**FR-SIM-5:** Arrival generation window: 8:15 AM onward (configurable), until daily cap reached or 11:00 AM, whichever first.
+**FR-SIM-5:** Arrival generation window: 8:15 AM onward (configurable), until daily cap reached or 11:00 AM, whichever first — 165 operating minutes per session. _(Clock corrected 2026-09-29, D-172; was documented as 9:00 AM.)_
 **FR-SIM-6:** Services in progress at close time continue to completion.
 **FR-SIM-7:** Day ends when all capped patients are served.
 **FR-SIM-8:** Closed days (Fri, Sun) skipped.
@@ -540,3 +552,4 @@ The data preview table SHALL remain responsive (scroll, sort, selection) with da
 | v1.3.0 | 2026-09-13 | Charts: new FR-UI-4 (LiveCharts2 charts in results panel: histogram + fitted PDF, chi-square bars, per-server utilisation bars, P2 queue-over-time + waiting-time histogram; presentation layer only); new FR-STAT-8 (visual output for fits, histogram bin count = chi-square bin count); new NFR-6 (chart render < 500 ms / 10k points, downsampling, non-blocking); success criteria + §4.1 bullets; CONTEXT §6 Visual Output Analysis added, later CONTEXT sections renumbered (SPSS→§7, Validation→§8, Glossary→§9, References→§10); decision D-019. Charts belong to M5, with M1 statistics collector and M2 fitting exposing the binned/PDF/series data. | §4, §5, §6, §7, §10 |
 | v1.4.0 | 2026-09-14 | New M5 UI/UX requirements: FR-UI-5..21 (welcome panel, searchable dropdowns, disabled-field treatment, tooltips, accessibility feedback, themed dialogs/toasts, scrollable+collapsible config panel, clear-all, customisable results panel, full tab navigation, labels+placeholders, invalid-field highlighting, in-program guide, presets, data preview table, empty startup) and NFR-7..10 (accessibility baseline, consistency, preset portability, preview performance). Decisions D-060..D-076. | §5.1, §6, §8 |
 | v1.5.0 | 2026-09-18 | New FR-UI-22/23/24 for time unit, parameter mode, and time-span presets (Phase 7A). FR-UI-22 marked `[~]` pending results-caption unit display. | §5.1, §6 |
+| v1.6.0 | 2026-09-29 | **FR-UI-24 rewritten** — time-span presets removed, diagnostic-only Duration dropdown (D-174). **FR-UI-30 added** — observation window and dual λ estimates (D-172, D-173). **FR-DATA-12 added** — optional `session_date` column. **FR-DATA-13 added** — two arrival-rate estimates. **FR-SIM-5 clock corrected** to 8:15 AM. **FR-DATA-11 removed** — never implemented and superseded by FR-DATA-12/13. | §5.1, §5.2, §5.3 | **FR-UI-29 corrected** — the clause requiring reuse of the themed confirmation dialog had been superseded by D-165 (dedicated resizable window) and D-169, and was never updated here, so the source of truth contradicted both the code and the decision log; the arrival block now also requires the run's own estimate and a checkable division (D-176).

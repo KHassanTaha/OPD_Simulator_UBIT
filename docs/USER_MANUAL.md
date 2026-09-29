@@ -314,22 +314,27 @@ per stage.
 
 ### Horizon
 
-How long to simulate. Pick a **Time span** preset:
+How long to simulate. **Two separate controls**, because two different
+questions are being asked — an earlier version of this panel had one control
+answering both, which is withdrawn (D-174).
 
-- **15 minutes** / **1 hour** — a short window inside one clinic day (the
-  run-mode stays **Single day**).
-- **1 day** — one full clinic operating session.
-- **1 week** — six consecutive operating days (Mon/Tue/Wed/Thu/Sat plus the
-  following Monday, so a full clinic week runs).
-- **1 month** — 26 operating days (30 calendar days at five operating days
-  per week, with a small buffer).
-- **Custom days** — type the number of consecutive clinic days in the
-  **Custom days** field that appears.
+**For a calendar run** (Single day or Multi-day), the length comes only from
+the **Days** field. Multi-day also has a **Start day** (which weekday the run
+begins on). The clinic runs 08:15–11:00 on Monday–Thursday and Saturday, so a
+"day" here is one 165-minute operating session, not a calendar day: the
+weekends are skipped rather than simulated as empty days.
 
-Day+ spans automatically switch the run to **Multi-day** and set the day
-count; **Single day** uses the short-span window. The **Diagnostic trace**
-run mode is separate: it runs a raw window of minutes from the start of
-arrival generation (the **Horizon (minutes)** field).
+**For a Diagnostic trace**, the arrival window comes only from the
+**Duration** dropdown, which appears in that run mode and nowhere else:
+
+- **1 hour** — the default, and the first option in the list.
+- **15 minutes** — a short window.
+- **Custom minutes…** — reveals a field; type whole minutes (e.g. `45`).
+
+If you mistype the custom value and then switch back to a calendar run mode,
+the run is **not** blocked by it: that field belongs to the diagnostic run
+only, so a run you are entitled to perform never fails because of a control it
+does not show.
 
 ### Seed
 
@@ -407,19 +412,20 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
    refused until they gain a rate). The Simulation strip shows a one-line
    *"Stages differ from data — see the Input tab."* reminder until you decide.
 
-9. **Choose a time span and run mode.**
-   The **Horizon** section starts with the **Time span** dropdown
-   (15 minutes / 1 hour / 1 day / 1 week / 1 month / custom days). Day-or-longer
-   spans switch the run to Multi-day and set the day count automatically
-   (1 week = 6 operating days, 1 month = 26); a custom span shows a
-   **Custom days** field. Below it is the run-mode picker with three options:
+9. **Choose the run mode, then the length.**
+   The **Horizon** section starts with the run-mode picker (three options), and
+   the length controls follow it — each mode has exactly one:
    - **Clinic day** — one operating session (Monday–Thursday or Saturday,
      08:15 start, services continue past 11:00 until they finish). *Default.*
+     No length field: the length is the session.
    - **Multi-day** — N consecutive operating days (Friday/Sunday are skipped).
-     Shows the fields **Days**, **Start day**, and **Daily patient cap**.
+     Shows the fields **Days**, **Start day**, and **Daily patient cap**. The
+     run length comes from **Days** and nowhere else.
    - **Diagnostic trace** — a fixed-length run in minutes, used to walk
-      DES correctness line by line. Shows **Horizon (minutes)** (default
-     `10000`) and the **Trace level** dropdown (Minimal / Standard / Detailed / Debug).
+     DES correctness line by line. Shows the **Duration** dropdown
+     (1 hour — the default — / 15 minutes / Custom minutes…, which reveals a
+     whole-minutes field) and the **Trace level** dropdown
+     (Minimal / Standard / Detailed / Debug).
      Clinic-day and multi-day runs also record an event trace — it appears in
      the right panel's **Event trace** widget, most detailed in diagnostic mode.
 
@@ -790,6 +796,30 @@ Two details that look like missing content but are not:
   body in the middle taking whatever room is left, and the button row at the
   bottom. Only the middle band scrolls.
 
+#### The λ rows, and how to check them
+
+For a run driven by a data file, the **ARRIVAL PROCESS** block prints both
+arrival-rate estimates and says which one ran:
+
+| Row | What it tells you |
+|-----|-------------------|
+| `λ source` | Which estimate drove the run — MLE or window |
+| `λ — MLE` | `1 ÷ mean within-session inter-arrival gap` |
+| `λ — window` | `arrivals ÷ operating minutes` |
+| `window rule` | **The division itself**, e.g. `λ = 60 arrivals ÷ 825 operating minutes across 5 operating days (825 operating minutes)` |
+| `Observation window` | The window the **file itself** covers |
+| `Selected window (used)` | Appears **only** when you chose a window other than the file's own |
+| `Estimate divergence` | How far apart the two estimates are, and which one ran |
+
+**You can check the window λ by dividing.** The arrivals and the minutes are
+both printed, so `60 ÷ 825` should equal the `λ — window` figure beside them. If
+it does not, the dialog is wrong — please report it.
+
+If you picked a window other than the file's own, the two are named apart and
+the run's line is marked `(used)`: the file may cover six sessions while you ran
+over five, and the receipt has to say which figure the engine sampled at. That is
+the whole reason the row is split.
+
 ---
 
 ## 7. Loading Real Data (from an Excel or CSV file)
@@ -813,6 +843,93 @@ One row per patient, with these columns:
 Times can be `8:17`, `08:17`, `8:17:30`, or `8:17 PM` style. Arrivals must not go
 backwards, and each stage's `_end` must not be before its `_start`. A ready-made
 example is `samples/sample_patients.xlsx` (or `.csv`).
+
+#### The optional `session_date` column
+
+If your file covers more than one clinic session, add a `session_date` column
+naming the day each row belongs to. **It is optional** — a file without it is
+treated as one single session, exactly as before.
+
+Accepted forms: `2026-09-14` (ISO date), `2026-09-14 08:15` (ISO datetime,
+with a space or a `T`), and `14/09/2026` (**day first**). Anything else is
+reported as a validation issue naming the row, rather than guessed at.
+
+Two things it changes:
+
+- **Arrival order is checked within each session.** 09:50 on Monday followed
+  by 08:15 on Tuesday is a gap of roughly −155 minutes, not 1335. Arrivals must
+  not go backwards *inside* a session; the order resets at each new date.
+- **The observation window comes from it.** See below.
+
+Rows dated on a Friday or Sunday are **not** treated as errors — historical
+data may well include a session the clinic now runs differently — but they are
+left out of the observation window, because the clinic is closed on those days.
+If *every* date in the file falls on a closed day, the app says
+`No operating sessions detected in this file.` rather than showing a rate
+computed from time the clinic was shut.
+
+`samples/sample_multiday.csv` is a ready-made six-session example
+(60 rows, 10 per session).
+
+### 7.1a Observation window and the two arrival rates
+
+<a id="observation-window"></a>
+
+Once a file is loaded, the **Input** tab works out two arrival rates from it and
+shows you both. They are not competing versions of one number, and neither is a
+correction of the other — they answer different questions.
+
+**Observation window** — how much *operating* time the file covers. The clinic
+runs 08:15–11:00 on Monday–Thursday and Saturday, so one operating session is
+**165 minutes (2.75 hours)**, and the weekend is not counted: a file running
+Monday to the following Monday spans seven calendar days but only six operating
+sessions. The dropdown reads:
+
+| Option | Operating sessions | Operating minutes |
+|--------|--------------------|-------------------|
+| Auto (from file) | whatever the `session_date` column says | — |
+| 1 day | 1 | 165 |
+| 3 days | 3 | 495 |
+| 1 week | 5 | 825 |
+| 2 weeks | 10 | 1650 |
+| 1 month | 20 | 3300 |
+| Custom… | you type operating **hours** | hours × 60 |
+
+"One month" means four operating weeks — 20 sessions. That is an approximation
+by construction, because there is no calendar month of this clinic to count.
+
+Choosing a different option **changes the divisor the run uses**, and the
+window-λ readout below names the window it came from, so you can check the
+division yourself. For **Custom…**, type operating hours; 2.75 hours is one
+clinic session, so `5.5` is two. An unusable value is refused in the field with
+a message saying what to enter, and the Window option is disabled rather than
+silently using the old value.
+
+**The two estimates**
+
+- **MLE λ** = `1 ÷ mean of the within-session inter-arrival gaps`. Gaps that
+  cross a session boundary are excluded, because an inter-arrival time is a
+  within-session property — overnight clinic closures are not inter-arrival
+  times.
+- **Window λ** = `total arrivals ÷ the selected window's operating minutes`.
+  This one includes the idle tail of each session.
+
+On the six-session sample file these differ by about 55 %, and the app states
+the divergence and its direction rather than leaving you to work it out. That
+gap is expected: MLE measures the rate *while patients were arriving*, window λ
+measures it across the whole session.
+
+**Use for this run** — pick which one drives the simulation. **MLE is the
+default**, because it is the estimator the course teaches and the one every
+earlier result was produced with. A manual λ typed in the **Parameters**
+section overrides both, since you asked for that number explicitly. If you pick
+Window on a file where no window λ can exist, the run falls back to MLE rather
+than failing.
+
+The **View calculations** dialog records which estimate ran, the value of both,
+and the window each was computed from — with the division printed, so you can
+confirm `60 ÷ 825` really is the λ beside it. A result can be read back later
+without guessing. See [§6.11](#611-reading-the-calculations-dialog).
 
 ### 7.2 Check your file first
 

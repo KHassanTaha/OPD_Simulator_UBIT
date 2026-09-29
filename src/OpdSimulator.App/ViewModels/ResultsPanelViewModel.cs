@@ -69,6 +69,12 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <summary>Human description of where those parameters came from (D-164).</summary>
     private string? _parameterSource;
 
+    /// <summary>
+    /// The data binding behind the most recent run, so the calculations dialog can
+    /// print both arrival-rate estimates and the one the run used (D-173).
+    /// </summary>
+    private DataBindingResult? _lastBinding;
+
     /// <summary>Welcome-card content (FR-UI-5).</summary>
     public WelcomeCardViewModel Welcome { get; } = new();
 
@@ -145,10 +151,17 @@ public partial class ResultsPanelViewModel : ObservableObject
     public void CompleteRun(
         RunOutcome outcome,
         SimulationParameters? parameters = null,
-        string? sourceDescription = null)
+        string? sourceDescription = null,
+        DataBindingResult? binding = null)
     {
         _lastParameters = parameters;
         _parameterSource = sourceDescription;
+
+        // D-173: the calculations dialog prints BOTH λ estimates and names the one
+        // the run used. It needs the binding that produced them, so the binding is
+        // captured with the parameters — the run's own inputs, not a later state
+        // the user may have changed since.
+        _lastBinding = binding;
         OnPropertyChanged(nameof(CalculationsText));
         OnPropertyChanged(nameof(CalculationsRows));
         IsBusy = false;
@@ -212,6 +225,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         SelectedWaitStage = null;
         IsWaitLogScale = false;
         _lastResult = null;
+        _lastBinding = null;
         ApplyPreferences();
     }
 
@@ -536,7 +550,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// the parameters that produced it.
     /// </summary>
     public string CalculationsText => CalculationsTextBuilder.Build(
-        _lastResult, _lastParameters, _parameterSource);
+        _lastResult, _lastParameters, _parameterSource, _lastBinding);
 
     /// <summary>
     /// The same calculations as <see cref="CalculationsText"/>, structured for the
@@ -544,7 +558,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// three fields, so the on-screen rows and the copied text cannot disagree.
     /// </summary>
     public IReadOnlyList<CalculationRow> CalculationsRows =>
-        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource);
+        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource, _lastBinding);
 
     /// <summary>True once a run has produced a result, so the button has something to show.</summary>
     public bool HasCalculations => _lastResult is not null;
