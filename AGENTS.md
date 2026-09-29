@@ -296,6 +296,60 @@ Whenever you run the app yourself, copy the exact commands you used into `docs/D
 
 Never write "should work" in these docs. Only "verified on <OS> on <date>".
 
+**A test may not override the production sizing of what it renders (D-166).**
+A screenshot or structural test must not set `Width`, `MinWidth`, `MaxWidth`
+or `Height` on a control it is building. If a test needs a different size,
+the sizing belongs in the control's own XAML, so that the test and the app
+read the same declared value. A test that supplies a value the app does not
+supply is not a weaker test — it is a test of a different program, and it
+looks *more* confident than one that does not.
+
+This rule exists because of a real miss: the Phase 8M screenshot test set
+`Width = 760` on the calculations dialog while the production path set no
+width and ran at 440. The frame was clean, every assertion was green, and the
+dialog a user opened was clipped. See D-166.
+
+**Screenshot evidence is append-only (D-166).** Never overwrite a screenshot
+that is cited as evidence of a known defect — always add a new file with a
+new name. The old frame is the evidence that the defect existed, and the
+instinct to re-render the same filename deletes it. Unreviewed frames (queued
+in a blocker, never looked at) may be regenerated freely, because they carry
+no evidence. When retiring a screenshot test that wrote such a file, delete
+the test **before** running the gate, or the gate itself will overwrite the
+evidence on its way to proving everything else.
+
+**A resizable dialog needs a test that actually resizes it (D-169).**
+A default-size screenshot cannot catch a bug that only appears when the user
+drags the window smaller, because the default size is not the failing size.
+For every resizable dialog, a test must change the height (or width), let the
+layout settle, and then assert what the user would see.
+
+"Actually resizes it" is the part that is easy to get wrong, and getting it
+wrong produces a test that passes for the wrong reason. Two rules:
+
+- **Assert that the resize took effect.** Do not set a property, assume, and
+  move on. Measure the bounds before and after and fail if they did not
+  change. The headless platform applies a window resize through the
+  dispatcher, so setting `Height` and calling `UpdateLayout()` can leave the
+  window at its old size — the test then asserts against the default layout
+  and would pass against the very defect it was written for.
+- **Assert position, not just visibility flags.** `IsEffectivelyVisible` is a
+  flag check, not a bounds check. Measured against a real defect it returned
+  `True` for a button sitting 1914 px outside the window. Use a
+  `TranslatePoint` position check for "is it on screen".
+
+Where a scrolling region is involved, also assert
+`ScrollViewer.Extent.Height > Viewport.Height` at the **default** size. A
+region that is not bounded reports extent equal to viewport, has nothing to
+scroll, and looks perfectly healthy to any assertion that only asks whether
+it scrolls *after* a resize.
+
+This rule exists because of a real miss: the Phase 8N calculations dialog
+rendered correctly at 800 px and fell apart when the user shrank it, because
+its root was a vertical `StackPanel` that laid the footer out ~1900 px below
+the window bottom and left the body with `Extent == Viewport`. The owner found
+it by hand. See D-169.
+
 ### 10.7 No Duplicate Instructions
 
 Each instruction in docs/DEV_LAUNCH.md and docs/USER_MANUAL.md must have

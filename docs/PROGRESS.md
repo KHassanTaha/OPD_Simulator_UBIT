@@ -2,6 +2,188 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-09-29 08:05
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (work committed; owner visual inspection outstanding)
+
+Done
+- [x] **Phase 8N follow-up 2 — bottom buffer (D-170).** The owner's report was that the last rows of the per-stage result sat under the footer's top edge at maximum scroll. A `ScrollViewer`'s own `Padding` is **not part of its scrollable extent** (D-142 measured `extent = content − 2 × padding`), so padding cannot buy clearance. The body now ends with a real `BottomBuffer` element inside the scrollable content, inside a `ThicknessSpaceL` `Border`; `RowsHost` carries no `Padding`.
+- [x] **Phase 8N follow-up 2 — per-server contribution shown everywhere (D-171).** The chart is drawn at the **contribution** (`perServerUtilisation / serverCount`, D-160), so a bar's height is not a server's utilisation. Chart tooltips (including the outlier tooltip, which reports a delta against the stage mean and so needs both numbers to be checkable), the per-server detail rows, the calculations dialog's `UTILISATION` block, and the CLI all now show **both**. **No engine change, no new `StageMetrics` field** — the contribution is a display-time transformation of two figures the engine already produces.
+- [x] **The calculations block prints the derivation, not just the result:** a definition line, a per-server division (`6.37 ÷ (2 × 158.19)`) and a per-stage `contributions sum` line that states it matches the stage figure.
+- [x] **Two new records carry both values:** `UtilisationServerDetail` gained `ServerUtilisation` and `ServerCount` as `init`-only display properties populated from the matching `UtilisationBarRow`.
+- [x] **Six required tests + two frame tests** (App 371 → 379): `CalculationsDialog_HasBottomBuffer`, `CalculationsDialog_LastLineNotClippedAtScrollBottom`, `PerServerDisplay_ShowsBothBusyAndContribution`, `ContributionEqualsBusyDivServerCount`, `StageTotalEqualsSumOfContributions`, `ContributionLessThanOrEqualStageUtil`, plus the two render tests. `Phase8MChartTests.PerServerDetailLinesUpWithBars` was strengthened to require both values.
+- [x] **Regression proof by revert:** with `BottomBuffer` deleted, the buffer tests fail at **26.0 px** of clearance; with the fix, **50 px** against the 32 px asked for.
+- [x] **Gate:** Release **and** Debug `0 errors / 0 warnings` (`--no-incremental`); **620/620 green in both** (Cli 35 / Data 92 / Core 114 / App 379).
+- [x] **Evidence discipline (D-166) held:** two **new** filenames only — `phase-8n-calculations-buffer.png` (47,456 B, 800×400) and `phase-8n-contribution.png` (129,664 B, 800×800). `phase-8n-calculations.png` md5-verified identical (`3fdac621…`) and `phase-8n-calculations-resized.png` left alone. Both new frames use the control's declared 800 px width; no test supplied a size.
+- [x] **Docs:** D-170, D-171, TODO, BLOCKERS (B-012 → thirteen frames), DEV_LAUNCH, USER_MANUAL §6.4 + the calculations table, VIVA_ANSWERS (two new questions).
+
+In Progress
+Nothing. The implementation, gate, and documentation are complete.
+
+What is complete:
+Both fixes, their tests, the revert proofs, the gate, and all seven documentation files, on the existing branch (no new branch — the ruling was a follow-up to the same defect).
+
+Three findings from this session are worth carrying forward, because each was a case of a test that looked right and was not:
+
+1. **A non-overlap assertion measured nothing.** The clearance test originally asserted "the last line is not *under* the footer" and **passed with the buffer deleted**, because the content `Border`'s padding alone gives 24 px. It now asserts the owner's 32 px as a named constant, and the frame-writing test uses the same threshold. The general rule: after writing a fix, delete it and confirm the test goes red. A test that stays green is measuring something else.
+2. **A collapsed section is not a screenshot surface.** The "Per-server detail" rows live in a `CollapsibleSection` that ships `IsExpanded="False"`, and its `ItemsControl` does not realise its item containers while closed — expanding it in the headless tree still produced no row `TextBlock`s. A window capture of it would have been a green frame showing nothing, which is the D-166 failure in a new dress. The evidence surface is the calculations dialog, which renders every row unconditionally. **Not fixed here** — changing the section's default expansion is a UX ruling, not a test fix.
+3. **A c = 1 stage breaks a "utilisations do not sum" assertion.** On a one-server stage the contribution *equals* the server's own utilisation and the two sums are equal by definition; the first version of the test failed there, and the test was wrong rather than the code. The fixture keeps a c = 1 stage deliberately, so a formula that divided by `c + 1` cannot pass.
+
+What remains:
+**Owner visual inspection of the two new frames.** B-012 is now thirteen frames. Check `phase-8n-calculations-buffer.png` (is there visible air between the last line and the buttons at maximum scroll?) and `phase-8n-contribution.png` (are the two per-server numbers legible side by side, and does the rows' extra width wrap acceptably at 640 px?). This agent has no image input (D-089). Note also that the contribution frame is the calculations dialog by design, not the chart's detail list — see finding 2.
+
+Next Session Should Start With
+Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
+Owner review of the two new 8N frames (B-012), which blocks nothing else in Phase 8 Docs.
+
+---
+
+## Session Handoff — 2026-09-29 07:10
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (work committed; owner visual inspection outstanding)
+
+Done
+- [x] **Phase 8N follow-up — calculations dialog resize (D-169)** (new TODO row). Root cause: vertical `StackPanel` root, not a footer-inside-ScrollViewer. Root is now `Grid RowDefinitions="Auto,*,Auto"`; footer pinned in its own `Auto` row; `SizeToContent="Manual"` + `Height="800"`.
+- [x] **D-165's "no fixed `Height`" clause retired** — its locking test (`double.IsNaN(Height)`) replaced by `CalculationsDialog_DeclaredHeight_IsBoundedAndTheBodyTakesTheRemainder`. Reversal recorded in D-169, not hidden.
+- [x] **Four new tests** (`_Footer_VisibleAfterVerticalResize`, `_ScrollViewer_ScrollsAfterResize`, `_MinHeight_PreventsUnusableShrink`, `_SizeToContent_IsManual`) + `ResizeAndSettle` helper + a ten-stage `TallResult` fixture.
+- [x] **Regression proof by revert:** 5 of 15 Phase 8N tests fail against the pre-fix XAML, 0 against the fix.
+- [x] **Gate:** Release **and** Debug `0 errors / 0 warnings` (`--no-incremental`); **612/612 green in both** (Cli 35 / Data 92 / Core 114 / App 371).
+- [x] **Evidence discipline (D-166):** `Render_CalculationsDialog_SavePhase8nCalculationsPng` retired **before** the gate; `phase-8n-calculations.png` md5-verified identical (`3fdac621…`) after the full Release *and* Debug run. New frame `phase-8n-calculations-resized.png` (28,495 B).
+- [x] **AGENTS §10.6** extended with the resize-test rule; **D-169** written; TODO / BLOCKERS / PROGRESS / DEV_LAUNCH / USER_MANUAL §6.11 / REQUIREMENTS FR-UI-29 updated.
+
+In Progress
+Nothing. The implementation, gate, and documentation are complete.
+
+What is complete:
+The fix, its tests, the gate, and all six documentation files. Committed on the existing branch (no new branch was cut — the ruling was a follow-up to the same defect).
+
+What remains:
+**Owner visual inspection of both screenshots.** B-012 is now eleven frames. Check the pair in order: `phase-8n-calculations-resized.png` first (is the footer at the bottom, is there a scrollbar), then `phase-8n-calculations.png`. Note the default frame **predates D-169** and shows the pre-fix `StackPanel` — it is not a picture of the fixed layout. This agent has no image input (D-089).
+
+Next Session Should Start With
+Phase 8 — Docs: DEV_LAUNCH fully re-verified dead-state, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS
+
+Owner review of the two calculations frames (B-012), which blocks nothing else in Phase 8 Docs.
+
+Blocked
+- **B-012** — eleven screenshot frames unaudited by a human; the two calculations frames are the priority pair.
+- **B-007** — M5 keyboard-only acceptance run not performed.
+- **B-006** — dead-state build on Windows unverified.
+
+Git State
+Commits made this session: `fix: calculations dialog footer stays visible on resize (Phase 8N follow-up)`
+Pushed to origin: pending — the branch was already pushed for Phase 8N, so only the new commit needs pushing.
+Uncommitted changes: none at the time of writing.
+
+Build & Test
+dotnet build: PASS — Release **0/0** and Debug **0/0**, both `--no-incremental`
+dotnet test: PASS — **612 passed, 0 failed** in Release; identical in Debug
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml: modified (root `Grid RowDefinitions="Auto,*,Auto"`, `SizeToContent="Manual"`, `Height="800"`, footer `Border` with separator)
+tests/OpdSimulator.App.Tests/Phase8NTests.cs: modified (4 new tests, `ResizeAndSettle`, `TallResult`, `NoFixedHeight` test replaced, screenshot writer swapped)
+docs/DECISIONS.md: D-169 added
+docs/TODO.md: follow-up row added `[x]`
+docs/BLOCKERS.md: B-012 updated (eleven frames, the pair, and the order to check them in)
+docs/PROGRESS.md: this entry
+docs/DEV_LAUNCH.md: new verification line, test counts 608 → 612, stale claim superseded
+docs/USER_MANUAL.md: §6.11 rewritten for the new resize behaviour
+docs/REQUIREMENTS.md: FR-UI-29 row updated
+AGENTS.md: §10.6 resize-test rule added
+logs/screenshots/phase-8n-calculations-resized.png: new
+logs/screenshots/phase-8n-calculations.png: **not touched** (md5 verified)
+
+Decisions Made
+- **D-169** — three-row root, `SizeToContent="Manual"` + `Height="800"`, footer in its own `Auto` row; supersedes D-165's no-fixed-Height clause. Records the two test-quality findings (`IsEffectivelyVisible` is not a bounds check; a resize test must assert the resize happened).
+
+Assumptions Added/Changed
+None. No new `[UNVERIFIED]` tag; nothing in `CONTEXT.md` changed.
+
+Notes for Next Session
+- The two frames in `logs/screenshots/` are **not** interchangeable evidence. The resized one is the only frame that can show the defect, because the default size is the size in which the bug does not appear. If the owner reports the resized frame still looks wrong, `AGENTS §10.6` requires a **new** filename rather than a re-render of either.
+- `Height="800"` means a short run now opens at 800 instead of collapsing to 400. Ruled, but it is the one visible behaviour change and is the first thing to re-check if a user finds the dialog unexpectedly tall.
+- The `Auto,*,Auto` root assumes the body is the only scrolling region. A future third region needs a fourth row; the `*` must not be given to the wrong band.
+
+## Session Handoff — 2026-09-29 06:05
+Branch: `fix/phase-8n-dialog-sizing`
+Status: In-Progress (Phase 8N code, tests and docs complete and gated; awaiting owner visual inspection of the new frame, then merge)
+
+Done
+- [x] **Phase 8N — calculations dialog sizing and layout** (TODO.md)
+
+In Progress
+- Owner visual inspection of `logs/screenshots/phase-8n-calculations.png` against their own app screenshot (B-012; §18).
+
+What is complete:
+The calculations dialog is a dedicated `Controls/CalculationsDialog.axaml` **Window** declaring its own sizing
+(`Width=800`, `MinWidth=640`, `MaxWidth=1200`, `MinHeight=400`, `MaxHeight=800`, `CanResize=True`, no fixed
+`Height`), with a `Grid ColumnDefinitions="Auto,*"` body inside a `ScrollViewer` so values wrap instead of
+clipping, and a `*,Auto,Auto` footer. `BuildRows()` supplies the rows; `Build()` is rendered *from* them, so
+the clipboard and the screen cannot disagree. `ThemedDialog` untouched — its four callers are unaffected.
+
+The root cause was not the reported one. There was no two-column layout to widen: the body was one
+`TextBlock` with `TextWrapping=NoWrap` in a 440 px window, and the Phase 8M test had rendered it at **760 px**,
+a width production never used. That test/production size mismatch is the whole B-012 story, and it is now a
+standing rule in AGENTS §10.6 alongside append-only screenshot evidence.
+
+What remains:
+Owner eyeballs the new frame; B-012 still holds ten unviewed frames; Phase 8 docs row is next.
+
+Next Session Should Start With
+- Owner verdict on `phase-8n-calculations.png` (fix confirmed, or new defect).
+- `TODO.md` **Phase 8 — Docs**: DEV_LAUNCH dead-state re-verification, USER_MANUAL rewrite, REQUIREMENTS
+  re-derivation, VIVA_ANSWERS, DECISIONS sweep.
+
+Blocked
+- B-012 — ten screenshot frames unviewed; this host has no image input (D-089).
+
+Git State
+Commits made this session: `fix: Calculations dialog sizing and button layout (Phase 8N)`
+Pushed to origin: see the push line below — branch `fix/phase-8n-dialog-sizing`
+Uncommitted changes: docs only at handoff time, committed with the phase
+
+Build & Test
+dotnet build: PASS (Release 0/0 and Debug 0/0, both `--no-incremental`)
+dotnet test: PASS — 608 passed, 0 failed, in each of Release and Debug
+            (Cli 35 / Data 92 / Core 114 / App 367; net +10 = −1 retired, +11 new)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: modified (CalculationRow, BuildRows, Build rendered from rows, NoRunMessage)
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml: added
+src/OpdSimulator.App/Controls/CalculationsDialog.axaml.cs: added
+src/OpdSimulator.App/Views/ResultsPanel.axaml.cs: modified (opens the new dialog; no width set)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified (CalculationsRows alongside CalculationsText)
+tests/OpdSimulator.App.Tests/Phase8NTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8MScreenshots.cs: modified (calculations screenshot test retired)
+AGENTS.md: modified (§10.6 verification discipline)
+docs/DECISIONS.md: modified (D-165, D-166)
+docs/TODO.md: modified
+docs/BLOCKERS.md: modified (B-012 corrected)
+docs/DEV_LAUNCH.md: modified
+docs/USER_MANUAL.md: modified (§6.11)
+docs/REQUIREMENTS.md: modified (FR-UI-29)
+docs/PROGRESS.md: modified
+
+Decisions Made
+- D-165 — calculations dialog is its own Window with a two-column body; `Build()` rendered from the rows
+- D-166 — a test may not override production sizing; screenshot evidence is append-only
+
+Assumptions Added/Changed
+- None. No new `[UNVERIFIED]` assumption was introduced; CONTEXT.md is unchanged.
+
+Notes for Next Session
+- `phase-8m-calculations.png` is **frozen** and is not a picture of the bug — it is a clean 760 px render.
+  The genuine before/after pair is the owner's own app screenshot against `phase-8n-calculations.png`.
+  Do not re-render the 8M frame; its test is retired precisely so the gate cannot overwrite it.
+- Two test bugs were mine and are recorded here so they are not mistaken for product defects: a `[Fact]`
+  constructing a `Window` (needs `[AvaloniaFact]`), and walking a visual tree before `Show()`.
+- Disclosed: the 8M frame was re-saved by reconciliation test runs at 05:23 and 05:27, before ruling 4
+  existed and before the test was retired. Same fixed fixture, same 760 px, so materially the same image,
+  but the overwrites are stated rather than glossed.
+
 ## Resume — 2026-09-29 05:02 — reconciled: 3 findings
 
 ## Session Handoff — 2026-09-29 04:44

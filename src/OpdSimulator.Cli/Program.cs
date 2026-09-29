@@ -126,8 +126,23 @@ public static class Program
         stdout.WriteLine($"  Average queue length     : {result.AverageQueueLength,8:F3}");
         stdout.WriteLine($"  Average system time (min): {result.AverageSystemTimeMinutes,8:F3}");
         stdout.WriteLine($"  Stage utilisation        : {result.StageUtilisation,8:P1}");
+        // D-171: both per-server values, so the CLI report agrees with the GUI.
+        // The per-server list's own length is the server count and is the only
+        // divisor available on a single-stage SimulationResult (the record carries
+        // no ServerCount of its own). Per-server utilisations do not sum;
+        // contributions do. A result with an empty per-server list prints no
+        // server lines at all, so there is no zero divisor to guard.
+        int perServerCount = result.PerServerUtilisation.Count;
         for (int i = 0; i < result.PerServerUtilisation.Count; i++)
+        {
             stdout.WriteLine($"  Server {i} utilisation    : {result.PerServerUtilisation[i],8:P1}");
+            if (perServerCount > 0)
+            {
+                stdout.WriteLine(
+                    $"  Server {i} contribution   : {result.PerServerUtilisation[i] / perServerCount,8:P1}"
+                    + "  (of stage capacity)");
+            }
+        }
         stdout.WriteLine($"  Throughput (patients/min): {result.ThroughputPerMinute,8:F3}");
         stdout.WriteLine($"  Operating time (min)     : {result.OperatingTimeMinutes,8:F3}");
         stdout.WriteLine($"  ρ = λ/(c·μ)              : {config.Rho,8:F2}");
@@ -151,8 +166,20 @@ public static class Program
             stdout.WriteLine($"  Average wait (min)       : {metric.AverageWaitMinutes,8:F3}");
             stdout.WriteLine($"  Average queue length     : {metric.AverageQueueLength,8:F3}");
             stdout.WriteLine($"  Stage utilisation        : {metric.StageUtilisation,8:P1}");
+            // D-171: both per-server values, so the CLI report agrees with the GUI.
+            int perServerCount = metric.PerServerUtilisation.Count > 0
+                ? metric.PerServerUtilisation.Count
+                : metric.ServerCount;
             for (int i = 0; i < metric.PerServerUtilisation.Count; i++)
+            {
                 stdout.WriteLine($"  Server {i} utilisation    : {metric.PerServerUtilisation[i],8:P1}");
+                if (perServerCount > 0)
+                {
+                    stdout.WriteLine(
+                        $"  Server {i} contribution   : {metric.PerServerUtilisation[i] / perServerCount,8:P1}"
+                        + "  (of stage capacity)");
+                }
+            }
             stdout.WriteLine($"  Throughput (patients/min): {metric.ThroughputPerMinute,8:F3}");
             stdout.WriteLine($"  ρ = λᵢ/(c·μ)             : {metric.Rho,8:F2}");
             stdout.WriteLine("─────────────────────────────────────────────────────");
