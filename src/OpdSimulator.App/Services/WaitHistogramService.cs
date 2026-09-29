@@ -18,6 +18,13 @@ public sealed record WaitHistogramData(
     IReadOnlyList<string> Categories,
     IReadOnlyList<double> Counts)
 {
+    /// <summary>
+    /// Position of the described stage in the run's stage list, so the
+    /// histogram paints in the stage's own colour (Phase 8M, D-163) instead of
+    /// always taking palette slot 0. Zero when the stage is unknown.
+    /// </summary>
+    public int StageIndex { get; init; }
+
     /// <summary>An empty histogram shown before the first run.</summary>
     public static WaitHistogramData Empty { get; } =
         new(string.Empty, false, Array.Empty<string>(), Array.Empty<double>());
@@ -55,13 +62,24 @@ public static class WaitHistogramService
             return new WaitHistogramData(stageName, false, Array.Empty<string>(), Array.Empty<double>());
         }
 
-        var stage = result.StageMetrics.FirstOrDefault(s => s.StageName == stageName);
+        int stageIndex = -1;
+        for (int i = 0; i < result.StageMetrics.Count; i++)
+        {
+            if (result.StageMetrics[i].StageName == stageName)
+            {
+                stageIndex = i;
+                break;
+            }
+        }
+
+        var stage = stageIndex < 0 ? null : result.StageMetrics[stageIndex];
         if (stage is null)
         {
             return new WaitHistogramData(stageName, false, Array.Empty<string>(), Array.Empty<double>());
         }
 
-        return BuildForSamples(stageName, stage.WaitingTimeSamples);
+        var histogram = BuildForSamples(stageName, stage.WaitingTimeSamples);
+        return histogram with { StageIndex = stageIndex };
     }
 
     /// <summary>

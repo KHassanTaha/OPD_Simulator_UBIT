@@ -64,7 +64,14 @@ public class Phase6c4UtilisationTests
         Assert.Equal(2, chart.ReferenceLines[0].LastBarIndex);
         Assert.Equal(3, chart.ReferenceLines[1].FirstBarIndex);
         Assert.Equal(4, chart.ReferenceLines[1].LastBarIndex);
-        Assert.Equal(0.5, chart.ReferenceLines[0].Average);
+
+        // Phase 8M (D-160): the reference line moved from the stage average to
+        // the EQUAL SHARE, because the bars themselves moved onto the
+        // contribution scale. Screening's 0.50 across 3 servers is 1/6 each; a
+        // line at 0.50 would sit three times above every bar and read as a
+        // ceiling rather than a benchmark.
+        Assert.Equal(0.5 / 3, chart.ReferenceLines[0].EqualShare, precision: 10);
+        Assert.Equal(0.42 / 2, chart.ReferenceLines[1].EqualShare, precision: 10);
     }
 
     [Fact]
@@ -87,10 +94,16 @@ public class Phase6c4UtilisationTests
     }
 
     [Fact]
-    public void UtilisationChart_Caption_MentionsImbalanceThreshold()
+    public void UtilisationChart_Caption_ExplainsTheAmberFlag()
     {
-        Assert.Contains("imbalance", UtilisationChartService.Caption);
-        Assert.Contains("0.15", UtilisationChartService.Caption);
+        // Intent, not wording: a reader must be able to tell what a bar is and
+        // what amber means without guessing. The exact text is pinned in
+        // Phase8MUtilisationTests; what matters here is that the two facts the
+        // reader needs are both present.
+        Assert.Contains("amber", UtilisationChartService.Caption, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("15 percentage points", UtilisationChartService.Caption);
+        Assert.Contains("contribution", UtilisationChartService.Caption, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("equal-share", UtilisationChartService.Caption, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

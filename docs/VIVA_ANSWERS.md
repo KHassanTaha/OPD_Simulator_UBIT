@@ -291,3 +291,132 @@ refuses: it reverts the notation, changes nothing else, and puts the reason on
 the row. A refusal with a stated cause is the designed outcome; silently
 keeping a family it could not determine would not be.
 
+
+## Phase 8M — Chart legibility, stage colour, and derivable numbers (2026-09-29)
+
+### Q: Why is a doctor's bar 20% when the metrics table says the Doctor stage is 60%?
+
+Because the bar is a **contribution**, not a utilisation. A bar is one
+server's busy time divided by *(servers in the stage × operating time)*. With
+three doctors each 60% busy, each carries 60% ÷ 3 = 20% of the stage's
+capacity, and 20 + 20 + 20 = 60 — the stage utilisation printed beside it.
+
+The earlier version drew each server's raw 60%, so a 60% stage showed three
+60% bars next to a metric card reading 60%. Nothing on screen said the chart
+was on a different scale from the number it appeared to illustrate, and a
+reader had to already know the rule to reconcile them. The contribution scale
+removes the ambiguity by making the identity **checkable**: the bars of a
+stage sum to the stage utilisation, so the chart and the table validate each
+other. The tooltip still gives the server's own utilisation, so nothing is
+hidden by the change — only moved to where it belongs.
+
+### Q: Why is the utilisation Y axis fixed rather than scaled to fit the data?
+
+So that two runs can be compared, and so nothing is ever cut off. The top of
+the axis is `1 ÷ (fewest servers in the run)`, which is the largest a
+contribution can ever be: one server's whole capacity. That bound comes from
+the **configuration** (server counts), never from the values in the current
+run.
+
+This replaced a ceiling derived from the tallest equal-share line, and that was
+a real bug rather than a matter of taste. Equal share depends on how balanced
+the run happened to be, so a run with one quiet single-server stage and one
+heavily loaded four-server stage produced a bound *below* the loaded stage's
+outlier bar — the bar was drawn off the top of the plot. Because the ceiling
+now cannot depend on the data, it cannot clip, and there is a regression test
+(`UtilisationChart_YAxisNeverClipsADeviatingServer`) that constructs exactly
+that scenario.
+
+The cost is honest and worth stating: a clinic with many servers everywhere
+gets a flatter-looking chart, because the correct ceiling for a six-server
+stage is one sixth. A scale that moved to flatter the data would be a scale
+that hides the very imbalance the chart exists to show.
+
+### Q: The X axis was dropping labels. Why did every test pass while it was broken?
+
+Because the data was never wrong — the bug was in how the chart *rendered* it,
+and the existing tests asserted on the data. Two independent causes had to be
+fixed together:
+
+1. LiveCharts2 ships a **non-null default `Labeler`** on the axis. That
+   default formats the numeric axis value and takes precedence over an
+   attached `Labels` collection, so the strings were present, attached,
+   correct — and never drawn. Assigning `Axis.Labels` alone is a no-op.
+2. The chart drew **one series per server**, so each series had to pad the
+   whole category list with nulls. That null-heavy category was the second
+   half of the loss.
+
+The lasting change is in the tests rather than the code. `Phase8MChartControlTests`
+asserts against the **built** `CartesianChart`: the `Labels` array equals the
+expected strings, `axis.Labeler(i)` returns `axis.Labels[i]` for every
+category, the rotation is non-zero, and the series composition is
+3 columns + 3 overlays + 3 reference lines for a three-stage run. A data-level
+test could never have caught either half.
+
+The same lesson retired a test that had been passing for the wrong reason:
+`QueueChart_UsesNativeStepLineSeries` used to locate `BuildQueueChart` by
+reflection and assert nothing about the series it produced. It now checks the
+concrete `StepLineSeries` type on the chart that is actually built.
+
+### Q: Why does the queue chart draw steps instead of a smooth line?
+
+Because the engine only changes a queue length **at an event** — a patient
+arrives at the stage or leaves it. Between two events the queue length is a
+constant, so a straight or smoothed segment between samples draws a queue
+length the clinic never had: it invents a gradual drain that the simulation
+did not record. In a project whose purpose is to *not* invent values, that is
+the wrong default, so the chart uses a step line and the shape of the curve is
+literally the shape of the truth.
+
+The other readability rule on that chart is draw order. Stage lines are opaque
+to each other, so whichever is drawn last covers the others. The stages are
+ordered by average queue length, **busiest first**, which puts the busiest line
+at the back and the quietest on top — so where they overlap, the smaller curve
+stays visible, which is where the eye is already looking. Ordering by average
+is not perfect: a stage with a low average but one tall spike can be hidden at
+exactly the moment it matters. That is a real limitation, stated rather than
+hidden.
+
+### Q: Why is the same stage the same colour in every chart, and what happens with more than four stages?
+
+Because colour was previously being asked for by **series position**, so the
+same stage came out a different colour in the queue chart than in the
+utilisation chart — and the utilisation chart reorders its own series, so its
+colours moved between runs. Colour was carrying draw order rather than stage
+identity, which makes the panels impossible to read against each other. The
+new dynamic stage legend is the evidence: a legend only has to exist when the
+mapping was not already shared.
+
+`StageColourPalette.ForStageIndex(stageIndex)` is now the single answer, called
+by the queue chart, the waiting-time histogram, the utilisation chart and the
+legend. The four base colours are theme tokens (`ColorChartSeries1..4`), so
+restyling the charts is a one-file change. For a run with more than four
+stages the palette wraps by rotating the hue 15° per extra group rather than
+repeating a colour, because a repeated colour reads as the same series. Amber
+is deliberately **not** part of this palette: amber is a *meaning* (this server
+deviates from its stage mean by more than 15 points), not a stage, and mixing
+the two would make a deviation look like an identity.
+
+### Q: The "View calculations" dialog is plain text. Why not a table, or a graph?
+
+Because the purpose is **derivability**: someone should be able to follow every
+number on the results panel back to the rule that produced it. A table is
+better for comparing values; this is for following a chain — λ to 1/λ, μ to
+c·μ to 1/μ, utilisation to busy minutes, the stage totals to the flow
+balance. Plain text wins because it copies cleanly into a report or an answer
+sheet, and because the **Copy** button makes the whole derivation portable.
+
+The structural choice matters more than the formatting: the text is produced by
+a pure function (`CalculationsTextBuilder.Build`) taking the result and its
+parameters, so every rule it prints — `ρ = λ/(c·μ)`, `utilisation = busy ÷ T`,
+`contribution × T` — is assertable in a unit test against a real engine result,
+headlessly. Had the text been assembled in the view model, the panel would have
+been a derivation nobody could test, which is the same mistake the rest of this
+project keeps correcting.
+
+One honesty detail worth defending: busy time is labelled `(derived)`. The
+engine records per-server *utilisation*; minutes are that utilisation times the
+operating time. Marking the difference means a reader can never mistake a
+reconstructed figure for a raw engine output. The dialog also names the
+parameter source ("fitted from …" or "entered manually"), so it is always
+clear which of the two configuration paths produced the numbers.

@@ -2,7 +2,9 @@ namespace OpdSimulator.App.ViewModels;
 
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
@@ -23,6 +25,16 @@ public sealed record StageMetricRow(
     string Wait,
     string Queue,
     string Utilisation);
+
+/// <summary>
+/// One stage-colour legend entry (Phase 8M, D-163, FR-UI-27). The legend is
+/// generated from the run's stages, so it cannot drift from the charts the way a
+/// hand-written list would.
+/// </summary>
+/// <param name="StageName">Stage label, as the run reported it.</param>
+/// <param name="Swatch">The stage's shared palette brush.</param>
+/// <param name="StageIndex">The stage's position, matching the palette index.</param>
+public sealed record StageLegendItem(string StageName, IBrush Swatch, int StageIndex);
 
 /// <summary>One chi-square goodness-of-fit verdict row (FR-STAT-8).</summary>
 public sealed record ChiSquareRow(
@@ -49,6 +61,12 @@ public partial class ResultsPanelViewModel : ObservableObject
     private const string Unavailable = "—";
 
     private readonly WidgetPreferences? _preferences;
+
+    /// <summary>Parameters of the most recent run, for the calculations dialog (D-164).</summary>
+    private SimulationParameters? _lastParameters;
+
+    /// <summary>Human description of where those parameters came from (D-164).</summary>
+    private string? _parameterSource;
 
     /// <summary>Welcome-card content (FR-UI-5).</summary>
     public WelcomeCardViewModel Welcome { get; } = new();
@@ -112,8 +130,25 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Finishes a run with its outcome (worker thread result, UI thread call).</summary>
     /// <param name="outcome">Engine run outcome (result, fits, trace, refusal message).</param>
-    public void CompleteRun(RunOutcome outcome)
+    /// <param name="outcome">The coordinator's outcome for this run.</param>
+    /// <param name="parameters">
+    /// The parameters the run was launched with. Optional so the refusal path and
+    /// existing callers stay source-compatible; the calculations dialog (D-164)
+    /// needs them to write down λ, μ and p_exit, and a run without them still
+    /// shows every result-derived figure.
+    /// </param>
+    /// <param name="sourceDescription">
+    /// Where the parameters came from, in the user's terms (fitted from a file vs
+    /// entered manually), so the calculations dialog can name its own provenance.
+    /// </param>
+    public void CompleteRun(
+        RunOutcome outcome,
+        SimulationParameters? parameters = null,
+        string? sourceDescription = null)
     {
+        _lastParameters = parameters;
+        _parameterSource = sourceDescription;
+        OnPropertyChanged(nameof(CalculationsText));
         IsBusy = false;
         HasRun = true;
         IsWelcomeVisible = false;
@@ -221,10 +256,14 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (result is null)
         {
             UtilisationChart = null;
+            PerServerDetailLines = Array.Empty<string>();
+            BuildStageLegend(null);
             return;
         }
 
         var data = UtilisationChartService.Build(result);
+        PerServerDetailLines = FormatPerServerDetail(data);
+        BuildStageLegend(result);
         try
         {
             UtilisationChart = ChartControlBuilder.BuildUtilisationChart(data);
@@ -280,7 +319,16 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <param name="result">The completed simulation result, or null when the run was refused.</param>
     private void SetWaitHistogram(OpdSimulator.Core.Engine.SimulationResult? result)
     {
+        var previous = _lastResult;
         _lastResult = result;
+        if (!ReferenceEquals(previous, result))
+        {
+            // The calculations body is derived from the result, so the button's
+            // enabled state and its text both move with a new run.
+            OnPropertyChanged(nameof(CalculationsText));
+            OnPropertyChanged(nameof(HasCalculations));
+        }
+
         WaitStageNames = result is null ? null : WaitHistogramService.StageNames(result);
         SelectedWaitStage = WaitStageNames is { Count: > 0 } ? WaitStageNames[0] : null;
         RebuildWaitHistogram();
@@ -398,6 +446,95 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Widget caption (FR-STAT-7): names the imbalance threshold and rule.</summary>
     public string UtilisationCaption => UtilisationChartService.Caption;
+
+    /// <summary>
+    /// Formats one line per server: "Reception S2: 16.67% (stage util 50.00%)",
+    /// with a trailing marker when the server deviates from its stage mean by more
+    /// than the imbalance threshold. The marker repeats the amber meaning in text
+    /// so the flag is not carried by colour alone (AGENTS §16.9).
+    /// </summary>
+    private static IReadOnlyList<string> FormatPerServerDetail(UtilisationChartData data)
+    {
+        var lines = new List<string>(data.PerServerDetail.Count);
+        foreach (var detail in data.PerServerDetail)
+        {
+            var line = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0} S{1}: {2:P2} (stage util {3:P2})",
+                detail.StageName,
+                detail.ServerNumber,
+                detail.Contribution,
+                detail.StageUtilisation);
+            lines.Add(detail.IsOutlier ? line + "  — deviating server" : line);
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Rebuilds the stage legend from a run's own stage list, each stage painted
+    /// with the colour every chart gave it. A null result clears it.
+    /// </summary>
+    private void BuildStageLegend(OpdSimulator.Core.Engine.SimulationResult? result)
+    {
+        if (result is null)
+        {
+            StageLegend = Array.Empty<StageLegendItem>();
+            return;
+        }
+
+        var items = new List<StageLegendItem>();
+        int index = 0;
+        foreach (var stage in result.StageMetrics)
+        {
+            items.Add(new StageLegendItem(
+                stage.StageName,
+                StageColourPalette.BrushForStageIndex(index),
+                index));
+            index++;
+        }
+
+        StageLegend = items;
+    }
+
+    /// <summary>
+    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160),
+    /// pre-formatted because each row mixes a contribution, a stage utilisation
+    /// and an optional imbalance marker. The chart deliberately hides the
+    /// individual server numbers behind a 1/c rescale, so this table is where a
+    /// reader gets them back.
+    /// </summary>
+    public IReadOnlyList<string> PerServerDetailLines { get; private set; } =
+        Array.Empty<string>();
+
+    /// <summary>
+    /// The stage-colour legend (Phase 8M, D-163, FR-UI-27), generated from the
+    /// run's own stage list so it always matches the charts beside it.
+    /// </summary>
+    public IReadOnlyList<StageLegendItem> StageLegend { get; private set; } =
+        Array.Empty<StageLegendItem>();
+
+    /// <summary>
+    /// The full "View calculations" body (Phase 8M, D-164, FR-UI-29), rendered by
+    /// the pure <see cref="CalculationsTextBuilder"/> from the finished result and
+    /// the parameters that produced it.
+    /// </summary>
+    public string CalculationsText => CalculationsTextBuilder.Build(
+        _lastResult, _lastParameters, _parameterSource);
+
+    /// <summary>True once a run has produced a result, so the button has something to show.</summary>
+    public bool HasCalculations => _lastResult is not null;
+
+    /// <summary>
+    /// Raised when the user asks to see the calculations. The VIEW opens the
+    /// themed dialog, matching how every other dialog in this app is opened
+    /// (a view model announces intent; it never builds a window itself).
+    /// </summary>
+    public event EventHandler? CalculationsRequested;
+
+    /// <summary>Button: "View Calculations" in the Overview heading row (D-164).</summary>
+    [RelayCommand]
+    private void ShowCalculations() => CalculationsRequested?.Invoke(this, EventArgs.Empty);
 
     // ── Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5) ────────────
 

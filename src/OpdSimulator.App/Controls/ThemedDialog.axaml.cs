@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -66,6 +67,64 @@ public partial class ThemedDialog : Window
         return dialog.Result;
     }
 
+    /// <summary>
+    /// Optional rich body shown under the message (Phase 8M, D-164). The
+    /// calculations dialog uses it for its sections; the message-only callers
+    /// leave it null and see exactly the dialog they saw before.
+    /// </summary>
+    public object? Body
+    {
+        get => DialogBodyHost.Content;
+        set
+        {
+            DialogBodyHost.Content = value;
+            DialogBodyHost.IsVisible = value is not null;
+            HasBody = value is not null;
+        }
+    }
+
+    /// <summary>Backing property so the XAML can bind the body's visibility.</summary>
+    public static readonly StyledProperty<bool> HasBodyProperty =
+        AvaloniaProperty.Register<ThemedDialog, bool>(nameof(HasBody));
+
+    /// <summary>True when <see cref="Body"/> carries content.</summary>
+    public bool HasBody
+    {
+        get => GetValue(HasBodyProperty);
+        private set => SetValue(HasBodyProperty, value);
+    }
+
+    /// <summary>
+    /// Text placed on the clipboard by the Copy button. Setting it shows the
+    /// button; leaving it null (the default) hides it.
+    /// </summary>
+    public string? CopyText
+    {
+        get => _copyText;
+        set
+        {
+            _copyText = value;
+            HasCopyText = !string.IsNullOrEmpty(value);
+            CopyButton.IsVisible = HasCopyText;
+        }
+    }
+
+    private string? _copyText;
+
+    /// <summary>Backing property so the XAML can bind the Copy button's visibility.</summary>
+    public static readonly StyledProperty<bool> HasCopyTextProperty =
+        AvaloniaProperty.Register<ThemedDialog, bool>(nameof(HasCopyText));
+
+    /// <summary>True when the Copy button should be visible.</summary>
+    public bool HasCopyText
+    {
+        get => GetValue(HasCopyTextProperty);
+        private set => SetValue(HasCopyTextProperty, value);
+    }
+
+    /// <summary>Raised after a successful copy, so the view can confirm it.</summary>
+    public event EventHandler? Copied;
+
     /// <summary>The message body (set before showing).</summary>
     public string Message
     {
@@ -103,5 +162,36 @@ public partial class ThemedDialog : Window
     {
         Result = ThemedDialogResult.Secondary;
         Close();
+    }
+
+    /// <summary>
+    /// Copies <see cref="CopyText"/> to the clipboard. Clipboard access can be
+    /// refused by the platform (no display, denied permission), so the failure
+    /// is logged and shown rather than swallowed — §12.4 forbids a silent catch.
+    /// </summary>
+    private async void OnCopyClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(CopyText))
+        {
+            return;
+        }
+
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this) as Avalonia.Input.Platform.IClipboard;
+            if (clipboard is null)
+            {
+                Serilog.Log.Warning("Clipboard unavailable; copy skipped");
+                return;
+            }
+
+            await clipboard.SetTextAsync(CopyText);
+            Serilog.Log.Information("Calculations text copied to clipboard ({Length} chars)", CopyText.Length);
+            Copied?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Copying the calculations text to the clipboard failed");
+        }
     }
 }

@@ -271,13 +271,17 @@ if (window.DataContext is not MainViewModel main)
         Assert.Equal(6, r.SystemMetrics.Count);
         Assert.Equal(3, r.StageRows.Count);
 
-        // 2. Per-server utilisation: 6 bars (1 + 2 + 3 servers) + 3
-        // stage-mean reference lines (D-121).
+        // 2. Per-server utilisation, Phase 8M shape (D-160): 3 stages = 3
+        // ColumnSeries (one per stage, stage-coloured) + 3 ScatterSeries
+        // (amber outlier overlay, one per stage) + 3 equal-share reference
+        // lines. The pre-8M shape was 6 per-server ColumnSeries, whose
+        // null-heavy category values were what thinned the X axis out.
         Assert.True(r.HasUtilisationChart);
         var utilisation = r.UtilisationChart as CartesianChart
             ?? throw new InvalidOperationException("UtilisationChart must be a CartesianChart");
         Assert.Equal(9, utilisation.Series.Count());
-        Assert.Equal(6, utilisation.Series.OfType<ColumnSeries<double?>>().Count());
+        Assert.Equal(3, utilisation.Series.OfType<ColumnSeries<double?>>().Count());
+        Assert.Equal(3, utilisation.Series.OfType<ScatterSeries<double?>>().Count());
         Assert.Equal(3, utilisation.Series.OfType<LineSeries<double?>>().Count());
 
         // 3. Queue length over time (one line per stage).

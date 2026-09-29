@@ -2,6 +2,76 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Resume — 2026-09-29 05:02 — reconciled: 3 findings
+
+## Session Handoff — 2026-09-29 04:44
+Branch: `fix/phase-8m-ui-clarity`
+Status: In-Progress (code + docs complete and gated; awaiting owner visual review of the five frames, then merge)
+
+### Done
+- **Phase 8M** — marked `[x]` in `TODO.md`. Three owner findings (N1 labels, N2 bars that did not add up, N3 fabricated queue slopes) closed, plus the stage-colour unification and the "View calculations" derivations.
+- **N1 — every category now carries a label** (D-161). Two independent causes, both required: LiveCharts2 2.0.5 ships a **non-null default `Labeler`** that shadows an attached `Axis.Labels`, so the strings were present and never drawn; and one `ColumnSeries` per **server** padded the whole category list with nulls. Fixed with a categorical `Labeler`, 30° rotation, and one series per **stage**.
+- **N2 — bars are contributions** (D-160). Height is `busy ÷ (c × operating time)`, so a stage's bars **sum to its stage utilisation** — the number printed beside them. Amber `ScatterSeries` markers ride on the same slot, a dashed equal-share `LineSeries` marks `stage util ÷ c`, and the y-axis is **fixed** at `1 ÷ min(servers)`.
+- **N3 — the queue chart steps** (D-162). `StepLineSeries`, busiest stage drawn behind, `max + 1` axis. The engine only changes a queue length at an event, so a slope drew a value it never recorded.
+- **Stage-identical colour** (D-163). `StageColourPalette.ForStageIndex` is the single answer; `ColorChartSeries1..4` are theme tokens; the queue chart, wait histogram, utilisation chart and the new dynamic stage legend all read it, wrapping by hue past the fourth stage.
+- **"View calculations"** (D-164). Pure `CalculationsTextBuilder`, rendered by the existing `ThemedDialog` with an optional body and a clipboard Copy — so the message-only callers are untouched and there is still one dialog implementation.
+- **Two further defects found by the new control-level tests, not by inspection.** (1) The hover formatters resolved a LiveCharts point index against the reporting **stage's** bar list, but every series spans all categories — the last bar of a 1/2/3 run threw `ArgumentOutOfRangeException` on hover. Fixed with a named `ChartControlBuilder.BarAt(data, globalIndex)`. (2) The y-axis ceiling came from the tallest **equal share**, so a quiet single-server stage dragged the bound below a loaded sibling's outlier bar and the bar was drawn off the top of the plot; it now comes from server counts and cannot clip. A stale method summary still describing one-series-per-server was corrected at the same time.
+- **A passing-for-the-wrong-reason test was retired.** `QueueChart_UsesNativeStepLineSeries` located `BuildQueueChart` by reflection and asserted nothing about the series drawn — the same mistake that let N1 hide. It now checks the concrete type on the built chart, alongside the new `Phase8MChartControlTests`.
+- **Docs** — D-160..D-164; PRD v1.6.0 with FR-UI-27/28/29 and a FR-STAT-7 rendering clause; REQUIREMENTS matrix with real test names (three names I first wrote were invented and are corrected); USER_MANUAL §6.4/§6.5 rewritten and §6.10 added; VIVA_ANSWERS +6; DEV_LAUNCH banner, test count and changelog row.
+
+### In Progress
+None. Phase 8M is complete, gated and documented.
+
+What is complete:
+**38 new tests, 560 → 598**, in five classes: `Phase8MChartTests` (10 — contribution scale, bar counts and per-stage sums parameterised 1/2/3 → 6 bars and 2/4/5 → 11 bars, equal-share line, amber threshold, per-server detail, the four-sentence caption), `Phase8MPaletteTests` (9), `Phase8MQueueAndCalculationsTests` (8), `Phase8MChartControlTests` (**6**, `[AvaloniaFact]` — the label defect is only observable on a rendered axis, so these assert the **built** `CartesianChart`), `Phase8MScreenshots` (5).
+
+### What remains
+- **Owner visual review of the five PNGs** — see Blocked.
+- Phase 8 (the docs row) is the next `[ ]` row in `TODO.md`.
+
+### Next Session Should Start With
+Phase 8 — the docs pass: DEV_LAUNCH dead-state re-verification, USER_MANUAL rewrite, REQUIREMENTS re-derived, VIVA_ANSWERS, DECISIONS.
+
+### Blocked
+- **B-012 — visual inspection of the headless frames is owner-required** (D-089, AGENTS §18). This host has no image input, so the agent cannot confirm the frames *look* right; the assertions are the proof until the owner views them. The queue is now eleven frames: `phase-8e-*.png` (2), `phase-8k-*.png` (4), `phase-8m-*.png` (5).
+
+### Git State
+Commits made this session: one — `feat: dynamic per-server utilisation chart, step queue chart, shared palette, calculations popup (Phase 8M)`.
+Pushed to origin: Yes, `fix/phase-8m-ui-clarity`.
+Uncommitted changes: None.
+
+### Build & Test
+`dotnet build -c Release --no-incremental`: **PASS** — 0 errors, 0 warnings.
+`dotnet build -c Debug --no-incremental`: **PASS** — 0 errors, 0 warnings.
+`dotnet test -c Release --no-build`: **PASS — 598/598** (Cli 35 / Data 92 / Core 114 / App 357).
+`dotnet test -c Debug --no-build`: **PASS — 598/598** (same split).
+Warnings: 0. Debug is not optional — D-147's `ServiceRate == 1/Mean == μ` assertion is `#if DEBUG`, so a Release-only run cannot observe it.
+
+### Files Touched
+`src/OpdSimulator.App/Services/`: `StageColourPalette.cs` (new), `ChartControlBuilder.cs`, `UtilisationChartService.cs`, `QueueLengthChartService.cs`, `WaitHistogramService.cs`, `CalculationsTextBuilder.cs` (new).
+`src/OpdSimulator.App/Assets/`: `Theme.axaml` (canonical chart tokens), `ChartTheme.axaml` (brushes repointed).
+`src/OpdSimulator.App/ViewModels/`: `ResultsPanelViewModel.cs`, `MainViewModel.cs`.
+`src/OpdSimulator.App/Views/`: `ResultsPanel.axaml`, `ResultsPanel.axaml.cs`.
+`src/OpdSimulator.App/Controls/`: `ThemedDialog.axaml`, `ThemedDialog.axaml.cs`.
+`tests/OpdSimulator.App.Tests/`: `Phase8MChartTests.cs` (new), `Phase8MScreenshots.cs` (new), `Phase6c4UtilisationTests.cs`, `Phase6c6Screenshots.cs`, `ControlsSmokeTests.cs`.
+`docs/`: `DECISIONS.md`, `PRD.md`, `REQUIREMENTS.md`, `TODO.md`, `PROGRESS.md`, `DEV_LAUNCH.md`, `USER_MANUAL.md`, `VIVA_ANSWERS.md`.
+
+### Decisions Made
+D-160 — a server's bar is its **contribution**, one series per stage, amber as a marker, fixed `1/c` ceiling.
+D-161 — category labels are an **axis** concern: fix the series shape *and* the `Labeler`, because LiveCharts2 ships a non-null default.
+D-162 — step lines for the queue chart, busiest first, one unit of headroom.
+D-163 — one `StageColourPalette` service owns stage identity; four themed bases, hue-wrapped every four stages.
+D-164 — "View calculations" is a pure text builder rendered by a dialog that already existed.
+
+### Assumptions Added/Changed
+None. No new `[UNVERIFIED]` assumption was introduced by this phase; every value shown comes from the finished `SimulationResult` or the `SimulationParameters` that produced it.
+
+### Notes for Next Session
+- **Three test names in the first REQUIREMENTS draft were invented and did not exist.** They were caught by listing the compiled tests (`dotnet test --list-tests`) and matching class by class — several live in `Phase8MPaletteTests` / `Phase8MQueueAndCalculationsTests`, not in `Phase8MChartTests`. If you edit that matrix, verify names the same way rather than from memory.
+- `Phase8MChartControlTests` is the only class that can catch an N1-style regression, and it needs a rendering platform, so it is `[AvaloniaFact]`. A bare `dotnet test` without the headless fixture will not run it.
+- The utilisation y-axis being **fixed** compresses wide clinics (a six-server stage has an honest ceiling of 1/6). That is a deliberate, documented trade — do not "fix" it by rescaling to the data, which reintroduces the clipping bug pinned by `UtilisationChart_YAxisNeverClipsADeviatingServer`.
+- Draw order for the queue chart is by **average** queue length, so a low-average stage with one tall spike can be hidden behind a busier one. Stated as a limitation in D-162 and VIVA_ANSWERS, not fixed.
+
 ## Session Handoff — 2026-09-26 21:30
 Branch: `fix/post-merge-8e`
 Status: In-Progress

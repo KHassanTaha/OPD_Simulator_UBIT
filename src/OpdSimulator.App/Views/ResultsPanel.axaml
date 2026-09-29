@@ -103,12 +103,22 @@
                                   IsVisible="{Binding HasError}"
                                   ToolTip.Tip="The simulator did not run; read the message and adjust the configuration."/>
 
-            <!-- Group heading: Overview (Phase 8D.1). -->
-            <TextBlock Text="Overview"
-                       FontSize="{DynamicResource FontSizeTitle}"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource BrushTextPrimary}"
-                       Margin="0,24,0,8"/>
+            <!-- Group heading: Overview (Phase 8D.1). Phase 8M (D-164) turns it
+                 into a two-column row so the "View Calculations" action can sit
+                 on the same line as the heading it belongs to, right-aligned. -->
+            <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,8">
+                <TextBlock Text="Overview"
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                <Button Grid.Column="1"
+                        Content="View Calculations"
+                        Classes="GhostButton"
+                        Command="{Binding ShowCalculationsCommand}"
+                        IsVisible="{Binding HasCalculations}"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Show the formulas and inputs behind every number on this tab (Phase 8M)."/>
+            </Grid>
 
             <!-- Metrics widget (FR-STAT-6/7). -->
             <Border IsVisible="{Binding ShowMetrics}"
@@ -200,16 +210,65 @@
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <ContentControl IsVisible="{Binding HasUtilisationChart}"
                                     Content="{Binding UtilisationChart}"/>
+
+                    <!-- Per-server detail (Phase 8M, D-160). Collapsed by
+                         default: the chart answers "who is out of line?", and this
+                         table is the receipt for anyone who wants the raw
+                         per-server numbers. -->
+                    <controls:CollapsibleSection Title="Per-server detail"
+                                                IsVisible="{Binding HasUtilisationChart}"
+                                                IsExpanded="False"
+                                                HelpText="Every server's contribution and the stage utilisation it belongs to.">
+                        <ItemsControl ItemsSource="{Binding PerServerDetailLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}"
+                                               FontFamily="{DynamicResource FontFamilyMono}"
+                                               FontSize="{DynamicResource FontSizeCaption}"
+                                               Foreground="{DynamicResource BrushTextSecondary}"
+                                               TextWrapping="Wrap"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </controls:CollapsibleSection>
                 </StackPanel>
             </Border>
 
             <!-- Group heading: Charts (Phase 8D.1) — covers queue length and the
                  waiting-time histogram below. -->
-            <TextBlock Text="Charts"
-                       FontSize="{DynamicResource FontSizeTitle}"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource BrushTextPrimary}"
-                       Margin="0,24,0,8"/>
+            <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,8">
+                <TextBlock Text="Charts"
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                <!-- Stage colour legend (Phase 8M, D-163, FR-UI-27). Generated
+                     from the run's own stage list, so it cannot fall out of step
+                     with the series the charts actually drew. -->
+                <ItemsControl Grid.Column="1"
+                              ItemsSource="{Binding StageLegend}"
+                              IsVisible="{Binding HasQueueLengthChart}"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource SpaceM}"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:StageLegendItem">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Width="12" Height="12"
+                                        CornerRadius="2"
+                                        Background="{Binding Swatch}"
+                                        VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding StageName}"
+                                           FontSize="{DynamicResource FontSizeCaption}"
+                                           Foreground="{DynamicResource BrushTextSecondary}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
 
             <!-- Queue-length-over-time widget (FR-UI-4 P2, Phase 6c.5): one line
                  per stage, downsampled ≤ 2000 points; empty state until a run. -->

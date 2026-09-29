@@ -250,6 +250,23 @@ public partial class MainViewModel : ObservableObject
         Log.Information("Clear All requested: config, uploaded data and results reset to the launch state");
     }
 
+    /// <summary>
+    /// One line describing where this run's parameters came from, for the
+    /// calculations dialog (Phase 8M, D-164). The two paths of AGENTS §19 read
+    /// very differently to someone auditing the maths, so the dialog says which
+    /// one produced the numbers rather than leaving it to be guessed.
+    /// </summary>
+    private string DescribeParameterSource()
+    {
+        var file = Config.LoadedFileName;
+        var filePart = string.IsNullOrWhiteSpace(file)
+            ? "no data file loaded"
+            : $"fitted from {file}";
+        return Config.SourceMode == DataSourceMode.EnterManually
+            ? "entered manually (with fitted values shown where a field was left blank)"
+            : filePart;
+    }
+
     private void OnRunRequested(object? sender, EventArgs e)
     {
         if (Config.TryBuildRunParameters() is not { } parameters)
@@ -288,7 +305,7 @@ public partial class MainViewModel : ObservableObject
 
             Dispatcher.UIThread.Post(() =>
             {
-                Results.CompleteRun(outcome);
+                Results.CompleteRun(outcome, parameters, DescribeParameterSource());
                 ApplyVerification(outcome, parameters);
                 ApplyAnalyticalValidation(outcome, parameters);
             });

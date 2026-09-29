@@ -5,6 +5,14 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
+- **B-012:** Headless screenshot frames have never been looked at by a human, and the queue is now eleven frames deep.
+  - Owner: Taha
+  - Impact: The evidence PNGs are captured automatically and their geometry/content is asserted numerically, but this host has **no image input** (D-089), so the agent cannot answer "does it look right". Every such frame therefore carries an unverified visual claim, and the count compounds: `phase-8e-*.png` (2), `phase-8k-*.png` (4), `phase-8m-*.png` (5). The assertions are real evidence of geometry, not of appearance, and AGENTS §18 is explicit that a UI requirement is not `[x]` without an observed result.
+  - Needed action: Open the eleven frames in `logs/screenshots/` and report anything wrong — clipped or overlapping labels, an unreadable axis, a legend that does not match the chart colours, a dialog whose text overflows. Phase 8M's frames are the priority: they are the evidence for the utilisation contribution scale, the amber markers, the step queue chart, the dynamic legend and the calculations dialog.
+  - Linked tasks: the `capture-only` rows in `TODO.md`, and the "Owner visual inspection is still outstanding" clauses on Phases 8E, 8K and 8M.
+  - Target: before the viva, where a screenshot of a wrong-looking chart is worse than no screenshot.
+  - Status: blocked on the owner viewing the frames
+
 - **B-007:** M5 GUI requires a keyboard-only acceptance run to find bugs and defects.
   - Owner: Taha
   - Impact: The M6 kickoff defers the M5 keyboard pass ("owner will run manually"). AGENTS §16.8's pre-commit UI checklist (Tab through every control, Shift+Tab reversal, Exit/Escape/Enter contracts, focus restore, disabled-field reasons, invalid-submit flow) can only be exercised on the **running app with the mouse unplugged** — it cannot be emulated headlessly. Until this pass is done, the M5 UI quality claim and the related TODO rows stay open/blocked.
