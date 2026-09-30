@@ -1,0 +1,473 @@
+# Sample Run Reference
+#
+# Every number in docs/CALCULATIONS_AND_FLOW.md that describes a real run
+# comes from this file. Each block below is the unmodified standard output
+# of one command, captured on the machine and commit named in the header.
+#
+# Reproducibility, stated precisely: re-running a command on the same commit
+# reproduces every STATISTIC, RATE, COUNT, VERDICT and REPORT FILENAME in a
+# block. It does not reproduce a block byte for byte, because two things in
+# the output legitimately change between runs:
+#   1. Serilog log lines are prefixed with a wall-clock time
+#      (for example "[14:51:17 INF]").
+#   2. The generated report filename embeds that same wall clock
+#      (for example "logs/fit-20260930-145110.json").
+# Ignore those two and the blocks are stable.
+#
+# How the commands were invoked: every block was run through the Release
+# build with the restore step skipped, using
+#   dotnet run -c Release --no-build --project src/OpdSimulator.Cli -- <args>
+# The per-block "Command:" lines below omit "-c Release --no-build" so that
+# they stay readable and remain runnable from a clean checkout; add those two
+# flags to reproduce a block exactly as captured here.
+#
+# Generated: 2026-09-30 from commit fadea0879f51e8085101b858d174287969a2b01a
+# .NET SDK: 8.0.131   Platform: Linux
+# Build: dotnet build -c Release (0 errors, 0 warnings)
+
+# =====================================================================
+# RUN 1 -- Three-stage parameter-driven run (the simulator's own example
+#          configuration, taken from the command's usage text).
+#
+# Command:
+#   dotnet run --project src/OpdSimulator.Cli -- simulate-network \
+#     --lambda 0.2 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 \
+#     --horizon 10000 --seed 42 --verbose
+#
+# Config:
+#   Arrival rate lambda (external)  = 0.2 patients/minute
+#   Server count c, per stage       = 1, 2, 3
+#   Service rate mu, per stage      = 0.5, 0.25, 0.2 patients/minute/server
+#   Stages                          = Reception, Screening, Doctor
+#   Exit probability p_exit         = 0.7 (applied after Screening)
+#   Run mode                        = horizon, 10000 minutes of arrival generation
+#   Random seed                     = 42
+# =====================================================================
+
+── Pre-run stability (routing-derived ρᵢ = λᵢ/(cᵢ·μᵢ)) ──
+  Stage 1 'Reception': λᵢ = 0.2/min, c = 1, μ = 0.5/min → ρ = 0.4
+  Stage 2 'Screening': λᵢ = 0.2/min, c = 2, μ = 0.25/min → ρ = 0.4
+  Stage 3 'Doctor': λᵢ = 0.06/min, c = 3, μ = 0.2/min → ρ = 0.1
+─────────────────────────────────────────────────────
+
+[14:51:05 INF] Simulation start: stages=Reception(c=1, μ=0.500) → Screening(c=2, μ=0.250) → Doctor(c=3, μ=0.200) λ0=0.2 seed=42 horizon=10000 ρs=[0.4,0.4,0.1]
+
+Stage: Reception
+── Simulation metrics ──────────────────────────────
+  Patients served          :     1998
+  Average wait (min)       :    1.242
+  Average queue length     :    0.248
+  Stage utilisation        :    39.8%
+  Server 0 utilisation    :    39.8%
+  Server 0 contribution   :    39.8%  (of stage capacity)
+  Throughput (patients/min):    0.200
+  ρ = λᵢ/(c·μ)             :     0.40
+─────────────────────────────────────────────────────
+
+Stage: Screening
+── Simulation metrics ──────────────────────────────
+  Patients served          :     1998
+  Average wait (min)       :    0.888
+  Average queue length     :    0.178
+  Stage utilisation        :    40.6%
+  Server 0 utilisation    :    40.5%
+  Server 0 contribution   :    20.3%  (of stage capacity)
+  Server 1 utilisation    :    40.8%
+  Server 1 contribution   :    20.4%  (of stage capacity)
+  Throughput (patients/min):    0.200
+  ρ = λᵢ/(c·μ)             :     0.40
+─────────────────────────────────────────────────────
+
+Stage: Doctor
+── Simulation metrics ──────────────────────────────
+  Patients served          :      567
+  Average wait (min)       :    0.004
+  Average queue length     :    0.000
+  Stage utilisation        :     9.0%
+  Server 0 utilisation    :     8.6%
+  Server 0 contribution   :     2.9%  (of stage capacity)
+  Server 1 utilisation    :     9.9%
+  Server 1 contribution   :     3.3%  (of stage capacity)
+  Server 2 utilisation    :     8.6%
+  Server 2 contribution   :     2.9%  (of stage capacity)
+  Throughput (patients/min):    0.057
+  ρ = λᵢ/(c·μ)             :     0.10
+─────────────────────────────────────────────────────
+
+── Network totals ──────────────────────────────────
+  Patients served          :     1998
+  Average wait (min)       :    2.131
+  Average system time (min):    9.545
+  Operating time (min)     : 9996.744
+  Throughput (patients/min):    0.200
+─────────────────────────────────────────────────────
+
+# =====================================================================
+# RUN 2 -- The same configuration made unstable on purpose.
+#
+# Command:
+#   dotnet run --project src/OpdSimulator.Cli -- simulate-network \
+#     --lambda 0.5 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 \
+#     --horizon 10000 --seed 42
+#
+# Config: identical to Run 1 except lambda = 0.5 instead of 0.2.
+# Exit code: 1 (refused). This block is the program's standard error stream.
+# =====================================================================
+
+Refusing to run: stage 'Reception' is unstable — ρ = 1.00 (≥ 1) with λ = 0.500, c = 1, μ = 0.500; stage 'Screening' is unstable — ρ = 1.00 (≥ 1) with λ = 0.500, c = 2, μ = 0.250. The queues would grow without bound at these stages; lower the arrival rate or add servers.
+
+# =====================================================================
+# RUN 3 -- Calendar-driven multi-day run.
+#
+# Command:
+#   dotnet run --project src/OpdSimulator.Cli -- simulate-network \
+#     --lambda 0.2 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 \
+#     --days 5 --start-day Monday --seed 42 --verbose
+#
+# Config: same rates as Run 1; the run is driven by the clinic calendar
+# (open Monday to Thursday and Saturday, arrivals 08:15 to 11:00).
+# =====================================================================
+
+── Pre-run stability (routing-derived ρᵢ = λᵢ/(cᵢ·μᵢ)) ──
+  Stage 1 'Reception': λᵢ = 0.2/min, c = 1, μ = 0.5/min → ρ = 0.4
+  Stage 2 'Screening': λᵢ = 0.2/min, c = 2, μ = 0.25/min → ρ = 0.4
+  Stage 3 'Doctor': λᵢ = 0.06/min, c = 3, μ = 0.2/min → ρ = 0.1
+─────────────────────────────────────────────────────
+
+[14:51:07 INF] Simulation start: stages=Reception(c=1, μ=0.500) → Screening(c=2, μ=0.250) → Doctor(c=3, μ=0.200) λ0=0.2 seed=42 days=5 window=08:15–11:00 cap=∞ start-day=Monday ρs=[0.4,0.4,0.1]
+── Clinic day model ──
+  Generator days       : 5
+  Start day            : Monday
+  Open weekdays        : Mon, Tue, Wed, Thu, Sat
+  Arrival window       : 08:15 – 11:00 (services drain past it)
+  Daily cap            : unlimited
+─────────────────────────────────────────────────────
+
+Stage: Reception
+── Simulation metrics ──────────────────────────────
+  Patients served          :      124
+  Average wait (min)       :    1.009
+  Average queue length     :    0.189
+  Stage utilisation        :    44.6%
+  Server 0 utilisation    :    44.6%
+  Server 0 contribution   :    44.6%  (of stage capacity)
+  Throughput (patients/min):    0.188
+  ρ = λᵢ/(c·μ)             :     0.40
+─────────────────────────────────────────────────────
+
+Stage: Screening
+── Simulation metrics ──────────────────────────────
+  Patients served          :      124
+  Average wait (min)       :    1.327
+  Average queue length     :    0.249
+  Stage utilisation        :    41.8%
+  Server 0 utilisation    :    40.7%
+  Server 0 contribution   :    20.4%  (of stage capacity)
+  Server 1 utilisation    :    42.8%
+  Server 1 contribution   :    21.4%  (of stage capacity)
+  Throughput (patients/min):    0.188
+  ρ = λᵢ/(c·μ)             :     0.40
+─────────────────────────────────────────────────────
+
+Stage: Doctor
+── Simulation metrics ──────────────────────────────
+  Patients served          :       30
+  Average wait (min)       :    0.000
+  Average queue length     :    0.000
+  Stage utilisation        :     7.7%
+  Server 0 utilisation    :     8.2%
+  Server 0 contribution   :     2.7%  (of stage capacity)
+  Server 1 utilisation    :     8.6%
+  Server 1 contribution   :     2.9%  (of stage capacity)
+  Server 2 utilisation    :     6.4%
+  Server 2 contribution   :     2.1%  (of stage capacity)
+  Throughput (patients/min):    0.045
+  ρ = λᵢ/(c·μ)             :     0.10
+─────────────────────────────────────────────────────
+
+── Network totals ──────────────────────────────────
+  Patients served          :      124
+  Average wait (min)       :    2.336
+  Average system time (min):   10.394
+  Operating time (min)     :  660.264
+  Throughput (patients/min):    0.188
+─────────────────────────────────────────────────────
+
+# =====================================================================
+# FILE A -- samples/sample_3stage_clinic.csv
+#          20 patient rows, single session, no session_date column,
+#          arrivals at a regular five-minute interval.
+# =====================================================================
+
+# A1. Validation check
+# Command: dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_3stage_clinic.csv
+
+File is valid: 20 row(s), 3 service stage pair(s).
+[14:51:08 INF] verify: samples/sample_3stage_clinic.csv is valid (20 rows)
+
+# A2. Fit, every stage, exponential family
+# Command: dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_clinic.csv --distribution exponential --stage all
+
+Fitting distribution: Exponential  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 19)
+  fitted: Exponential  rate = 0.2
+  sample mean = 5 min  → implied rate 1/mean = 0.2/min
+  log-likelihood = -49.579   AIC = 101.159
+  χ² = 76, df = 3, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'doctor'   (n = 6)
+  fitted: Exponential  rate = 0.2
+  sample mean = 5 min  → implied rate 1/mean = 0.2/min
+  log-likelihood = -15.657   AIC = 33.313
+  χ² = 24, df = 3, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'reception'   (n = 20)
+  fitted: Exponential  rate = 0.5
+  sample mean = 2 min  → implied rate 1/mean = 0.5/min
+  log-likelihood = -33.863   AIC = 69.726
+  χ² = 80, df = 3, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 20)
+  fitted: Exponential  rate = 0.25
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -47.726   AIC = 97.452
+  χ² = 80, df = 3, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0.7  (Screening 14, Doctor 6, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145108.json
+
+# =====================================================================
+# FILE B -- samples/sample_3stage_variable.csv
+#          50 patient rows, single session, irregular arrival and service
+#          times. Used for the distribution-comparison worked example.
+# =====================================================================
+
+# B1. Validation check
+# Command: dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_3stage_variable.csv
+
+File is valid: 50 row(s), 3 service stage pair(s).
+[14:51:09 INF] verify: samples/sample_3stage_variable.csv is valid (50 rows)
+
+# B2. One fit per candidate family, screening service times.
+# Five separate commands, one per family, in this order:
+#   dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution Exponential --stage screening
+#   dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution Normal    --stage screening
+#   dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution Lognormal --stage screening
+#   dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution Gamma     --stage screening
+#   dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution Uniform   --stage screening
+
+--- family: Exponential ---
+Fitting distribution: Exponential  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Exponential  rate = 0.371
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -97.558   AIC = 197.116
+  χ² = 52, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Exponential  rate = 0.25
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -119.315   AIC = 240.629
+  χ² = 36.72, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145110.json
+
+--- family: Normal ---
+Fitting distribution: Normal  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Normal  mean = 2.694, stddev = 2.242
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -109.1   AIC = 222.199
+  χ² = 52, df = 4, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Normal  mean = 4, stddev = 3.206
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -129.202   AIC = 262.404
+  χ² = 38.32, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145111.json
+
+--- family: Lognormal ---
+Fitting distribution: Lognormal  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Lognormal  mu = 0.701, sigma = 0.739
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -89.101   AIC = 182.202
+  χ² = 53.143, df = 4, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Lognormal  mu = 1.036, sigma = 0.865
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -115.5   AIC = 235
+  χ² = 34.8, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145112.json
+
+--- family: Gamma ---
+Fitting distribution: Gamma  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Gamma  shape = 1.443, rate = 0.536
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -93.679   AIC = 191.358
+  χ² = 53.143, df = 4, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Gamma  shape = 1.556, rate = 0.389
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -116.586   AIC = 237.173
+  χ² = 31.92, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145113.json
+
+--- family: Uniform ---
+Fitting distribution: Uniform  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Uniform  min = 1, max = 11
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -112.827   AIC = 229.653
+  χ² = 82.286, df = 4, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Uniform  min = 1, max = 12
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -119.895   AIC = 243.79
+  χ² = 46.64, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145114.json
+
+# B3. Every stage, exponential family
+# Command: dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_3stage_variable.csv --distribution exponential --stage all
+
+Fitting distribution: Exponential  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 49)
+  fitted: Exponential  rate = 0.371
+  sample mean = 2.694 min  → implied rate 1/mean = 0.371/min
+  log-likelihood = -97.558   AIC = 197.116
+  χ² = 52, df = 5, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'doctor'   (n = 50)
+  fitted: Exponential  rate = 0.2
+  sample mean = 5 min  → implied rate 1/mean = 0.2/min
+  log-likelihood = -130.472   AIC = 262.944
+  χ² = 33.2, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'reception'   (n = 50)
+  fitted: Exponential  rate = 0.5
+  sample mean = 2 min  → implied rate 1/mean = 0.5/min
+  log-likelihood = -84.657   AIC = 171.315
+  χ² = 201.84, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 50)
+  fitted: Exponential  rate = 0.25
+  sample mean = 4 min  → implied rate 1/mean = 0.25/min
+  log-likelihood = -119.315   AIC = 240.629
+  χ² = 36.72, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 0  (Screening 0, Doctor 50, Reception excluded 0)
+Wrote fit report to logs/fit-20260930-145115.json
+
+# =====================================================================
+# FILE C -- samples/sample_multiday.csv
+#          60 patient rows across six distinct session dates
+#          (2026-09-14 Mon, -15 Tue, -16 Wed, -17 Thu, -19 Sat,
+#           2026-09-21 Mon). Every one is a day the clinic is open, so the
+#          observation window is 6 sessions x 165 minutes = 990 minutes.
+# =====================================================================
+
+# C1. Validation check
+# Command: dotnet run --project src/OpdSimulator.Cli -- verify --file samples/sample_multiday.csv
+
+File is valid: 60 row(s), 3 service stage pair(s).
+[14:51:16 INF] verify: samples/sample_multiday.csv is valid (60 rows)
+
+# C2. Fit, every stage, exponential family
+# Command: dotnet run --project src/OpdSimulator.Cli -- fit --file samples/sample_multiday.csv --distribution exponential --stage all
+
+Fitting distribution: Exponential  (α = 0.05)
+─────────────────────────────────────────────────────
+Inter-arrival time   (n = 59)
+  fitted: Exponential  rate = 0.868
+  sample mean = 1.153 min  → implied rate 1/mean = 0.868/min
+  log-likelihood = -∞   AIC = ∞
+  χ² = 166.492, df = 6, p = 0 → Reject at α = 0.05
+Stage 'doctor': no usable service rows (skipped).
+─────────────────────────────────────────────────────
+Service stage 'reception'   (n = 60)
+  fitted: Exponential  rate = 0.405
+  sample mean = 2.467 min  → implied rate 1/mean = 0.405/min
+  log-likelihood = -114.172   AIC = 230.344
+  χ² = 83.467, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+Service stage 'screening'   (n = 60)
+  fitted: Exponential  rate = 0.331
+  sample mean = 3.017 min  → implied rate 1/mean = 0.331/min
+  log-likelihood = -126.249   AIC = 254.498
+  χ² = 97.067, df = 6, p = 0 → Reject at α = 0.05
+─────────────────────────────────────────────────────
+p_exit = 1  (Screening 60, Doctor 0, Reception excluded 0)
+[14:51:17 ERR] fit command failed for samples/sample_multiday.csv
+System.ArgumentException: .NET number values such as positive and negative infinity cannot be written as valid JSON. To make it work when using 'JsonSerializer', consider specifying 'JsonNumberHandling.AllowNamedFloatingPointLiterals' (see https://docs.microsoft.com/dotnet/api/system.text.json.serialization.jsonnumberhandling).
+   at System.Text.Json.ThrowHelper.ThrowArgumentException_ValueNotSupported()
+   at System.Text.Json.Utf8JsonWriter.WriteNumberValue(Double value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWrite(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWriteAsObject(Utf8JsonWriter writer, Object value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWrite(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.Converters.DictionaryOfTKeyTValueConverter`3.OnWriteResume(Utf8JsonWriter writer, TCollection value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryWrite(Utf8JsonWriter writer, TDictionary dictionary, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWrite(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWriteAsObject(Utf8JsonWriter writer, Object value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWrite(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.Converters.DictionaryOfTKeyTValueConverter`3.OnWriteResume(Utf8JsonWriter writer, TCollection value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryWrite(Utf8JsonWriter writer, TDictionary dictionary, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.TryWrite(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.JsonConverter`1.WriteCore(Utf8JsonWriter writer, T& value, JsonSerializerOptions options, WriteStack& state)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.Serialize(Utf8JsonWriter writer, T& rootValue, Object rootValueBoxed)
+   at System.Text.Json.JsonSerializer.WriteString[TValue](TValue& value, JsonTypeInfo`1 jsonTypeInfo)
+   at System.Text.Json.JsonSerializer.Serialize[TValue](TValue value, JsonSerializerOptions options)
+   at OpdSimulator.Cli.Commands.FitCommand.WriteJson(String sourceFile, Double[] interArrival, FittedDistribution iaFit, ChiSquareResult iaChi, IReadOnlyDictionary`2 stages, PExitResult pExit, String distribution, Double alpha, String mode) in /home/taha/Documents/ku-modeling-hospital/src/OpdSimulator.Cli/Commands/FitCommand.cs:line 226
+   at OpdSimulator.Cli.Commands.FitCommand.Run(String[] args, TextWriter stdout, TextWriter stderr, ILogger fileLogger) in /home/taha/Documents/ku-modeling-hospital/src/OpdSimulator.Cli/Commands/FitCommand.cs:line 116
+
+# =====================================================================
+# DERIVED FIGURES -- not printed by any command; computed from the
+# blocks above so a reader can check the arithmetic by hand.
+# Each line names the inputs it uses.
+# =====================================================================
+
+FILE A -- samples/sample_3stage_clinic.csv
+  Arrival rate from gaps: 1 / 5 min                      = 0.2    per minute
+  Arrival rate from window: 20 rows / 165 min            = 0.1212 per minute
+  Exit probability: 14 Screening / (14 + 6)             = 0.7
+  Observation window: no session_date column             = 1 session, 165 min
+
+FILE B -- samples/sample_3stage_variable.csv
+  Arrival rate from gaps: 1 / 2.694 min                 = 0.371  per minute
+  Service rate, reception:   1 / 2 min                   = 0.5    per minute
+  Service rate, screening:   1 / 4 min                   = 0.25   per minute
+  Service rate, doctor:      1 / 5 min                   = 0.2    per minute
+  Exit probability: 0 Screening / (0 + 50)              = 0
+  Observation window: no session_date column             = 1 session, 165 min
+
+FILE C -- samples/sample_multiday.csv
+  Distinct session dates                                 = 6
+  Observation window: 6 sessions x 165 min               = 990    minutes
+  Within-session gaps that survive the estimator          = 54    (of 59)
+  Arrival rate from gaps: 1 / 7.3519 min                 = 0.1360 per minute
+  Arrival rate from window: 60 rows / 990 min            = 0.0606 per minute
+
+RUN 1 -- derived traffic intensities (rho = lambda_i / (c_i * mu_i))
+  Reception: 0.2 / (1 * 0.5)                            = 0.40
+  Screening: 0.2 / (2 * 0.25)                           = 0.40
+  Doctor:    0.2 * (1 - 0.7) / (3 * 0.2)                = 0.06 / 0.6 = 0.10

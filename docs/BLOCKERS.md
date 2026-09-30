@@ -5,6 +5,16 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
+- **B-013:** The headless `fit` command reports `-∞` log likelihoods on multi-day data files, then crashes when writing its report.
+  - Owner: Taha
+  - Found 2026-09-30 while writing `docs/CALCULATIONS_AND_FLOW.md` and capturing a committed reference run (`docs/sample_run_reference.txt`, block "C2").
+  - **Cause:** `InterArrivalCalculator.Compute` subtracts consecutive arrival times without checking that both arrivals belong to the same session. A file spanning several sessions therefore yields one **negative** gap per overnight or weekend closure. The Exponential family has zero height at a negative value, so the log likelihood of the sample is `-∞` and the score is `+∞`; `System.Text.Json` then refuses to serialise an infinity, so no report file is written.
+  - **Evidence:** `dotnet run -c Release --no-build --project src/OpdSimulator.Cli -- fit --file samples/sample_multiday.csv --distribution exponential --stage all` prints `log-likelihood = -∞   AIC = ∞` for the inter-arrival block, then `System.ArgumentException: .NET number values such as positive and negative infinity cannot be written as valid JSON.` from `FitCommand.WriteJson` (`src/OpdSimulator.Cli/Commands/FitCommand.cs:226`).
+  - **Scope:** the headless path only. The graphical application is unaffected — `DataAnalyzer.ComputeWithinSessionGaps` (`src/OpdSimulator.App/Services/DataAnalyzer.cs`) already restricts gaps to within a session, so the app fits the same file cleanly.
+  - Impact: the limitation is documented rather than hidden, in "docs/CALCULATIONS_AND_FLOW.md" §2.8. A reader who fits a multi-day file from the command line will hit it.
+  - **Needed action:** decide whether `InterArrivalCalculator.Compute` should be taught about sessions (matching the application) or whether `FitCommand` should reject a non-positive gap with an actionable message. **Not started — no source change has been made.**
+  - Status: open, no code change
+
 - **B-012:** Headless screenshot frames have never been looked at by a human, and **nineteen** frames are still outstanding.
   - Owner: Taha
   - Impact: The evidence PNGs are captured automatically and their geometry/content is asserted numerically, but this host has **no image input** (D-089), so the agent cannot answer "does it look right". Every such frame therefore carries an unverified visual claim, and the count compounds.

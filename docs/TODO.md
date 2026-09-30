@@ -130,6 +130,8 @@ Last updated: 2026-09-18
 
 ## Upcoming
 
+- [ ] Wire a markdown renderer for the in-program guide (Markdig or equivalent). AGENTS §17.1 describes the feature but no package is referenced and no renderer exists. Deferred to Phase 6.
+
 ## M5 — GUI (see PRD §5.1, AGENTS §16–17)
 
 ### Assets & Foundation (M5-A)
