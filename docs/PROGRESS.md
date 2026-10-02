@@ -1,6 +1,661 @@
+## Session Handoff — 2026-10-03 Phase 8Q.6
+Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.6 complete and pushed; awaiting owner merge instructions)
+
+### Done
+- **Owner ruling 1** — serial headers unified to `#` across all four listing tables; no requirement amended.
+- **Phase 8Q.6** — `DataPreviewTable` FR-UI-17 invalid-row treatment (D-188), `[x]` in `docs/TODO.md`.
+- PRD **v1.11.1** (`[FIXED]`, D-188).
+
+### In Progress
+None. 8Q.6 is finished.
+
+### What is complete
+Both rulings. 8Q.5 accepted by the owner; 8Q.6 landed with three mutation-proven
+rendering tests.
+
+**What remains:** your merge instructions. You said merge happens after 8Q.6 lands,
+so this branch is ready for it.
+
+### Next Session Should Start With
+Merge `fix/phase-8q` on your instruction, then close the B-012 backlog (25 frames).
+
+### Blocked
+- **B-012** — twenty-five frames still await your eyes; you are closing that backlog
+  after 8Q.6 and before merge.
+- Nothing technical.
+
+### Git State
+Commits made this session: `fix: DataPreviewTable FR-UI-17 invalid-row treatment (Phase 8Q.6)`
+Pushed to origin: **Yes** — `fix/phase-8q`
+Uncommitted changes: none at the time of writing
+
+### Build & Test
+`dotnet build -c Release --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Release --no-build` → **789/789** (Cli 35 / Data 134 / Core 125 / App 495)
+`dotnet build -c Debug --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Debug --no-build` → **789/789**
+
+### Files Touched
+`src/OpdSimulator.App/Controls/DataPreviewTable.axaml` — the three bindings, the issue icon in its gutter.
+`src/OpdSimulator.App/Controls/DataPreviewTableModels.cs` — `PreviewRow.IssueGlyph`.
+`src/OpdSimulator.App/Controls/DataPreviewTable.axaml.cs` — `IndicatorGutter` const, header spacer.
+`src/OpdSimulator.App/Views/ResultsPanel.axaml` — three headers `No.` → `#`.
+`tests/OpdSimulator.App.Tests/DataPreviewInvalidRowTests.cs` — new, 3 tests.
+`tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs` — asserts `#`.
+`tests/OpdSimulator.App.Tests/Phase8Q5Screenshot.cs` — dropped the `No.` assertion.
+`docs/PRD.md` v1.11.1 · `docs/DECISIONS.md` D-188 + D-187 amendment · `docs/REQUIREMENTS.md` FR-UI-17 · `docs/CONTEXT.md` · `docs/TODO.md`
+
+### Decisions Made
+- **D-188** — the fix, the gutter, and why the tests must read the rendered element.
+- **D-187 amendment** — serial header is `#` panel-wide.
+
+### Assumptions Added/Changed
+- `[VERIFIED]` Serial header is `#` on every listing table (owner ruling, 2026-10-03).
+
+### Notes for Next Session
+**The defect was not a missing feature. It was a computed value thrown away at
+render time, and it survived a green test beside it.**
+
+`PreviewRow` has computed a red background, a red leading accent and a 3 px
+thickness for a rejected row since D-080 in July. The `DataTemplate` bound none of
+the three. A rejected row and a good row were identical on screen — no border, no
+icon, no reason — for roughly three months.
+
+FR-UI-20 promised "invalid rows inherit the FR-UI-17 error treatment (red border +
+icon + tooltip with the specific reason)" and read `[x]` with a test beside it
+naming `DataPreviewStoreTests`. That test covers *which* rows the validator
+rejected and why. The data path was thoroughly tested; **the rendering path was not
+tested at all.** A requirement marked complete on evidence that never touched the
+defect — so the three new tests are all rendering tests, which is the shape of thing
+FR-UI-20's test column should have had.
+
+**The trap worth naming: the obvious assertion passes against the broken code.**
+`Assert.Equal(3, rows[1].RowBorderThickness.Left)` is green before and after the
+fix, because the value was always correct. Every assertion here reads the realised
+`Border` instead, located by matching the model's own brush and thickness — so the
+lookup itself can only succeed if the bindings landed. This is D-185's mistake in a
+new costume: observing the value rather than the location.
+
+**All three tests were proved non-vacuous by restoring the pre-fix template and
+watching all three fail** with `expected exactly one rendered Border carrying this
+row's treatment; found 0`. The failure message names the missing thing.
+
+**The icon could not simply join the cells, and the reason is the same fixed-width
+design that made 8Q.5's alignment audit necessary.** `ComputeWidths` gives every
+column a pixel width shared by its header `Button` and every cell. An icon inside
+the cell `StackPanel` becomes part of that strip, so an invalid row's columns start
+further right than a valid row's and neither lines up with its heading. Hence a
+fixed-width leading gutter on every row plus a matching spacer in the header strip,
+with `IndicatorGutter` as one `const` both sides read.
+
+**Collapsing the icon with `IsVisible` would have reintroduced the same shift** — a
+hidden element leaves an auto-sized slot at zero width. `IssueGlyph` returns
+`string.Empty` instead, and the width is forced from outside, so the slot holds its
+size either way. An empty `Text` also leaves nothing for a screen reader to announce
+on a valid row.
+
+**The negative case carries half the weight.** A template that painted every row red
+would satisfy "invalid rows have a red border" and still be useless, so
+`ValidRow_NoRedBorder` holds the gate on the other side, and the invalid row sits in
+the **middle** of three — a control that only treated the first or last correctly
+would fail.
+
+**No screenshot, on purpose.** You are closing the B-012 backlog after this phase;
+a twenty-sixth unreviewed frame for a one-line visual change works against that. The
+tests assert the rendered brushes, thickness, glyph and tooltip, which is stronger
+evidence than a frame nobody has looked at. Say the word if you want one anyway.
+
+**FR-UI-17 stays `[~]`, deliberately.** This phase covered the preview-table path.
+`ValidatedField`'s live-region announcements are still outstanding, so the row now
+reads `DataPreviewInvalidRowTests` in its test column with the gap named, rather
+than flipping to `[x]` on partial coverage.
+
+**Correction carried from 8Q.5:** its TODO entry said the frame was `120,754 B`; it
+is **110,754 B**. Fixed in the same pass as this entry.
+
+---
+
+## Session Handoff — 2026-10-03 Phase 8Q.5
+Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.5 complete and pushed; awaiting owner "go" before merge)
+
+### Done
+- **Phase 8Q.5 — table serial numbers and column alignment** (D-187), `[x]` in `docs/TODO.md`.
+- **D-186 codified in `AGENTS.md` §10.6** at the owner's direction: *assert where the side effect landed, not just that it happened.*
+- PRD **v1.11.0** — FR-UI-36 added.
+- `docs/REQUIREMENTS.md` — FR-UI-36 row; coverage recounted to **81.1 % (60/74)**.
+
+### In Progress
+None. 8Q.5 is finished; 8Q.6 not started.
+
+### What is complete
+The audit, the code, the tests, the evidence frame, and every living document.
+
+**What remains:** your ruling on the one open item (below), your visual inspection of
+the new frame, and your merge.
+
+### Next Session Should Start With
+Owner ruling on D-187's open item: unify the serial headers (`#` → `No.`, amending
+FR-UI-34) or keep both.
+
+Second item: owner visual inspection of
+`logs/screenshots/phase-8q-table-alignment.png` (B-012, now twenty-five frames).
+
+### Blocked
+- **B-012** — twenty-five screenshot frames have never been looked at by a human.
+  This host has no image input (D-089), so §18 verification cannot be completed by
+  the agent. The new 8Q.5 frame is among them.
+- **D-187 open item** — the `#` vs `No.` serial-header conflict is a requirement
+  decision, not an implementation blocker.
+
+### Git State
+Commits made this session: `feat: table serial numbers and column alignment (Phase 8Q.5)`
+Pushed to origin: **Yes** — `fix/phase-8q`
+Uncommitted changes: none at the time of writing.
+
+### Build & Test
+`dotnet build -c Release --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Release --no-build` → **786/786** (Cli 35 / Data 134 / Core 125 / App 492)
+`dotnet build -c Debug --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Debug --no-build` → **786/786** (same split)
+
+### Warnings
+0. Two warnings I introduced in `TableSerialAlignmentTests.cs` (a `string?` cell
+coercion and a nullable `CollapsibleSection.Title`) were fixed before the gate
+rather than logged.
+
+### Files Touched
+`src/OpdSimulator.App/Views/ResultsPanel.axaml` — serial columns on chi-square,
+analytical validation and per-server detail; per-server detail converted from
+monospace strings to a header Grid + rows ItemsControl in a StackPanel (one content
+child per `CollapsibleSection`); `TextAlignment` declared on every cell — 50
+`Right`, 17 `Left`.
+`src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs` — `PerServerDetailRow`,
+`PerServerDetailRows`, `BuildPerServerRows`, `FormatPercent`; `ChiSquareRow.SerialNumber`.
+`src/OpdSimulator.App/Services/AnalyticalValidationService.cs` — `ComparisonRow.SerialNumber`.
+`tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs` — new, 6 tests.
+`tests/OpdSimulator.App.Tests/Phase8Q5Screenshot.cs` — new, evidence frame.
+`tests/OpdSimulator.App.Tests/Phase8MChartTests.cs`, `Phase8MScreenshots.cs`, `Phase8NTests.cs` — per-server assertions moved from substrings to row members.
+`logs/screenshots/phase-8q-table-alignment.png` — new, 110,754 B, 1200x760.
+
+`AGENTS.md` — §10.6 third rule (D-186).
+`docs/PRD.md` — v1.11.0, FR-UI-36, changelog.
+`docs/REQUIREMENTS.md` — FR-UI-36 row, recount, correction of the 8Q.4 figure.
+`docs/DECISIONS.md` — D-186, D-187, amendment to D-171.
+`docs/TODO.md`, `docs/PROGRESS.md`, `docs/USER_MANUAL.md`, `docs/CONTEXT.md`, `docs/BLOCKERS.md` — updated.
+
+### Decisions Made
+- **D-186** — assert against the *location* of a side effect, not the value in memory.
+- **D-187** — per-server detail becomes a real table; `#` and `No.` coexist pending
+  your ruling; the overview listing and the calculations dialog stay label:value
+  lists with no serial column; the data preview table is left alone.
+
+### Assumptions Added/Changed
+- `[UNVERIFIED]` The serial header should read `No.` on tables added in 8Q.5 while the
+  8Q.3 per-stage table keeps `#`. Recorded in `docs/CONTEXT.md` as needing an owner ruling.
+- `[VERIFIED]` The data preview table has **no** row numbers, contradicting the 8Q.5 brief.
+- `[VERIFIED]` `CollapsibleSection` accepts exactly one content child (`AVLN3000`).
+
+### Notes for Next Session
+**The audit contradicted two of the seven targets, and both mattered more than the
+serial columns did.**
+
+1. `grep -c 'TextAlignment\|HorizontalAlignment' ResultsPanel.axaml` returned **0**
+   before this phase. Not one cell declared an alignment, so 17 numeric columns
+   across four tables were left-aligned. Adding serial numbers without this would
+   have produced tables that look numbered and still cannot be compared down a column.
+2. **The Overview metrics listing is a label:value list** — `ItemsControl` → Grid
+   `170,*`, no header row, no shared column set. Serial numbers do not apply (your own
+   carve-out). `OverviewMetrics_IsALabelValueList_SoSerialNumbersDoNotApply` exists so
+   that is a decided thing with a test behind it, not an oversight.
+3. **The per-server utilisation "table" was not a table** — pre-formatted monospace
+   strings faking columns with run-together `string.Format` arguments, so nothing could
+   be aligned and no column could carry a header, while `UtilisationServerDetail` was
+   already structured and being flattened purely for display. Converted. D-171's naming
+   role moved into the column headers.
+4. **The data preview table has no row numbers at all**, despite the brief saying it
+   did. `Rebuild` uses its row `index` only to look up an invalid-row reason and never
+   renders it. Its cells are positional `Width` doubles with no type information, so
+   numeric alignment is not expressible there without inferring a type per column on
+   the Input tab. **Raised, not rebuilt.**
+
+**Alignment is asserted on the declared property, on purpose.** Headless Avalonia
+stretches every cell to its column, so cell *rectangles* coincide whether the text
+inside is left- or right-aligned — a bounds-based test would pass over the exact
+defect it was written for. Avalonia's default `TextAlignment` is also `Start`, not
+`Left`, which is why every text column now declares `Left` explicitly: "inherits a
+default" is not a declaration a reviewer can read.
+
+**Both assertions were proved non-vacuous by mutation, not by assertion.** Stripping
+every `TextAlignment` from the panel fails all three alignment tests
+(`Expected: Right, Actual: Start`); blanking the `No.` headers fails both serial tests
+(`Expected: No., Actual: (empty)`).
+
+**Three of the six tests failed first, and each failure was correct:**
+- the analytical table showed **no rows** — `Compare` rightly refuses any run under
+  100,000 minutes, because M/M/c closed forms describe steady state and a 165-minute
+  clinic day is not it. The harness re-runs the comparison stamped steady-state rather
+  than weakening the production guard;
+- the overview test found **1 row instead of 6** — I had matched every row on the
+  *first* row's text; it now goes through the owning `ItemsControl`;
+- `TextAlignment` came back **`Start`, not `Left`**, which is what prompted the explicit
+  declarations.
+
+**The per-server section is collapsed by default**, so its rows never realise. The test
+expands it and asserts the expansion took effect (D-169) — otherwise every serial
+assertion passes vacuously over zero rows. Three tables share a seven-column layout, so
+rows are located by walking from the header to its own sibling `ItemsControl`; a
+tree-wide "a Grid with seven columns" search would assert against whichever it hit first.
+
+**`Phase8Q5Screenshot` leaves machine state exactly as it found it** — deletes a
+preferences file it created, restores one that existed, verified byte-identical by md5
+across a run (`fb8fb249…` before and after). `phase-8q-results-buffer-trace.png` was not
+re-rendered; the 8Q.5 frame is a new file (D-166).
+
+**`docs/REQUIREMENTS.md`'s 8Q.4 figure was wrong by ten.** 8Q.4 recorded 83 total /
+63 `[x]`; re-deriving three independent ways gives 73 before FR-UI-36 (a status-column
+parse, `grep -c '^| FR-'`, and a `comm` of PRD ids against matrix ids — the only PRD id
+missing from the matrix was FR-UI-36 itself). You approved that recount on 2026-10-03,
+so the correction carries its own explanation rather than quietly overwriting it. Its
+in-progress figure (8) was right.
+
+**Not fixed, flagged:** `DataPreviewTable` computes `RowBackground`, `RowBorderBrush`
+and `RowBorderThickness` per row (`Controls/DataPreviewTableModels.cs:101-112`) but its
+`DataTemplate` binds none of them, so the FR-UI-17 invalid-row treatment is constructed
+and discarded. Pre-existing; out of scope here.
+
+---
+
 # PROGRESS.md — Narrative Progress Log
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
+
+## Session Handoff — 2026-10-03 Phase 8Q.4
+Branch: fix/phase-8q
+Status: In-Progress (committed on request; 8Q.5 deliberately NOT started)
+
+### Done
+- **Phase 8Q.4 — results bottom buffer + the always-visible event trace (D-184)** — marked `[x]` in TODO.md.
+- **D-185 — `WidgetPreferences.Load` path bug found and fixed** (pre-existing, not introduced by 8Q.4).
+
+### In Progress
+Nothing. The phase is complete and verified. **8Q.5 has NOT been started** and is
+awaiting the owner's "go", per instruction.
+
+### What is complete:
+
+**The layout change.** The results grid is now `RowDefinitions="Auto,*,Auto"`: header,
+scrolling widget body, and the event trace **as a sibling of the ScrollViewer in row 2**.
+The trace was previously the last card *inside* the scroll body, which made "always
+visible" a default value rather than a property of the layout — scrolling up to a metric
+pushed it out of sight. `MaxHeight="240"` with a nested ScrollViewer, one heading
+(`Event Trace`) and one fixed caption. The trace checkbox is gone from the Customise
+picker, which now lists **seven** widgets.
+
+**The buffer.** `SpaceXl` (32) and `ThicknessSpaceXl` are new theme tokens. The results
+buffer is a trailing `Border` named `ResultsBottomBuffer`, `Height="{DynamicResource
+SpaceXl}"`, the **last child of the scrollable StackPanel** — not `ScrollViewer.Padding`,
+which D-142 already measured as sitting outside the scroll extent (it shrinks the viewport
+rather than extending the content). `SpaceL` (24) is untouched and stays with the
+calculations dialog's footer (D-170).
+
+**Backward compatibility.** `VisibleWidgets` stays a `List<string>`. An old `ui.json`
+listing `"trace"` parses, the panel filters the key, and the next visibility change
+rewrites the file with seven keys. The test asserts against **the file on disk**, not the
+in-memory list — see the finding below for why that distinction is the whole test.
+
+### What remains:
+- **8Q.5**, on the owner's word only.
+- **Owner visual inspection of `logs/screenshots/phase-8q-results-buffer-trace.png`**
+  (B-012, now twenty-four frames). This host has no image input (D-089); the frame's
+  geometry is asserted numerically, but "asserted" is not "looks right".
+
+### Next Session Should Start With
+Ask the owner for the 8Q.5 scope. Do not begin it unprompted.
+
+Read `docs/BLOCKERS.md` B-012 before quoting any frame as evidence.
+
+### Blocked
+- **B-012** — twenty-four headless frames have never been inspected by a human. Owner
+  action required; see `docs/BLOCKERS.md`.
+
+### Git State
+Commits made this session: see the commit list reported at the end of this entry.
+
+Pushed to origin: **No** — commits are local; `fix/phase-8q` is 4 commits ahead of the
+last push. Push was not performed in this session.
+
+Uncommitted changes: none at the time of writing (all listed files were staged and
+committed together with this handoff).
+
+### Build & Test
+```
+dotnet build -c Release --no-incremental   →  Build succeeded. 0 Warning(s) 0 Error(s)
+dotnet test  -c Release --no-build         →  779 passed, 0 failed
+                                              (Cli 35 / Data 134 / Core 125 / App 485)
+dotnet build -c Debug   --no-incremental   →  Build succeeded. 0 Warning(s) 0 Error(s)
+dotnet test  -c Debug   --no-build         →  779 passed, 0 failed
+                                              (Cli 35 / Data 134 / Core 125 / App 485)
+```
+Verified on **Ubuntu** (.NET SDK 8.0.x), 2026-10-03.
+
+Warnings: **0** in both configurations. One `xUnit2012` warning
+(`Assert.False(...Any(...))` → `Assert.DoesNotContain`) was raised during the work and
+fixed before the gate.
+
+### Files Touched
+```
+src/OpdSimulator.App/Assets/Theme.axaml                        modified (SpaceXl, ThicknessSpaceXl)
+src/OpdSimulator.App/Services/WidgetPreferences.cs             modified (D-185 rebinding; 7-key default)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs       modified (ShowTrace forced; 7 keys; TraceBody; TracePanelCaption)
+src/OpdSimulator.App/Views/ResultsPanel.axaml                  modified (Auto,*,Auto; WidgetScroller; ResultsBottomBuffer; pinned trace)
+tests/OpdSimulator.App.Tests/ResultsPanelBufferTraceTests.cs   added (7 tests)
+tests/OpdSimulator.App.Tests/Phase8Q4Screenshot.cs             added (1 test)
+tests/OpdSimulator.App.Tests/Phase1SmokeTests.cs               modified (spacing token assertions)
+tests/OpdSimulator.App.Tests/Phase5cFixesTests.cs              modified (named scroller; trace now asserted OUTSIDE)
+tests/OpdSimulator.App.Tests/Phase5cScreenshot.cs              modified (named scroller)
+tests/OpdSimulator.App.Tests/Phase6c4UtilisationTests.cs       modified (toggle vehicle)
+tests/OpdSimulator.App.Tests/Phase6c6EmptyStateTests.cs        modified (toggle vehicle)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs            modified (7 widgets; "Event Trace" heading)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs    modified (7 widgets; ToggleButton + Click)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs       modified (7 widgets; test renamed)
+tests/OpdSimulator.App.Tests/Phase8CValidationTests.cs         modified (dead ShowTrace restore removed)
+docs/PRD.md                                                    modified (v1.10.0; FR-UI-34 merge; FR-UI-35 trace; FR-UI-14)
+docs/REQUIREMENTS.md                                           modified (rows + coverage recount)
+docs/DECISIONS.md                                              modified (D-184, D-185)
+docs/TODO.md                                                   modified (8Q.4 entry)
+docs/USER_MANUAL.md                                            modified (§6.3; picker list; changelog)
+docs/VIVA_ANSWERS.md                                           modified (3 new questions)
+docs/DEV_LAUNCH.md                                             modified (Last verified; changelog)
+docs/BLOCKERS.md                                               modified (B-012 → 24 frames)
+```
+
+### Decisions Made
+- **D-184** — the trace is pinned below the widget scroller rather than placed inside it;
+  the buffer is a trailing element rather than scroll padding; the ScrollViewer is named
+  `WidgetScroller` rather than found by guessing. See `docs/DECISIONS.md` D-184.
+- **D-185** — `WidgetPreferences.Load` copies parsed state onto a new instance bound to
+  the requested path, instead of returning the deserialised object. See `docs/DECISIONS.md`
+  D-185.
+
+### Findings worth carrying forward
+
+**1. A pre-existing bug that a passing test could not see (D-185).** The owner's test #3
+was unanswerable as written, and finding out why was the phase's most valuable result.
+`WidgetPreferences.Load(path)` returned the instance `JsonSerializer` had built — and
+`System.Text.Json` satisfies the **public parameterless constructor**, which chained to
+`DefaultFilePath`. So an object loaded from a temp file wrote to
+`~/.config/OpdSimulator/ui.json` and the caller's file was never updated.
+`Phase6c6EmptyStateTests` had been overwriting the developer's own UI preferences on
+**every test run**. Two consequences for how tests are written here:
+
+  - The natural assertion — "toggling a widget updates the visible list" — **passes under
+    both the broken and the fixed code**, because the in-memory list is correct either
+    way. Only asserting against **the file on disk** fails against the bug. The phase's
+    test reads the file for that reason, and
+    `WidgetPreferences_Load_RebindsToTheFileItRead` pins it.
+  - I spent several rounds guessing at this and should have instrumented the file in the
+    first round. Two `Assert.Fail` probes with the resolved paths would have found it
+    immediately; the reflection dump that named `_filePath` as the *default* path is what
+    actually located the constructor.
+
+**2. The widget-count change touched more sites than the four named, and the reason is
+the finding.** Five tests identified "the widget ScrollViewer" by a **guess** — "the one
+whose content carries both the metrics and the trace" — and every one of those guesses
+became false the moment the trace left the scroll body. The ScrollViewer is now named in
+the XAML. **A name in the XAML cannot go stale the way a description does.**
+
+**3. One test had been pinning the old behaviour as correct.**
+`Phase5cFixesTests.ResultsPanel_ScrollViewer_ContainsAllWidgets` asserted the trace was
+*inside* the scroller — so it would have failed the requirement rather than the defect. It
+now asserts the opposite.
+
+**4. One test was asserting against a hidden control.**
+`Phase6c6WidgetSelectorTests` looked for a `CheckBox` named `CustomiseToggle` (it is a
+`ToggleButton`) and set `IsChecked` (the picker opens from the `Click` handler). It would
+have read the labels of a **closed** picker and passed. It now raises the Click and asserts
+the picker is open first.
+
+**5. A second stale number, found while recounting.** The `REQUIREMENTS.md` Coverage
+Summary was **already wrong before this phase**: it claimed 81 total and 6 in-progress
+where the rows carry **83 and 8**. Every figure was recounted off the status column with
+`awk` rather than adjusted, so coverage **falls** 77.8 % → 75.9 % (63/83) with no work
+undone — the denominator was understated. A summary that has been "corrected" twice by
+incrementing is a number nobody re-derived.
+
+### Assumptions Added/Changed
+None. No new `[UNVERIFIED]` assumption was introduced, and none was promoted to
+`[VERIFIED]`. The D-185 defect was a code fact, not an assumption.
+
+### Notes for Next Session
+- **Do not start 8Q.5 without an explicit "go" from the owner.**
+- `phase-8q-results-buffer-trace.png` is captured through the real `MainWindow` at the
+  declared 1200×760 with **no size supplied by the test** (D-166). It snapshots and
+  restores `~/.config/OpdSimulator/ui.json`, because `MainWindow`'s constructor binds the
+  real preferences store and showing every widget is a visibility change.
+- `phase-8q-performance-measures.png` is **not frozen** — its test is still active and
+  re-rendered it during this gate (107,834 B → 110,544 B), because the layout it captures
+  moved. Permitted under D-166 (unreviewed frames may be regenerated), but do not treat
+  its byte size as stable, unlike `phase-8n-calculations.png` whose writer was retired.
+- `ShowTrace` is retained on `ResultsPanelViewModel` but forced `true` and ignored as a
+  preference. It is still read before any run exists. Do not "clean it up" without reading
+  D-184's rationale.
+
+## Session Handoff — 2026-10-03 Phase 8Q.3
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- **Phase 8Q.3 — Performance Measures section + the stability verdict** (TODO `[x]`): the per-stage results group is renamed "Overview" → **Performance Measures**, with a `#` serial column, a per-stage stability block, and a bottleneck caption.
+- **`StabilityClassifier`** in `OpdSimulator.Core.Engine` (D-183): `Classify(ρ)` green `< 0.9` / amber `[0.9, 1)` / red `>= 1`, and `ClassifySet(...)` returning the worst band plus the highest-ρ stage.
+- **`StabilityBandPalette`** for the theme brushes, replacing the three `Classes.green/amber/red` booleans I first wired.
+- **10 owner-named tests** (8 `PerformanceMeasures_*`, 4 `VerdictClassifier_Threshold_*` as four separate cases rather than one theory) plus 3 supporting cases and `Phase8Q3Screenshot`.
+- **The owner's Reception ruling**: the final row and the **entire rejected half** of the validity table pinned in `DataValidatorTests.TheOwnersValidityTable_RejectedRows_AreRefused`. D-008 untouched — the code was already correct.
+- **Documentation**: D-183 + the D-180 amendment; PRD v1.9.0 (FR-UI-34/35); REQUIREMENTS rows + changelog; USER_MANUAL §6.1 consolidated; VIVA_ANSWERS (5 questions); CONTEXT §5.4 validity table; DEV_LAUNCH verified line + changelog; BLOCKERS B-012 → 23 frames; TODO entry.
+
+In Progress
+Nothing. 8Q.3 is finished and gated; the next task is **8Q.4** and it has **not** been started, per the owner's instruction to stop.
+
+What is complete:
+Everything listed under Done. Gate green in both configurations.
+
+What remains:
+Owner visual inspection of `logs/screenshots/phase-8q-performance-measures.png` (B-012, 23 frames outstanding). 8Q.4 — the always-visible trace — not started.
+
+Next Session Should Start With
+Phase 8Q.4: the always-visible event trace. Note it currently has **no PRD requirement** — it is called "FR-UI-34" in TODO prose only, and D-183 took that number, so a new number must be allocated in `PRD.md` rather than reusing FR-UI-34.
+
+Blocked
+B-012 — 23 headless frames still need human eyes; no image input on this host (D-089).
+
+Git State
+Commits made this session: 8Q.2 landed as `02c7296` (pushed). 8Q.3 is **staged for the commit** `feat: performance measures section in results (Phase 8Q.3)`.
+
+Pushed to origin: `02c7296` yes. 8Q.3 pushed on the same branch after commit.
+
+Uncommitted changes: none after the 8Q.3 commit — 14 modified files and 4 new.
+
+Build & Test
+dotnet build: PASS — Release and Debug, 0 errors / 0 warnings, both `--no-incremental`.
+
+dotnet test: PASS — **771 passed, 0 failed in each** configuration (Core 125 / Data 134 / Cli 35 / App 477).
+
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Engine/StabilityVerdict.cs: added
+src/OpdSimulator.App/Services/StabilityBandPalette.cs: added
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: `StageMetricRow.SerialNumber`, `StabilityRow` (now carrying an `IBrush`), `StabilityRows`, `BottleneckText`, `BottleneckCaption`, `HasStability`, `SetStability`
+src/OpdSimulator.App/Views/ResultsPanel.axaml: heading rename, `#` column, stability block, verdict brush
+tests/OpdSimulator.App.Tests/PerformanceMeasuresTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8Q3Screenshot.cs: added
+tests/OpdSimulator.App.Tests/Phase8DScreenshots.cs: heading assertion updated
+tests/OpdSimulator.Data.Tests/DataValidatorTests.cs: final Reception row + rejected-half theory
+docs/DECISIONS.md, PRD.md, REQUIREMENTS.md, USER_MANUAL.md, VIVA_ANSWERS.md, CONTEXT.md, DEV_LAUNCH.md, BLOCKERS.md, TODO.md, PROGRESS.md: modified
+
+Decisions Made
+D-183 — the band is one pure Core function; the section is renamed, not duplicated; colour rides a theme brush on the row
+D-180 amendment — my earlier reading of the Reception ruling was wrong and is withdrawn
+
+Assumptions Added/Changed
+No new assumptions. The Reception validity table is now `[VERIFIED — owner ruling, 2026-10-03]` in `CONTEXT.md` §5.4.
+
+Notes for Next Session
+1. **A §10.7 violation I created and fixed** — worth remembering because it is easy to repeat: my first USER_MANUAL pass added "6.1a Performance Measures" *beside* the existing "6.1 Metrics Table". Two instructions for one table is precisely what §10.7 forbids, so they were consolidated into a single canonical §6.1. When adding a section next to an existing one, check first whether it is the same section renamed.
+2. **`REQUIREMENTS.md`'s Coverage Summary was wrong before I touched it**, three ways (claimed 79 total against its own /81, 59 `[x]` against 61 real, 8 `[~]` against 6 real). Recounted from the status column rather than incremented. Any future count in these docs must be recounted, not adjusted.
+3. **`Phase8DScreenshots.ExpectedHeadings` failing on a renamed heading is the test working.** Do not "fix" it by loosening the assertion.
+4. The four threshold boundaries are deliberately four named tests, not a `[Theory]`. I collapsed them into a theory first and reverted it, because the owner named them separately and a boundary bug should be findable by reading a test name.
+5. The red band is unreachable from the GUI. A red verdict seen in a hand-launched app means the Start gate was bypassed — investigate the gate, not the threshold.
+
+## Session Handoff — 2026-10-03 Phase 8Q.2
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- [x] **Direct-to-doctor routing in Core** (D-179). `NetworkTopology` gains `BypassProbability`, `BypassStageIndex`, `BypassDestinationIndex`, all constructor-validated; `p == 0` normalises both indices to −1; a destination that is not strictly after its source is refused, and so is a source equal to the exit stage. `RouteToNextStage` → `RouteTo`; the bypass draw sits after the exit draw at the same call site, guarded by `BypassEnabled` so **no run with bypass off consumes an extra RNG value**; `EndService` is emitted after both decisions so the recorded destination is the one that happened.
+- [x] **D-007 amended: per-stage inflow is now a sum over routes** (D-179). `EffectiveArrivalRate` propagates a probability mass instead of multiplying one exit product. With bypass off it collapses to the original product, so every existing number is unchanged.
+- [x] **`p_exit` fitted over the screened population** (D-179). `PExitResult.TotalCandidates` → `ScreenedPatients`, `BypassExits` added, CLI JSON key `screenedPatients`, and an all-bypass file throws instead of reporting `0/0`.
+- [x] **`p_bypass` detected and fitted** (D-179, D-180). Inferred from a blank `screening_start` on a Doctor departure, gated on the **column** existing; `p_bypass = bypass rows ÷ all arrivals`.
+- [x] **The validator gap 8Q.1 deliberately left open is closed** (D-180). Three forgiveness rules and no more; `samples/sample_bypass.csv` goes from 8 issues to 0.
+- [x] **App wiring** (D-182). `SimulationParameters.PBypassOverride`, `RunOutcome.EffectiveBypassProbability`, coordinator precedence manual → fitted → 0, bypass applied only at 3+ stages, the p_bypass field with blur validation, and calculations-receipt lines for the bypass and the resulting λ_screening / λ_doctor.
+- [x] **The over-capacity frame now runs in CI** (D-181). New committed fixture `samples/sample_overcapacity.csv` (200 busy minutes against 155 observed = 129 %); the real capture keeps its own explicitly-skipping test under a new filename.
+
+In Progress
+Nothing. Phase 8Q.2 is implemented, gated and documented; awaiting the commit, the push, and the owner's visual inspection of the frames (B-012).
+
+What is complete:
+Core, Data, Cli, App, the two committed fixtures, all tests, and every documentation file. Release and Debug both build 0/0 and the full suite is green in each.
+
+What remains:
+Commit + push to `origin/fix/phase-8q` with the owner-specified message, then this handoff. 8Q.3 waits for `go`.
+
+Next Session Should Start With
+Owner visual inspection of `phase-8q-input-servers-warning.png` (now CI-rendered from the synthetic fixture) and `phase-8q-real-capture.png` (still local-only) — B-012.
+
+Blocked
+B-012: twenty-two headless screenshot frames have never been looked at by a human, and this host has no image input (D-089).
+
+Git State
+Commits made this session: (one pending — `feat: direct-to-doctor routing (bypass screening) (Phase 8Q.2)`)
+Pushed to origin: No — the 8Q.2 commit has not been made yet; 8Q.1 (`98e83ac`) is the last push.
+Uncommitted changes: Core/Data/Cli/App sources and tests, `.gitignore`, `samples/sample_bypass.csv` (now clean) and the new `samples/sample_overcapacity.csv`, plus nine documentation files.
+
+Build & Test
+dotnet build: PASS — Release and Debug, both `--no-incremental`, 0 warnings / 0 errors.
+dotnet test: PASS — 751/751 in Release and again in Debug (Core 125 / Data 128 / Cli 35 / App 463).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Stages/NetworkTopology.cs: bypass properties, validation, normalisation, mass-propagating `EffectiveArrivalRate`
+src/OpdSimulator.Core/Engine/Engine.cs: `RouteTo` rename, bypass draw, `EndService` moved after both decisions
+src/OpdSimulator.Data/Preprocess/PExitCalculator.cs: screened-only denominator, `ComputeBypassProbability`, all-bypass throw
+src/OpdSimulator.Data/Preprocess/PExitResult.cs: `ScreenedPatients`, `BypassExits`
+src/OpdSimulator.Data/Validation/DataValidator.cs: the three blank-cell rules
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: bypass resolution and 3+ stage gate
+src/OpdSimulator.App/Models/SimulationParameters.cs, RunOutcome.cs: `PBypassOverride`, `EffectiveBypassProbability`
+src/OpdSimulator.App/Services/DataAnalyzer.cs, Models/DataBindingResult.cs: `FittedBypassProbability`
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs, Views/ConfigPanel.axaml(.cs): the p_bypass field
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs, ViewModels/ResultsPanelViewModel.cs, Views/ResultsPanel.axaml: bypass reporting
+src/OpdSimulator.Cli/Commands/FitCommand.cs, SimulateDataCommand.cs: `screenedPatients`, bypass in the fit report
+tests/OpdSimulator.Core.Tests/BypassRoutingTests.cs: new
+tests/OpdSimulator.Core.Tests/NetworkTopologyTests.cs, StageFamilyDispatchTests.cs: bypass inflow/rho; hashes unchanged
+tests/OpdSimulator.Data.Tests/DataValidatorTests.cs, PreprocessTests.cs: `BypassValidityTests`, denominator and bypass cases
+tests/OpdSimulator.App.Tests/BypassCoordinatorTests.cs: new
+tests/OpdSimulator.App.Tests/Phase8Q1Tests.cs, Phase8Q1Screenshot.cs: fixture assertion inverted; frame re-pointed at CI
+tests/OpdSimulator.App.Tests/Phase4bConfigTests.cs: Parameters field count 3 → 4
+samples/sample_overcapacity.csv: added; `samples/sample_bypass.csv`: now validates clean
+.gitignore: allowlist the new fixture
+docs/: D-179..D-182, PRD v1.8.0, REQUIREMENTS, CONTEXT, USER_MANUAL, VIVA_ANSWERS, DEV_LAUNCH, TODO, BLOCKERS, PROGRESS
+
+Decisions Made
+D-179 — direct-to-doctor routing; conditional draw; the D-007 amendment. `docs/DECISIONS.md`
+D-180 — the three blank-cell forgiveness rules, and why Reception is never one of them. `docs/DECISIONS.md`
+D-181 — the over-capacity frame is taken from a committed synthetic fixture so CI can render it. `docs/DECISIONS.md`
+D-182 — bypass is normalised away on a network that cannot express it, and the receipt reports what ran. `docs/DECISIONS.md`
+
+Assumptions Added/Changed
+`p_bypass` detection reads the **rows** where `screening_start` exists and is **gated on that column** — [VERIFIED] in CONTEXT §5.4, decided here because the owner ruling did not pin it.
+`departure_stage = Reception` stays rejected on its own value (D-008) while its blank cells are accepted — [VERIFIED] as a deliberate scope decision, pinned by test and flagged in D-180 rather than changed quietly.
+`p_bypass` defaults to **0**, unlike `p_exit`'s 0.4 — [VERIFIED] in D-179; there is no documented norm for skipping screening.
+
+Notes for Next Session
+Four of my own mistakes this session, all recorded because each would have passed review unnoticed — one of them (the CONTEXT duplication) was first reported to the owner as pre-existing, which was wrong, and was corrected on 2026-10-03 when asked to confirm it in the diff. Three of the four were test assertions: `PatientsServed` counts service completions **at each stage**, so a patient who is screened and then continues is counted at both and per-stage counts are not additive. Conservation must be asserted as a flow rate over a stable horizon, not as exact counts. If a future phase adds a stage, that trap is still there.
+`docs/CONTEXT.md` acquired a duplicated §3-§5 block from **this session's own scripted edit** to it — the edit anchored its end marker on a string appearing twice in the file. Removed before the commit; `98e83ac` is clean. Anchor scripted document edits on a unique string. Also: `USER_MANUAL.md` had no 8Q.1 changelog row (genuinely pre-existing), now added.
+Still open and deliberately not in 8Q.2: the verdict-threshold classifier (green < 0.9 / amber [0.9, 1) / red ≥ 1) and the always-visible trace (FR-UI-34).
+
+## Session Handoff — 2026-10-03 Phase 8Q.1
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- [x] **Per-stage recorded server count on the Input tab** (D-178 rulings 1, 2). One field per stage the file's own columns imply, discovered by **reusing `StagePairDetector.Detect` and `ClinicStageOrder.Flow`** — a second prefix-matching detector would disagree with the first on the first unusual column pair, and that is a bug waiting for a data file rather than a design question. Default 1, shared `ValidatedField` with a unit, and a note stating **server-ID columns are absent** so the count reads as an assumption about simultaneous capacity rather than a measurement.
+- [x] **Historical stage utilisation, printed as its division** (rulings 3, 7). `busy ÷ (servers × operating minutes)`, with busy minutes, server count and operating minutes all rendered literally beside the percentage — `48.5 % = 80.0 ÷ (1 × 165.0)`. The reader can check the figure from the row alone, which is D-176's lesson applied to a new surface.
+- [x] **Divisor basis, always named on screen** (ruling 4). **Observed** = `operating days × 165` when the file carries `session_date`; **spanned** = last service *completion* − first arrival otherwise. Both are labelled. 165 minutes is itself a documented assumption (D-172), so a figure printed without its basis is a number nobody can verify.
+- [x] **Above 100 % shown raw with a remedy-naming warning, never clamped** (ruling 5). A figure over capacity means the recorded service time cannot be explained by the recorded count — a finding, not a glitch. Clamping it to 100 % would leave a plausible-looking number that disagrees with the data, which is the failure mode that costs a viva. The clinic file reads ~199 % at one screening server, so this path is exercised on real data.
+- [x] **Counts and Stages stay two separate things** (ruling 6). "Use for simulation" copies the recorded counts into the Stages rows **once**, at the moment of the action, and its label says it overwrites them. Later edits on the Input tab do not rewrite Stages. This is the D-176 mirror defect **prevented** rather than fixed — D-176 corrected a value that followed the wrong view; here the direction of travel is declared one-way instead.
+- [x] **Committed CI fixture `samples/sample_bypass.csv`**: 4 of 14 Screening departures converted to bypass rows (indices 6, 10, 15, 19 — evenly spaced, not the first four), plus a `.gitignore` allowlist entry so the ignore rule for real data does not swallow it. The real clinic capture stays local and uncommitted.
+- [x] **The validator gap this phase deliberately did not close**, now pinned by a test: `samples/sample_bypass.csv` **reports 8 validation issues** for its 4 bypass rows. `DataValidator.StageMayBeBlankFor` forgives a blank stage cell only when the stage comes *after* `departure_stage`, and a bypass row's blank `screening_*` sits *before* a Doctor departure — so the validator cannot distinguish a patient who skipped Screening from one whose screening time was omitted, because it never consults the filled `doctor_*` pair. That fix belongs to 8Q.2 with the bypass detection it serves. `SampleBypassFixture_CarriesBypassRowsAndKeepsTheRestValid` asserts the **current** behaviour with a comment naming 8Q.2 as the phase that must invert it, so the change cannot land quietly and the test that watches it fails loudly.
+- [x] **A frame that skips in CI, deliberately** (D-178). The above-100 % frame is taken from the real clinic capture, which is uncommitted by design, so the test returns early when the file is absent. The alternative — asserting the warning against `sample_bypass.csv`, which peaks at 48.5 % at c = 1 and never shows it — would be a green test standing in for evidence that does not exist. The behaviour is asserted against constructed data in `HistoricalMetrics_BusyTimeAboveCapacity_ReportsWarningAndDoesNotClamp`, which runs everywhere including CI.
+- [x] **A D-169 resize test for the new section**, which found something. It asserted the utilisation heading was inside the window at 1100×700 and found it at **Y = 773**. The finding was **not** a clipping bug: the Input tab body is a `ScrollViewer`, so below the fold is normal. The test now asserts the three things that actually have to hold — the resize **took effect** (bounds shrank, or the assertions would silently measure the default layout), the region still **scrolls** (`Extent.Height > Viewport.Height`), and the section can be **scrolled into view** by offset. The offset is the heading's position *inside* the scroll content; the first version scrolled to the scroll *extent* and parked the heading at **Y = −3206**, ~4000 px above the viewport.
+
+In Progress
+- Nothing in code. The branch is gated and ready to commit; **8Q.2 has not been started**, by instruction.
+
+What is complete:
+Every 8Q.1 sub-block: the count fields, the historical figures, the one-time seeding, the fixture, the tests, and the documentation (D-178, PRD v1.7.0 with FR-UI-31/32/33, REQUIREMENTS traceability, USER_MANUAL §7.1b, CONTEXT §1 and §5.4, DEV_LAUNCH §1 + sample tree + Troubleshooting + changelog, BLOCKERS B-012).
+
+What remains:
+1. **Owner visual inspection of the two frames** (§18, D-089). This host has **no image input**, so "does it look right" is unconfirmed — every structural claim is asserted numerically and the pixels are unverified.
+2. **8Q.2**, on instruction after this commit: `p_exit` denominator per `FR-DATA-6` (`TotalCandidates` → `ScreenedPatients`, JSON key, all-bypass `DataValidationException`), bypass detection and routing (`RouteTo(patient, destinationIndex)`, constructor-validated `BypassProbability` `[0,1)`), `p_bypass = bypassCount ÷ totalArrivals` (**17/109 ≈ 0.156**, superseding the stale 0.185 in the docs), the general per-stage-inflow λ (amending D-007), verdict thresholds (green < 0.9 / amber [0.9, 1) / red ≥ 1, red as a defensive pure classifier) and the always-visible trace (FR-UI-34, removed from the toggle list, old `"trace"` key still parsed and ignored). **The validator fix above is the first item of that phase.**
+
+### Phase 8Q.1 requirement verification (AGENTS §18)
+
+| Requirement | Verified how | Result |
+|---|---|---|
+| FR-UI-31 — per-stage recorded count, shared `ValidatedField`, default 1, server-ID limitation stated | 4 unit tests on the real `InputTabViewModel` (defaults, follows-the-file, blank/non-numeric rejected with a remedy, >9 accepted / 0 rejected) + structural assertions on the rendered tab | PASS by assertion; **visual unverified** |
+| FR-UI-32 — utilisation with named basis, printed division, unclamped above-100 % warning | 9 unit tests incl. `HistoricalMetrics_IsBusyDividedByServersTimesOperatingMinutes`, `_OverCapacity_FlagIsSetAndTheFigureIsNotClamped`, `_AtExactlyCapacity_ReportsNoWarning`, `_ObservedWindow_IsOperatingDaysTimes165`, `_NoSessionColumn_UsesSpannedWindow`, `_NoTimesAtAll_ReportsNoBasis` | PASS by assertion; **visual unverified** |
+| FR-UI-32 (layout) — section usable at the declared size **and** at the minimum window size | `Phase8Q1Screenshot` 3 tests: frame at the declared 1200×760, plus the D-169 resize test asserting resize-effect / scroll-extent / scrolled-into-view | PASS by assertion; **visual unverified** |
+| FR-UI-33 — one-time seeding, no later rewrite, label says it overwrites | 3 unit tests (seeds the Stages rows, edits after seeding do not rewrite them, only the stages the file covers are seeded) | PASS |
+| Fixture — committed, shaped, gitignore-allowlisted, and its validator gap recorded | `SampleBypassFixture_*` asserting the **current** 8-issue behaviour, plus the DEV_LAUNCH Troubleshooting row | PASS (gap recorded, not fixed — by design) |
+
+Next Session Should Start With
+**Commit and push `fix/phase-8q`** — the work is complete and gated; §11.4 says push the branch, tell the owner it is ready, and stop. Do not open a PR.
+
+Then, on instruction, **Phase 8Q.2**, starting with the bypass validator fix that 8Q.1 pinned.
+
+Blocked
+- **B-012** — owner visual inspection of the screenshots; now twenty-one frames outstanding, two of them from this phase.
+- **B-007** — M5 keyboard acceptance run; unchanged by this phase.
+
+Git State
+Commits made this session: *none yet — the 8Q.1 change is staged in the working tree and awaiting the commit described above.*
+Pushed to origin: No
+Uncommitted changes: the full 8Q.1 change set (`.gitignore`, 5 App source files, 2 new App files, 2 new test files, the new fixture, and 8 docs files)
+Build & Test
+dotnet build: PASS — Release **and** Debug, `--no-incremental`, **0 errors / 0 warnings** in both
+dotnet test: PASS — **719/719 in both** (Cli 35 / Data 114 / Core 114 / App 456)
+Warnings: 0
+Files Touched
+src/OpdSimulator.App/Services/HistoricalMetricsService.cs: added
+src/OpdSimulator.App/ViewModels/HistoricalMetricsViewModel.cs: added
+src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+src/OpdSimulator.App/Views/InputTab.axaml: modified
+tests/OpdSimulator.App.Tests/Phase8Q1Tests.cs: added
+tests/OpdSimulator.App.Tests/Phase8Q1Screenshot.cs: added
+samples/sample_bypass.csv: added
+.gitignore: modified
+docs/DECISIONS.md, PRD.md, REQUIREMENTS.md, TODO.md, PROGRESS.md, CONTEXT.md, DEV_LAUNCH.md, USER_MANUAL.md, BLOCKERS.md: modified
+Decisions Made
+- **D-178** — the server count is recorded on the Input tab beside its stage; the historical figure is printed as the division that produced it; the basis is always named; above 100 % is never clamped; seeding is one-way and one-time.
+Assumptions Added/Changed
+- `server count per stage is user-recorded, not file-recorded` — **VERIFIED** (owner ruling 2026-10-03), in CONTEXT §1.
+- `p_exit denominator = count(non-empty screening_start)` — **UNVERIFIED** in the sense of *unimplemented*: logged in CONTEXT §5.4 as an 8Q.2 obligation with the 0.807 → 0.956 consequence recorded, and deliberately **not** written into FR-DATA-6 so no requirement describes behaviour the code lacks.
+- `p_bypass = bypassCount ÷ totalArrivals` (17/109 ≈ 0.156, superseding 0.185) — **UNVERIFIED**, same treatment, same reason.
+Notes for Next Session
+- The clinic capture is at `samples/opd_collection_28_sep_2026_1.csv`, **local only** (gitignored, not allowlisted). If the owner moved it, the warning frame will skip and that is expected, not a failure.
+- Do **not** add the validator fix to 8Q.1 — a test asserts the current 8-issue behaviour and will fail loudly when it changes.
+- The temporary `ProbeTests.cs` diagnostic file created while chasing the `8:0` time-format bug has been **deleted**; it was never committed.
 
 ## Session Handoff — 2026-09-29 Phase 8O
 Branch: `fix/phase-8o-window`

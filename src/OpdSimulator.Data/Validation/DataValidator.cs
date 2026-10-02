@@ -217,17 +217,56 @@ public static class DataValidator
 
     private static bool StageMayBeBlankFor(string column, IReadOnlyDictionary<string, string> row)
     {
-        string stage = column.EndsWith("_end", StringComparison.OrdinalIgnoreCase)
-            ? column[..^"_end".Length]
-            : column[..^"_start".Length];
-
         if (!row.TryGetValue("departure_stage", out string? departure) || string.IsNullOrWhiteSpace(departure))
             return false;
 
-        // Blank is allowed only when this stage comes after the departure stage
-        // in the clinic flow (the patient never reached it).
-        return ClinicStageOrder.FlowIndex(stage) > ClinicStageOrder.FlowIndex(departure.Trim());
+        string stage = StageOf(column);
+        string dep = departure.Trim();
+
+        // Reception is always recorded. A patient with no Reception cell never
+        // entered the clinic, so no flow explains the gap and the row is dirty.
+        if (stage.Equals("Reception", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // A blank doctor cell on a Doctor departure is legitimate: the capture's
+        // doctor_end stamps are incomplete, and a patient recorded as reaching a
+        // doctor without an end time is still a real visit (D-179).
+        //
+        // Deliberately NOT generalised to any departure stage. A Screening exit
+        // must carry its screening_end — that timestamp is the service time the
+        // stage's fitted μ is computed from, so forgiving it would silently drop
+        // the sample rather than record a routing outcome.
+        if (dep.Equals("Doctor", StringComparison.OrdinalIgnoreCase)
+            && stage.Equals("Doctor", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Blank because the patient exited before reaching this stage.
+        if (ClinicStageOrder.FlowIndex(stage) > ClinicStageOrder.FlowIndex(dep))
+            return true;
+
+        // Direct-to-Doctor (FR-DATA-7, D-179): Screening is blank because the
+        // patient skipped it. The populated doctor columns are what distinguishes
+        // a real bypass from a row that simply recorded nothing — a patient with
+        // no Screening and no Doctor either was neither screened nor seen, which
+        // is a dirty row, not a routing outcome.
+        if (dep.Equals("Doctor", StringComparison.OrdinalIgnoreCase)
+            && stage.Equals("Screening", StringComparison.OrdinalIgnoreCase)
+            && HasDoctorRecord(row))
+            return true;
+
+        return false;
     }
+
+    /// <summary>Stage name behind a <c>{stage}_start</c> / <c>{stage}_end</c> column.</summary>
+    private static string StageOf(string column)
+        => column.EndsWith("_end", StringComparison.OrdinalIgnoreCase)
+            ? column[..^"_end".Length]
+            : column[..^"_start".Length];
+
+    /// <summary>Whether the row carries any doctor-visit timestamp at all.</summary>
+    private static bool HasDoctorRecord(IReadOnlyDictionary<string, string> row)
+        => (row.TryGetValue("doctor_start", out string? start) && !string.IsNullOrWhiteSpace(start))
+        || (row.TryGetValue("doctor_end", out string? end) && !string.IsNullOrWhiteSpace(end));
 
     private static bool IsValidDepartureStage(string stage)
         => stage.Equals("Screening", StringComparison.OrdinalIgnoreCase)

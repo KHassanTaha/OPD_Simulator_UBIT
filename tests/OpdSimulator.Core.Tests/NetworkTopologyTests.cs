@@ -31,12 +31,55 @@ public class NetworkTopologyTests
         Assert.Equal(1.5, topology.EffectiveArrivalRate(2), 9); // 2.0 · (1 − 0.25)
     }
 
+    /// <summary>
+    /// D-007 as amended by D-179: with a bypass at Reception the rate at a stage
+    /// is no longer a single product — it is the sum of every route that reaches
+    /// it, because a bypassed patient arrives at Doctor without passing through
+    /// Screening.
+    /// </summary>
+    [Fact]
+    public void EffectiveArrivalRates_SumEveryRouteWhenBypassIsConfigured()
+    {
+        // λ0 = 2, p_bypass = 0.15 at Reception, p_exit = 0.25 at Screening.
+        var topology = new NetworkTopology(2.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.25,
+           bypassProbability: 0.15, bypassStageIndex: 0, bypassDestinationIndex: 2);
+
+        Assert.Equal(2.0, topology.EffectiveArrivalRate(0), 9);                    // λ0
+        Assert.Equal(2.0 * 0.85, topology.EffectiveArrivalRate(1), 9);            // λ0 · (1 − p_bypass)
+        Assert.Equal(2.0 * 0.15 + 2.0 * 0.85 * 0.75, topology.EffectiveArrivalRate(2), 9); // 0.3 + 1.275
+    }
+
     [Fact]
     public void RhoFor_MatchesEffectiveLambdaOverCtimesMu()
     {
         var topology = Clinic();
 
         Assert.Equal(0.3125, topology.RhoFor(2), 9); // 1.5 / (3 · 1.6) = 0.3125
+    }
+
+    /// <summary>
+    /// ρ is computed from the same summed inflow, so a bypass that pushes a
+    /// stage over capacity is still caught by the FR-VAL-1 refusal.
+    /// </summary>
+    [Fact]
+    public void RhoFor_UsesTheSummedInflowWhenBypassIsConfigured()
+    {
+        var topology = new NetworkTopology(2.0, new[]
+        {
+            new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 1, exitProbability: 0.25,
+           bypassProbability: 0.15, bypassStageIndex: 0, bypassDestinationIndex: 2);
+
+        // λ_doctor = 0.3 + 1.275 = 1.575; ρ = 1.575 / (3 · 1.6) = 0.328125
+        Assert.Equal(0.328125, topology.RhoFor(2), 9);
+        Assert.Equal(0.2125, topology.RhoFor(1), 9); // 1.7 / (2 · 4)
     }
 
     [Fact]

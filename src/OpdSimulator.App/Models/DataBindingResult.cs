@@ -67,4 +67,22 @@ public sealed record DataBindingResult(
     /// (D-175); null when the file has no such column.
     /// </summary>
     public IReadOnlyList<DateOnly>? SessionDates { get; init; }
+
+    /// <summary>
+    /// p_bypass = rows reaching a doctor with no screening record ÷ all arrivals
+    /// (FR-DATA-7, D-179); null when it could not be computed.
+    /// </summary>
+    /// <remarks>
+    /// An init property beside the other fitted quantities rather than a
+    /// positional parameter, because it is an 8Q.2 addition: every existing
+    /// construction site keeps its meaning, and the three values below default to
+    /// the "not measured" state.
+    /// </remarks>
+    public double? FittedBypassProbability { get; init; }
+
+    /// <summary>Rows that reached a doctor without a screening record (D-179).</summary>
+    public int BypassExits { get; init; }
+
+    /// <summary>Rows that were actually screened — the p_exit denominator (D-179).</summary>
+    public int ScreenedPatients { get; init; }
 }

@@ -111,7 +111,8 @@ internal static class FitCommand
 
             var pExit = PExitCalculator.Compute(dataSet!);
             stdout.WriteLine("─────────────────────────────────────────────────────");
-            stdout.WriteLine($"p_exit = {pExit.ExitProbability:0.###}  (Screening {pExit.ScreeningExits}, Doctor {pExit.DoctorExits}, Reception excluded {pExit.ReceptionExcluded})");
+            stdout.WriteLine($"p_exit = {pExit.ExitProbability:0.###}  (Screening exits {pExit.ScreeningExits}, screened patients {pExit.ScreenedPatients}; Reception excluded {pExit.ReceptionExited})\n"
+                             + $"p_bypass = {PExitCalculator.ComputeBypassProbability(dataSet!, pExit):0.###}  (direct-to-doctor {pExit.BypassExits} of {dataSet!.Rows.Count} arrivals)");
 
             string jsonPath = WriteJson(file!, interArrival, iaFit, iaChi, serviceJson, pExit, distribution, alpha, mode);
             stdout.WriteLine($"Wrote fit report to {jsonPath}");
@@ -216,10 +217,11 @@ internal static class FitCommand
             ["pExit"] = new Dictionary<string, object?>
             {
                 ["probability"] = pExit.ExitProbability,
-                ["candidates"] = pExit.TotalCandidates,
+                ["screenedPatients"] = pExit.ScreenedPatients,
                 ["screeningExits"] = pExit.ScreeningExits,
                 ["doctorExits"] = pExit.DoctorExits,
-                ["receptionExcluded"] = pExit.ReceptionExcluded,
+                ["receptionExited"] = pExit.ReceptionExited,
+                ["bypassExits"] = pExit.BypassExits,
             },
         };
 

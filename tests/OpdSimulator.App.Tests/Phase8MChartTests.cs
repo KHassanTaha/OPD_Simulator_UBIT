@@ -184,25 +184,39 @@ public class Phase8MChartTests
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(ElevenBarResult(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
-        // One detail line per server, each naming its stage and number, and each
-        // saying the server's OWN utilisation, its contribution, and the stage
-        // utilisation it belongs to. D-171 added the first two: the bar is drawn at
-        // the contribution, so a line carrying only that is ambiguous between a
-        // busy server on a many-server stage and a genuinely idle one.
-        Assert.Equal(11, results.PerServerDetailLines.Count);
-        Assert.All(results.PerServerDetailLines, line =>
+        // One row per server, each carrying its stage, its own server number, the
+        // server's OWN utilisation, its contribution, and the stage utilisation it
+        // belongs to. D-171 added the first two numbers: the bar is drawn at the
+        // contribution, so a row carrying only that is ambiguous between a busy
+        // server on a many-server stage and a genuinely idle one.
+        //
+        // Phase 8Q.5 turned these strings into columns, so the assertion moved with
+        // them: the numbers are still all required, but they are now separate
+        // members rather than substrings of one line. Asserting on the substrings
+        // would have kept passing against a row that showed the wrong number in
+        // the wrong column.
+        Assert.Equal(11, results.PerServerDetailRows.Count);
+        Assert.All(results.PerServerDetailRows, row =>
         {
-            Assert.Contains("S", line, StringComparison.Ordinal);
-            Assert.Contains("busy", line, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("contributes", line, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("stage util", line, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("%", line, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(row.StageName));
+            Assert.False(string.IsNullOrWhiteSpace(row.ServerNumber));
+            Assert.EndsWith("%", row.ServerUtilisation, StringComparison.Ordinal);
+            Assert.EndsWith("%", row.Contribution, StringComparison.Ordinal);
+            Assert.EndsWith("%", row.StageUtilisation, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(row.SerialNumber));
         });
 
+        // The row order is the flattened stage/server order the bars are drawn in,
+        // so the serial column can be cited against the chart.
+        Assert.Equal(
+            Enumerable.Range(1, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            results.PerServerDetailRows.Select(r => r.SerialNumber));
+
         // The two deviating Lab servers are named in text as well as coloured.
-        Assert.Equal(2, results.PerServerDetailLines.Count(l => l.Contains("deviating", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal(2, results.PerServerDetailRows.Count(r =>
+            r.Deviation.Contains("deviating", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
@@ -497,7 +511,7 @@ public class Phase8MQueueAndCalculationsTests
         results.StartRun();
         results.CompleteRun(
             new RunOutcome(QueueResult(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
         Assert.True(results.HasCalculations);
         Assert.Contains("RUN CONFIGURATION", results.CalculationsText, StringComparison.Ordinal);
@@ -509,7 +523,7 @@ public class Phase8MQueueAndCalculationsTests
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(ElevenBarResultForLegend(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
         // One entry per stage, in stage order, each painted with the colour that
         // stage's charts used.

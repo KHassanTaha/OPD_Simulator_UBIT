@@ -348,6 +348,23 @@ The probability that a patient exits after **Screening** instead of queueing
 for the Doctor stage. Leave it empty to fit it from the `departure_stage`
 column of your file; type a number (e.g. 0.4) to override the fitted value.
 
+The fitted value is a fraction of the **screened** patients only — patients who
+went to the Doctor without being screened are not counted, because they never
+reached the decision this probability describes.
+
+### P-bypass
+
+The probability that a patient goes **straight from Reception to the Doctor**,
+skipping Screening. Some clinics let a patient walk past screening; the file
+records those rows as a doctor visit with no screening times. Leave it empty to
+fit it from your file (roughly 1 in 6 rows in a real capture); type a number to
+override it.
+
+The field appears once your network has **three or more stages** — there has to
+be a stage to skip. On a shorter network the value is ignored and the run
+reports a bypass of **0**, so the number in the receipt always matches what the
+engine actually did.
+
 ---
 
 ## 5. Step-by-Step: Run a Simulation
@@ -427,7 +444,8 @@ column of your file; type a number (e.g. 0.4) to override the fitted value.
      whole-minutes field) and the **Trace level** dropdown
      (Minimal / Standard / Detailed / Debug).
      Clinic-day and multi-day runs also record an event trace — it appears in
-     the right panel's **Event trace** widget, most detailed in diagnostic mode.
+     the **Event Trace** box pinned below the right panel, most detailed in
+     diagnostic mode. That box is always shown (§6.3); you do not switch it on.
 
 10. **(Diagnostic trace only) Set the trace level.**
     "Minimal" records nothing; "Standard" records arrivals, service start/end,
@@ -468,26 +486,69 @@ members, professor). It is replaced by the results the moment you start a
 calculation. If the run was refused, an error banner explains exactly why.
 
 The widget selector (a "Customise results" toggle at the top of the right
-panel) shows or hides the individual Results widgets below it: the **metrics
-table**, the **per-server utilisation chart**, the **queue-length-over-time
-chart**, the **waiting-time distribution**, the **chi-square results**, the
-**simulation verification** (§6.8), the **analytical validation** (§6.9), and
-the **event trace**. Your choice is
+panel) shows or hides the seven individual Results widgets below it: the
+**Performance Measures** group (§6.1), the **per-server utilisation chart**, the
+**queue-length-over-time chart**, the **waiting-time distribution**, the
+**chi-square results**, the **simulation verification** (§6.8), and the
+**analytical validation** (§6.9). Your choice is
 remembered between sessions. (The **data preview** moved to the **Input** tab
-in Phase 7D and is no longer a Results widget.)
+in Phase 7D and is no longer a Results widget. The **event trace** is not in
+this list — it is always visible; see §6.3.)
 
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
 
-### 6.1 Metrics Table
-For each stage:
+**Reading any table on this tab.** Every table here is numbered down its first
+column, from 1, with no gaps, so you can say "look at row 4" instead of counting
+down. Numbers are **right-aligned** and words are **left-aligned**, in the
+headings as well as the rows, so a column of figures has its decimal points in a
+straight line and you can compare two magnitudes at a glance.
+
+One exception is worth knowing: the **System totals** list at the top is a list
+of labels and values rather than a table — each line is its own pair, with no
+column headings — so it has no row numbers. Its values are still right-aligned.
+
+### 6.1 Performance Measures
+
+The first group on the results side is headed **Performance Measures**. It holds
+two readings of the same run: the figures, and a verdict on them.
+
+**System totals** — the whole network in one place: total patients served and
+total waiting time.
+
+**Per-stage table** — one row per stage, numbered `#` from 1 in the order the
+patient visits them:
 
 | Metric | Meaning |
 |--------|---------|
-| Average wait | Mean time patients spent waiting in queue (minutes) |
-| Average queue length | Mean number of patients waiting |
-| Server utilisation | Fraction of time each server was busy (0–100%) |
-| Throughput | Number of patients served |
+| # | Stage number, in visit order |
+| Stage | The stage name (Reception, Screening, Doctor) |
+| Served | Number of patients who completed service at this stage |
+| Avg wait | Mean time patients spent waiting in this stage's queue (minutes) |
+| Avg queue | Mean number of patients waiting |
+| Utilisation | Fraction of the stage's server time that was busy (0–100 %) |
+| ρ | Arrival pressure = λ ÷ (c × μ). See the verdict table below. |
+
+**Stability** — the same stages again, each with its ρ and a verdict:
+
+| ρ | Verdict | What it means |
+|---|---------|---------------|
+| below 0.90 | **Stable** | The stage has spare capacity |
+| 0.90 up to (not including) 1.00 | **Near capacity** | Arrivals are close to what the servers can absorb; a small change in λ or μ will make this stage the bottleneck |
+| 1.00 or more | **Unstable** | Arrivals meet or exceed capacity |
+
+One line under the table names the **bottleneck** — the stage with the **highest
+ρ**. If two stages tie, the earlier one is named. The bottleneck is the stage to
+fix first: raising its server count or service rate relieves every stage after
+it.
+
+The verdict is written as words as well as coloured, so it can be read without
+relying on colour.
+
+You will not normally see **Unstable**. A network where some stage reaches
+ρ ≥ 1 cannot run to a steady state, so the simulator refuses it and explains
+which stage failed. The verdict is still defined so that a figure printed for a
+stage measured at the edge shows the truth rather than a blank.
 
 ### 6.2 Chi-Square Results
 Shows how well the chosen distribution fits the data:
@@ -498,9 +559,16 @@ Shows how well the chosen distribution fits the data:
 - **Decision** — "Accept" or "Reject".
 
 ### 6.3 Event Log
-Chronological trace of every event, rendered only by a **Diagnostic trace**
-run (§5 step 7). Choose the trace level in the Horizon section to include
-queue-state snapshots and (at `Debug`) random-number draws.
+Chronological trace of every event, from a **Diagnostic trace** run (§5 step 7)
+or from any run that recorded a trace. Choose the trace level in the Horizon
+section to include queue-state snapshots and (at `Debug`) random-number draws.
+
+The box is **pinned below the widgets** rather than sitting inside the scrolling
+list, so scrolling to a metric never pushes the trace off screen, and it **is
+not** in the "Customise results" list — there is no switch to turn it off. Its
+height is capped, and a long trace scrolls **inside** the box so it cannot
+squash the widgets above it. A run that recorded no trace says so in the box
+rather than leaving it blank.
 
 ### 6.4 Per-Server Utilisation Chart
 Shows what the engine's own servers actually did during a run (one bar per
@@ -513,7 +581,7 @@ servers in the stage × total operating time)*. It is deliberately not the
 server's own utilisation, because of this consequence:
 
 > **The bars of one stage always add up to that stage's utilisation** — the
-> same number printed in the metrics table.
+> same number printed in the Performance Measures table (§6.1).
 
 A three-doctor stage at 60% utilisation draws three bars of 20% each, and
 20 + 20 + 20 = 60, which is the figure beside it.
@@ -548,11 +616,13 @@ How to read it:
   The trade-off is that a clinic with many servers at every stage gets a
   flatter-looking chart, because the honest ceiling for a six-server stage is
   one sixth.
-- The **per-server list** under the chart names every server with **both**
-  numbers — its own utilisation and its contribution to the stage — and marks
-  the deviating ones, e.g. `Screening S2: 80.30 % busy, contributes 40.15 % of
-  stage  (stage util 60.23 %)`. Those are the same numbers the chart draws, in
-  text.
+- The **per-server table** under the chart names every server with **both**
+  numbers — its own `Busy` percentage and its `Contrib.` share of the stage —
+  alongside the `Stage util` it belongs to, and marks the deviating ones in the
+  `Deviation` column. Those are the same numbers the chart draws, so the two can
+  be read against each other. It is collapsed until you open it, and each row is
+  numbered from 1 in the same order the bars are drawn, so "row 4" and "the
+  fourth bar" are the same server.
 
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input
@@ -643,7 +713,7 @@ so the picture and the number always agree.
 says *"Load a data file to see fit analysis."* Before a run the three Results
 charts each show their own *"Run a simulation to see …"* message. If a chart
 cannot be drawn, the widget falls back to that same text rather than crashing
-the run — the numbers in the metrics table are always present.
+the run — the numbers in the Performance Measures table (§6.1) are always present.
 
 ### 6.8 Simulation Verification (Output-Side Chi-Square)
 
@@ -737,7 +807,7 @@ What it lists, in order:
 | Arrival process | The arrival rate λ, the mean inter-arrival 1/λ, and the rule the engine used |
 | Service processes | Per stage: the number of servers c, the rate μ per server, the capacity c·μ, the mean service time 1/μ, and the distribution family |
 | Utilisation | The rule (`utilisation = busy time ÷ operating time`), the operating time T, **the two per-server quantities defined below**, each stage's observed utilisation, and **each server's busy time in minutes** plus its **contribution** to the stage |
-| Flow balance | Patients served, throughput, mean queue length, mean wait, and p_exit with its expected split |
+| Flow balance | Patients served, throughput, mean queue length, mean wait, p_exit with its expected split, and the **effective p_bypass** with the share of patients that skipped Screening |
 | Per-stage result | Per stage: patients served, mean wait, mean queue length |
 
 Three things worth knowing:
@@ -931,6 +1001,86 @@ and the window each was computed from — with the division printed, so you can
 confirm `60 ÷ 825` really is the λ beside it. A result can be read back later
 without guessing. See [§6.11](#611-reading-the-calculations-dialog).
 
+### 7.1b Recording how many servers were working, and what the file says about them
+
+<a id="historical-server-counts"></a>
+
+The Input tab asks you one thing the file cannot answer: **how many servers were
+working at each stage while the data was being collected.** There is one field
+per stage the file's own columns describe, in clinic order, each starting at 1.
+
+These fields say "recorded during data collection" because that is what they
+are — your record, not a value in the file. The note under them says plainly
+that **server-ID columns are not present**: no column in the file says which
+server a patient saw, so the count you type is an assumption about how many
+could work at once. If two tables shared one queue, the honest answer is 1 for
+that stage.
+
+Enter a whole number of 1 or more. A blank or non-numeric field is refused in
+place with a message saying what to type, rather than being quietly read as 1.
+
+#### Historical utilisation, and how to check it
+
+Underneath, each stage shows what utilisation *would* have been over the period
+you recorded. It is calculated as:
+
+```
+utilisation = total service minutes recorded ÷ (servers × operating minutes)
+```
+
+So the number depends on the count you typed. Change the count and the figure
+changes — that is the point of showing them together.
+
+Every row prints the division that produced it, so you never have to trust a
+percentage:
+
+```
+Screening   48.5 %   = 80.0 ÷ (1 × 165.0)   (observed window)
+```
+
+**Which operating minutes are used.** The app always names the basis, because
+the two available answers are different numbers:
+
+| Basis | When | How it is worked out |
+|-------|------|---------------------|
+| **Observed** | the file has a `session_date` column | operating days × 165 minutes |
+| **Spanned** | no `session_date` column | last service completion − first arrival |
+
+A file with no dates carries no evidence of how long the clinic was open, so the
+app measures the span of the recorded work instead and says so. The spanned
+window is measured to the **last service completion**, not the last arrival,
+because the clinic was still open until the last patient finished.
+
+#### A figure above 100 %
+
+If a stage shows **more than 100 %**, the app does **not** cap it at 100. It
+shows the real figure and a warning, because a number over 100 % is a finding
+worth seeing rather than a glitch to hide. It means the recorded service time
+cannot be explained by the number of servers you entered — either the true count
+was higher, or the file's service times are wrong.
+
+The remedy is to raise the server count for that stage and watch the figure
+drop. Hiding the excess would leave a plausible-looking number that disagrees
+with the data.
+
+#### These counts and the run's server counts are two different things
+
+The counts here describe the **collection period**. The **Stages** section of the
+Simulation tab describes the **simulation**. They are shown separately and are
+not linked while you type — editing a field here will not change the Stages
+section.
+
+To copy these counts across, use **Use for simulation**. It copies them into the
+Stages rows **once**, at the moment you press it, and its label says that it
+overwrites them. After that, the two are yours to set independently: a
+simulation may deliberately try a busier clinic than the one that was recorded.
+
+#### What historical utilisation is not
+
+This figure is not the same as the **per-server utilisation** in the results
+panel, which comes from the simulation's own run. One describes history, one
+describes the model. They will not agree, and they are not meant to.
+
 ### 7.2 Check your file first
 
 ```bash
@@ -954,7 +1104,8 @@ service times, then prints:
 - **Fitted parameters** (e.g. rate) and the sample mean.
 - **Log-likelihood** and **AIC** (lower = better).
 - **χ², df, p, decision** — if the p-value is below 5%, the fit is **Reject**ed;
-- **p_exit** — the fraction of patients exiting after Screening (used for routing).
+- **p_exit** — the fraction of **screened** patients exiting after Screening (used for routing).
+- **p_bypass** — the fraction of **all** arrivals that went straight to the Doctor (used for routing).
 
 A machine-readable copy is written to `logs/fit-YYYYMMDD-HHMMSS.json`.
 
@@ -1059,7 +1210,8 @@ Shows a visual token for the next arriving patient:
 - **μ (mu)** — Service rate.
 - **ρ (rho)** — Traffic intensity; must be < 1.
 - **M/M/c** — Standard notation for a queueing model.
-- **p_exit** — Probability a patient exits after Screening.
+- **p_exit** — Probability a patient exits after Screening, out of the patients who were screened.
+- **p_bypass** — Probability a patient skips Screening and goes straight from Reception to the Doctor.
 
 ---
 
@@ -1067,6 +1219,10 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-03 | Phase 8Q.4: the **event trace** is now **always visible**, pinned in a box below the results widgets instead of scrolling away with them, so it can never be pushed off screen. It has been **removed from the "Customise results" list** — there is nothing to switch on. The box keeps a fixed maximum height and a long trace scrolls inside it. The widgets above now have a little breathing room at the bottom, so the last card is never hidden behind the trace box. If you had an older saved view that included the event trace, it is simply ignored — the trace stays visible and the setting is cleaned up the next time you change a widget. |
+| 2026-10-03 | Phase 8Q.3: the results panel's first group is now headed **Performance Measures** and carries a **stability verdict** per stage plus a named **bottleneck** (§6.1a). Stages are numbered `#` in visit order. Bands: **Stable** below ρ 0.90, **Near capacity** from 0.90 up to 1.00, **Unstable** at 1.00 or above (which the simulator refuses to run, so it is normally not seen) |
+| 2026-10-03 | Phase 8Q.2: patients who skip Screening can now be modelled and read from data. A new **p_bypass** field in the Parameters section fits "went straight to the Doctor" from your file, and the **p_exit** fit now counts only the patients who were actually **screened** — before, direct-to-doctor traffic diluted it. Blank screening times on a bypass row are accepted instead of being reported as errors, so the sample bypass file now loads cleanly; blank Reception times still are not (§7.1). The event log now records the destination the patient actually went to, instead of printing the default next stage before the decision was made. A new sample file, `samples/sample_overcapacity.csv`, demonstrates a stage booked beyond its capacity. |
+| 2026-10-03 | Phase 8Q.1: the **Input** tab now has a **Servers** field for each stage the file records, and a **Historical utilisation** line beside it showing `busy ÷ (servers × minutes)` with the division printed so you can check it. The divisor is named on screen — *observed* when the file has a `session_date` column, *spanned* otherwise. A stage above 100 % is shown as recorded, with a warning suggesting more servers, and is never silently capped. **Use for simulation** copies these counts into the Stages configuration once (§7.1b). |
 | 2026-09-26 | Phase 8E: four fixes you may notice. (1) A **single-stage** network now runs even when the fitted `p_exit` is 1.0 — the "every row exits after Screening" message only appears when there is a later stage to reach (§9). (2) Dropdown fields show a **green** focus ring instead of the system blue, matching the rest of the app; the ring is still there when you tab through the form. (3) Opening a dropdown that already has a value now lists **all** the options instead of only the current one, **clicking an option selects it**, and **× clears the value and leaves the list open** so you can pick a replacement straight away. (4) The Clear-all confirmation dialog has more breathing room. §9 and the field descriptions updated |
 | 2026-09-18 | Phase 7D: the **Data** section and the old **Input Analysis** tab are merged into one **Input** tab (tabs are now **Simulation \| Input \| Token Generator \| Help**). The upload button, data preview table, validation banner, distribution-fit charts and the stage-mismatch warning all live on the Input tab. The **data preview** is no longer a Results widget (the "Customise results" list drops it). The Simulation tab's Data section becomes a **Data source status strip** showing which file is in use (or "Entering parameters manually") with a **Manage input →** link to the Input tab, plus a one-line reminder when the file's stages differ from the configured list. §4, §5 step 8, §6 and the "Data source" field description updated |
 | 2026-09-18 | Phase 7C: a **Data source** dropdown at the top chooses between **Fit from an uploaded data file** (default — Data section + comma-list μ override shown) and **Enter parameters manually** (Data section hidden; per-stage **Service rate μ** fields become editable; p_exit defaults to 0.4). **Start Calculation is now a completeness gate** — it stays disabled and a banner names exactly what is missing (D-128, supersedes the old "runnable in principle" behaviour). See §Config fields → "Data source" and "Service rate" |

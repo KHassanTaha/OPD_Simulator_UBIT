@@ -51,25 +51,58 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
+                            <!-- Phase 8Q.6 / FR-UI-17. The model has carried
+                                 RowBackground, RowBorderBrush and
+                                 RowBorderThickness since D-080, but nothing bound
+                                 them here, so a row the validator rejected rendered
+                                 identically to a good one. The three bindings below
+                                 are the whole fix; the rest is the inline issue
+                                 indicator FR-UI-17 names (red border + icon +
+                                 tooltip with the specific reason).
+
+                                 The indicator sits in its own fixed-width leading
+                                 slot rather than being appended to the cell strip,
+                                 because the cells are positional Width doubles: a
+                                 variable-width icon inside that strip would shift
+                                 every column of an invalid row rightwards and break
+                                 alignment against the headers. Rebuild() adds a
+                                 matching spacer to HeaderPanel so the gutter does
+                                 not shift the data columns either. -->
                             <DataTemplate x:DataType="models:PreviewRow">
-                                <ItemsControl ItemsSource="{Binding Cells}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal"/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:PreviewCell">
-                                            <SelectableTextBlock Text="{Binding Text}"
-                                                                 Width="{Binding Width}"
-                                                                 TextTrimming="CharacterEllipsis"
-                                                                 FontFamily="{DynamicResource FontMono}"
-                                                                 FontSize="{DynamicResource FontSizeCaption}"
-                                                                 Padding="4,2"
-                                                                 Foreground="{DynamicResource BrushTextPrimary}"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <Border Background="{Binding RowBackground}"
+                                        BorderBrush="{Binding RowBorderBrush}"
+                                        BorderThickness="{Binding RowBorderThickness}"
+                                        ToolTip.Tip="{Binding InvalidReason}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding IssueGlyph}"
+                                                   Width="{x:Static controls:DataPreviewTable.IndicatorGutter}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{Binding RowBorderBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip.Tip="{Binding InvalidReason}"
+                                                   AutomationProperties.Name="{Binding InvalidReason, StringFormat=Validation issue: {0}}"/>
+                                        <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:PreviewCell">
+                                                    <SelectableTextBlock Text="{Binding Text}"
+                                                                             Width="{Binding Width}"
+                                                                             TextTrimming="CharacterEllipsis"
+                                                                             FontFamily="{DynamicResource FontMono}"
+                                                                             FontSize="{DynamicResource FontSizeCaption}"
+                                                                             Padding="4,2"
+                                                                             Foreground="{DynamicResource BrushTextPrimary}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>

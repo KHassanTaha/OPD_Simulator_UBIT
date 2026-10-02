@@ -241,6 +241,17 @@ public partial class MainViewModel : ObservableObject
     private void OnUseForSimulationRequested(object? sender, EventArgs e)
     {
         Config.SourceMode = DataSourceMode.FitFromData;
+
+        // Phase 8Q.1 (rulings 6): the recorded HISTORICAL server counts seed the
+        // Stages section once, on this explicit click. They are acknowledged
+        // straight after so a later visit to this tab — with no edit in between —
+        // cannot overwrite a configuration the user has since tuned by hand.
+        if (InputTab.SeedableServerCounts is { Count: > 0 } counts)
+        {
+            Config.SeedServerCountsFromHistory(counts);
+            InputTab.AcknowledgeSeededServerCounts();
+        }
+
         SetSelectedTabIndex(0);
     }
 
@@ -321,7 +332,7 @@ public partial class MainViewModel : ObservableObject
             // unreachable; still surface a clean banner rather than crash.
             Results.StartRun();
             Results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
-                Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
                 "The run could not be built from the current configuration. Check the fields marked in red."));
             return;
         }
@@ -345,7 +356,7 @@ public partial class MainViewModel : ObservableObject
                 // still refuse cleanly (AGENTS §12.4: never swallow).
                 Log.Error(ex, "Unexpected simulator failure");
                 outcome = new RunOutcome(null, Array.Empty<Models.FitReport>(),
-                    Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                    Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
                     "The simulator stopped unexpectedly. See logs/errors-*.log for details.");
             }
 

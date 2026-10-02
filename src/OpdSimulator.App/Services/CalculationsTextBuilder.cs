@@ -103,9 +103,10 @@ public static class CalculationsTextBuilder
         SimulationResult? result,
         SimulationParameters? parameters,
         string? sourceDescription,
-        DataBindingResult? binding = null)
+        DataBindingResult? binding = null,
+        double effectiveBypassProbability = 0.0)
     {
-        var rows = BuildRows(result, parameters, sourceDescription, binding);
+        var rows = BuildRows(result, parameters, sourceDescription, binding, effectiveBypassProbability);
         return rows.Count == 0 ? NoRunMessage : FlatText(rows);
     }
 
@@ -164,7 +165,8 @@ public static class CalculationsTextBuilder
         SimulationResult? result,
         SimulationParameters? parameters,
         string? sourceDescription,
-        DataBindingResult? binding = null)
+        DataBindingResult? binding = null,
+        double effectiveBypassProbability = 0.0)
     {
         if (result is null)
         {
@@ -379,6 +381,23 @@ public static class CalculationsTextBuilder
             Field(text, "Exit probability p_exit", Percent(pexit));
             Field(text, "  expected share leaving", Percent(pexit));
             Field(text, "  expected share continuing", Percent(1 - pexit));
+        }
+
+        // Direct-to-Doctor (D-179). Reported from the value the run ACTUALLY used,
+        // not the typed one, because a network with fewer than three stages cannot
+        // route a bypass and the coordinator normalises it to zero.
+        double pBypassUsed = effectiveBypassProbability;
+        Field(text, "Bypass probability p_bypass", Percent(pBypassUsed));
+        Field(text, "  expected share skipping Screening", Percent(pBypassUsed));
+        Field(text, "  expected share reaching Screening", Percent(1 - pBypassUsed));
+
+        if (pBypassUsed > 0)
+        {
+            double lambda0 = parameters?.ManualArrivalRate ?? binding?.FittedArrivalRate ?? 0.0;
+            double pExitForBalance = parameters?.PExitOverride ?? binding?.FittedExitProbability ?? 0.4;
+            Field(text, "  λ_screening", $"{Num(lambda0 * (1 - pBypassUsed), 4)}/min");
+            Field(text, "  λ_doctor (bypass + screening)",
+                $"{Num(lambda0 * (pBypassUsed + (1 - pBypassUsed) * (1 - pExitForBalance)), 4)}/min");
         }
 
         Section(text, "PER-STAGE RESULT");

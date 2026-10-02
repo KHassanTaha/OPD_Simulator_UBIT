@@ -37,10 +37,16 @@ public sealed class WidgetPreferences
             "OpdSimulator",
             "ui.json");
 
-    /// <summary>Widget keys checked on in the results panel, seeded all-on (FR-UI-14).</summary>
+    /// <summary>
+    /// Widget keys checked on in the results panel, seeded all-on (FR-UI-14).
+    /// Seven, not eight: the event trace is pinned and permanently visible
+    /// (FR-UI-35), so it is not a toggleable widget. An existing ui.json may still
+    /// name "trace" — that key is read and ignored, never honoured, and is not
+    /// written back, so an old file cannot keep the trace hidden.
+    /// </summary>
     public List<string> VisibleWidgets { get; set; } = new()
     {
-        "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram",
+        "metrics", "chiSquare", "utilisation", "queueLength", "waitHistogram",
         "simulationVerification", "analyticalValidation",
     };
 
@@ -61,7 +67,21 @@ public sealed class WidgetPreferences
                 var parsed = JsonSerializer.Deserialize<WidgetPreferences>(File.ReadAllText(filePath), JsonOptions);
                 if (parsed is not null)
                 {
-                    return parsed;
+                    // Rebind rather than return `parsed` (8Q.4, D-185).
+                    //
+                    // System.Text.Json satisfies the parameterless constructor when
+                    // one is public, and `WidgetPreferences()` chains to the DEFAULT
+                    // file path. So the deserialised instance carries
+                    // ~/.config/OpdSimulator/ui.json no matter which file was read,
+                    // and returning it silently redirects every later Save() to the
+                    // real per-user file. Callers passing an explicit path — tests,
+                    // and any future portable path — would write the developer's own
+                    // settings and then read back a file nothing ever updated.
+                    return new WidgetPreferences(filePath)
+                    {
+                        VisibleWidgets = parsed.VisibleWidgets,
+                        CollapsedSections = parsed.CollapsedSections,
+                    };
                 }
             }
             catch (Exception ex)

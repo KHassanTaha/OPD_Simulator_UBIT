@@ -9,14 +9,47 @@ using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Engine;
 
 /// <summary>One metrics-table label/value pair (FR-STAT-6).</summary>
 /// <param name="Label">Human metric name.</param>
 /// <param name="Value">Formatted metric value.</param>
 public sealed record MetricRow(string Label, string Value);
 
+/// <summary>
+/// One per-server row of the utilisation detail table (Phase 8Q.5).
+/// </summary>
+/// <remarks>
+/// Every numeric member is a pre-formatted string rather than a
+/// <see cref="double"/> so the template can right-align it (FR-UI-36) without
+/// each row re-deciding its own precision, and so <c>0.00%</c> renders as
+/// <c>0.00%</c> in the invariant culture the rest of the results panel uses.
+/// </remarks>
+/// <param name="SerialNumber">The server's 1-based position in the flattened stage/server list.</param>
+/// <param name="StageName">Owning stage's name (text column).</param>
+/// <param name="ServerNumber">Server's own number within its stage (numeric column).</param>
+/// <param name="ServerUtilisation">The server's own busy share of operating time (numeric column).</param>
+/// <param name="Contribution">The server's share of the stage total, which is what the chart bar is drawn at (numeric column).</param>
+/// <param name="StageUtilisation">The owning stage's utilisation, repeated so a lone bar can be read against its stage (numeric column).</param>
+/// <param name="Deviation">Text marker when the server is an imbalance outlier, otherwise empty (text column).</param>
+public sealed record PerServerDetailRow(
+    string SerialNumber,
+    string StageName,
+    string ServerNumber,
+    string ServerUtilisation,
+    string Contribution,
+    string StageUtilisation,
+    string Deviation);
+
 /// <summary>One per-stage row of the results metrics table (FR-STAT-6/7).</summary>
+/// <param name="SerialNumber">
+/// The stage's 1-based position in the run's stage list, shown as its own
+/// column. Added in Phase 8Q.3 under the 8Q.5 rule that every listing table
+/// carries one, so a row can be cited unambiguously in the viva ("stage 2")
+/// without the reader counting columns or rows.
+/// </param>
 public sealed record StageMetricRow(
+    string SerialNumber,
     string StageName,
     string ArrivalRate,
     string Servers,
@@ -26,6 +59,28 @@ public sealed record StageMetricRow(
     string Wait,
     string Queue,
     string Utilisation);
+
+/// <summary>
+/// One stage's stability verdict (Phase 8Q.3, D-183).
+/// </summary>
+/// <param name="StageName">The stage the verdict describes.</param>
+/// <param name="Rho">Traffic intensity as displayed, so the row reads against the table above it.</param>
+/// <param name="Verdict">Plain-language band name — the cue that carries the meaning.</param>
+/// <param name="BandBrush">
+/// Theme brush for the band, from <see cref="StabilityBandPalette"/>. Carried on
+/// the row rather than bound through three booleans and a style block, matching
+/// how <see cref="StageLegendItem"/> already carries its swatch, and so the
+/// colour is assertable in a test instead of only visible on screen.
+/// </param>
+/// <remarks>
+/// The verdict text is rendered alongside the colour because colour alone is not
+/// an accessible signal (AGENTS §16.9).
+/// </remarks>
+public sealed record StabilityRow(
+    string StageName,
+    string Rho,
+    string Verdict,
+    IBrush BandBrush);
 
 /// <summary>
 /// One stage-colour legend entry (Phase 8M, D-163, FR-UI-27). The legend is
@@ -38,7 +93,12 @@ public sealed record StageMetricRow(
 public sealed record StageLegendItem(string StageName, IBrush Swatch, int StageIndex);
 
 /// <summary>One chi-square goodness-of-fit verdict row (FR-STAT-8).</summary>
+/// <param name="SerialNumber">
+/// The verdict's 1-based position, shown as its own column (FR-UI-36) so a row
+/// can be cited unambiguously ("verdict 2") without the reader counting rows.
+/// </param>
 public sealed record ChiSquareRow(
+    string SerialNumber,
     string Series,
     string Distribution,
     string Chi2,
@@ -74,6 +134,9 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// print both arrival-rate estimates and the one the run used (D-173).
     /// </summary>
     private DataBindingResult? _lastBinding;
+
+    /// <summary>Direct-to-Doctor probability the last run actually used (D-179).</summary>
+    private double _effectiveBypassProbability;
 
     /// <summary>Welcome-card content (FR-UI-5).</summary>
     public WelcomeCardViewModel Welcome { get; } = new();
@@ -117,7 +180,13 @@ public partial class ResultsPanelViewModel : ObservableObject
 
         ShowMetrics = visible.Contains("metrics");
         ShowChiSquare = visible.Contains("chiSquare");
-        ShowTrace = visible.Contains("trace");
+
+        // "trace" is read but deliberately NOT honoured. An existing ui.json still
+        // carries the key, and FR-UI-35 makes the trace permanently visible, so a
+        // user who once switched it off must still get it back. The key is not
+        // dropped from the loaded list here either — it is filtered out on write,
+        // so the file heals itself the next time any widget toggles.
+        ShowTrace = true;
         ShowUtilisation = visible.Contains("utilisation");
         ShowQueueLength = visible.Contains("queueLength");
         ShowWaitHistogram = visible.Contains("waitHistogram");
@@ -174,14 +243,22 @@ public partial class ResultsPanelViewModel : ObservableObject
             ? "Run complete"
             : "The run was refused before it started";
         EffectiveExitText = $"Effective exit probability (after Screening): {outcome.EffectiveExitProbability:0.###}";
+        _effectiveBypassProbability = outcome.EffectiveBypassProbability;
+        OnPropertyChanged(nameof(EffectiveBypassText));
+        OnPropertyChanged(nameof(CalculationsText));
+        OnPropertyChanged(nameof(CalculationsRows));
 
         ChiSquareRows.Clear();
-        foreach (var fit in outcome.Fits)
+        for (var fitIndex = 0; fitIndex < outcome.Fits.Count; fitIndex++)
         {
+            var fit = outcome.Fits[fitIndex];
+            // The serial numbers the displayed rows, so they stay contiguous even
+            // when a fit is absent and renders as "fit unavailable".
+            var serial = (fitIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
             ChiSquareRows.Add(fit.ChiSquare is { } cs && fit.Fitted is not null
-                ? new ChiSquareRow(fit.Label, fit.Fitted.Name, $"{cs.Statistic:0.###}", $"{cs.DegreesOfFreedom}",
+                ? new ChiSquareRow(serial, fit.Label, fit.Fitted.Name, $"{cs.Statistic:0.###}", $"{cs.DegreesOfFreedom}",
                     $"{cs.PValue:0.###}", cs.Decision)
-                : new ChiSquareRow(fit.Label, "fit unavailable", Unavailable, Unavailable, Unavailable, Unavailable));
+                : new ChiSquareRow(serial, fit.Label, "fit unavailable", Unavailable, Unavailable, Unavailable, Unavailable));
         }
 
         TraceText = outcome.TraceLines.Count > 0
@@ -211,11 +288,15 @@ public partial class ResultsPanelViewModel : ObservableObject
         StatusText = string.Empty;
         RunSummary = string.Empty;
         EffectiveExitText = string.Empty;
+        _effectiveBypassProbability = 0.0;
+        OnPropertyChanged(nameof(EffectiveBypassText));
         RunError = null;
         TraceText = string.Empty;
         ChiSquareCaption = DefaultChiSquareCaption;
         SystemMetrics.Clear();
         StageRows.Clear();
+        StabilityRows.Clear();
+        BottleneckText = string.Empty;
         ChiSquareRows.Clear();
         UtilisationChart = null;
         QueueLengthChart = null;
@@ -229,7 +310,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         ApplyPreferences();
     }
 
-    private void SetMetrics(OpdSimulator.Core.Engine.SimulationResult? result)
+    private void SetMetrics(SimulationResult? result)
     {
         SystemMetrics.Clear();
         StageRows.Clear();
@@ -245,9 +326,14 @@ public partial class ResultsPanelViewModel : ObservableObject
         SystemMetrics.Add(new MetricRow("Throughput (per min)", N0(result.ThroughputPerMinute)));
         SystemMetrics.Add(new MetricRow("Operating time (min)", N0(result.OperatingTimeMinutes)));
 
+        StabilityRows.Clear();
+        BottleneckText = string.Empty;
+
+        var serial = 1;
         foreach (var stage in result.StageMetrics)
         {
             StageRows.Add(new StageMetricRow(
+                $"{serial++}",
                 stage.StageName,
                 N0(stage.ArrivalRate),
                 $"{stage.ServerCount}",
@@ -258,7 +344,58 @@ public partial class ResultsPanelViewModel : ObservableObject
                 N0(stage.AverageQueueLength),
                 $"{stage.StageUtilisation:0.##}"));
         }
+
+        SetStability(result);
     }
+
+    /// <summary>
+    /// Builds the stability rows and names the bottleneck (Phase 8Q.3, D-183).
+    /// </summary>
+    /// <remarks>
+    /// The verdict itself comes from <see cref="StabilityClassifier"/>, a pure
+    /// function in Core, so the thresholds are stated in exactly one place and
+    /// are testable without a display. This method only renders what it returns.
+    /// </remarks>
+    private void SetStability(SimulationResult result)
+    {
+        var rhos = result.StageMetrics
+            .Select(m => (m.StageName, m.Rho))
+            .ToList();
+
+        if (rhos.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (stageName, rho) in rhos)
+        {
+            var band = StabilityClassifier.Classify(rho);
+            StabilityRows.Add(new StabilityRow(
+                stageName,
+                N0(rho),
+                Describe(band),
+                StabilityBandPalette.BrushFor(band)));
+        }
+
+        var (worstBand, bottleneck) = StabilityClassifier.ClassifySet(rhos);
+
+        // The bottleneck is named with its ρ, not alone: "Screening" is only
+        // half an answer, and the number beside it is what a reader checks
+        // against the table above (D-176).
+        BottleneckText = $"{bottleneck} — ρ {N0(rhos.First(r => r.StageName == bottleneck).Rho)} ({Describe(worstBand)})";
+    }
+
+    /// <summary>
+    /// Plain-language name for a band. Chosen over the bare band name because
+    /// "Amber" on its own says nothing to a reader who has not memorised the
+    /// thresholds, whereas the sentence states the consequence.
+    /// </summary>
+    private static string Describe(StabilityBand band) => band switch
+    {
+        StabilityBand.Green => "Stable",
+        StabilityBand.Amber => "Near capacity",
+        _ => "Unstable",
+    };
 
     /// <summary>
     /// Feeds the per-server utilisation widget (FR-STAT-7, Phase 6c.4). The
@@ -272,13 +409,13 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (result is null)
         {
             UtilisationChart = null;
-            PerServerDetailLines = Array.Empty<string>();
+            PerServerDetailRows = Array.Empty<PerServerDetailRow>();
             BuildStageLegend(null);
             return;
         }
 
         var data = UtilisationChartService.Build(result);
-        PerServerDetailLines = FormatPerServerDetail(data);
+        PerServerDetailRows = BuildPerServerRows(data);
         BuildStageLegend(result);
         try
         {
@@ -427,6 +564,22 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <summary>Per-stage rows of the metrics widget.</summary>
     public ObservableCollection<StageMetricRow> StageRows { get; } = new();
 
+    /// <summary>Per-stage stability verdicts, shown once a run exists (Phase 8Q.3, D-183).</summary>
+    public ObservableCollection<StabilityRow> StabilityRows { get; } = new();
+
+    /// <summary>
+    /// The stage closest to saturation, named with its ρ. Empty until a run
+    /// finishes, which is also what hides the whole stability block.
+    /// </summary>
+    public string BottleneckText { get; private set; } = string.Empty;
+
+    /// <summary>True once a run has produced at least one stage to judge.</summary>
+    public bool HasStability => StabilityRows.Count > 0;
+
+    /// <summary>Label plus value for the bottleneck line, or empty before a run.</summary>
+    public string BottleneckCaption =>
+        string.IsNullOrEmpty(BottleneckText) ? string.Empty : $"Bottleneck: {BottleneckText}";
+
     /// <summary>Chi-square verdict rows.</summary>
     public ObservableCollection<ChiSquareRow> ChiSquareRows { get; } = new();
 
@@ -444,6 +597,26 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <summary>Rendered trace lines of the diagnostic run, joined for the log widget.</summary>
     [ObservableProperty]
     private string _traceText = string.Empty;
+
+    /// <summary>Body of the pinned trace panel, or the reason it is empty.</summary>
+    /// <remarks>
+    /// A permanently visible box that says nothing reads as a broken panel, and a
+    /// refused run legitimately produces no trace lines. Rather than leave 240 px
+    /// of blank space, the empty case states why — AGENTS §16.1: the user always
+    /// knows why something is blank.
+    /// </remarks>
+    public string TraceBody
+        => string.IsNullOrWhiteSpace(TraceText)
+            ? "No trace was recorded for this run."
+            : TraceText;
+
+    /// <summary>
+    /// Fixed caption under the "Event Trace" heading (FR-UI-35). Fixed, not
+    /// derived from the run, because the panel itself never varies — only its
+    /// contents do, and <see cref="TraceBody"/> is where that is said.
+    /// </summary>
+    public const string TracePanelCaption =
+        "Every event of the last run, in order. Scrolls within this box.";
 
     /// <summary>Built per-server utilisation chart (Phase 6c.4), or null before the first run.</summary>
     [ObservableProperty]
@@ -465,9 +638,9 @@ public partial class ResultsPanelViewModel : ObservableObject
     public string UtilisationCaption => UtilisationChartService.Caption;
 
     /// <summary>
-    /// Formats one line per server, carrying BOTH numbers the reader needs
+    /// Builds one table row per server, carrying BOTH numbers the reader needs
     /// (Phase 8N follow-up 2, D-171):
-    /// <c>"Reception S2: 50.00% busy, contributes 25.00% of stage  (stage util 50.00%)"</c>.
+    /// server utilisation, and the contribution the bar is drawn at.
     /// <para>
     /// Both, not either. The bar is drawn at the contribution, so a reader who only
     /// sees the contribution cannot tell a 25 % bar on a 2-server stage (server
@@ -477,29 +650,42 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// contributions to the stage utilisation.
     /// </para>
     /// <para>
-    /// A trailing marker is appended when the server deviates from its stage mean
-    /// by more than the imbalance threshold, so the amber flag is not carried by
-    /// colour alone (AGENTS §16.9).
+    /// Phase 8Q.5 replaced the pre-formatted monospace string this used to return.
+    /// Each number is now its own column (FR-UI-36), which is what allows the
+    /// numeric columns to be right-aligned so their decimal points line up; run
+    /// together in one string they could not be aligned at all.
+    /// </para>
+    /// <para>
+    /// A marker is carried in its own column when the server deviates from its
+    /// stage mean by more than the imbalance threshold, so the amber flag is not
+    /// carried by colour alone (AGENTS §16.9).
     /// </para>
     /// </summary>
-    private static IReadOnlyList<string> FormatPerServerDetail(UtilisationChartData data)
+    private static IReadOnlyList<PerServerDetailRow> BuildPerServerRows(UtilisationChartData data)
     {
-        var lines = new List<string>(data.PerServerDetail.Count);
-        foreach (var detail in data.PerServerDetail)
+        var rows = new List<PerServerDetailRow>(data.PerServerDetail.Count);
+        for (var i = 0; i < data.PerServerDetail.Count; i++)
         {
-            var line = string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{0} S{1}: {2:P2} busy, contributes {3:P2} of stage  (stage util {4:P2})",
+            var detail = data.PerServerDetail[i];
+            rows.Add(new PerServerDetailRow(
+                (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 detail.StageName,
-                detail.ServerNumber,
-                detail.ServerUtilisation,
-                detail.Contribution,
-                detail.StageUtilisation);
-            lines.Add(detail.IsOutlier ? line + "  — deviating server" : line);
+                detail.ServerNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                FormatPercent(detail.ServerUtilisation),
+                FormatPercent(detail.Contribution),
+                FormatPercent(detail.StageUtilisation),
+                detail.IsOutlier ? "deviating" : string.Empty));
         }
 
-        return lines;
+        return rows;
     }
+
+    /// <summary>
+    /// Formats a fraction as a percentage with two decimals in the invariant
+    /// culture, matching the rest of the results panel.
+    /// </summary>
+    private static string FormatPercent(double fraction) =>
+        fraction.ToString("P2", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Rebuilds the stage legend from a run's own stage list, each stage painted
@@ -528,14 +714,19 @@ public partial class ResultsPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160),
-    /// pre-formatted because each row mixes a contribution, a stage utilisation
-    /// and an optional imbalance marker. The chart deliberately hides the
-    /// individual server numbers behind a 1/c rescale, so this table is where a
-    /// reader gets them back.
+    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160).
+    /// The chart deliberately hides the individual server numbers behind a 1/c
+    /// rescale, so this table is where a reader gets them back.
     /// </summary>
-    public IReadOnlyList<string> PerServerDetailLines { get; private set; } =
-        Array.Empty<string>();
+    /// <remarks>
+    /// Phase 8Q.5 turned these from pre-formatted monospace strings into a real
+    /// table. The strings faked columns with run-together format arguments, so
+    /// nothing could be aligned and no column could carry a header; the data was
+    /// already structured in <see cref="UtilisationServerDetail"/> and was being
+    /// flattened only for display.
+    /// </remarks>
+    public IReadOnlyList<PerServerDetailRow> PerServerDetailRows { get; private set; } =
+        Array.Empty<PerServerDetailRow>();
 
     /// <summary>
     /// The stage-colour legend (Phase 8M, D-163, FR-UI-27), generated from the
@@ -550,7 +741,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// the parameters that produced it.
     /// </summary>
     public string CalculationsText => CalculationsTextBuilder.Build(
-        _lastResult, _lastParameters, _parameterSource, _lastBinding);
+        _lastResult, _lastParameters, _parameterSource, _lastBinding, _effectiveBypassProbability);
 
     /// <summary>
     /// The same calculations as <see cref="CalculationsText"/>, structured for the
@@ -558,10 +749,23 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// three fields, so the on-screen rows and the copied text cannot disagree.
     /// </summary>
     public IReadOnlyList<CalculationRow> CalculationsRows =>
-        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource, _lastBinding);
+        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource, _lastBinding, _effectiveBypassProbability);
 
     /// <summary>True once a run has produced a result, so the button has something to show.</summary>
     public bool HasCalculations => _lastResult is not null;
+
+    /// <summary>
+    /// The direct-to-Doctor probability the finished run actually used (D-179).
+    /// </summary>
+    /// <remarks>
+    /// Read back from the outcome rather than recomputed, because the coordinator
+    /// can normalise it away: a network with fewer than three stages has no stage
+    /// to skip, so the topology runs with bypass off whatever the file measured.
+    /// Showing the measured value here would tell the user their data was applied
+    /// when it was not.
+    /// </remarks>
+    public string EffectiveBypassText =>
+        $"Effective bypass probability (Reception → Doctor): {_effectiveBypassProbability:0.###}";
 
     /// <summary>
     /// Raised when the user asks to see the calculations. The VIEW opens the
@@ -688,7 +892,10 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowChiSquareChanged(bool value) => OnWidgetVisibilityChanged();
 
-    partial void OnShowTraceChanged(bool value) => OnWidgetVisibilityChanged();
+    // ShowTrace is retained only so persisted data naming "trace" still deserialises
+    // (see the constructor). It is forced true and drives no visibility, so its
+    // change hook must NOT write preferences — doing so would re-add the key this
+    // phase is removing.
 
     partial void OnShowUtilisationChanged(bool value) => OnWidgetVisibilityChanged();
 
@@ -701,7 +908,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     partial void OnShowAnalyticalValidationChanged(bool value) => OnWidgetVisibilityChanged();
 
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation"). "trace" is not a key: the trace is pinned (FR-UI-35).</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -711,9 +918,6 @@ public partial class ResultsPanelViewModel : ObservableObject
                 break;
             case "chiSquare":
                 ShowChiSquare = !ShowChiSquare;
-                break;
-            case "trace":
-                ShowTrace = !ShowTrace;
                 break;
             case "utilisation":
                 ShowUtilisation = !ShowUtilisation;
@@ -741,7 +945,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         var visible = new List<string>();
         if (ShowMetrics) { visible.Add("metrics"); }
         if (ShowChiSquare) { visible.Add("chiSquare"); }
-        if (ShowTrace) { visible.Add("trace"); }
         if (ShowUtilisation) { visible.Add("utilisation"); }
         if (ShowQueueLength) { visible.Add("queueLength"); }
         if (ShowWaitHistogram) { visible.Add("waitHistogram"); }
@@ -757,7 +960,11 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
+    /// <summary>
+    /// Widget keys currently visible (mirrors the Show flags). Seven, not eight:
+    /// the trace is pinned and always on (FR-UI-35), so it is not a toggleable
+    /// widget and does not appear here.
+    /// </summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
+        new[] { "metrics", "chiSquare", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
 }

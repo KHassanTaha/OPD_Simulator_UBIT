@@ -119,7 +119,7 @@ public class Phase6c4UtilisationTests
         var results = new ResultsPanelViewModel();
         results.StartRun();
         results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
-            Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+            Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
             SimulationCoordinator.MissingArrivalRateMessage));
 
         Assert.False(results.HasUtilisationChart);
@@ -140,8 +140,10 @@ public class Phase6c4UtilisationTests
         Assert.False(results.ShowUtilisation);
         Assert.DoesNotContain("utilisation", results.VisibleWidgets);
 
-        // Toggling an unrelated widget must not re-enable utilisation.
-        results.ToggleWidget("trace");
+        // Toggling an unrelated widget must not re-enable utilisation. The vehicle
+        // was "trace" until 8Q.4 (D-184), when the trace stopped being toggleable
+        // and the call became a silent no-op that passed vacuously.
+        results.ToggleWidget("chiSquare");
         Assert.False(results.ShowUtilisation);
     }
 }

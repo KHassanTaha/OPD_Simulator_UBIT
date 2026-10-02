@@ -36,8 +36,8 @@ public class Phase8MScreenshots
         {
             Assert.True(main.Results.HasUtilisationChart);
             Assert.NotNull(main.Results.UtilisationChart);
-            // One line per server under the chart, collapsed by default.
-            Assert.Equal(6, main.Results.PerServerDetailLines.Count);
+            // One row per server under the chart, collapsed by default.
+            Assert.Equal(6, main.Results.PerServerDetailRows.Count);
         });
     }
 
@@ -51,7 +51,7 @@ public class Phase8MScreenshots
         CaptureResults("phase-8m-utilisation-varied.png", new[] { 2, 4, 5 }, "0.8, 0.5, 0.4", 2400, main =>
         {
             Assert.True(main.Results.HasUtilisationChart);
-            Assert.Equal(11, main.Results.PerServerDetailLines.Count);
+            Assert.Equal(11, main.Results.PerServerDetailRows.Count);
         });
     }
 

@@ -151,10 +151,56 @@ co-equal clinic mode. (D-105)
 
 **Answer:** There is now — the calendar `Engine.Run` overload gained an
 optional `ITraceSink` (D-110) so the Coordinator's sink is forwarded in every
-run mode. Clinic-day and multi-day runs populate the **Event trace** widget;
+run mode. Clinic-day and multi-day runs populate the **Event Trace** box;
 the Diagnostic trace mode still exists because its bounded minutes-horizon is
 the only one you can hand-walk line by line (a real day spans thousands of
 events). (D-105, D-110)
+
+### Q: Why is the event trace not one of the widgets you can switch off?
+
+**Answer:** Because it is the artefact a viva is read from, and as a card inside
+the scrolling widget list it was one scroll away from not existing at all — it
+was the last card, so scrolling up to a metric pushed it out of sight. "Always
+visible" was a default value rather than a property of the layout, which means
+any future widget added below it would have re-broken it silently. So it is now
+**grid row 2, a sibling of the scroll area**, not a child of it: no scroll
+position can hide it. That is the same shape the calculations dialog's footer
+got in D-170, and for the same reason — a thing you must be able to find cannot
+be the thing the scroll position controls.
+
+Two consequences I would defend rather than apologise for. Its height is
+**capped at 240 px** and a long trace scrolls *inside* the box, because the
+alternative is a trace that consumes the panel and hides the metrics it is meant
+to explain. And it was **removed from the Customise list** rather than left in
+as a disabled row: a checkbox that can only produce states the requirement
+forbids is a control that lies about what it does. (D-184)
+
+### Q: What happens to a saved view that still lists the event trace?
+
+**Answer:** Nothing breaks, and nothing comes back. `VisibleWidgets` is a
+`List<string>`, so an old file's `"trace"` entry parses fine — it is filtered
+out when the panel applies it, and the next widget you toggle rewrites the file
+without it. I considered making the key an enum so the old file would be
+rejected loudly, and rejected it: that would throw away the user's other seven
+choices to defend one dead key. (D-184)
+
+### Q: Why are preferences loaded from a file written back to the same file?
+
+**Answer:** Because that was broken, and 8Q.4 found it. `WidgetPreferences.Load`
+returned the object `JsonSerializer` had just built — and `System.Text.Json`
+satisfies a **public parameterless constructor**, which chained to the
+*default* path. So loading `some-temp-file.json` produced an object that saved
+to `~/.config/OpdSimulator/ui.json`, silently: the caller's file was never
+updated and the developer's real preferences were overwritten. A test in the
+suite had been doing exactly that on every run.
+
+The fix is to copy the parsed collections onto `new WidgetPreferences(filePath)`
+rather than return the deserialised instance. The reason it survived so long is
+the assertion style: the natural test — "toggling a widget updates the visible
+list" — **passes under both the broken and the fixed code**, because the
+in-memory list is correct either way. Only asserting against **the file on disk**
+fails against the bug. That is the same lesson as the D-176 receipt defect, and
+it is the reason this phase's test reads the file rather than the object. (D-185)
 
 ### Q: Why does the GUI refuse to run when nothing about the run is set?
 
@@ -556,3 +602,203 @@ getting a silent refusal about a control scrolled out of sight. A run you are
 entitled to perform should never fail because of a control it does not show. I
 pinned both directions with a pair of tests, because the calendar-mode test
 would pass just as well if the field were ignored everywhere.
+
+## Phase 8Q.2 — Direct-to-doctor routing, and the p_exit denominator (2026-10-03)
+
+**Q. What did the project do with a patient who reaches a doctor without being
+screened?**
+
+Before this phase it had no honest answer. The validator reported the row as
+dirty — 8 errors for 4 rows in the committed sample — so a quarter of the real
+clinic capture could not be loaded at all. Screening such a patient anyway
+would have invented a service the clinic never performed; rejecting the file
+would have thrown away real observations. The engine now carries
+`p_bypass` as a second coin toss on the *same* service completion that already
+decides the screening exit: after Reception finishes, draw for the exit as
+before, and if the patient did not exit, draw again — below the threshold means
+go straight to the Doctor, above it means queue for Screening.
+
+**Q. Why is it a second coin toss and not a fourth stage or a "skip" flag?**
+
+Because it is the *same kind of decision* as the exit. A reader who understands
+`p_exit` now understands `p_bypass` without learning anything new, and the
+engine keeps exactly one place where routing happens. A flag would need its own
+branching logic in three places, and a stage would be a lie — there is no
+queue, no server and no service distribution at "Screening was skipped".
+
+**Q. Why did you reject a bypass source stage equal to the exit stage?**
+
+Because then two coin tosses happen on one completion and the destination
+depends on which `if` was written first. That is not a style objection: it means
+the model's answer is decided by source-code ordering, and reordering the two
+lines silently changes every result. The constructor refuses the combination
+instead, so the ambiguity cannot exist.
+
+**Q. Why is the bypass draw conditional? What would happen if you always drew?**
+
+The draw is guarded by `BypassEnabled`, which is false whenever
+`p_bypass == 0`. If it ran unconditionally, every existing run would consume
+one extra random number per service completion. That would change every
+FNV-1a64 hash in `GeneratedServiceSamples_AreStableAcrossRuns`, break the
+golden trace fixture, and quietly restate the project's reproducibility claims.
+The hashes are byte-identical after this change, and that is the evidence the
+feature is purely additive. This was the single most important detail in the
+implementation.
+
+**Q. You changed the formula for per-stage arrival rates. Why?**
+
+The old one was a product: λᵢ = λ₀ × Π(1 − pⱼ) over the exit stages before i. A
+product can only ever *remove* arrivals, because it assumes every patient
+passes through every stage in order. A bypassed patient does not — they appear
+at the Doctor having skipped Screening — so their arrival has to be *added*, and
+a single-exit product has no way to add anything. The replacement propagates a
+probability mass forward and multiplies by λ₀ at the end:
+
+    λ_reception = λ₀
+    λ_screening = λ₀(1 − p_bypass)
+    λ_doctor    = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit)
+
+Each stage's λ is the **sum of every route that reaches it**. With `p_bypass = 0`
+it collapses to the original product, which is how I know the change is a
+generalisation rather than a different model — and every existing test passes
+unmodified.
+
+**Q. What was wrong with the p_exit denominator, and why does it matter?**
+
+The denominator was "rows whose `departure_stage` is Screening or Doctor",
+i.e. everyone with a departure stage. Once direct-to-doctor traffic exists,
+that population includes patients who **never reached the screening decision at
+all**, so `p_exit` was diluted by exactly the traffic this phase exists to
+model: the more direct-to-doctor traffic the clinic had, the lower the reported
+`p_exit`. On the real capture the old denominator gives 0.807 and the correct
+one gives 0.956 — a difference of 0.15 in the parameter that decides whether the
+Doctor stage is stable. The denominator is now the screened population, and
+`TotalCandidates` was renamed `ScreenedPatients`, because a correct number
+under a name that describes the wrong population gets read wrongly later.
+
+**Q. How is the bypass detected in a data file, and what if the column is
+missing?**
+
+A row that reaches a Doctor with a blank `screening_start`. Detection is gated
+on the `screening_start` **column** existing: a blank cell in a file that has
+the column means "not screened", but a missing column means a pre-bypass schema
+that cannot answer the question — and inferring from a missing column would
+have re-read every legacy file as all-bypass. Those files keep the legacy
+denominator.
+
+**Q. Which blank cells does the validator forgive, and why those and no others?**
+
+Three, and the third is the interesting one. Reception is **never** forgivable:
+a row with no reception times describes someone who never entered the clinic. A
+blank `doctor_end` on a Doctor departure **is** forgivable, because the capture's
+end stamps are sometimes missing and nothing is lost — the patient has already
+left. A blank `screening_*` on a Doctor departure is forgivable **only when a
+doctor record is present**, and that condition is the whole fix: it is the
+evidence that distinguishes "skipped screening" from "forgot to record it". A
+row with neither a screening nor a doctor visit is still rejected, so an
+incomplete capture cannot pass as real routing. The asymmetry with Screening is
+deliberate: a blank `screening_end` on a *Screening* departure is still an error,
+because that timestamp is the service sample μ is fitted from — forgiving it
+would discard data rather than record a routing outcome.
+
+**Q. Why did you move the `EndService` row in the trace?**
+
+Because it was contradicting itself. The row was emitted *before* the exit draw,
+so it always printed the default next stage — a patient leaving at Screening was
+recorded as `→ Doctor` and then immediately recorded as an exit. A reader
+replaying the trace could not tell which line was true. Moving the emission
+after both decisions means the printed destination is the one that happened, and
+the queue figures stay correct because routing only ever touches the queue being
+entered, never the one being left. `q` did not move.
+
+**Q. What happens if the user sets a bypass on a two-stage network?**
+
+The run proceeds with the bypass normalised to zero and the receipt reports
+**zero**, not what they typed. Refusing the run would be disproportionate for a
+harmless slip, and honouring it would mean showing a number the engine did not
+use — which is the defect D-176 exists to prevent. The receipt and the run
+cannot disagree.
+
+**Q. Anything in this phase you would do differently?**
+
+Yes. I wrote two conservation assertions for the routing tests — "every patient
+who leaves Reception is either screened or reaches the Doctor" — and both were
+wrong, because `PatientsServed` counts service *completions at each stage*, so
+a patient who is screened and then continues is counted at both, and the counts
+are not additive. The assertions now compare *flow rates* over a horizon long
+enough to be stable rather than exact counts over a short one. The failure was
+in my test, not the engine, but it is worth recording because a test written
+against a wrong belief passes happily and tells you nothing.
+
+Second: `departure_stage = Reception` is rejected on its own value, because
+D-008 treats reneging as out of scope. At the time of 8Q.2 I recorded that the
+owner's validity table had described that row's *blank cells* as acceptable, and
+that I had kept the rejection because `IsValidDepartureStage` was not part of
+the ruling. **That reading was wrong, and the owner corrected it on
+2026-10-03** by giving the full validity table, which lists every Reception row
+as invalid. The distinction I had drawn — that the table governs which *blank
+cells* are forgivable and not which *departure values* are legal — does not hold:
+a patient with no reception times has no recorded entry into the clinic at all,
+so there is nothing for the blank cells to be "missing" from. The table is now
+pinned in full by `TheOwnersValidityTable_RejectedRows_AreRefused`, and D-008 is
+unchanged, which is the correct outcome: the code was already right and the
+*documentation* was the defect. Modelled reneging remains a separate decision
+with its own probability and its own route.
+
+## Phase 8Q.3 — Performance Measures and the stability verdict (2026-10-03)
+
+**Q. What is the stability verdict, and where do the numbers 0.9 and 1 come from?**
+
+The verdict is one function of ρ — the stage's arrival rate divided by its
+capacity `c × μ`. ρ < 0.9 is **Stable**, `0.9 <= ρ < 1` is **Near capacity**, and
+ρ >= 1 is **Unstable**. The two numbers are standard queueing results, not
+tuned constants. A stage is stable only while ρ < 1, because ρ is the fraction
+of capacity that arrivals demand: below 1 the queues drain, at or above 1 they
+do not and waiting time grows without bound. The 0.9 band exists because
+stability is a hard cliff, and a stage at ρ = 0.97 looks healthy on a utilisation
+figure while having almost no margin — a plain utilisation percentage hides
+that, because 97 % busy can mean either comfortable or one bad morning from
+collapsing. Naming the band says it in words.
+
+**Q. Why is the boundary at 0.9 inclusive of amber, and why are the bands
+half-open?**
+
+Because the last stable moment is strictly below the threshold. `<= 0.9` and
+`< 0.9` look identical in the source and disagree at exactly one value, which
+is why 0.89, 0.90, 0.99 and 1.00 are four separately named tests rather than one
+data-driven case — a boundary bug has to be findable by reading a test name, not
+by cross-referencing a table row against a threshold column.
+
+**Q. If ρ >= 1 is unstable, why can I never see an "Unstable" verdict in the app?**
+
+Because you cannot produce one. The engine throws `UnstableSystemException` on a
+network with a stage at ρ >= 1, and the Start button is gated on the same
+condition, so the refusal arrives before a run rather than after one. The
+verdict band is still defined and still tested because a stage *measured* at the
+edge — where demand and capacity came out level in the run — must show the
+truth rather than render an empty cell, and an empty cell reads as "fine". It is
+a defensive state, and the manual says so rather than implying a user can reach
+it.
+
+**Q. Why is the bottleneck the highest ρ and not the highest utilisation?**
+
+They are usually the same number, because utilisation is ρ scaled by how much of
+the horizon the stage was open. ρ is the one that means "this stage is close to
+breaking", independent of the observation window — a stage can show 40%
+utilisation and still be at ρ = 0.98 if the clinic opened for 165 minutes of the
+300 the run covered. Naming the highest ρ also rules out the three wrong answers
+a reader expects: the first stage, the last stage, and the lowest utilisation.
+Ties resolve to the earliest stage, so the caption cannot flicker between two
+names across runs with identical inputs.
+
+**Q. Why did the section get renamed instead of a new section being added?**
+
+Because the figures were already there. The panel already computed arrivals
+served, average wait, average queue length, utilisation and ρ for every stage;
+what was missing was a heading that said what they were, so a reader could not
+tell whether the per-server bars underneath belonged to the same set of numbers.
+"Overview" names nothing. Adding a second Performance Measures group would have
+shown the same rows twice on one panel and made the duplication look like
+richness. The cost of the rename is real and recorded in D-183: a heading
+assertion in the screenshot tests had to change, which is exactly the test that
+should notice a rename.

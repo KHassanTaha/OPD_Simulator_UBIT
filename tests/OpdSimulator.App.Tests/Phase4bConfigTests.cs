@@ -61,7 +61,7 @@ public class Phase4bConfigTests
             Assert.False(section.IsEnabledToggle, "every optional section must default to OFF");
 
             var fields = section.GetVisualDescendants().OfType<ValidatedField>().ToList();
-            Assert.Equal(3, fields.Count); // λ, μ, p_exit — the run-category overrides
+            Assert.Equal(4, fields.Count); // λ, μ, p_exit, p_bypass — the run-category overrides
             Assert.All(fields, f => Assert.False(f.IsEffectivelyEnabled,
                 "every descendant field must be effectively disabled while the section toggle is OFF"));
 

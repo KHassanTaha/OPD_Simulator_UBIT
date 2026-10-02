@@ -122,16 +122,22 @@ public static class DataAnalyzer
         }
 
         double? pExitProbability = null;
+        double? pBypassProbability = null;
         int screeningExits = 0;
         int doctorExits = 0;
         int receptionExcluded = 0;
+        int bypassExits = 0;
+        int screenedPatients = 0;
         try
         {
             var pExit = PExitCalculator.Compute(dataSet);
             pExitProbability = pExit.ExitProbability;
             screeningExits = pExit.ScreeningExits;
             doctorExits = pExit.DoctorExits;
-            receptionExcluded = pExit.ReceptionExcluded;
+            receptionExcluded = pExit.ReceptionExited;
+            bypassExits = pExit.BypassExits;
+            screenedPatients = pExit.ScreenedPatients;
+            pBypassProbability = PExitCalculator.ComputeBypassProbability(dataSet, pExit);
         }
         catch (DataValidationException)
         {
@@ -147,6 +153,9 @@ public static class DataAnalyzer
             WindowLambda = windowLambda,
             ObservedWindow = observedWindow,
             SessionDates = distinctSessionDates.Count == 0 ? null : distinctSessionDates,
+            FittedBypassProbability = pBypassProbability,
+            BypassExits = bypassExits,
+            ScreenedPatients = screenedPatients,
         };
     }
 

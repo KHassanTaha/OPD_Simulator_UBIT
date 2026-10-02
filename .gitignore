@@ -36,6 +36,8 @@ samples/*.csv
 !samples/sample_patients.xlsx
 !samples/sample_patients.csv
 !samples/sample_3stage_clinic.csv
+!samples/sample_bypass.csv
+!samples/sample_overcapacity.csv
 
 # Secrets
 *.env

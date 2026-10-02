@@ -129,4 +129,17 @@ public sealed class PreviewRow
 
     /// <summary>Left accent thickness for invalid rows.</summary>
     public Avalonia.Thickness RowBorderThickness { get; }
+
+    /// <summary>
+    /// The inline issue glyph: a warning sign for an invalid row, empty for a
+    /// valid one (FR-UI-17 names an icon alongside the red border).
+    /// </summary>
+    /// <remarks>
+    /// Empty rather than collapsed for a valid row. The glyph sits in a
+    /// fixed-width leading slot so that an invalid row and a valid row keep their
+    /// data columns in the same place, and hiding the element outright would let
+    /// the auto-sized slot collapse and shift every cell of that row rightwards.
+    /// The width is forced from outside, so the slot keeps its size either way.
+    /// </remarks>
+    public string IssueGlyph => IsInvalid ? "\u26A0" : string.Empty;
 }

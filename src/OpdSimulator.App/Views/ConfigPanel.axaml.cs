@@ -115,6 +115,9 @@ public partial class ConfigPanel : UserControl
             case "p-exit":
                 _vm.ValidatePExit();
                 break;
+            case "p-bypass":
+                _vm.ValidatePBypass();
+                break;
             case "significance-level":
                 _vm.ValidateSignificanceLevel();
                 break;

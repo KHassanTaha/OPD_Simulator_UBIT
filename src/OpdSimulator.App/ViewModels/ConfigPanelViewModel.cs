@@ -275,6 +275,12 @@ public partial class ConfigPanelViewModel : ObservableObject
     public ConfigFieldViewModel PExit { get; } = new();
 
     /// <summary>
+    /// Direct-to-Doctor probability override (D-179); only meaningful for 3+
+    /// stages, because bypass skips a stage and needs one to skip.
+    /// </summary>
+    public ConfigFieldViewModel PBypass { get; } = new();
+
+    /// <summary>
     /// Read-only utilisation per stage, computed live from the current field
     /// values (ρ = λ / (c·μ)); "—" while the data needed is not available.
     /// </summary>
@@ -312,6 +318,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// stages are configured (an early-exit route needs at least one downstream stage).
     /// </summary>
     public bool PExitVisible => TryStageCount(out var n) && n >= 2;
+
+    /// <summary>
+    /// Whether the p_bypass override is shown. Three stages is the floor: bypass
+    /// routes a patient past the middle stage, so a two-stage network has nothing
+    /// to skip and the field would be a control that cannot do anything.
+    /// </summary>
+    public bool PBypassVisible => TryStageCount(out var n) && n >= 3;
 
     // ── Section 5 · Horizon ─────────────────────────────────────────────
 
@@ -537,6 +550,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             ManualLambda.ClearError();
             ManualMuPerStage.ClearError();
             PExit.ClearError();
+            PBypass.ClearError();
         }
 
         OnPropertyChanged(nameof(ParametersSupplied));
@@ -785,6 +799,34 @@ public partial class ConfigPanelViewModel : ObservableObject
         RecomputeBlockingState();
     }
 
+    /// <summary>
+    /// Blur validation for p_bypass. Same [0, 1) contract as p_exit — the engine
+    /// draws U once per completion and bypasses when U &lt; p, so a probability of
+    /// exactly 1 is a configuration mistake rather than a routing rule (D-179).
+    /// </summary>
+    public void ValidatePBypass()
+    {
+        var value = PBypass.Value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            PBypass.ClearError();
+        }
+        else if (!double.TryParse(value, out var pBypass) || pBypass < 0)
+        {
+            PBypass.SetError("Enter a number between 0 and 1 (exclusive).");
+        }
+        else if (pBypass >= 1)
+        {
+            PBypass.SetError($"Bypass probability must be less than 1. You entered {pBypass}.");
+        }
+        else
+        {
+            PBypass.ClearError();
+        }
+
+        RecomputeBlockingState();
+    }
+
     /// <summary>Blur validation for the number-of-stages field (integer 1–5).</summary>
     public void ValidateStageCount()
     {
@@ -1024,6 +1066,87 @@ public partial class ConfigPanelViewModel : ObservableObject
         Log.Information("Stages synced to the loaded data: {Stages}", string.Join(", ", names));
     }
 
+    /// <summary>
+    /// Copies recorded historical server counts into the Stages section's Servers
+    /// fields (Phase 8Q.1, rulings 6, D-178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>These are different numbers and this is the only place they meet.</b> The
+    /// Input tab's counts are a recollection about the clinic as it was when the
+    /// data was recorded, and they drive the historical-utilisation readout. The
+    /// Stages section's counts are a decision about the model the simulation will
+    /// run. Seeding is a one-way copy made once, when the user asks for it, and it
+    /// is never re-applied: editing the Input tab afterwards does not rewrite
+    /// Stages, so a hand-tuned configuration cannot be overwritten by a later
+    /// visit to a historical field.
+    /// </para>
+    /// <para>
+    /// Stages whose name matches no recorded count are left alone rather than
+    /// reset, and a recorded count with no matching row is reported as skipped.
+    /// Silently writing a 1 over a configured 3 would be the one outcome the
+    /// separation exists to prevent.
+    /// </para>
+    /// </remarks>
+    /// <param name="counts">Stage name → recorded server count.</param>
+    /// <returns>The number of Stages rows written.</returns>
+    public int SeedServerCountsFromHistory(IReadOnlyDictionary<string, int> counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+
+        if (counts.Count == 0)
+        {
+            return 0;
+        }
+
+        int applied = 0;
+        var unmatched = new List<string>();
+
+        foreach (var row in StageRows)
+        {
+            if (counts.TryGetValue(row.StageName, out int servers) && servers >= 1)
+            {
+                row.Servers.Value = servers.ToString();
+                applied++;
+            }
+            else if (!counts.ContainsKey(row.StageName))
+            {
+                unmatched.Add(row.StageName);
+            }
+        }
+
+        // A recorded count the Stages section has no row for is worth saying out
+        // loud: the user recorded a stage the model does not have.
+        foreach (string stage in counts.Keys)
+        {
+            if (!StageRows.Any(r => string.Equals(r.StageName, stage, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.Warning(
+                    "Recorded server count for {Stage} did not seed any Stages row — the "
+                  + "configured stages do not include it.",
+                    stage);
+            }
+        }
+
+        if (unmatched.Count > 0)
+        {
+            Log.Information(
+                "Stages left unchanged while seeding server counts (no recorded count): {Stages}",
+                string.Join(", ", unmatched));
+        }
+
+        // The gate reads every stage's fields, so it has to re-evaluate after the
+        // write (7C.6, same reason SyncStagesToData does).
+        RecomputeBlockingState();
+
+        Log.Information(
+            "Seeded simulation server counts from recorded historical counts: {Applied} of {Total} rows",
+            applied,
+            StageRows.Count);
+
+        return applied;
+    }
+
     /// <summary>Dismisses the stage-data mismatch warning for the rest of the session (5d.3).</summary>
     public void DismissStageMismatchWarning()
     {
@@ -1057,6 +1180,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
         PExit.Value = "";
+        PBypass.Value = "";
         IsStageMismatchWarningVisible = false;
         StageMismatchMessage = "";
         ParametersIsOptionalEnabled = false;
@@ -1745,6 +1869,13 @@ public partial class ConfigPanelViewModel : ObservableObject
                 ? pExit
                 : null;
 
+        // Same shape as p_exit. Blank means "not overridden", which lets the
+        // coordinator fall back to the value fitted from the file.
+        double? pBypassOverride = ParametersSupplied && !string.IsNullOrWhiteSpace(PBypass.Value)
+            && double.TryParse(PBypass.Value, out var pBypass) && pBypass >= 0 && pBypass < 1
+                ? pBypass
+                : null;
+
         var runMode = ActiveRunMode;
         int generatorDays = runMode == RunMode.MultiDay && int.TryParse(Days.Value, out var days)
             ? days
@@ -1779,6 +1910,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             pExitOverride,
             EffectiveTraceLevel)
         {
+            PBypassOverride = pBypassOverride,
             ServiceFamilies = serviceFamilies,
             ServiceRates = serviceRates,
             LambdaSource = SelectedLambdaSource(),

@@ -13,6 +13,8 @@
 - **Operating days:** Monday–Thursday and Saturday.
 - **Closed:** Friday, Sunday.
 - **Official hours:** 8:15 AM – 11:00 AM (165 operating minutes). _(Corrected 2026-09-29, D-172 — was recorded as 9:00 AM.)_
+- **Server count per stage is user-recorded, not file-recorded.** _(Owner ruling 2026-10-03, D-178.)_ The clinic capture has **no server-ID columns**: nothing in it says which server a patient saw, so the per-stage count on the Input tab is an **assumption about how many could work simultaneously**, and the UI says so. A stage served by two tables sharing one queue is honestly `1`. The historical utilisation figure therefore divides by a number the user supplied, which is why the Input tab shows the count, the figure and the division together rather than the percentage alone.
+
 - **Observed reality:** Patients begin arriving around **8:15 AM**; tokens issued from reception; screening service can begin as early as **8:45 AM**.
 - **Patient cap:** Observed average of roughly 80–100 patients/day (subject to confirmation). Modelled implicitly; not enforced as a hard constraint unless the user sets it.
 - **No shifts:** Staff do not rotate within the 2-hour window.
@@ -27,6 +29,29 @@
 1. **Reception** — Single queue, one receptionist issues tokens.
 2. **Screening** — Single queue, two parallel screening tables.
 3. **Doctor** — Single queue, three parallel doctors (only for patients not exited after screening).
+
+**Direct-to-doctor (bypass) — added 2026-10-03, D-179.** A patient may also
+skip Screening entirely and go from Reception straight to the Doctor with
+probability `p_bypass` (~1 in 6 in the real capture). This is not a stage — it
+is a **route**, which is why the engine models it as a second coin toss on the
+same service completion rather than as a fourth queue. The flow is therefore:
+
+```
+[Arrival] → Reception → ┬→ Screening → ┬→ Exit
+                        │               └→ Doctor → Exit
+                        └→ Doctor (bypass) → Exit
+```
+
+Consequences for the per-stage arrival rates (the D-007 formula is amended
+here, since a bypassed patient arrives downstream **without** passing through
+the stages in between, so their arrival must be *added*):
+
+    λ_reception = λ₀
+    λ_screening = λ₀(1 − p_bypass)
+    λ_doctor    = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit)
+
+With `p_bypass = 0` these collapse to the original single-exit product, which
+is why every pre-existing result is unchanged.
 
 Each stage's `c` above is fixed, but the service distribution `S` is per-stage and
 selectable in the model — see §2.2.
@@ -93,7 +118,31 @@ Examples:
 
 If λ ≥ c·μ, then arrivals come in at least as fast as the system can serve them. Over time, the queue grows without bound — the system never reaches steady state. The analytical formulas assume ρ < 1. **Our simulator must refuse to run if any stage has ρ ≥ 1**, because the results would be meaningless.
 
-> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., λ_screening = λ₀, λ_doctor = λ₀·(1 − p_exit)). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
+> **[VERIFIED — owner ruling, 2026-10-03]** The owner supplied the **complete**
+> blank-cell validity table, and it supersedes the fragment circulated during
+> 8Q.2. Blank cells are judged **per cell and independently**, and the table is:
+>
+> | Departure stage | Reception | Screening | Doctor | Valid? |
+> |---|---|---|---|---|
+> | Screening | filled | filled | — | ✅ valid (patient left at Screening) |
+> | Doctor | filled | filled | filled | ✅ valid |
+> | Doctor | filled | — | filled | ✅ valid (skipped screening; the `doctor_*` pair vouches) |
+> | Doctor | filled | filled | — | ✅ valid (incomplete `doctor_end` stamp; the patient left) |
+> | Doctor | — | any | any | ❌ invalid — no recorded entry into the clinic |
+> | Doctor | filled | — | — | ❌ invalid — no screening evidence **and** no doctor record |
+> | Reception | any | any | any | ❌ invalid — reneging is out of scope (D-008) |
+>
+> Two facts worth defending. First, **Reception is never forgivable**: a patient
+> with no `reception_*` times never entered the clinic, so there is nothing for
+> the blank cells to be missing *from* — this is why the earlier reading that
+> Reception's blanks were "acceptable" was wrong. Second, **blank `screening_end`
+> on a *Screening* departure is still an error**, because that timestamp is the
+> sample μ is fitted from: forgiving it discards data rather than recording a
+> routing outcome. The whole table is pinned by
+> `DataValidatorTests.TheOwnersValidityTable_RejectedRows_AreRefused` — both
+> halves, because asserting only the valid half is how the fragment error arose.
+
+> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., with bypass off, λ_screening = λ₀ and λ_doctor = λ₀·(1 − p_exit); with bypass on, see §1.2 and D-179). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
 
 ---
 
@@ -217,10 +266,38 @@ Each row of input data represents one patient. Columns:
 | `<stage>_end` | When service at that stage ended |
 | `departure_stage` | Where the patient exited: `Screening`, `Doctor`, `Reception` |
 
-**Exit probability:**
-`p_exit = count(departure_stage = "Screening") / count(departure_stage ∈ {Screening, Doctor})`
+**Exit probability** (corrected 2026-10-03, D-179):
+`p_exit = count(departure_stage = "Screening") / ScreenedPatients`,
+where `ScreenedPatients` counts rows that reached the screening decision —
+rows with a non-empty `screening_start`, or, on a file that has no
+`screening_start` column at all, the legacy population
+`departure_stage ∈ {Screening, Doctor}`.
 
-> **[VERIFIED — owner clarification, 2026-09-13]** `departure_stage = "Reception"` is treated as a **data anomaly** (a patient leaving at Reception is reneging, which is out of scope). On upload, such rows trigger a **warning** and are **excluded** from the `p_exit` numerator and denominator. They are never modelled as a route.
+**Bypass probability** (new, 2026-10-03, D-179):
+`p_bypass = count(bypass rows) / count(all arrivals)`,
+where a bypass row is one that reached a Doctor with **no** screening record.
+On the real clinic capture (`opd_collection_28_sep_2026_1.csv`: 109 arrivals,
+17 bypass, 92 screened, 88 Screening exits, 21 Doctor visits) this gives
+**p_bypass ≈ 0.156** and **p_exit = 88 / 92 ≈ 0.956**. The project's earlier
+documents carried **0.185** (17 / 92), which divided by the *screened* count
+while calling it a fraction of arrivals — the two conventions are not
+interchangeable, and the stale figure is the one that reads like a percentage
+of everyone who walked in.
+
+> **[VERIFIED — implemented 2026-10-03, Phase 8Q.2, D-179]** Both rulings below were
+> carried as `[UNVERIFIED]` through 8Q.1 and are now **implemented and tested**
+> (`PreprocessTests`, `BypassRoutingTests`, `BypassCoordinatorTests`), with
+> `FR-DATA-6` amended and `FR-DATA-14` / `FR-SIM-11` added at PRD **v1.8.0**.
+> One detail the ruling did not pin, decided here and recorded as **D-179**: the
+> screened denominator is read from the **rows** where the `screening_start`
+> column exists (a blank cell means "not screened"), and detection of the
+> bypass population is **gated on that column being present** — a file with no
+> `screening_start` column predates the schema, cannot answer the question, and
+> keeps the legacy denominator rather than being reinterpreted as all-bypass.
+
+> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., λ_screening = λ₀, λ_doctor = λ₀·(1 − p_exit)). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
+
+---
 
 ### 5.5 Current Data Format (for Wednesday's Demo)
 - One service stage only (Screening).
@@ -351,6 +428,15 @@ chart failure never blocks the results.
 > supplied binned data + fitted PDF points, so no engine rework was needed.
 > The 6C completion gate is D-124 (Phase 6c.6).
 >
+> **[VERIFIED — 2026-10-03, Phase 8Q.4, D-184]** The **event trace is always
+> visible** and is **not** a toggleable widget. It sits in its own grid row *below*
+> the scrolling results body, with a 240 px ceiling and its own internal scrollbar.
+> The reasoning worth keeping: as the last card *inside* the scrolling list it was
+> one scroll away from not existing, and "always visible" was a default value
+> rather than a property of the layout — so any future widget added below it would
+> have re-broken it silently. A trace you have to scroll to find is a trace that was
+> not read. See `VIVA_ANSWERS.md` for the Q&A form.
+>
 > **[VERIFIED — 2026-09-18, Phase 7D]** The data-derived charts and the data
 > upload/preview UI now share one **Input** tab (tab 2 of four:
 > Simulation | Input | Token Generator | Help). The Simulation tab's former
@@ -392,7 +478,8 @@ It is **not** integrated into the simulator. In the viva, frame it as: *"SPSS wa
 - **FEL** — Future Event List
 - **MLE** — Maximum Likelihood Estimation
 - **ρ (rho)** — Traffic intensity
-- **p_exit** — Probability a patient exits after Screening
+- **p_exit** — Probability a patient exits after Screening, out of the patients who were **screened**
+- **p_bypass** — Probability a patient skips Screening and goes straight from Reception to the Doctor, out of **all** arrivals
 - **λ, μ** — Arrival rate, service rate
 - **Balking** — Customer refuses to join a long queue (out of scope)
 - **Reneging** — Customer leaves before being served (out of scope)
@@ -406,3 +493,84 @@ It is **not** integrated into the simulator. In the viva, frame it as: *"SPSS wa
 3. Gross, D. & Harris, C.M. (1998). *Fundamentals of Queueing Theory*. Wiley.
 4. MathNet.Numerics documentation: https://numerics.mathdotnet.com/
 5. Avalonia UI documentation: https://docs.avaloniaui.net/
+
+## Phase 8Q.5 findings — table structures in the Results panel (2026-10-03)
+
+**[VERIFIED] "Which tables lack serial numbers" was the wrong question.** The
+deeper defect was that `grep -c 'HorizontalAlignment\|TextAlignment'
+src/OpdSimulator.App/Views/ResultsPanel.axaml` returned **0**. No cell in the
+whole panel declared an alignment, so 17 numeric columns across four tables were
+left-aligned. Adding serial columns without fixing alignment would have produced
+tables that look numbered and still cannot be compared down a column.
+
+**[VERIFIED] Two of the seven audit targets were not tables.**
+
+| Target | What it actually is |
+|---|---|
+| Overview metrics | `ItemsControl` → Grid `170,*`, **no header row** — a label:value list. Serial numbers do not apply. |
+| Per-server utilisation | `ItemsControl` of **pre-formatted monospace strings** faking columns with `string.Format`. Converted to a real table. |
+| Chi-square | Real `Grid`, 6 columns. Serial column added. |
+| Per-stage / Performance Measures | Real `Grid`, 10 columns, `#` already present (8Q.3). |
+| Data preview | `ListBox` + `VirtualizingStackPanel`; cells are a horizontal `StackPanel` of positional `Width` doubles. **No row numbers at all**, despite the brief stating otherwise. |
+| Calculations dialog | Code-built `Auto,*` Grid in `CalculationsDialog.axaml.cs:113`, hosted by an empty `<ContentControl x:Name="RowsContainer"/>`. A label:value list. |
+
+**[VERIFIED] `CollapsibleSection` takes exactly one content child.** Adding a
+header `Grid` and a rows `ItemsControl` as siblings produces `AVLN3000`
+("multiple assignments to the property Content"). They need a `StackPanel`.
+
+**[VERIFIED] Headless Avalonia cannot measure text alignment from control
+bounds.** Every cell is stretched to its column, so cell rectangles coincide
+whether the text inside is left- or right-aligned. An alignment test must assert
+the declared `TextAlignment`, or it passes over the defect. Relatedly, Avalonia's
+default `TextAlignment` is `Start`, not `Left` — so "left-aligned" columns need
+an explicit `Left` for the requirement to be readable in the XAML.
+
+**[VERIFIED] A collapsed `CollapsibleSection` realises no rows.** Any test
+asserting on the per-server table must expand it and assert the expansion took
+effect, or every assertion passes vacuously over zero rows (D-169).
+
+**[VERIFIED — owner ruled 2026-10-03]** The per-stage serial header is `#`
+(FR-UI-34, signed off) while the three tables added in 8Q.5 used `No.` (the 8Q.5
+brief). The owner unified all of them to **`#`**, on the grounds that the split came
+from their own two prompts rather than from the implementation, so no requirement
+is amended. All three serial tests assert `#`. See D-188.
+
+**[VERIFIED — pre-existing defect, not fixed here]**
+`DataPreviewTable` computes `RowBackground`, `RowBorderBrush` and
+`RowBorderThickness` per row (`Controls/DataPreviewTableModels.cs:101-112`) but
+its `DataTemplate` (`Controls/DataPreviewTable.axaml:53-74`) binds **none** of
+them, so the FR-UI-17 invalid-row treatment is constructed and discarded. The
+data path is live (`InvalidRows` is exposed and consumed); only the rendering is
+missing.
+
+
+## Phase 8Q.6 findings — the data preview's invalid-row treatment (2026-10-03)
+
+**[VERIFIED] `PreviewRow` was never wrong.** It has computed `RowBackground`,
+`RowBorderBrush` and `RowBorderThickness` for an invalid row since D-080
+(2026-07). The `DataTemplate` bound none of them, so a rejected row rendered
+identically to a good one: no red border, no icon, no reason. The treatment was
+built and thrown away at render time.
+
+**[VERIFIED] FR-UI-20 read `[x]` with a green test that could not have caught this.**
+Its test column names `DataPreviewStoreTests`, which covers the store — which rows
+the validator rejected, and why. The data path was thoroughly tested and the
+rendering path was not tested at all. A requirement marked complete on evidence
+that never touched the defect is the generalisable failure here, not the missing
+binding.
+
+**[VERIFIED] An in-memory assertion would have passed against the broken control.**
+`Assert.Equal(3, rows[1].RowBorderThickness.Left)` is green before and after the
+fix, because the value was always correct. Every new test reads the realised
+`Border` instead. Same shape of mistake as D-185: observing the value rather than
+the location.
+
+**[VERIFIED] The cells are positional fixed widths, so an in-row icon must not be
+a strip element.** `ComputeWidths` assigns each column a pixel width shared by the
+header `Button` and every cell; an icon inside the cell `StackPanel` would shift
+that row's columns right and break alignment with the headers. A fixed-width
+leading gutter plus a matching header spacer keeps every row's columns aligned.
+
+**[VERIFIED] Collapsing the icon with `IsVisible` reintroduces the same shift.**
+A hidden element leaves an auto-sized slot at zero width. `IssueGlyph` returns
+`string.Empty` for a valid row and the width is forced from outside instead.
