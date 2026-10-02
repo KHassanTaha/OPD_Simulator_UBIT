@@ -51,7 +51,7 @@ public class Phase6c6EmptyStateTests
             null,
             Array.Empty<FitReport>(),
             Array.Empty<string>(),
-            SimulationCoordinator.DefaultExitProbability,
+            SimulationCoordinator.DefaultExitProbability, 0.0,
             SimulationCoordinator.MissingArrivalRateMessage));
 
         // A refused run must degrade the whole results panel, not only the

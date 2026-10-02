@@ -731,7 +731,7 @@ public class Phase8NDialogSizingTests
         // Surface: the per-server detail rows under the utilisation chart.
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
-            new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, null));
+            new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, 0.0, null));
         Assert.NotEmpty(results.PerServerDetailLines);
         Assert.All(results.PerServerDetailLines, line =>
         {

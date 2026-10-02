@@ -30,6 +30,29 @@
 2. **Screening** — Single queue, two parallel screening tables.
 3. **Doctor** — Single queue, three parallel doctors (only for patients not exited after screening).
 
+**Direct-to-doctor (bypass) — added 2026-10-03, D-179.** A patient may also
+skip Screening entirely and go from Reception straight to the Doctor with
+probability `p_bypass` (~1 in 6 in the real capture). This is not a stage — it
+is a **route**, which is why the engine models it as a second coin toss on the
+same service completion rather than as a fourth queue. The flow is therefore:
+
+```
+[Arrival] → Reception → ┬→ Screening → ┬→ Exit
+                        │               └→ Doctor → Exit
+                        └→ Doctor (bypass) → Exit
+```
+
+Consequences for the per-stage arrival rates (the D-007 formula is amended
+here, since a bypassed patient arrives downstream **without** passing through
+the stages in between, so their arrival must be *added*):
+
+    λ_reception = λ₀
+    λ_screening = λ₀(1 − p_bypass)
+    λ_doctor    = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit)
+
+With `p_bypass = 0` these collapse to the original single-exit product, which
+is why every pre-existing result is unchanged.
+
 Each stage's `c` above is fixed, but the service distribution `S` is per-stage and
 selectable in the model — see §2.2.
 
@@ -95,7 +118,7 @@ Examples:
 
 If λ ≥ c·μ, then arrivals come in at least as fast as the system can serve them. Over time, the queue grows without bound — the system never reaches steady state. The analytical formulas assume ρ < 1. **Our simulator must refuse to run if any stage has ρ ≥ 1**, because the results would be meaningless.
 
-> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., λ_screening = λ₀, λ_doctor = λ₀·(1 − p_exit)). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
+> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., with bypass off, λ_screening = λ₀ and λ_doctor = λ₀·(1 − p_exit); with bypass on, see §1.2 and D-179). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
 
 ---
 
@@ -219,16 +242,38 @@ Each row of input data represents one patient. Columns:
 | `<stage>_end` | When service at that stage ended |
 | `departure_stage` | Where the patient exited: `Screening`, `Doctor`, `Reception` |
 
-**Exit probability:**
-`p_exit = count(departure_stage = "Screening") / count(departure_stage ∈ {Screening, Doctor})`
+**Exit probability** (corrected 2026-10-03, D-179):
+`p_exit = count(departure_stage = "Screening") / ScreenedPatients`,
+where `ScreenedPatients` counts rows that reached the screening decision —
+rows with a non-empty `screening_start`, or, on a file that has no
+`screening_start` column at all, the legacy population
+`departure_stage ∈ {Screening, Doctor}`.
 
-> **[UNVERIFIED — owner ruling 2026-10-03, Phase 8Q.2, NOT YET IMPLEMENTED]** The denominator above is **wrong** for files containing bypass rows, and the correction is **queued for 8Q.2, not applied in 8Q.1**. The new definition is
-> `p_exit = count(departure_stage = "Screening") / count(non-empty screening_start)`.
-> The present denominator counts `departure_stage ∈ {Screening, Doctor}`, which on the real clinic capture (`opd_collection_28_sep_2026_1.csv`: 109 arrivals, 17 bypass, 92 screened, 88 Screening exits, 21 Doctor visits) gives **0.807**, while the screened-only denominator gives **0.956** — a difference of 0.15 in a parameter that drives whether the Doctor stage is stable at all. The reason is structural, not a rounding matter: a patient who bypassed Screening **has no screening exit to report**, so counting them in the denominator of "of those who reached a decision point, how many stopped at Screening" answers the wrong question. `PExitResult.TotalCandidates` is also to be **renamed** to `ScreenedPatients`, the JSON key `totalCandidates` to `screenedPatients` (with `FitCommand` and `SimulateDataCommand` output updated), and a file with **no** screened patient to throw `DataValidationException("No screened patients in file — p_exit undefined.")`. FR-DATA-6 and D-008 are to be amended in the same phase. **Nothing in the code or the PRD describes this yet**, deliberately — a requirement that describes unimplemented behaviour is a lie in a traceability matrix.
->
-> **[UNVERIFIED — owner ruling 2026-10-03, Phase 8Q.2]** The bypass fraction is `p_bypass = bypassCount ÷ totalArrivals` — **all** arrivals, not the screened subset. On the same capture that is **17 / 109 ≈ 0.156**, and the project's own documents previously carried **0.185** (17 / 92), which divided by the *screened* count while calling it a fraction of arrivals. The two conventions are not interchangeable and the stale figure is the one that reads like a percentage of everyone who walked in. Every UI label, calculation and document must state the 0.156 form.
+**Bypass probability** (new, 2026-10-03, D-179):
+`p_bypass = count(bypass rows) / count(all arrivals)`,
+where a bypass row is one that reached a Doctor with **no** screening record.
+On the real clinic capture (`opd_collection_28_sep_2026_1.csv`: 109 arrivals,
+17 bypass, 92 screened, 88 Screening exits, 21 Doctor visits) this gives
+**p_bypass ≈ 0.156** and **p_exit = 88 / 92 ≈ 0.956**. The project's earlier
+documents carried **0.185** (17 / 92), which divided by the *screened* count
+while calling it a fraction of arrivals — the two conventions are not
+interchangeable, and the stale figure is the one that reads like a percentage
+of everyone who walked in.
 
-> **[VERIFIED — owner clarification, 2026-09-13]** `departure_stage = "Reception"` is treated as a **data anomaly** (a patient leaving at Reception is reneging, which is out of scope). On upload, such rows trigger a **warning** and are **excluded** from the `p_exit` numerator and denominator. They are never modelled as a route.
+> **[VERIFIED — implemented 2026-10-03, Phase 8Q.2, D-179]** Both rulings below were
+> carried as `[UNVERIFIED]` through 8Q.1 and are now **implemented and tested**
+> (`PreprocessTests`, `BypassRoutingTests`, `BypassCoordinatorTests`), with
+> `FR-DATA-6` amended and `FR-DATA-14` / `FR-SIM-11` added at PRD **v1.8.0**.
+> One detail the ruling did not pin, decided here and recorded as **D-179**: the
+> screened denominator is read from the **rows** where the `screening_start`
+> column exists (a blank cell means "not screened"), and detection of the
+> bypass population is **gated on that column being present** — a file with no
+> `screening_start` column predates the schema, cannot answer the question, and
+> keeps the legacy denominator rather than being reinterpreted as all-bypass.
+
+> **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., λ_screening = λ₀, λ_doctor = λ₀·(1 − p_exit)). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
+
+---
 
 ### 5.5 Current Data Format (for Wednesday's Demo)
 - One service stage only (Screening).
@@ -400,7 +445,8 @@ It is **not** integrated into the simulator. In the viva, frame it as: *"SPSS wa
 - **FEL** — Future Event List
 - **MLE** — Maximum Likelihood Estimation
 - **ρ (rho)** — Traffic intensity
-- **p_exit** — Probability a patient exits after Screening
+- **p_exit** — Probability a patient exits after Screening, out of the patients who were **screened**
+- **p_bypass** — Probability a patient skips Screening and goes straight from Reception to the Doctor, out of **all** arrivals
 - **λ, μ** — Arrival rate, service rate
 - **Balking** — Customer refuses to join a long queue (out of scope)
 - **Reneging** — Customer leaves before being served (out of scope)

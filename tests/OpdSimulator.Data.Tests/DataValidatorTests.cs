@@ -203,3 +203,122 @@ public class DataValidatorTests
                                      && i.Reason.Contains("Missing value"));
     }
 }
+/// <summary>
+/// D-179: the exact blank-cell rules that let a direct-to-Doctor patient be
+/// loaded instead of rejected as dirty.
+/// </summary>
+/// <remarks>
+/// Each case is one row of the owner's validity table. The interesting ones are
+/// the last two: they prove the validator is not simply forgiving blanks, but
+/// using the presence of the doctor record as evidence that the patient really
+/// went somewhere.
+/// </remarks>
+public class BypassValidityTests
+{
+    private static DataSet Row(
+        string departure,
+        bool reception = true,
+        bool screening = true,
+        bool doctor = true)
+        => new(
+            "mem://bypass-validity",
+            DateTime.UtcNow,
+            new[] { "arrival_time", "departure_stage", "reception_start", "reception_end",
+                    "screening_start", "screening_end", "doctor_start", "doctor_end" },
+            new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string>
+                {
+                    ["arrival_time"] = "8:15",
+                    ["departure_stage"] = departure,
+                    ["reception_start"] = reception ? "8:16" : "",
+                    ["reception_end"] = reception ? "8:18" : "",
+                    ["screening_start"] = screening ? "8:19" : "",
+                    ["screening_end"] = screening ? "8:22" : "",
+                    ["doctor_start"] = doctor ? "8:23" : "",
+                    ["doctor_end"] = doctor ? "8:28" : "",
+                },
+            });
+
+    [Theory]
+    // Screening exiters have no doctor visit. Reception is always recorded.
+    [InlineData("Screening", true, true, false)]
+    // Direct-to-doctor: no screening record, doctor pair present.
+    [InlineData("Doctor", true, false, true)]
+    // Screened, then seen by a doctor.
+    [InlineData("Doctor", true, true, true)]
+    // Seen by a doctor, doctor_end not stamped in the capture.
+    [InlineData("Doctor", true, true, false)]
+    public void BlankStageCells_OnADepartureRow_AreValid(string departure, bool reception, bool screening, bool doctor)
+    {
+        var issues = DataValidator.ValidateReturningIssues(Row(departure, reception, screening, doctor));
+
+        Assert.True(issues.Count == 0, $"expected no issues, got: {string.Join("; ", issues.Select(i => $"{i.RowNumber}/{i.ColumnName}"))}");
+    }
+
+    [Fact]
+    public void DoctorDepartureWithNoScreeningAndNoDoctor_IsDirty()
+    {
+        // The pair that must still be rejected: a patient recorded as reaching a
+        // doctor who has neither a screening nor a doctor timestamp. This is not a
+        // bypass — it is a row that recorded nothing, and forgiving it would let a
+        // genuinely incomplete capture through as real routing.
+        var issues = DataValidator.ValidateReturningIssues(Row("Doctor", reception: true, screening: false, doctor: false));
+
+        // The blank screening cells are what fails, precisely because there is no
+        // doctor record to vouch for the bypass.
+        Assert.Contains(issues, i => i.ColumnName == "screening_start");
+        Assert.Contains(issues, i => i.ColumnName == "screening_end");
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void DoctorDepartureWithBlankReception_IsDirty_WhateverElseIsPresent(bool screening, bool doctor)
+    {
+        // Reception is the entry to the clinic: a row without it cannot describe a
+        // patient who walked in, so no combination of later cells explains it.
+        var issues = DataValidator.ValidateReturningIssues(Row("Doctor", reception: false, screening: screening, doctor: doctor));
+
+        Assert.Contains(issues, i => i.ColumnName == "reception_start");
+        Assert.Contains(issues, i => i.ColumnName == "reception_end");
+    }
+
+    [Fact]
+    public void ReceptionDeparture_IsRejectedOnTheDepartureValueItself()
+    {
+        // Blank-cell forgiveness does not rescue a Reception departure. Leaving at
+        // Reception is reneging, which D-008 puts out of scope, so the row is
+        // refused on the departure_stage VALUE before any blank rule is consulted —
+        // independently of the fact that its screening and doctor cells are blank.
+        var issues = DataValidator.ValidateReturningIssues(Row("Reception", reception: true, screening: false, doctor: false));
+
+        Assert.Contains(issues, i => i.ColumnName == "departure_stage");
+    }
+
+    [Fact]
+    public void ScreeningExit_WithoutScreeningEnd_IsStillReported()
+    {
+        // The doctor blank is forgiven, but screening_end is not: that timestamp is
+        // the service sample the stage's fitted μ is computed from.
+        var data = new DataSet(
+            "mem://screening-exit",
+            DateTime.UtcNow,
+            new[] { "arrival_time", "departure_stage", "screening_start", "screening_end" },
+            new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string>
+                {
+                    ["arrival_time"] = "8:15",
+                    ["departure_stage"] = "Screening",
+                    ["screening_start"] = "8:20",
+                    ["screening_end"] = "",
+                },
+            });
+
+        var issues = DataValidator.ValidateReturningIssues(data);
+
+        Assert.Contains(issues, i => i.ColumnName == "screening_end");
+    }
+}

@@ -49,6 +49,18 @@ public sealed record SimulationParameters(
     /// collapsed them to the first stage's, deferring per-stage override (D-126). The
     /// coordinator builds each <c>StageSpec</c> from the matching entry.
     /// </summary>
+    /// <summary>
+    /// p_bypass = the share of patients routed straight past Screening to a doctor
+    /// (D-179). Null means "not configured", which the coordinator treats as off.
+    /// </summary>
+    /// <remarks>
+    /// An init property for the same reason as <see cref="StageServiceFamilies"/>:
+    /// a positional parameter would force defaults onto every parameter after it.
+    /// The coordinator resolves the effective value in the same order as p_exit —
+    /// an explicit override wins, then the value fitted from the file, then off.
+    /// </remarks>
+    public double? PBypassOverride { get; init; }
+
     /// <remarks>
     /// Declared as an init property rather than a positional parameter so it can carry a
     /// real default. A positional record parameter cannot default unless every parameter

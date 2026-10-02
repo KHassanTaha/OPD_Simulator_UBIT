@@ -348,6 +348,23 @@ The probability that a patient exits after **Screening** instead of queueing
 for the Doctor stage. Leave it empty to fit it from the `departure_stage`
 column of your file; type a number (e.g. 0.4) to override the fitted value.
 
+The fitted value is a fraction of the **screened** patients only — patients who
+went to the Doctor without being screened are not counted, because they never
+reached the decision this probability describes.
+
+### P-bypass
+
+The probability that a patient goes **straight from Reception to the Doctor**,
+skipping Screening. Some clinics let a patient walk past screening; the file
+records those rows as a doctor visit with no screening times. Leave it empty to
+fit it from your file (roughly 1 in 6 rows in a real capture); type a number to
+override it.
+
+The field appears once your network has **three or more stages** — there has to
+be a stage to skip. On a shorter network the value is ignored and the run
+reports a bypass of **0**, so the number in the receipt always matches what the
+engine actually did.
+
 ---
 
 ## 5. Step-by-Step: Run a Simulation
@@ -737,7 +754,7 @@ What it lists, in order:
 | Arrival process | The arrival rate λ, the mean inter-arrival 1/λ, and the rule the engine used |
 | Service processes | Per stage: the number of servers c, the rate μ per server, the capacity c·μ, the mean service time 1/μ, and the distribution family |
 | Utilisation | The rule (`utilisation = busy time ÷ operating time`), the operating time T, **the two per-server quantities defined below**, each stage's observed utilisation, and **each server's busy time in minutes** plus its **contribution** to the stage |
-| Flow balance | Patients served, throughput, mean queue length, mean wait, and p_exit with its expected split |
+| Flow balance | Patients served, throughput, mean queue length, mean wait, p_exit with its expected split, and the **effective p_bypass** with the share of patients that skipped Screening |
 | Per-stage result | Per stage: patients served, mean wait, mean queue length |
 
 Three things worth knowing:
@@ -1034,7 +1051,8 @@ service times, then prints:
 - **Fitted parameters** (e.g. rate) and the sample mean.
 - **Log-likelihood** and **AIC** (lower = better).
 - **χ², df, p, decision** — if the p-value is below 5%, the fit is **Reject**ed;
-- **p_exit** — the fraction of patients exiting after Screening (used for routing).
+- **p_exit** — the fraction of **screened** patients exiting after Screening (used for routing).
+- **p_bypass** — the fraction of **all** arrivals that went straight to the Doctor (used for routing).
 
 A machine-readable copy is written to `logs/fit-YYYYMMDD-HHMMSS.json`.
 
@@ -1139,7 +1157,8 @@ Shows a visual token for the next arriving patient:
 - **μ (mu)** — Service rate.
 - **ρ (rho)** — Traffic intensity; must be < 1.
 - **M/M/c** — Standard notation for a queueing model.
-- **p_exit** — Probability a patient exits after Screening.
+- **p_exit** — Probability a patient exits after Screening, out of the patients who were screened.
+- **p_bypass** — Probability a patient skips Screening and goes straight from Reception to the Doctor.
 
 ---
 
@@ -1147,6 +1166,8 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-03 | Phase 8Q.2: patients who skip Screening can now be modelled and read from data. A new **p_bypass** field in the Parameters section fits "went straight to the Doctor" from your file, and the **p_exit** fit now counts only the patients who were actually **screened** — before, direct-to-doctor traffic diluted it. Blank screening times on a bypass row are accepted instead of being reported as errors, so the sample bypass file now loads cleanly; blank Reception times still are not (§7.1). The event log now records the destination the patient actually went to, instead of printing the default next stage before the decision was made. A new sample file, `samples/sample_overcapacity.csv`, demonstrates a stage booked beyond its capacity. |
+| 2026-10-03 | Phase 8Q.1: the **Input** tab now has a **Servers** field for each stage the file records, and a **Historical utilisation** line beside it showing `busy ÷ (servers × minutes)` with the division printed so you can check it. The divisor is named on screen — *observed* when the file has a `session_date` column, *spanned* otherwise. A stage above 100 % is shown as recorded, with a warning suggesting more servers, and is never silently capped. **Use for simulation** copies these counts into the Stages configuration once (§7.1b). |
 | 2026-09-26 | Phase 8E: four fixes you may notice. (1) A **single-stage** network now runs even when the fitted `p_exit` is 1.0 — the "every row exits after Screening" message only appears when there is a later stage to reach (§9). (2) Dropdown fields show a **green** focus ring instead of the system blue, matching the rest of the app; the ring is still there when you tab through the form. (3) Opening a dropdown that already has a value now lists **all** the options instead of only the current one, **clicking an option selects it**, and **× clears the value and leaves the list open** so you can pick a replacement straight away. (4) The Clear-all confirmation dialog has more breathing room. §9 and the field descriptions updated |
 | 2026-09-18 | Phase 7D: the **Data** section and the old **Input Analysis** tab are merged into one **Input** tab (tabs are now **Simulation \| Input \| Token Generator \| Help**). The upload button, data preview table, validation banner, distribution-fit charts and the stage-mismatch warning all live on the Input tab. The **data preview** is no longer a Results widget (the "Customise results" list drops it). The Simulation tab's Data section becomes a **Data source status strip** showing which file is in use (or "Entering parameters manually") with a **Manage input →** link to the Input tab, plus a one-line reminder when the file's stages differ from the configured list. §4, §5 step 8, §6 and the "Data source" field description updated |
 | 2026-09-18 | Phase 7C: a **Data source** dropdown at the top chooses between **Fit from an uploaded data file** (default — Data section + comma-list μ override shown) and **Enter parameters manually** (Data section hidden; per-stage **Service rate μ** fields become editable; p_exit defaults to 0.4). **Start Calculation is now a completeness gate** — it stays disabled and a banner names exactly what is missing (D-128, supersedes the old "runnable in principle" behaviour). See §Config fields → "Data source" and "Service rate" |

@@ -275,6 +275,12 @@ public partial class ConfigPanelViewModel : ObservableObject
     public ConfigFieldViewModel PExit { get; } = new();
 
     /// <summary>
+    /// Direct-to-Doctor probability override (D-179); only meaningful for 3+
+    /// stages, because bypass skips a stage and needs one to skip.
+    /// </summary>
+    public ConfigFieldViewModel PBypass { get; } = new();
+
+    /// <summary>
     /// Read-only utilisation per stage, computed live from the current field
     /// values (ρ = λ / (c·μ)); "—" while the data needed is not available.
     /// </summary>
@@ -312,6 +318,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// stages are configured (an early-exit route needs at least one downstream stage).
     /// </summary>
     public bool PExitVisible => TryStageCount(out var n) && n >= 2;
+
+    /// <summary>
+    /// Whether the p_bypass override is shown. Three stages is the floor: bypass
+    /// routes a patient past the middle stage, so a two-stage network has nothing
+    /// to skip and the field would be a control that cannot do anything.
+    /// </summary>
+    public bool PBypassVisible => TryStageCount(out var n) && n >= 3;
 
     // ── Section 5 · Horizon ─────────────────────────────────────────────
 
@@ -537,6 +550,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             ManualLambda.ClearError();
             ManualMuPerStage.ClearError();
             PExit.ClearError();
+            PBypass.ClearError();
         }
 
         OnPropertyChanged(nameof(ParametersSupplied));
@@ -780,6 +794,34 @@ public partial class ConfigPanelViewModel : ObservableObject
         else
         {
             PExit.ClearError();
+        }
+
+        RecomputeBlockingState();
+    }
+
+    /// <summary>
+    /// Blur validation for p_bypass. Same [0, 1) contract as p_exit — the engine
+    /// draws U once per completion and bypasses when U &lt; p, so a probability of
+    /// exactly 1 is a configuration mistake rather than a routing rule (D-179).
+    /// </summary>
+    public void ValidatePBypass()
+    {
+        var value = PBypass.Value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            PBypass.ClearError();
+        }
+        else if (!double.TryParse(value, out var pBypass) || pBypass < 0)
+        {
+            PBypass.SetError("Enter a number between 0 and 1 (exclusive).");
+        }
+        else if (pBypass >= 1)
+        {
+            PBypass.SetError($"Bypass probability must be less than 1. You entered {pBypass}.");
+        }
+        else
+        {
+            PBypass.ClearError();
         }
 
         RecomputeBlockingState();
@@ -1138,6 +1180,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
         PExit.Value = "";
+        PBypass.Value = "";
         IsStageMismatchWarningVisible = false;
         StageMismatchMessage = "";
         ParametersIsOptionalEnabled = false;
@@ -1826,6 +1869,13 @@ public partial class ConfigPanelViewModel : ObservableObject
                 ? pExit
                 : null;
 
+        // Same shape as p_exit. Blank means "not overridden", which lets the
+        // coordinator fall back to the value fitted from the file.
+        double? pBypassOverride = ParametersSupplied && !string.IsNullOrWhiteSpace(PBypass.Value)
+            && double.TryParse(PBypass.Value, out var pBypass) && pBypass >= 0 && pBypass < 1
+                ? pBypass
+                : null;
+
         var runMode = ActiveRunMode;
         int generatorDays = runMode == RunMode.MultiDay && int.TryParse(Days.Value, out var days)
             ? days
@@ -1860,6 +1910,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             pExitOverride,
             EffectiveTraceLevel)
         {
+            PBypassOverride = pBypassOverride,
             ServiceFamilies = serviceFamilies,
             ServiceRates = serviceRates,
             LambdaSource = SelectedLambdaSource(),

@@ -46,6 +46,9 @@
                     <TextBlock Text="{Binding EffectiveExitText}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <TextBlock Text="{Binding EffectiveBypassText}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
                 </StackPanel>
                 <ToggleButton Grid.Column="1"
                               x:Name="CustomiseToggle"

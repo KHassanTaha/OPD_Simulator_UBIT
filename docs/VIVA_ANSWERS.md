@@ -556,3 +556,138 @@ getting a silent refusal about a control scrolled out of sight. A run you are
 entitled to perform should never fail because of a control it does not show. I
 pinned both directions with a pair of tests, because the calendar-mode test
 would pass just as well if the field were ignored everywhere.
+
+## Phase 8Q.2 — Direct-to-doctor routing, and the p_exit denominator (2026-10-03)
+
+**Q. What did the project do with a patient who reaches a doctor without being
+screened?**
+
+Before this phase it had no honest answer. The validator reported the row as
+dirty — 8 errors for 4 rows in the committed sample — so a quarter of the real
+clinic capture could not be loaded at all. Screening such a patient anyway
+would have invented a service the clinic never performed; rejecting the file
+would have thrown away real observations. The engine now carries
+`p_bypass` as a second coin toss on the *same* service completion that already
+decides the screening exit: after Reception finishes, draw for the exit as
+before, and if the patient did not exit, draw again — below the threshold means
+go straight to the Doctor, above it means queue for Screening.
+
+**Q. Why is it a second coin toss and not a fourth stage or a "skip" flag?**
+
+Because it is the *same kind of decision* as the exit. A reader who understands
+`p_exit` now understands `p_bypass` without learning anything new, and the
+engine keeps exactly one place where routing happens. A flag would need its own
+branching logic in three places, and a stage would be a lie — there is no
+queue, no server and no service distribution at "Screening was skipped".
+
+**Q. Why did you reject a bypass source stage equal to the exit stage?**
+
+Because then two coin tosses happen on one completion and the destination
+depends on which `if` was written first. That is not a style objection: it means
+the model's answer is decided by source-code ordering, and reordering the two
+lines silently changes every result. The constructor refuses the combination
+instead, so the ambiguity cannot exist.
+
+**Q. Why is the bypass draw conditional? What would happen if you always drew?**
+
+The draw is guarded by `BypassEnabled`, which is false whenever
+`p_bypass == 0`. If it ran unconditionally, every existing run would consume
+one extra random number per service completion. That would change every
+FNV-1a64 hash in `GeneratedServiceSamples_AreStableAcrossRuns`, break the
+golden trace fixture, and quietly restate the project's reproducibility claims.
+The hashes are byte-identical after this change, and that is the evidence the
+feature is purely additive. This was the single most important detail in the
+implementation.
+
+**Q. You changed the formula for per-stage arrival rates. Why?**
+
+The old one was a product: λᵢ = λ₀ × Π(1 − pⱼ) over the exit stages before i. A
+product can only ever *remove* arrivals, because it assumes every patient
+passes through every stage in order. A bypassed patient does not — they appear
+at the Doctor having skipped Screening — so their arrival has to be *added*, and
+a single-exit product has no way to add anything. The replacement propagates a
+probability mass forward and multiplies by λ₀ at the end:
+
+    λ_reception = λ₀
+    λ_screening = λ₀(1 − p_bypass)
+    λ_doctor    = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit)
+
+Each stage's λ is the **sum of every route that reaches it**. With `p_bypass = 0`
+it collapses to the original product, which is how I know the change is a
+generalisation rather than a different model — and every existing test passes
+unmodified.
+
+**Q. What was wrong with the p_exit denominator, and why does it matter?**
+
+The denominator was "rows whose `departure_stage` is Screening or Doctor",
+i.e. everyone with a departure stage. Once direct-to-doctor traffic exists,
+that population includes patients who **never reached the screening decision at
+all**, so `p_exit` was diluted by exactly the traffic this phase exists to
+model: the more direct-to-doctor traffic the clinic had, the lower the reported
+`p_exit`. On the real capture the old denominator gives 0.807 and the correct
+one gives 0.956 — a difference of 0.15 in the parameter that decides whether the
+Doctor stage is stable. The denominator is now the screened population, and
+`TotalCandidates` was renamed `ScreenedPatients`, because a correct number
+under a name that describes the wrong population gets read wrongly later.
+
+**Q. How is the bypass detected in a data file, and what if the column is
+missing?**
+
+A row that reaches a Doctor with a blank `screening_start`. Detection is gated
+on the `screening_start` **column** existing: a blank cell in a file that has
+the column means "not screened", but a missing column means a pre-bypass schema
+that cannot answer the question — and inferring from a missing column would
+have re-read every legacy file as all-bypass. Those files keep the legacy
+denominator.
+
+**Q. Which blank cells does the validator forgive, and why those and no others?**
+
+Three, and the third is the interesting one. Reception is **never** forgivable:
+a row with no reception times describes someone who never entered the clinic. A
+blank `doctor_end` on a Doctor departure **is** forgivable, because the capture's
+end stamps are sometimes missing and nothing is lost — the patient has already
+left. A blank `screening_*` on a Doctor departure is forgivable **only when a
+doctor record is present**, and that condition is the whole fix: it is the
+evidence that distinguishes "skipped screening" from "forgot to record it". A
+row with neither a screening nor a doctor visit is still rejected, so an
+incomplete capture cannot pass as real routing. The asymmetry with Screening is
+deliberate: a blank `screening_end` on a *Screening* departure is still an error,
+because that timestamp is the service sample μ is fitted from — forgiving it
+would discard data rather than record a routing outcome.
+
+**Q. Why did you move the `EndService` row in the trace?**
+
+Because it was contradicting itself. The row was emitted *before* the exit draw,
+so it always printed the default next stage — a patient leaving at Screening was
+recorded as `→ Doctor` and then immediately recorded as an exit. A reader
+replaying the trace could not tell which line was true. Moving the emission
+after both decisions means the printed destination is the one that happened, and
+the queue figures stay correct because routing only ever touches the queue being
+entered, never the one being left. `q` did not move.
+
+**Q. What happens if the user sets a bypass on a two-stage network?**
+
+The run proceeds with the bypass normalised to zero and the receipt reports
+**zero**, not what they typed. Refusing the run would be disproportionate for a
+harmless slip, and honouring it would mean showing a number the engine did not
+use — which is the defect D-176 exists to prevent. The receipt and the run
+cannot disagree.
+
+**Q. Anything in this phase you would do differently?**
+
+Yes. I wrote two conservation assertions for the routing tests — "every patient
+who leaves Reception is either screened or reaches the Doctor" — and both were
+wrong, because `PatientsServed` counts service *completions at each stage*, so
+a patient who is screened and then continues is counted at both, and the counts
+are not additive. The assertions now compare *flow rates* over a horizon long
+enough to be stable rather than exact counts over a short one. The failure was
+in my test, not the engine, but it is worth recording because a test written
+against a wrong belief passes happily and tells you nothing.
+
+Second: `departure_stage = Reception` is still rejected on its own value, because
+D-008 treats reneging as out of scope. The owner's validity table describes that
+row's *blank cells* as acceptable, and I kept the rejection, because relaxing
+`IsValidDepartureStage` was not part of the ruling and D-008 should not be
+overturned by implication. It is pinned by a test and flagged in D-180 rather
+than changed quietly. If the owner wants reneging modelled, that is a separate
+decision with its own probability and its own route.

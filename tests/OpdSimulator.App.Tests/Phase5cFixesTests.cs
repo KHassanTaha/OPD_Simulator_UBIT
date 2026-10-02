@@ -69,7 +69,7 @@ public class Phase5cFixesTests
 
             vm.Results.StartRun();
             vm.Results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
-                new[] { "t=0 ARRIVAL patient=1 queueLen=1" }, SimulationCoordinator.DefaultExitProbability, null));
+                new[] { "t=0 ARRIVAL patient=1 queueLen=1" }, SimulationCoordinator.DefaultExitProbability, 0.0, null));
             window.UpdateLayout();
 
 // The outer ScrollViewer is the one whose content carries BOTH the

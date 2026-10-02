@@ -119,7 +119,7 @@ public class Phase6c4UtilisationTests
         var results = new ResultsPanelViewModel();
         results.StartRun();
         results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
-            Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+            Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
             SimulationCoordinator.MissingArrivalRateMessage));
 
         Assert.False(results.HasUtilisationChart);

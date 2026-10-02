@@ -2,6 +2,82 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-10-03 Phase 8Q.2
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- [x] **Direct-to-doctor routing in Core** (D-179). `NetworkTopology` gains `BypassProbability`, `BypassStageIndex`, `BypassDestinationIndex`, all constructor-validated; `p == 0` normalises both indices to −1; a destination that is not strictly after its source is refused, and so is a source equal to the exit stage. `RouteToNextStage` → `RouteTo`; the bypass draw sits after the exit draw at the same call site, guarded by `BypassEnabled` so **no run with bypass off consumes an extra RNG value**; `EndService` is emitted after both decisions so the recorded destination is the one that happened.
+- [x] **D-007 amended: per-stage inflow is now a sum over routes** (D-179). `EffectiveArrivalRate` propagates a probability mass instead of multiplying one exit product. With bypass off it collapses to the original product, so every existing number is unchanged.
+- [x] **`p_exit` fitted over the screened population** (D-179). `PExitResult.TotalCandidates` → `ScreenedPatients`, `BypassExits` added, CLI JSON key `screenedPatients`, and an all-bypass file throws instead of reporting `0/0`.
+- [x] **`p_bypass` detected and fitted** (D-179, D-180). Inferred from a blank `screening_start` on a Doctor departure, gated on the **column** existing; `p_bypass = bypass rows ÷ all arrivals`.
+- [x] **The validator gap 8Q.1 deliberately left open is closed** (D-180). Three forgiveness rules and no more; `samples/sample_bypass.csv` goes from 8 issues to 0.
+- [x] **App wiring** (D-182). `SimulationParameters.PBypassOverride`, `RunOutcome.EffectiveBypassProbability`, coordinator precedence manual → fitted → 0, bypass applied only at 3+ stages, the p_bypass field with blur validation, and calculations-receipt lines for the bypass and the resulting λ_screening / λ_doctor.
+- [x] **The over-capacity frame now runs in CI** (D-181). New committed fixture `samples/sample_overcapacity.csv` (200 busy minutes against 155 observed = 129 %); the real capture keeps its own explicitly-skipping test under a new filename.
+
+In Progress
+Nothing. Phase 8Q.2 is implemented, gated and documented; awaiting the commit, the push, and the owner's visual inspection of the frames (B-012).
+
+What is complete:
+Core, Data, Cli, App, the two committed fixtures, all tests, and every documentation file. Release and Debug both build 0/0 and the full suite is green in each.
+
+What remains:
+Commit + push to `origin/fix/phase-8q` with the owner-specified message, then this handoff. 8Q.3 waits for `go`.
+
+Next Session Should Start With
+Owner visual inspection of `phase-8q-input-servers-warning.png` (now CI-rendered from the synthetic fixture) and `phase-8q-real-capture.png` (still local-only) — B-012.
+
+Blocked
+B-012: twenty-two headless screenshot frames have never been looked at by a human, and this host has no image input (D-089).
+
+Git State
+Commits made this session: (one pending — `feat: direct-to-doctor routing (bypass screening) (Phase 8Q.2)`)
+Pushed to origin: No — the 8Q.2 commit has not been made yet; 8Q.1 (`98e83ac`) is the last push.
+Uncommitted changes: Core/Data/Cli/App sources and tests, `.gitignore`, `samples/sample_bypass.csv` (now clean) and the new `samples/sample_overcapacity.csv`, plus nine documentation files.
+
+Build & Test
+dotnet build: PASS — Release and Debug, both `--no-incremental`, 0 warnings / 0 errors.
+dotnet test: PASS — 751/751 in Release and again in Debug (Core 125 / Data 128 / Cli 35 / App 463).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Stages/NetworkTopology.cs: bypass properties, validation, normalisation, mass-propagating `EffectiveArrivalRate`
+src/OpdSimulator.Core/Engine/Engine.cs: `RouteTo` rename, bypass draw, `EndService` moved after both decisions
+src/OpdSimulator.Data/Preprocess/PExitCalculator.cs: screened-only denominator, `ComputeBypassProbability`, all-bypass throw
+src/OpdSimulator.Data/Preprocess/PExitResult.cs: `ScreenedPatients`, `BypassExits`
+src/OpdSimulator.Data/Validation/DataValidator.cs: the three blank-cell rules
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: bypass resolution and 3+ stage gate
+src/OpdSimulator.App/Models/SimulationParameters.cs, RunOutcome.cs: `PBypassOverride`, `EffectiveBypassProbability`
+src/OpdSimulator.App/Services/DataAnalyzer.cs, Models/DataBindingResult.cs: `FittedBypassProbability`
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs, Views/ConfigPanel.axaml(.cs): the p_bypass field
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs, ViewModels/ResultsPanelViewModel.cs, Views/ResultsPanel.axaml: bypass reporting
+src/OpdSimulator.Cli/Commands/FitCommand.cs, SimulateDataCommand.cs: `screenedPatients`, bypass in the fit report
+tests/OpdSimulator.Core.Tests/BypassRoutingTests.cs: new
+tests/OpdSimulator.Core.Tests/NetworkTopologyTests.cs, StageFamilyDispatchTests.cs: bypass inflow/rho; hashes unchanged
+tests/OpdSimulator.Data.Tests/DataValidatorTests.cs, PreprocessTests.cs: `BypassValidityTests`, denominator and bypass cases
+tests/OpdSimulator.App.Tests/BypassCoordinatorTests.cs: new
+tests/OpdSimulator.App.Tests/Phase8Q1Tests.cs, Phase8Q1Screenshot.cs: fixture assertion inverted; frame re-pointed at CI
+tests/OpdSimulator.App.Tests/Phase4bConfigTests.cs: Parameters field count 3 → 4
+samples/sample_overcapacity.csv: added; `samples/sample_bypass.csv`: now validates clean
+.gitignore: allowlist the new fixture
+docs/: D-179..D-182, PRD v1.8.0, REQUIREMENTS, CONTEXT, USER_MANUAL, VIVA_ANSWERS, DEV_LAUNCH, TODO, BLOCKERS, PROGRESS
+
+Decisions Made
+D-179 — direct-to-doctor routing; conditional draw; the D-007 amendment. `docs/DECISIONS.md`
+D-180 — the three blank-cell forgiveness rules, and why Reception is never one of them. `docs/DECISIONS.md`
+D-181 — the over-capacity frame is taken from a committed synthetic fixture so CI can render it. `docs/DECISIONS.md`
+D-182 — bypass is normalised away on a network that cannot express it, and the receipt reports what ran. `docs/DECISIONS.md`
+
+Assumptions Added/Changed
+`p_bypass` detection reads the **rows** where `screening_start` exists and is **gated on that column** — [VERIFIED] in CONTEXT §5.4, decided here because the owner ruling did not pin it.
+`departure_stage = Reception` stays rejected on its own value (D-008) while its blank cells are accepted — [VERIFIED] as a deliberate scope decision, pinned by test and flagged in D-180 rather than changed quietly.
+`p_bypass` defaults to **0**, unlike `p_exit`'s 0.4 — [VERIFIED] in D-179; there is no documented norm for skipping screening.
+
+Notes for Next Session
+Three of my own test assertions were wrong and are recorded in DECISIONS/TODO because each would have passed over a real defect: `PatientsServed` counts service completions **at each stage**, so a patient who is screened and then continues is counted at both and per-stage counts are not additive. Conservation must be asserted as a flow rate over a stable horizon, not as exact counts. If a future phase adds a stage, that trap is still there.
+`docs/CONTEXT.md` contained a duplicated §3-§5 block; the stale copy is removed. If a §-number reference looks wrong in another document, check whether it was written against the duplicate.
+Still open and deliberately not in 8Q.2: the verdict-threshold classifier (green < 0.9 / amber [0.9, 1) / red ≥ 1) and the always-visible trace (FR-UI-34).
+
 ## Session Handoff — 2026-10-03 Phase 8Q.1
 Branch: `fix/phase-8q`
 Status: In-Progress (work complete and gated; owner visual inspection outstanding)

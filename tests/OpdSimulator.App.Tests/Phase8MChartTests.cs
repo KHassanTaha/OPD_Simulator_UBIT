@@ -184,7 +184,7 @@ public class Phase8MChartTests
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(ElevenBarResult(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
         // One detail line per server, each naming its stage and number, and each
         // saying the server's OWN utilisation, its contribution, and the stage
@@ -497,7 +497,7 @@ public class Phase8MQueueAndCalculationsTests
         results.StartRun();
         results.CompleteRun(
             new RunOutcome(QueueResult(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
         Assert.True(results.HasCalculations);
         Assert.Contains("RUN CONFIGURATION", results.CalculationsText, StringComparison.Ordinal);
@@ -509,7 +509,7 @@ public class Phase8MQueueAndCalculationsTests
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(ElevenBarResultForLegend(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
-                Array.Empty<string>(), 0.4, null));
+                Array.Empty<string>(), 0.4, 0.0, null));
 
         // One entry per stage, in stage order, each painted with the colour that
         // stage's charts used.

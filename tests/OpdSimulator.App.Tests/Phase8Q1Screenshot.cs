@@ -84,22 +84,20 @@ public class Phase8Q1Screenshot
         }
     }
 
+    /// <summary>
+    /// The real clinic capture's own over-capacity frame, kept separate from the
+    /// synthetic one so the committed fixture can run in CI without losing the
+    /// picture of the actual figure (D-179).
+    /// </summary>
+    /// <remarks>
+    /// Skips by design: the capture is real operational data and deliberately not
+    /// committed (ruling 1), so CI never has it. What this frame adds over the
+    /// synthetic one is the real number; the warning behaviour itself is asserted
+    /// in HistoricalMetrics_BusyTimeAboveCapacity_ReportsWarningAndDoesNotClamp.
+    /// </remarks>
     [AvaloniaFact]
-    public void Render_InputHistoricalUtilisationAboveCapacity_SavePhase8qInputServersWarningPng()
+    public void Render_InputHistoricalUtilisationRealCapture_SavePhase8qRealCapturePng()
     {
-        // The real clinic capture at c = 1, where the recorded busy time exceeds
-        // the recorded capacity. This is the only file that shows it.
-        //
-        // SKIPPED when the capture is absent, and it is absent by design: the
-        // clinic file is real operational data and deliberately not committed
-        // (ruling 1), so CI never has it. Skipping is the honest outcome — the
-        // alternative is to assert the warning against a committed fixture that
-        // never exceeds 100% and so never shows it, which is a green test standing
-        // in for evidence that does not exist.
-        //
-        // The behaviour is asserted everywhere else, against constructed data, in
-        // HistoricalMetrics_BusyTimeAboveCapacity_ReportsWarningAndDoesNotClamp.
-        // What this frame adds is the picture of the real figure, for review (§18).
         var clinicFile = Sample("opd_collection_28_sep_2026_1.csv");
         if (!File.Exists(clinicFile))
         {
@@ -114,6 +112,50 @@ public class Phase8Q1Screenshot
             main.Config.ApplyLoadedFile(clinicFile);
             SelectInputTab(window);
 
+            foreach (var row in main.InputTab.ServerCounts)
+                row.Servers = "1";
+
+            window.UpdateLayout();
+
+            var screening = main.InputTab.HistoricalMetrics.Stages
+                .Single(r => r.StageName == "Screening");
+
+            Assert.True(screening.HasCapacityWarning,
+                "the real capture exceeds a single screening server's capacity");
+            Assert.True(screening.Utilisation > 1.0, "the raw figure must not be clamped");
+
+            Save(window, "phase-8q-real-capture.png");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Render_InputHistoricalUtilisationAboveCapacity_SavePhase8qInputServersWarningPng()
+    {
+        // Committed synthetic fixture: 10 screening visits of 20 minutes each =
+        // 200 busy minutes against a single server's 155 observed minutes, so the
+        // utilisation is 129% and the warning must show (D-179).
+        //
+        // This test used to early-return on the real clinic capture, which meant
+        // CI never rendered the warning at all — a green test standing in for a
+        // frame nobody could look at. The synthetic file reaches the same
+        // condition without committing operational data, so this path now runs
+        // everywhere. The real capture's own frame is
+        // Render_InputHistoricalUtilisationRealCapture_SavePhase8qRealCapturePng,
+        // which still skips by design.
+        var fixture = Sample("sample_overcapacity.csv");
+
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            var main = RequireMain(window);
+            main.Config.ApplyLoadedFile(fixture);
+            SelectInputTab(window);
+
             // One server each — which is what makes the recorded busy time exceed
             // the recorded capacity on this file.
             foreach (var row in main.InputTab.ServerCounts)
@@ -121,11 +163,11 @@ public class Phase8Q1Screenshot
 
             window.UpdateLayout();
 
-            // The capture has no reception columns, so the fields follow the file:
-            // Screening and Doctor only. Asserted so the frame cannot quietly drift
-            // into offering a Reception field the data cannot support.
+            // The fixture keeps sample_3stage_clinic.csv's full header, so all
+            // three fields appear; every row's departure stage is Screening, so
+            // Doctor is offered a field that has no visits behind it.
             Assert.Equal(
-                new[] { "Screening", "Doctor" },
+                new[] { "Reception", "Screening", "Doctor" },
                 main.InputTab.ServerCounts.Select(r => r.StageName).ToArray());
 
             var screening = main.InputTab.HistoricalMetrics.Stages
@@ -133,7 +175,7 @@ public class Phase8Q1Screenshot
 
             Assert.True(
                 screening.HasCapacityWarning,
-                "this file's screening time exceeds a single server's capacity, so the warning must show");
+                "200 busy minutes on one server over 155 observed minutes must warn");
             Assert.Contains("Raise the server count", screening.CapacityWarning);
 
             // The raw figure survives: clamping to 100% would hide the very

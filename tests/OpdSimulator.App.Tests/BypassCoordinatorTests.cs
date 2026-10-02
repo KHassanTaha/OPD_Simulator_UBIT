@@ -1,0 +1,119 @@
+using OpdSimulator.App.Models;
+using OpdSimulator.Core.Distributions;
+using OpdSimulator.Data.Parameters;
+using OpdSimulator.App.Services;
+using Xunit;
+
+namespace OpdSimulator.App.Tests;
+
+/// <summary>
+/// Phase 8Q.2 (D-179): the GUI→coordinator path for the direct-to-Doctor
+/// probability.
+/// </summary>
+/// <remarks>
+/// The Core routing is covered in Core.Tests; what matters here is that the
+/// value survives the trip from the file, through the config panel, into the
+/// topology — and that a network which cannot express a bypass says so instead of
+/// silently running a different experiment.
+/// </remarks>
+public class BypassCoordinatorTests
+{
+    private static SimulationParameters Parameters(
+        int stageCount = 3,
+        double? pBypassOverride = null,
+        double? manualLambda = 0.5) => new(
+        ParameterMode.RateWise,
+        "Exponential",
+        manualLambda,
+        Enumerable.Range(1, stageCount).Select(i => i == 1 ? "Reception" : i == stageCount ? "Doctor" : "Screening").ToArray(),
+        Enumerable.Repeat(2, stageCount).ToArray(),
+        Enumerable.Repeat<double?>(null, stageCount).ToArray(),
+        RunMode.ClinicDay,
+        HorizonMinutes: 600,
+        GeneratorDays: 1,
+        StartDay: DayOfWeek.Monday,
+        DailyCap: null,
+        Seed: 42,
+        PExitOverride: null,
+        "Standard")
+    {
+        ServiceRates = Enumerable.Repeat<double?>(1.0, stageCount).ToArray(),
+        ServiceFamilies = Enumerable.Repeat(
+            new DistributionSpec(DistributionFamily.Deterministic, Mean: 1.0), stageCount).ToArray(),
+        PBypassOverride = pBypassOverride,
+    };
+
+    [Fact]
+    public void Override_WinsOverTheFittedValue()
+    {
+        var binding = new DataBindingResult("mem://x", null, Array.Empty<Data.Validation.ValidationIssue>(), null,
+            0.5, Array.Empty<string>(), Array.Empty<double>(), 0.4, 0, 0, 0,
+            Array.Empty<double>(), new Dictionary<string, IReadOnlyList<double>>())
+        {
+            FittedBypassProbability = 0.15,
+        };
+
+        var parameters = Parameters(pBypassOverride: 0.30);
+
+        Assert.Equal(0.30, SimulationCoordinator.ResolveBypassProbability(parameters, binding));
+    }
+
+    [Fact]
+    public void FittedValue_IsUsedWhenNoOverrideIsTyped()
+    {
+        var binding = new DataBindingResult("mem://x", null, Array.Empty<Data.Validation.ValidationIssue>(), null,
+            0.5, Array.Empty<string>(), Array.Empty<double>(), 0.4, 0, 0, 0,
+            Array.Empty<double>(), new Dictionary<string, IReadOnlyList<double>>())
+        {
+            FittedBypassProbability = 0.15,
+        };
+
+        Assert.Equal(0.15, SimulationCoordinator.ResolveBypassProbability(Parameters(), binding));
+    }
+
+    [Fact]
+    public void NoOverrideAndNoData_MeansBypassOff()
+    {
+        // Not 0.4 the way p_exit defaults: there is no documented norm for
+        // skipping screening, so an invented default would route patients through
+        // a stage the user never asked for.
+        Assert.Equal(0.0, SimulationCoordinator.ResolveBypassProbability(Parameters(), binding: null));
+    }
+
+    [Fact]
+    public void ThreeStageNetwork_AppliesTheBypassAndReportsItBack()
+    {
+        var outcome = SimulationCoordinator.Run(Parameters(pBypassOverride: 0.25), binding: null);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal(0.25, outcome.EffectiveBypassProbability);
+
+        // λ_screening loses the bypassed share, λ_doctor gains it (D-007 as
+        // amended). Reception is untouched.
+        var screening = outcome.Result!.StageMetrics.Single(m => m.StageName == "Screening");
+        var doctor = outcome.Result.StageMetrics.Single(m => m.StageName == "Doctor");
+        Assert.Equal(0.5 * 0.75, screening.ArrivalRate, 3);
+        Assert.True(doctor.ArrivalRate > 0.5 * 0.25, "Doctor inflow must include the bypass share");
+    }
+
+    [Fact]
+    public void TwoStageNetwork_NormalisesTheBypassToZero()
+    {
+        // There is no middle stage to skip, so the routing is meaningless. The run
+        // still happens; the outcome reports 0 rather than the typed value, so the
+        // calculations text cannot claim a bypass the engine did not perform.
+        var outcome = SimulationCoordinator.Run(Parameters(stageCount: 2, pBypassOverride: 0.25), binding: null);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal(0.0, outcome.EffectiveBypassProbability);
+    }
+
+    [Fact]
+    public void BypassOff_LeavesScreeningInflowAtTheFullArrivalRate()
+    {
+        var outcome = SimulationCoordinator.Run(Parameters(pBypassOverride: 0.0), binding: null);
+
+        var screening = outcome.Result!.StageMetrics.Single(m => m.StageName == "Screening");
+        Assert.Equal(0.5, screening.ArrivalRate, 3);
+    }
+}

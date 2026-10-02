@@ -17,12 +17,14 @@ using Serilog;
 /// <param name="Fits">Fit reports (empty when no data file was used).</param>
 /// <param name="TraceLines">Rendered trace lines at the requested level.</param>
 /// <param name="EffectiveExitProbability">Exit probability the run actually used.</param>
+/// <param name="EffectiveBypassProbability">Direct-to-Doctor probability the run actually used (D-179).</param>
 /// <param name="Error">Clean refusal/error message, or null on success.</param>
 public sealed record RunOutcome(
     SimulationResult? Result,
     IReadOnlyList<FitReport> Fits,
     IReadOnlyList<string> TraceLines,
     double EffectiveExitProbability,
+    double EffectiveBypassProbability,
     string? Error);
 
 /// <summary>
@@ -87,6 +89,10 @@ public static class SimulationCoordinator
         // ── Resolve routing (D-008/D-015/D-104) ─────────────────────────────
         double exitProbability = ResolveExitProbability(parameters, binding);
 
+        // Direct-to-Doctor (D-179). Resolved here so the outcome can report what
+        // the run actually used even when the run is refused later on.
+        double bypassProbability = ResolveBypassProbability(parameters, binding);
+
         // Exit routing only means something when there IS a downstream stage to
         // reach. In a single-stage network every patient leaves after the only
         // stage, so a fitted p_exit = 1.0 is the correct (and only possible)
@@ -98,7 +104,7 @@ public static class SimulationCoordinator
             // Only a fitted value can reach 1.0 here: manual overrides are
             // config-validated to [0, 1). Surface the specific "no downstream
             // route" meaning instead of the raw Core message (5-F).
-            return Refused(fits, exitProbability, FittedPExitEqualsOneMessage);
+            return Refused(fits, exitProbability, bypassProbability, FittedPExitEqualsOneMessage);
         }
 
         // For a single-stage network the exit probability is a routing no-op.
@@ -122,24 +128,39 @@ public static class SimulationCoordinator
                 : binding?.FittedArrivalRate);
         if (!(arrivalRate is > 0))
         {
-            return Refused(fits, exitProbability, MissingArrivalRateMessage);
+            return Refused(fits, exitProbability, bypassProbability, MissingArrivalRateMessage);
         }
 
         var stageResult = BuildStageSpecs(parameters, binding);
         if (stageResult.Specs is null)
         {
-            return Refused(fits, exitProbability,
+            return Refused(fits, exitProbability, bypassProbability,
                 string.Format(MissingServiceRateMessage, stageResult.MissingStageName ?? "?"));
         }
 
         int exitStageIndex = routingExitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
+
+        // Bypass happens at Reception — the first stage — and lands on the last
+        // stage, so it needs at least three stages to skip one. With a two-stage
+        // network there is nothing in between to jump over, and a single-stage
+        // network has nothing to jump to, so both are normalised to "off" rather
+        // than refused: the user asked for something meaningless, and dropping it
+        // silently would be worse than saying so, so the effective value reported
+        // back is 0 and the calculations text says why.
+        bool bypassRouteable = parameters.StageNames.Count >= 3;
+        double routingBypassProbability = bypassRouteable ? bypassProbability : 0.0;
+        int bypassStageIndex = routingBypassProbability > 0 ? 0 : -1;
+        int bypassDestinationIndex = routingBypassProbability > 0 ? parameters.StageNames.Count - 1 : -1;
 
         // G4: build INSIDE the try so a topology-level refusal (the fitted
         // p_exit = 1.0 Constructor OutOfRange) becomes a banner, never an
         // unhandled exception.
         try
         {
-            var topology = new NetworkTopology(arrivalRate.Value, stageResult.Specs!, exitStageIndex, routingExitProbability);
+            var topology = new NetworkTopology(
+                arrivalRate.Value, stageResult.Specs!,
+                exitStageIndex, routingExitProbability,
+                routingBypassProbability, bypassStageIndex, bypassDestinationIndex);
 
             var traceLevel = TraceLevelFromName(parameters.TraceLevelName);
             var sink = new CollectionTraceSink(traceLevel);
@@ -151,17 +172,17 @@ public static class SimulationCoordinator
                     parameters.GeneratorDays, parameters.Seed, parameters.DailyCap, sink);
 
             status?.Invoke(string.Empty);
-            return new RunOutcome(result, fits, sink.Lines, exitProbability, null);
+            return new RunOutcome(result, fits, sink.Lines, exitProbability, routingBypassProbability, null);
         }
         catch (UnstableSystemException ex)
         {
             Log.Warning(ex, "Run refused: unstable configuration");
-            return Refused(fits, exitProbability, ex.Message);
+            return Refused(fits, exitProbability, bypassProbability, ex.Message);
         }
         catch (ArgumentOutOfRangeException ex) when (string.Equals(ex.ParamName, "exitProbability", StringComparison.Ordinal))
         {
             Log.Warning(ex, "Run refused: exit probability out of the [0, 1) contract");
-            return Refused(fits, exitProbability, ex.Message);
+            return Refused(fits, exitProbability, bypassProbability, ex.Message);
         }
     }
 
@@ -322,8 +343,9 @@ public static class SimulationCoordinator
         return double.IsFinite(rate) && rate > 0 ? rate : null;
     }
 
-    private static RunOutcome Refused(IReadOnlyList<FitReport> fits, double exitProbability, string message)
-        => new(null, fits, Array.Empty<string>(), exitProbability, message);
+    private static RunOutcome Refused(
+        IReadOnlyList<FitReport> fits, double exitProbability, double bypassProbability, string message)
+        => new(null, fits, Array.Empty<string>(), exitProbability, bypassProbability, message);
 
     /// <summary>
     /// The exit probability the run uses: manual override, else the data-fitted
@@ -342,6 +364,28 @@ public static class SimulationCoordinator
         }
 
         return DefaultExitProbability;
+    }
+
+    /// <summary>
+    /// The direct-to-Doctor probability the run uses (D-179): manual override,
+    /// else the value fitted from the file, else 0 (bypass off).
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT given a non-zero default the way
+    /// <see cref="ResolveExitProbability"/> has one. p_exit has a defensible
+    /// fallback because screening exit is the documented norm; bypass has no
+    /// such precedent, so inventing a default would put patients through a
+    /// route the user never asked for and never saw in their data.
+    /// </remarks>
+    internal static double ResolveBypassProbability(SimulationParameters parameters, DataBindingResult? binding)
+    {
+        if (parameters.PBypassOverride is { } manual)
+            return manual;
+
+        if (binding?.FittedBypassProbability is { } fitted)
+            return fitted;
+
+        return 0.0;
     }
 
     internal static TraceLevel TraceLevelFromName(string name)

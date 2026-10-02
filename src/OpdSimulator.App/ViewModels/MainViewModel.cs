@@ -332,7 +332,7 @@ public partial class MainViewModel : ObservableObject
             // unreachable; still surface a clean banner rather than crash.
             Results.StartRun();
             Results.CompleteRun(new RunOutcome(null, Array.Empty<Models.FitReport>(),
-                Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
                 "The run could not be built from the current configuration. Check the fields marked in red."));
             return;
         }
@@ -356,7 +356,7 @@ public partial class MainViewModel : ObservableObject
                 // still refuse cleanly (AGENTS §12.4: never swallow).
                 Log.Error(ex, "Unexpected simulator failure");
                 outcome = new RunOutcome(null, Array.Empty<Models.FitReport>(),
-                    Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability,
+                    Array.Empty<string>(), SimulationCoordinator.DefaultExitProbability, 0.0,
                     "The simulator stopped unexpectedly. See logs/errors-*.log for details.");
             }
 

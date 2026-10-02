@@ -494,31 +494,19 @@ public class HistoricalMetricsTests
 
         Assert.Null(binding.ErrorMessage);
 
-        // KNOWN VALIDATOR GAP, owned by 8Q.2 — asserted here so it cannot be
-        // forgotten. Today the validator reads a blank screening cell on a row
-        // whose departure_stage is "Doctor" as a MISSING VALUE, because
-        // DataValidator.StageMayBeBlankFor only forgives a blank when the stage
-        // comes AFTER the departure stage — and Screening comes before Doctor.
-        //
-        // So the four bypass rows are currently reported as errors. That is
-        // correct for a file that is genuinely missing a screening time, and
-        // wrong for a patient who legitimately skipped Screening, and the
-        // validator cannot tell the two apart because the distinguishing evidence
-        // — a filled doctor pair — is not consulted.
-        //
-        // Asserted as the CURRENT behaviour on purpose. When 8Q.2 teaches the
-        // validator that "no screening_start but a doctor_start" means bypass, this
-        // assertion is the one that must change, and it should change loudly.
-        Assert.Equal(8, binding.Issues.Count); // 4 rows × (screening_start, screening_end)
-        Assert.All(binding.Issues, i =>
-        {
-            var column = i.ColumnName ?? "";
-            Assert.True(
-                column.Equals("screening_start", StringComparison.OrdinalIgnoreCase)
-                || column.Equals("screening_end", StringComparison.OrdinalIgnoreCase),
-                $"unexpected issue column '{column}'");
-        });
-        Assert.False(binding.IsUsable);
+        // 8Q.2 closed this gap. The validator now reads a blank screening cell on
+        // a Doctor-departure row as a BYPASS, not a missing value, because the
+        // filled doctor pair is the evidence that the patient really did reach a
+        // doctor. Before 8Q.2 these four rows were reported as 8 errors and the
+        // whole file was unusable — which meant the clinic's direct-to-doctor
+        // traffic could not be loaded at all.
+        Assert.Empty(binding.Issues);
+        Assert.True(binding.IsUsable);
+
+        // The measurement must agree with the rows it counted.
+        Assert.Equal(4, binding.BypassExits);
+        Assert.Equal(20 - 4, binding.ScreenedPatients);
+        Assert.Equal(0.20, binding.FittedBypassProbability!.Value, 6); // 4 of 20 arrivals
 
         var rows = binding.DataSet!.Rows;
         Assert.Equal(20, rows.Count);

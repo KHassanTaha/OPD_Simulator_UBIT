@@ -120,7 +120,7 @@ public class Phase6c5ChartTests
         var vm = new ResultsPanelViewModel();
         vm.StartRun();
         vm.CompleteRun(new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(),
-            SimulationCoordinator.DefaultExitProbability, null));
+            SimulationCoordinator.DefaultExitProbability, 0.0, null));
 
         Assert.Equal("Reception", vm.SelectedWaitStage);
         Assert.Equal("Reception", vm.WaitHistogram?.StageName);
@@ -140,7 +140,7 @@ public class Phase6c5ChartTests
             },
         };
         vm.CompleteRun(new RunOutcome(rerun, Array.Empty<FitReport>(), Array.Empty<string>(),
-            SimulationCoordinator.DefaultExitProbability, null));
+            SimulationCoordinator.DefaultExitProbability, 0.0, null));
         Assert.Equal("Screening", vm.SelectedWaitStage);
         Assert.Equal("Screening", vm.WaitHistogram?.StageName);
     }
@@ -169,7 +169,7 @@ public class Phase6c5ChartTests
             };
             results.StartRun();
             results.CompleteRun(new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(),
-                SimulationCoordinator.DefaultExitProbability, null));
+                SimulationCoordinator.DefaultExitProbability, 0.0, null));
 
             var linear = results.WaitHistogramChart as LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart
                 ?? throw new InvalidOperationException("WaitHistogramChart must be a CartesianChart");
@@ -207,7 +207,7 @@ public class Phase6c5ChartTests
         // A refused run keeps the empty state — no stage to select, no data.
         vm.StartRun();
         vm.CompleteRun(new RunOutcome(null, Array.Empty<FitReport>(), Array.Empty<string>(),
-            SimulationCoordinator.DefaultExitProbability, SimulationCoordinator.MissingArrivalRateMessage));
+            SimulationCoordinator.DefaultExitProbability, 0.0, SimulationCoordinator.MissingArrivalRateMessage));
         Assert.False(vm.HasWaitHistogramChart);
         Assert.True(vm.ShowWaitHistogramEmptyState);
         Assert.Null(vm.WaitStageNames);

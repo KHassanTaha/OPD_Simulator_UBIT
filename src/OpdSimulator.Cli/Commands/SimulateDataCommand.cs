@@ -162,7 +162,8 @@ internal static class SimulateDataCommand
             exitStageIndex = screeningIndex;
             exitProbability = pExit.ExitProbability;
             stdout.WriteLine($"Fitted from data: λ = {lambda:0.###}/min (mean inter-arrival {1 / lambda:0.###} min); "
-                             + $"p_exit = {pExit.ExitProbability:0.###} (Screening {pExit.ScreeningExits} / Doctor {pExit.DoctorExits}; Reception excluded {pExit.ReceptionExcluded})");
+                             + $"p_exit = {pExit.ExitProbability:0.###} (screened {pExit.ScreenedPatients}, Screening exits {pExit.ScreeningExits}; Reception excluded {pExit.ReceptionExited}), "
+                             + $"p_bypass = {PExitCalculator.ComputeBypassProbability(dataSet, pExit):0.###} (direct-to-doctor {pExit.BypassExits} of {dataSet.Rows.Count})");
             foreach (int i in Enumerable.Range(0, orderedNames.Count))
                 stdout.WriteLine($"  Stage '{orderedNames[i]}': μ = {mu[i]:0.###}/min (mean service {1 / mu[i]:0.###} min)");
         }

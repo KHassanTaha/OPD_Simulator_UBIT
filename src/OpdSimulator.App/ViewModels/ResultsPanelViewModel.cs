@@ -75,6 +75,9 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// </summary>
     private DataBindingResult? _lastBinding;
 
+    /// <summary>Direct-to-Doctor probability the last run actually used (D-179).</summary>
+    private double _effectiveBypassProbability;
+
     /// <summary>Welcome-card content (FR-UI-5).</summary>
     public WelcomeCardViewModel Welcome { get; } = new();
 
@@ -174,6 +177,10 @@ public partial class ResultsPanelViewModel : ObservableObject
             ? "Run complete"
             : "The run was refused before it started";
         EffectiveExitText = $"Effective exit probability (after Screening): {outcome.EffectiveExitProbability:0.###}";
+        _effectiveBypassProbability = outcome.EffectiveBypassProbability;
+        OnPropertyChanged(nameof(EffectiveBypassText));
+        OnPropertyChanged(nameof(CalculationsText));
+        OnPropertyChanged(nameof(CalculationsRows));
 
         ChiSquareRows.Clear();
         foreach (var fit in outcome.Fits)
@@ -211,6 +218,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         StatusText = string.Empty;
         RunSummary = string.Empty;
         EffectiveExitText = string.Empty;
+        _effectiveBypassProbability = 0.0;
+        OnPropertyChanged(nameof(EffectiveBypassText));
         RunError = null;
         TraceText = string.Empty;
         ChiSquareCaption = DefaultChiSquareCaption;
@@ -550,7 +559,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// the parameters that produced it.
     /// </summary>
     public string CalculationsText => CalculationsTextBuilder.Build(
-        _lastResult, _lastParameters, _parameterSource, _lastBinding);
+        _lastResult, _lastParameters, _parameterSource, _lastBinding, _effectiveBypassProbability);
 
     /// <summary>
     /// The same calculations as <see cref="CalculationsText"/>, structured for the
@@ -558,10 +567,23 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// three fields, so the on-screen rows and the copied text cannot disagree.
     /// </summary>
     public IReadOnlyList<CalculationRow> CalculationsRows =>
-        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource, _lastBinding);
+        CalculationsTextBuilder.BuildRows(_lastResult, _lastParameters, _parameterSource, _lastBinding, _effectiveBypassProbability);
 
     /// <summary>True once a run has produced a result, so the button has something to show.</summary>
     public bool HasCalculations => _lastResult is not null;
+
+    /// <summary>
+    /// The direct-to-Doctor probability the finished run actually used (D-179).
+    /// </summary>
+    /// <remarks>
+    /// Read back from the outcome rather than recomputed, because the coordinator
+    /// can normalise it away: a network with fewer than three stages has no stage
+    /// to skip, so the topology runs with bypass off whatever the file measured.
+    /// Showing the measured value here would tell the user their data was applied
+    /// when it was not.
+    /// </remarks>
+    public string EffectiveBypassText =>
+        $"Effective bypass probability (Reception → Doctor): {_effectiveBypassProbability:0.###}";
 
     /// <summary>
     /// Raised when the user asks to see the calculations. The VIEW opens the

@@ -536,16 +536,13 @@ public sealed class Engine
         inService.Remove(evt.PatientId);
         patientServer.Remove(evt.PatientId);
 
-        // End row before the routing decision: q is the queue the freed server
-        // is about to draw from, and the destination says what happens next.
+        // Default flow: the next stage, and the last stage exits.
         int nextIndex = patient.StageIndex + 1;
         bool exits = nextIndex >= stages.Length;
-        EmitTrace(TraceEventType.EndService, clock, patient.Id, stage.Name, serverId: null,
-            stage.Queue.Count, exits ? "→ exit" : $"→ {stages[nextIndex].Name}");
 
+        // Probabilistic exit after the exit stage (FR-SIM-3): draw U against p_exit.
         if (!exits && patient.StageIndex == topology.ExitStageIndex)
         {
-            // Probabilistic exit after the exit stage (FR-SIM-3): draw U against p_exit.
             double u = _random.NextDouble();
             bool leaves = u < topology.ExitProbability;
             EmitRngDraw(clock, FormattableString.Invariant(
@@ -553,6 +550,38 @@ public sealed class Engine
             _log.Debug("    -> routing draw={Draw:0.####} p_exit={PExit:0.####}", u, topology.ExitProbability);
             exits = leaves;
         }
+
+        // Bypass (D-179): the same shape as the exit draw, but instead of leaving
+        // the system the patient jumps over the stages in between. The constructor
+        // refuses BypassStageIndex == ExitStageIndex, so the two draws can never
+        // both fire on one completion and the order between them cannot matter.
+        if (!exits && topology.BypassEnabled && patient.StageIndex == topology.BypassStageIndex)
+        {
+            double u = _random.NextDouble();
+            bool bypasses = u < topology.BypassProbability;
+            string outcome = bypasses
+                ? "bypass to " + stages[topology.BypassDestinationIndex].Name
+                : "continue to " + stages[nextIndex].Name;
+            EmitRngDraw(clock, FormattableString.Invariant(
+                $"bypass draw U={u:0.####} vs p_bypass={topology.BypassProbability:0.####} → {outcome}"));
+            _log.Debug("    -> bypass draw={Draw:0.####} p_bypass={PBypass:0.####}", u, topology.BypassProbability);
+
+            if (bypasses)
+            {
+                nextIndex = topology.BypassDestinationIndex;
+                exits = nextIndex >= stages.Length; // defensive: the destination is validated inside the topology
+            }
+        }
+
+        // End row is emitted AFTER both decisions (D-179). It used to be emitted
+        // before the exit draw, which meant a patient who left at Screening was
+        // recorded as "→ Doctor" and then immediately recorded as an exit — the
+        // trace contradicted itself on the same event, and a reader replaying it
+        // could not tell which line was true. q is still the queue the freed
+        // server is about to draw from, because routing only ever touches the
+        // destination's queue, never this one.
+        EmitTrace(TraceEventType.EndService, clock, patient.Id, stage.Name, serverId: null,
+            stage.Queue.Count, exits ? "→ exit" : $"→ {stages[nextIndex].Name}");
 
         if (exits)
         {
@@ -564,7 +593,7 @@ public sealed class Engine
         }
         else
         {
-            RouteToNextStage(patient, nextIndex, clock, stages, fel, inService, patientServer, stageWaitMinutes);
+            RouteTo(patient, nextIndex, clock, stages, fel, inService, patientServer, stageWaitMinutes);
         }
 
         // The freed server immediately pulls the next patient (FIFO queue).
@@ -576,7 +605,25 @@ public sealed class Engine
         }
     }
 
-    private void RouteToNextStage(
+    /// <summary>
+    /// Routes a patient to an arbitrary stage index: the next stage normally, or
+    /// the bypass destination when the patient skipped the stages in between.
+    /// </summary>
+    /// <remarks>
+    /// Renamed from <c>RouteToNextStage</c> in D-179. The name was wrong once
+    /// bypass existed: "next" implied index + 1, which is precisely what a
+    /// bypassed patient does <i>not</i> do. The body already accepted any index,
+    /// so this is a rename only — no behavioural change.
+    /// </remarks>
+    /// <param name="patient">The patient that has just finished service.</param>
+    /// <param name="nextStageIndex">Destination stage index.</param>
+    /// <param name="clock">Current simulation time in minutes.</param>
+    /// <param name="stages">All stages in the network.</param>
+    /// <param name="fel">Future event list.</param>
+    /// <param name="inService">Patient id → server, for patients currently in service.</param>
+    /// <param name="patientServer">Patient id → stage, for patients currently in service.</param>
+    /// <param name="stageWaitMinutes">Accumulator of wait minutes per stage; credited to the destination.</param>
+    private void RouteTo(
         Patient patient,
         int nextStageIndex,
         double clock,
