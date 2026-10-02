@@ -493,3 +493,50 @@ It is **not** integrated into the simulator. In the viva, frame it as: *"SPSS wa
 3. Gross, D. & Harris, C.M. (1998). *Fundamentals of Queueing Theory*. Wiley.
 4. MathNet.Numerics documentation: https://numerics.mathdotnet.com/
 5. Avalonia UI documentation: https://docs.avaloniaui.net/
+
+## Phase 8Q.5 findings — table structures in the Results panel (2026-10-03)
+
+**[VERIFIED] "Which tables lack serial numbers" was the wrong question.** The
+deeper defect was that `grep -c 'HorizontalAlignment\|TextAlignment'
+src/OpdSimulator.App/Views/ResultsPanel.axaml` returned **0**. No cell in the
+whole panel declared an alignment, so 17 numeric columns across four tables were
+left-aligned. Adding serial columns without fixing alignment would have produced
+tables that look numbered and still cannot be compared down a column.
+
+**[VERIFIED] Two of the seven audit targets were not tables.**
+
+| Target | What it actually is |
+|---|---|
+| Overview metrics | `ItemsControl` → Grid `170,*`, **no header row** — a label:value list. Serial numbers do not apply. |
+| Per-server utilisation | `ItemsControl` of **pre-formatted monospace strings** faking columns with `string.Format`. Converted to a real table. |
+| Chi-square | Real `Grid`, 6 columns. Serial column added. |
+| Per-stage / Performance Measures | Real `Grid`, 10 columns, `#` already present (8Q.3). |
+| Data preview | `ListBox` + `VirtualizingStackPanel`; cells are a horizontal `StackPanel` of positional `Width` doubles. **No row numbers at all**, despite the brief stating otherwise. |
+| Calculations dialog | Code-built `Auto,*` Grid in `CalculationsDialog.axaml.cs:113`, hosted by an empty `<ContentControl x:Name="RowsContainer"/>`. A label:value list. |
+
+**[VERIFIED] `CollapsibleSection` takes exactly one content child.** Adding a
+header `Grid` and a rows `ItemsControl` as siblings produces `AVLN3000`
+("multiple assignments to the property Content"). They need a `StackPanel`.
+
+**[VERIFIED] Headless Avalonia cannot measure text alignment from control
+bounds.** Every cell is stretched to its column, so cell rectangles coincide
+whether the text inside is left- or right-aligned. An alignment test must assert
+the declared `TextAlignment`, or it passes over the defect. Relatedly, Avalonia's
+default `TextAlignment` is `Start`, not `Left` — so "left-aligned" columns need
+an explicit `Left` for the requirement to be readable in the XAML.
+
+**[VERIFIED] A collapsed `CollapsibleSection` realises no rows.** Any test
+asserting on the per-server table must expand it and assert the expansion took
+effect, or every assertion passes vacuously over zero rows (D-169).
+
+**[UNVERIFIED — owner ruling needed]** The per-stage serial header is `#`
+(FR-UI-34, signed off) while the three tables added in 8Q.5 use `No.` (the 8Q.5
+brief). Both are now visible in one panel. Unifying means amending FR-UI-34.
+
+**[VERIFIED — pre-existing defect, not fixed here]**
+`DataPreviewTable` computes `RowBackground`, `RowBorderBrush` and
+`RowBorderThickness` per row (`Controls/DataPreviewTableModels.cs:101-112`) but
+its `DataTemplate` (`Controls/DataPreviewTable.axaml:53-74`) binds **none** of
+them, so the FR-UI-17 invalid-row treatment is constructed and discarded. The
+data path is live (`InvalidRows` is exposed and consumed); only the rendering is
+missing.

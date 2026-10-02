@@ -38,6 +38,12 @@ public sealed record AnalyticalStageMetrics(
 /// <param name="AnalyticalQueueLength">Closed-form M/M/c expected queue length.</param>
 /// <param name="DeltaPercent">Absolute percentage gap between simulated and analytical average wait.</param>
 public sealed record ComparisonRow(
+    /// <summary>
+    /// The stage's 1-based position, shown as its own column (FR-UI-36) so a
+    /// comparison can be cited unambiguously ("stage 2's Δ%") without the
+    /// reader counting rows.
+    /// </summary>
+    string SerialNumber,
     string StageName,
     double SimulatedAvgWait,
     double AnalyticalAvgWait,
@@ -198,6 +204,7 @@ public static class AnalyticalValidationService
                 / Math.Max(analytical.Wq, 1e-6)
                 * 100.0;
             rows.Add(new ComparisonRow(
+                (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 sim.StageName,
                 sim.AverageWaitMinutes,
                 analytical.Wq,

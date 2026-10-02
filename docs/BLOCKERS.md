@@ -5,7 +5,7 @@ Anything preventing progress, with owner and needed action. A task in
 
 ## Active
 
-- **B-012:** Headless screenshot frames have never been looked at by a human, and **twenty-four** frames are still outstanding.
+- **B-012:** Headless screenshot frames have never been looked at by a human, and **twenty-five** frames are still outstanding (the Phase 8Q.5 frame `phase-8q-table-alignment.png` was added on 2026-10-03 and has not been looked at).
   - Owner: Taha
   - Impact: The evidence PNGs are captured automatically and their geometry/content is asserted numerically, but this host has **no image input** (D-089), so the agent cannot answer "does it look right". Every such frame therefore carries an unverified visual claim, and the count compounds.
   - **Correction 2026-09-29 (Phase 8N, option (a) ruling):** this entry previously read as though `phase-8m-calculations.png` had *failed* human review. It did not. That frame was rendered by a test that set `Width = 760`, so it was **clean**; the clipping was observed in the **running app**, which set no width and therefore ran at `ThemedDialog`'s declared 440. The two are different pictures, which is precisely why the mismatch went unnoticed for a phase. The genuine before/after pair is the owner's own app screenshot (before) against `phase-8n-calculations.png` (after) — **not** the 8M frame, which is now frozen as the worked example of D-166 rather than as a picture of the bug. The lesson is stronger than the original wording, not weaker: an assertion can be green, a frame can be clean, and the program can still be broken.

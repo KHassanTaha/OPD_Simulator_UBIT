@@ -16,6 +16,31 @@ using OpdSimulator.Core.Engine;
 /// <param name="Value">Formatted metric value.</param>
 public sealed record MetricRow(string Label, string Value);
 
+/// <summary>
+/// One per-server row of the utilisation detail table (Phase 8Q.5).
+/// </summary>
+/// <remarks>
+/// Every numeric member is a pre-formatted string rather than a
+/// <see cref="double"/> so the template can right-align it (FR-UI-36) without
+/// each row re-deciding its own precision, and so <c>0.00%</c> renders as
+/// <c>0.00%</c> in the invariant culture the rest of the results panel uses.
+/// </remarks>
+/// <param name="SerialNumber">The server's 1-based position in the flattened stage/server list.</param>
+/// <param name="StageName">Owning stage's name (text column).</param>
+/// <param name="ServerNumber">Server's own number within its stage (numeric column).</param>
+/// <param name="ServerUtilisation">The server's own busy share of operating time (numeric column).</param>
+/// <param name="Contribution">The server's share of the stage total, which is what the chart bar is drawn at (numeric column).</param>
+/// <param name="StageUtilisation">The owning stage's utilisation, repeated so a lone bar can be read against its stage (numeric column).</param>
+/// <param name="Deviation">Text marker when the server is an imbalance outlier, otherwise empty (text column).</param>
+public sealed record PerServerDetailRow(
+    string SerialNumber,
+    string StageName,
+    string ServerNumber,
+    string ServerUtilisation,
+    string Contribution,
+    string StageUtilisation,
+    string Deviation);
+
 /// <summary>One per-stage row of the results metrics table (FR-STAT-6/7).</summary>
 /// <param name="SerialNumber">
 /// The stage's 1-based position in the run's stage list, shown as its own
@@ -68,7 +93,12 @@ public sealed record StabilityRow(
 public sealed record StageLegendItem(string StageName, IBrush Swatch, int StageIndex);
 
 /// <summary>One chi-square goodness-of-fit verdict row (FR-STAT-8).</summary>
+/// <param name="SerialNumber">
+/// The verdict's 1-based position, shown as its own column (FR-UI-36) so a row
+/// can be cited unambiguously ("verdict 2") without the reader counting rows.
+/// </param>
 public sealed record ChiSquareRow(
+    string SerialNumber,
     string Series,
     string Distribution,
     string Chi2,
@@ -219,12 +249,16 @@ public partial class ResultsPanelViewModel : ObservableObject
         OnPropertyChanged(nameof(CalculationsRows));
 
         ChiSquareRows.Clear();
-        foreach (var fit in outcome.Fits)
+        for (var fitIndex = 0; fitIndex < outcome.Fits.Count; fitIndex++)
         {
+            var fit = outcome.Fits[fitIndex];
+            // The serial numbers the displayed rows, so they stay contiguous even
+            // when a fit is absent and renders as "fit unavailable".
+            var serial = (fitIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
             ChiSquareRows.Add(fit.ChiSquare is { } cs && fit.Fitted is not null
-                ? new ChiSquareRow(fit.Label, fit.Fitted.Name, $"{cs.Statistic:0.###}", $"{cs.DegreesOfFreedom}",
+                ? new ChiSquareRow(serial, fit.Label, fit.Fitted.Name, $"{cs.Statistic:0.###}", $"{cs.DegreesOfFreedom}",
                     $"{cs.PValue:0.###}", cs.Decision)
-                : new ChiSquareRow(fit.Label, "fit unavailable", Unavailable, Unavailable, Unavailable, Unavailable));
+                : new ChiSquareRow(serial, fit.Label, "fit unavailable", Unavailable, Unavailable, Unavailable, Unavailable));
         }
 
         TraceText = outcome.TraceLines.Count > 0
@@ -375,13 +409,13 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (result is null)
         {
             UtilisationChart = null;
-            PerServerDetailLines = Array.Empty<string>();
+            PerServerDetailRows = Array.Empty<PerServerDetailRow>();
             BuildStageLegend(null);
             return;
         }
 
         var data = UtilisationChartService.Build(result);
-        PerServerDetailLines = FormatPerServerDetail(data);
+        PerServerDetailRows = BuildPerServerRows(data);
         BuildStageLegend(result);
         try
         {
@@ -604,9 +638,9 @@ public partial class ResultsPanelViewModel : ObservableObject
     public string UtilisationCaption => UtilisationChartService.Caption;
 
     /// <summary>
-    /// Formats one line per server, carrying BOTH numbers the reader needs
+    /// Builds one table row per server, carrying BOTH numbers the reader needs
     /// (Phase 8N follow-up 2, D-171):
-    /// <c>"Reception S2: 50.00% busy, contributes 25.00% of stage  (stage util 50.00%)"</c>.
+    /// server utilisation, and the contribution the bar is drawn at.
     /// <para>
     /// Both, not either. The bar is drawn at the contribution, so a reader who only
     /// sees the contribution cannot tell a 25 % bar on a 2-server stage (server
@@ -616,29 +650,42 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// contributions to the stage utilisation.
     /// </para>
     /// <para>
-    /// A trailing marker is appended when the server deviates from its stage mean
-    /// by more than the imbalance threshold, so the amber flag is not carried by
-    /// colour alone (AGENTS §16.9).
+    /// Phase 8Q.5 replaced the pre-formatted monospace string this used to return.
+    /// Each number is now its own column (FR-UI-36), which is what allows the
+    /// numeric columns to be right-aligned so their decimal points line up; run
+    /// together in one string they could not be aligned at all.
+    /// </para>
+    /// <para>
+    /// A marker is carried in its own column when the server deviates from its
+    /// stage mean by more than the imbalance threshold, so the amber flag is not
+    /// carried by colour alone (AGENTS §16.9).
     /// </para>
     /// </summary>
-    private static IReadOnlyList<string> FormatPerServerDetail(UtilisationChartData data)
+    private static IReadOnlyList<PerServerDetailRow> BuildPerServerRows(UtilisationChartData data)
     {
-        var lines = new List<string>(data.PerServerDetail.Count);
-        foreach (var detail in data.PerServerDetail)
+        var rows = new List<PerServerDetailRow>(data.PerServerDetail.Count);
+        for (var i = 0; i < data.PerServerDetail.Count; i++)
         {
-            var line = string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{0} S{1}: {2:P2} busy, contributes {3:P2} of stage  (stage util {4:P2})",
+            var detail = data.PerServerDetail[i];
+            rows.Add(new PerServerDetailRow(
+                (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 detail.StageName,
-                detail.ServerNumber,
-                detail.ServerUtilisation,
-                detail.Contribution,
-                detail.StageUtilisation);
-            lines.Add(detail.IsOutlier ? line + "  — deviating server" : line);
+                detail.ServerNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                FormatPercent(detail.ServerUtilisation),
+                FormatPercent(detail.Contribution),
+                FormatPercent(detail.StageUtilisation),
+                detail.IsOutlier ? "deviating" : string.Empty));
         }
 
-        return lines;
+        return rows;
     }
+
+    /// <summary>
+    /// Formats a fraction as a percentage with two decimals in the invariant
+    /// culture, matching the rest of the results panel.
+    /// </summary>
+    private static string FormatPercent(double fraction) =>
+        fraction.ToString("P2", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Rebuilds the stage legend from a run's own stage list, each stage painted
@@ -667,14 +714,19 @@ public partial class ResultsPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160),
-    /// pre-formatted because each row mixes a contribution, a stage utilisation
-    /// and an optional imbalance marker. The chart deliberately hides the
-    /// individual server numbers behind a 1/c rescale, so this table is where a
-    /// reader gets them back.
+    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160).
+    /// The chart deliberately hides the individual server numbers behind a 1/c
+    /// rescale, so this table is where a reader gets them back.
     /// </summary>
-    public IReadOnlyList<string> PerServerDetailLines { get; private set; } =
-        Array.Empty<string>();
+    /// <remarks>
+    /// Phase 8Q.5 turned these from pre-formatted monospace strings into a real
+    /// table. The strings faked columns with run-together format arguments, so
+    /// nothing could be aligned and no column could carry a header; the data was
+    /// already structured in <see cref="UtilisationServerDetail"/> and was being
+    /// flattened only for display.
+    /// </remarks>
+    public IReadOnlyList<PerServerDetailRow> PerServerDetailRows { get; private set; } =
+        Array.Empty<PerServerDetailRow>();
 
     /// <summary>
     /// The stage-colour legend (Phase 8M, D-163, FR-UI-27), generated from the

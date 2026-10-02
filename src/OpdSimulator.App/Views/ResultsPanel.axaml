@@ -145,11 +145,18 @@
                                 <Grid ColumnDefinitions="170,*" ColumnSpacing="8" Margin="0,2">
                                     <TextBlock Text="{Binding Label}"
                                                FontSize="{DynamicResource FontSizeCaption}"
-                                               Foreground="{DynamicResource BrushTextSecondary}"/>
+                                               Foreground="{DynamicResource BrushTextSecondary}"
+                                               TextAlignment="Left"/>
+                                    <!-- A label:value list, not a listing table: no
+                                         header row and no shared column set, so the
+                                         serial-number rule does not apply (FR-UI-36).
+                                         The values are all magnitudes, so they are
+                                         right-aligned to line up their decimals. -->
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Value}"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                                               Foreground="{DynamicResource BrushTextPrimary}"
+                                               TextAlignment="Right"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -161,32 +168,33 @@
                     <!-- The "#" column is the 8Q.5 serial-number rule, applied here
                          because this is the per-stage listing (Phase 8Q.3). -->
                     <Grid ColumnDefinitions="30,86,52,40,58,52,56,64,64,64" ColumnSpacing="8">
-                        <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="2" Text="λ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="3" Text="c" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="4" Text="μ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="5" Text="ρ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="6" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="7" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="8" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="9" Text="Util." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                        <TextBlock Grid.Column="2" Text="λ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="3" Text="c" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="μ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="ρ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="6" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="7" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="8" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="9" Text="Util." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                     </Grid>
                     <ItemsControl ItemsSource="{Binding StageRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:StageMetricRow">
                                 <Grid ColumnDefinitions="30,86,52,40,58,52,56,64,64,64" ColumnSpacing="8" Margin="0,2">
                                     <TextBlock Text="{Binding SerialNumber}"
-                                               Foreground="{DynamicResource BrushTextMuted}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding ArrivalRate}"/>
-                                    <TextBlock Grid.Column="3" Text="{Binding Servers}"/>
-                                    <TextBlock Grid.Column="4" Text="{Binding ServiceRate}"/>
-                                    <TextBlock Grid.Column="5" Text="{Binding Rho}"/>
-                                    <TextBlock Grid.Column="6" Text="{Binding Served}"/>
-                                    <TextBlock Grid.Column="7" Text="{Binding Wait}"/>
-                                    <TextBlock Grid.Column="8" Text="{Binding Queue}"/>
-                                    <TextBlock Grid.Column="9" Text="{Binding Utilisation}"/>
+                                               Foreground="{DynamicResource BrushTextMuted}"
+                                               TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextAlignment="Left"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ArrivalRate}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Servers}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding ServiceRate}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Rho}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding Served}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="7" Text="{Binding Wait}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="8" Text="{Binding Queue}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="9" Text="{Binding Utilisation}" TextAlignment="Right"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -207,11 +215,12 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:StabilityRow">
                                     <Grid ColumnDefinitions="86,64,*" ColumnSpacing="8" Margin="0,2">
-                                        <TextBlock Text="{Binding StageName}" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Rho}"/>
+                                        <TextBlock Text="{Binding StageName}" TextTrimming="CharacterEllipsis" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Rho}" TextAlignment="Right"/>
                                         <TextBlock Grid.Column="2" Text="{Binding Verdict}"
                                                    FontWeight="SemiBold"
-                                                   Foreground="{Binding BandBrush}"/>
+                                                   Foreground="{Binding BandBrush}"
+                                                   TextAlignment="Left"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -258,17 +267,65 @@
                                                 IsVisible="{Binding HasUtilisationChart}"
                                                 IsExpanded="False"
                                                 HelpText="Every server's own utilisation and its contribution to the stage total.">
-                        <ItemsControl ItemsSource="{Binding PerServerDetailLines}">
+                        <!-- A CollapsibleSection takes ONE content child; the table
+                             needs a header grid plus the rows control, so they are
+                             wrapped (Phase 8Q.5, FR-UI-36). -->
+                        <StackPanel Spacing="{DynamicResource SpaceS}">
+                        <!-- Phase 8Q.5: this was a list of pre-formatted monospace
+                             strings that faked columns with run-together format
+                             arguments, so nothing here could be aligned or carry a
+                             header. The data was already structured, so it is now a
+                             real table (FR-UI-36). -->
+                        <Grid ColumnDefinitions="30,86,52,68,78,68,*" ColumnSpacing="8">
+                            <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="2" Text="Server" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="3" Text="Busy" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Text="Contrib." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="5" Text="Stage util" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="6" Text="Deviation" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding PerServerDetailRows}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                    <TextBlock Text="{Binding}"
-                                               FontFamily="{DynamicResource FontFamilyMono}"
-                                               FontSize="{DynamicResource FontSizeCaption}"
-                                               Foreground="{DynamicResource BrushTextSecondary}"
-                                               TextWrapping="Wrap"/>
+                                <DataTemplate x:DataType="vm:PerServerDetailRow">
+                                    <Grid ColumnDefinitions="30,86,52,68,78,68,*" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding SerialNumber}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextMuted}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StageName}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding ServerNumber}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding ServerUtilisation}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding Contribution}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="5" Text="{Binding StageUtilisation}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Right"/>
+                                        <!-- The imbalance flag is a word as well as the
+                                             amber colour on the chart, never colour
+                                             alone (AGENTS §16.9). -->
+                                        <TextBlock Grid.Column="6" Text="{Binding Deviation}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Left"/>
+                                    </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
                     </controls:CollapsibleSection>
                 </StackPanel>
             </Border>
@@ -388,24 +445,30 @@
 <TextBlock Text="{Binding ChiSquareCaption}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <Grid ColumnDefinitions="130,110,72,46,72,*" ColumnSpacing="8">
-                        <TextBlock Text="Series" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="1" Text="Distribution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="2" Text="χ²" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="3" Text="df" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="4" Text="p" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="5" Text="Decision" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                    <!-- Phase 8Q.5 (FR-UI-36): serial column added, numeric
+                         columns (χ², df, p) right-aligned. -->
+                    <Grid ColumnDefinitions="30,130,110,72,46,72,*" ColumnSpacing="8">
+                        <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="1" Text="Series" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                        <TextBlock Grid.Column="2" Text="Distribution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                        <TextBlock Grid.Column="3" Text="χ²" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="df" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="p" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="6" Text="Decision" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ChiSquareRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ChiSquareRow">
-                                <Grid ColumnDefinitions="130,110,72,46,72,*" ColumnSpacing="8" Margin="0,2">
-                                    <TextBlock Text="{Binding Series}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Distribution}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding Chi2}"/>
-                                    <TextBlock Grid.Column="3" Text="{Binding DegreesOfFreedom}"/>
-                                    <TextBlock Grid.Column="4" Text="{Binding PValue}"/>
-                                    <TextBlock Grid.Column="5" Text="{Binding Decision}"/>
+                                <Grid ColumnDefinitions="30,130,110,72,46,72,*" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Text="{Binding SerialNumber}"
+                                               Foreground="{DynamicResource BrushTextMuted}"
+                                               TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Series}" TextAlignment="Left"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Distribution}" TextAlignment="Left"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Chi2}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding DegreesOfFreedom}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding PValue}" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding Decision}" TextAlignment="Left"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -488,24 +551,31 @@
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <StackPanel IsVisible="{Binding AnalyticalValidation.HasRows}"
                                 Spacing="{DynamicResource SpaceS}">
-                        <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8">
-                            <TextBlock Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Grid.Column="1" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Grid.Column="2" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Grid.Column="3" Text="Sim queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Grid.Column="4" Text="M/M/c queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                            <TextBlock Grid.Column="5" Text="Δ%" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <!-- Phase 8Q.5 (FR-UI-36): serial column added, all five
+                             numeric columns right-aligned so the two sides of each
+                             comparison share a decimal point. -->
+                        <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8">
+                            <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="2" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="3" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Text="Sim queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="5" Text="M/M/c queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="6" Text="Δ%" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                         </Grid>
                         <ItemsControl ItemsSource="{Binding AnalyticalValidation.Rows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="services:ComparisonRow">
-                                    <Grid ColumnDefinitions="120,95,95,90,90,60" ColumnSpacing="8" Margin="0,2">
-                                        <TextBlock Text="{Binding StageName}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding SimulatedAvgWait, StringFormat={}{0:0.###}}"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding AnalyticalAvgWait, StringFormat={}{0:0.###}}"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding SimulatedQueueLength, StringFormat={}{0:0.###}}"/>
-                                        <TextBlock Grid.Column="4" Text="{Binding AnalyticalQueueLength, StringFormat={}{0:0.###}}"/>
-                                        <TextBlock Grid.Column="5" Text="{Binding DeltaPercent, StringFormat={}{0:0.#}}"/>
+                                    <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding SerialNumber}"
+                                                   Foreground="{DynamicResource BrushTextMuted}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StageName}" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding SimulatedAvgWait, StringFormat={}{0:0.###}}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding AnalyticalAvgWait, StringFormat={}{0:0.###}}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding SimulatedQueueLength, StringFormat={}{0:0.###}}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="5" Text="{Binding AnalyticalQueueLength, StringFormat={}{0:0.###}}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="6" Text="{Binding DeltaPercent, StringFormat={}{0:0.#}}" TextAlignment="Right"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

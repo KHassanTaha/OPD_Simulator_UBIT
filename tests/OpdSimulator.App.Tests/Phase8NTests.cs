@@ -732,11 +732,14 @@ public class Phase8NDialogSizingTests
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, 0.0, null));
-        Assert.NotEmpty(results.PerServerDetailLines);
-        Assert.All(results.PerServerDetailLines, line =>
+        Assert.NotEmpty(results.PerServerDetailRows);
+        // D-171: both the server's own utilisation and its contribution must be on
+        // the row. Phase 8Q.5 made them separate columns, so both are checked as
+        // separate members rather than as two substrings of one line.
+        Assert.All(results.PerServerDetailRows, row =>
         {
-            Assert.Contains("busy", line, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("contributes", line, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith("%", row.ServerUtilisation, StringComparison.Ordinal);
+            Assert.EndsWith("%", row.Contribution, StringComparison.Ordinal);
         });
 
         // Surface: the calculations dialog's utilisation block.

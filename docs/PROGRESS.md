@@ -1,3 +1,153 @@
+## Session Handoff — 2026-10-03 Phase 8Q.5
+Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.5 complete and pushed; awaiting owner "go" before merge)
+
+### Done
+- **Phase 8Q.5 — table serial numbers and column alignment** (D-187), `[x]` in `docs/TODO.md`.
+- **D-186 codified in `AGENTS.md` §10.6** at the owner's direction: *assert where the side effect landed, not just that it happened.*
+- PRD **v1.11.0** — FR-UI-36 added.
+- `docs/REQUIREMENTS.md` — FR-UI-36 row; coverage recounted to **81.1 % (60/74)**.
+
+### In Progress
+None. 8Q.5 is finished; 8Q.6 not started.
+
+### What is complete
+The audit, the code, the tests, the evidence frame, and every living document.
+
+**What remains:** your ruling on the one open item (below), your visual inspection of
+the new frame, and your merge.
+
+### Next Session Should Start With
+Owner ruling on D-187's open item: unify the serial headers (`#` → `No.`, amending
+FR-UI-34) or keep both.
+
+Second item: owner visual inspection of
+`logs/screenshots/phase-8q-table-alignment.png` (B-012, now twenty-five frames).
+
+### Blocked
+- **B-012** — twenty-five screenshot frames have never been looked at by a human.
+  This host has no image input (D-089), so §18 verification cannot be completed by
+  the agent. The new 8Q.5 frame is among them.
+- **D-187 open item** — the `#` vs `No.` serial-header conflict is a requirement
+  decision, not an implementation blocker.
+
+### Git State
+Commits made this session: `feat: table serial numbers and column alignment (Phase 8Q.5)`
+Pushed to origin: **Yes** — `fix/phase-8q`
+Uncommitted changes: none at the time of writing.
+
+### Build & Test
+`dotnet build -c Release --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Release --no-build` → **786/786** (Cli 35 / Data 134 / Core 125 / App 492)
+`dotnet build -c Debug --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Debug --no-build` → **786/786** (same split)
+
+### Warnings
+0. Two warnings I introduced in `TableSerialAlignmentTests.cs` (a `string?` cell
+coercion and a nullable `CollapsibleSection.Title`) were fixed before the gate
+rather than logged.
+
+### Files Touched
+`src/OpdSimulator.App/Views/ResultsPanel.axaml` — serial columns on chi-square,
+analytical validation and per-server detail; per-server detail converted from
+monospace strings to a header Grid + rows ItemsControl in a StackPanel (one content
+child per `CollapsibleSection`); `TextAlignment` declared on every cell — 50
+`Right`, 17 `Left`.
+`src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs` — `PerServerDetailRow`,
+`PerServerDetailRows`, `BuildPerServerRows`, `FormatPercent`; `ChiSquareRow.SerialNumber`.
+`src/OpdSimulator.App/Services/AnalyticalValidationService.cs` — `ComparisonRow.SerialNumber`.
+`tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs` — new, 6 tests.
+`tests/OpdSimulator.App.Tests/Phase8Q5Screenshot.cs` — new, evidence frame.
+`tests/OpdSimulator.App.Tests/Phase8MChartTests.cs`, `Phase8MScreenshots.cs`, `Phase8NTests.cs` — per-server assertions moved from substrings to row members.
+`logs/screenshots/phase-8q-table-alignment.png` — new, 110,754 B, 1200x760.
+
+`AGENTS.md` — §10.6 third rule (D-186).
+`docs/PRD.md` — v1.11.0, FR-UI-36, changelog.
+`docs/REQUIREMENTS.md` — FR-UI-36 row, recount, correction of the 8Q.4 figure.
+`docs/DECISIONS.md` — D-186, D-187, amendment to D-171.
+`docs/TODO.md`, `docs/PROGRESS.md`, `docs/USER_MANUAL.md`, `docs/CONTEXT.md`, `docs/BLOCKERS.md` — updated.
+
+### Decisions Made
+- **D-186** — assert against the *location* of a side effect, not the value in memory.
+- **D-187** — per-server detail becomes a real table; `#` and `No.` coexist pending
+  your ruling; the overview listing and the calculations dialog stay label:value
+  lists with no serial column; the data preview table is left alone.
+
+### Assumptions Added/Changed
+- `[UNVERIFIED]` The serial header should read `No.` on tables added in 8Q.5 while the
+  8Q.3 per-stage table keeps `#`. Recorded in `docs/CONTEXT.md` as needing an owner ruling.
+- `[VERIFIED]` The data preview table has **no** row numbers, contradicting the 8Q.5 brief.
+- `[VERIFIED]` `CollapsibleSection` accepts exactly one content child (`AVLN3000`).
+
+### Notes for Next Session
+**The audit contradicted two of the seven targets, and both mattered more than the
+serial columns did.**
+
+1. `grep -c 'TextAlignment\|HorizontalAlignment' ResultsPanel.axaml` returned **0**
+   before this phase. Not one cell declared an alignment, so 17 numeric columns
+   across four tables were left-aligned. Adding serial numbers without this would
+   have produced tables that look numbered and still cannot be compared down a column.
+2. **The Overview metrics listing is a label:value list** — `ItemsControl` → Grid
+   `170,*`, no header row, no shared column set. Serial numbers do not apply (your own
+   carve-out). `OverviewMetrics_IsALabelValueList_SoSerialNumbersDoNotApply` exists so
+   that is a decided thing with a test behind it, not an oversight.
+3. **The per-server utilisation "table" was not a table** — pre-formatted monospace
+   strings faking columns with run-together `string.Format` arguments, so nothing could
+   be aligned and no column could carry a header, while `UtilisationServerDetail` was
+   already structured and being flattened purely for display. Converted. D-171's naming
+   role moved into the column headers.
+4. **The data preview table has no row numbers at all**, despite the brief saying it
+   did. `Rebuild` uses its row `index` only to look up an invalid-row reason and never
+   renders it. Its cells are positional `Width` doubles with no type information, so
+   numeric alignment is not expressible there without inferring a type per column on
+   the Input tab. **Raised, not rebuilt.**
+
+**Alignment is asserted on the declared property, on purpose.** Headless Avalonia
+stretches every cell to its column, so cell *rectangles* coincide whether the text
+inside is left- or right-aligned — a bounds-based test would pass over the exact
+defect it was written for. Avalonia's default `TextAlignment` is also `Start`, not
+`Left`, which is why every text column now declares `Left` explicitly: "inherits a
+default" is not a declaration a reviewer can read.
+
+**Both assertions were proved non-vacuous by mutation, not by assertion.** Stripping
+every `TextAlignment` from the panel fails all three alignment tests
+(`Expected: Right, Actual: Start`); blanking the `No.` headers fails both serial tests
+(`Expected: No., Actual: (empty)`).
+
+**Three of the six tests failed first, and each failure was correct:**
+- the analytical table showed **no rows** — `Compare` rightly refuses any run under
+  100,000 minutes, because M/M/c closed forms describe steady state and a 165-minute
+  clinic day is not it. The harness re-runs the comparison stamped steady-state rather
+  than weakening the production guard;
+- the overview test found **1 row instead of 6** — I had matched every row on the
+  *first* row's text; it now goes through the owning `ItemsControl`;
+- `TextAlignment` came back **`Start`, not `Left`**, which is what prompted the explicit
+  declarations.
+
+**The per-server section is collapsed by default**, so its rows never realise. The test
+expands it and asserts the expansion took effect (D-169) — otherwise every serial
+assertion passes vacuously over zero rows. Three tables share a seven-column layout, so
+rows are located by walking from the header to its own sibling `ItemsControl`; a
+tree-wide "a Grid with seven columns" search would assert against whichever it hit first.
+
+**`Phase8Q5Screenshot` leaves machine state exactly as it found it** — deletes a
+preferences file it created, restores one that existed, verified byte-identical by md5
+across a run (`fb8fb249…` before and after). `phase-8q-results-buffer-trace.png` was not
+re-rendered; the 8Q.5 frame is a new file (D-166).
+
+**`docs/REQUIREMENTS.md`'s 8Q.4 figure was wrong by ten.** 8Q.4 recorded 83 total /
+63 `[x]`; re-deriving three independent ways gives 73 before FR-UI-36 (a status-column
+parse, `grep -c '^| FR-'`, and a `comm` of PRD ids against matrix ids — the only PRD id
+missing from the matrix was FR-UI-36 itself). You approved that recount on 2026-10-03,
+so the correction carries its own explanation rather than quietly overwriting it. Its
+in-progress figure (8) was right.
+
+**Not fixed, flagged:** `DataPreviewTable` computes `RowBackground`, `RowBorderBrush`
+and `RowBorderThickness` per row (`Controls/DataPreviewTableModels.cs:101-112`) but its
+`DataTemplate` binds none of them, so the FR-UI-17 invalid-row treatment is constructed
+and discarded. Pre-existing; out of scope here.
+
+---
+
 # PROGRESS.md — Narrative Progress Log
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.

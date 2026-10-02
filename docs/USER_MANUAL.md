@@ -498,6 +498,16 @@ this list — it is always visible; see §6.3.)
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
 
+**Reading any table on this tab.** Every table here is numbered down its first
+column, from 1, with no gaps, so you can say "look at row 4" instead of counting
+down. Numbers are **right-aligned** and words are **left-aligned**, in the
+headings as well as the rows, so a column of figures has its decimal points in a
+straight line and you can compare two magnitudes at a glance.
+
+One exception is worth knowing: the **System totals** list at the top is a list
+of labels and values rather than a table — each line is its own pair, with no
+column headings — so it has no row numbers. Its values are still right-aligned.
+
 ### 6.1 Performance Measures
 
 The first group on the results side is headed **Performance Measures**. It holds
@@ -606,11 +616,13 @@ How to read it:
   The trade-off is that a clinic with many servers at every stage gets a
   flatter-looking chart, because the honest ceiling for a six-server stage is
   one sixth.
-- The **per-server list** under the chart names every server with **both**
-  numbers — its own utilisation and its contribution to the stage — and marks
-  the deviating ones, e.g. `Screening S2: 80.30 % busy, contributes 40.15 % of
-  stage  (stage util 60.23 %)`. Those are the same numbers the chart draws, in
-  text.
+- The **per-server table** under the chart names every server with **both**
+  numbers — its own `Busy` percentage and its `Contrib.` share of the stage —
+  alongside the `Stage util` it belongs to, and marks the deviating ones in the
+  `Deviation` column. Those are the same numbers the chart draws, so the two can
+  be read against each other. It is collapsed until you open it, and each row is
+  numbered from 1 in the same order the bars are drawn, so "row 4" and "the
+  fourth bar" are the same server.
 
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input

@@ -359,6 +359,46 @@ its root was a vertical `StackPanel` that laid the footer out ~1900 px below
 the window bottom and left the body with `Extent == Viewport`. The owner found
 it by hand. See D-169.
 
+**Assert where the side effect landed, not just that it happened (D-186).**
+An assertion that only observes a value *after* a mutation proves the mutation
+happened, not that it happened in the right place. Wherever a side effect has a
+**location** — a file, a directory, a channel, a log, a server, a socket — the
+test must assert against that location rather than against the value in memory.
+
+This is the same family as the two rules above, and it is worth stating
+separately because it is the one that survives review: the resize rule and the
+screenshot rule are both about *observing enough*, and this one is about
+*observing the right thing*. A green assertion is compatible with a bug that
+does its work in the wrong place.
+
+Concretely, for this project:
+
+- A preferences change is asserted by **re-reading the file from disk**, not by
+  reading the `VisibleWidgets` list back off the object. Those two assertions
+  are not equivalent, and the difference is the whole of D-185.
+- A screenshot is asserted by opening the PNG, not by trusting that the call
+  that wrote it returned.
+- A log line is asserted by reading the file, not by capturing Serilog's sink.
+- A file write is asserted by reading **that** path — and if the code was handed
+  a path, assert the path the code used, not the path the test passed in.
+
+If the location is derived from ambient state (an environment variable, a
+default resolved at construction, the current directory), then a test that
+passes a path and asserts a different one is testing the wrong program. Assert
+the resolved location explicitly.
+
+This rule exists because of a real miss: `WidgetPreferences.Load(path)`
+returned the object `System.Text.Json` had just built, which satisfied the
+**public parameterless constructor** and therefore carried the *default*
+`~/.config/OpdSimulator/ui.json` instead of the path the caller passed. A
+preferences object loaded from a temp file wrote to the developer's real
+settings and left the caller's file untouched, and
+`Phase6c6EmptyStateTests` had been overwriting the developer's own UI
+preferences on every test run. The natural test — "toggling a widget updates the
+visible list" — passed under **both** the broken and the fixed code, because the
+in-memory list was correct either way. Only re-reading the file from disk fails
+against the bug. See D-185 and D-186.
+
 ### 10.7 No Duplicate Instructions
 
 Each instruction in docs/DEV_LAUNCH.md and docs/USER_MANUAL.md must have
