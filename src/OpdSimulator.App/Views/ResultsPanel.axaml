@@ -13,11 +13,14 @@
          utilisation (6c.4) → queue length (6c.5) → waiting-time histogram
          (6c.5) → chi-square → simulation verification (8B) → analytical
          validation (8C) → trace (the data preview moved to the Input tab in
-         Phase 7D). Phase 8D.1 groups the widgets under headings (Overview,
-         Server Performance, Charts, Statistical Validation, Simulation
-         Verification, Analytical Validation, Event Trace); the per-stage table
-         shares the metrics card, so it carries no separate "Stage Performance"
-         heading (8D.1: do not add a redundant heading for a merged table). -->
+         Phase 7D). Phase 8D.1 groups the widgets under headings (Performance
+         Measures, Server Performance, Charts, Statistical Validation, Simulation
+         Verification, Analytical Validation); the per-stage table shares the
+         metrics card, so it carries no separate "Stage Performance" heading
+         (8D.1: do not add a redundant heading for a merged table). 8Q.4
+         (D-184) removed "Event Trace" from that list: it is no longer a group
+         inside the scroll area but a pinned panel in grid row 2, always visible
+         and not user-toggleable (FR-UI-35). -->
     <Grid>
 
         <!-- Welcome card (FR-UI-5). Content must be bound or the template
@@ -33,7 +36,7 @@
 
         <!-- Results once a run starts. Header + widget picker stay pinned; the
              widgets themselves scroll (5c.1). -->
-        <Grid IsVisible="{Binding HasRun}" RowDefinitions="Auto,*">
+        <Grid IsVisible="{Binding HasRun}" RowDefinitions="Auto,*,Auto">
             <StackPanel Margin="16,16,16,0" Spacing="{DynamicResource SpaceM}">
 
             <!-- Run header + customise toggle. -->
@@ -74,7 +77,6 @@
                     <UniformGrid Columns="2">
                         <CheckBox IsChecked="{Binding ShowMetrics, Mode=TwoWay}" Content="Metrics"/>
                         <CheckBox IsChecked="{Binding ShowChiSquare, Mode=TwoWay}" Content="Chi-square"/>
-                        <CheckBox IsChecked="{Binding ShowTrace, Mode=TwoWay}" Content="Event trace"/>
                         <CheckBox IsChecked="{Binding ShowUtilisation, Mode=TwoWay}" Content="Utilisation"/>
                         <CheckBox IsChecked="{Binding ShowQueueLength, Mode=TwoWay}" Content="Queue length"/>
                         <CheckBox IsChecked="{Binding ShowWaitHistogram, Mode=TwoWay}" Content="Wait histogram"/>
@@ -85,10 +87,13 @@
             </Border>
             </StackPanel>
 
-            <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square,
-                 trace scroll together; the selector row above stays pinned. The
-                 data preview moved to the Input tab in Phase 7D. -->
-            <ScrollViewer Grid.Row="1"
+            <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square
+                 scroll here; the selector row above and the event trace below
+                 stay pinned. The data preview moved to the Input tab in Phase 7D.
+                 8Q.4 (D-184): the trace left this ScrollViewer for grid row 2, so
+                 "scroll here" no longer includes it. -->
+            <ScrollViewer x:Name="WidgetScroller"
+                          Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
@@ -509,38 +514,62 @@
                 </StackPanel>
             </Border>
 
-            <!-- Group heading: Event Trace (Phase 8D.1). -->
-            <TextBlock Text="Event Trace"
-                       FontSize="{DynamicResource FontSizeTitle}"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource BrushTextPrimary}"
-                       Margin="0,24,0,8"/>
+        <!-- The bottom buffer (8Q.4, D-184). The last widget must be able to
+                 travel clear of the panel's bottom edge, so the scrollable
+                 content ends in a real element the extent accounts for. Height is
+                 the SpaceXl token, so it restyles with the theme (§16.3).
 
-            <!-- Event trace widget: mono, scrollable, selectable text (M4). -->
-            <Border IsVisible="{Binding ShowTrace}"
+                 NOT ScrollViewer.Padding: padding on a ScrollViewer sits OUTSIDE
+                 the scroll extent, so it would shrink the viewport instead of
+                 extending the content, and the last row would still be unable to
+                 reach the top. That is the D-142 trap. -->
+            <Border x:Name="ResultsBottomBuffer"
+                    Height="{DynamicResource SpaceXl}"/>
+
+        </StackPanel>
+            </ScrollViewer>
+
+            <!-- Row 2: the event trace (8Q.4, D-184, FR-UI-35). A SIBLING of the
+                 ScrollViewer, never its child, for the same reason D-170 gave for
+                 the calculations dialog's footer: a trace that scrolls away is not
+                 a trace the user can read while reading anything else, and
+                 scrolling the body can never take it out of reach. The 240 px
+                 ceiling is what keeps it pinned without stealing the widgets'
+                 space — below it the inner ScrollViewer scrolls. -->
+            <Border Grid.Row="2"
+                    Margin="16,0"
+                    Padding="{DynamicResource ThicknessSpaceM}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
-                    BorderThickness="1"
+                    BorderThickness="1,1,1,0"
                     CornerRadius="{DynamicResource CornerRadiusM}"
-                    Padding="{DynamicResource ThicknessSpaceM}">
-                <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <TextBlock Text="Event trace"
+                    MaxHeight="240">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <!-- One heading, and one caption. 8D.1 shipped a group heading
+                         here and M4 shipped an inner label, so the trace carried
+                         two labels saying the same thing (D-184). -->
+                    <TextBlock Text="Event Trace"
+                               FontSize="{DynamicResource FontSizeTitle}"
                                FontWeight="SemiBold"
-                               Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <ScrollViewer MaxHeight="360"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Grid.Row="1"
+                               Text="{x:Static vm:ResultsPanelViewModel.TracePanelCaption}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextMuted}"
+                               Margin="0,0,0,8"/>
+                    <ScrollViewer Grid.Row="2"
                                   HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Auto">
-                        <SelectableTextBlock Text="{Binding TraceText}"
+                                  VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="176">
+                        <SelectableTextBlock Text="{Binding TraceBody}"
                                              FontFamily="{DynamicResource FontFamilyMono}"
                                              FontSize="{DynamicResource FontSizeCaption}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              TextWrapping="Wrap"/>
                     </ScrollViewer>
-                </StackPanel>
+                </Grid>
             </Border>
-
-        </StackPanel>
-        </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

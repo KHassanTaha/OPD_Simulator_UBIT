@@ -151,10 +151,56 @@ co-equal clinic mode. (D-105)
 
 **Answer:** There is now — the calendar `Engine.Run` overload gained an
 optional `ITraceSink` (D-110) so the Coordinator's sink is forwarded in every
-run mode. Clinic-day and multi-day runs populate the **Event trace** widget;
+run mode. Clinic-day and multi-day runs populate the **Event Trace** box;
 the Diagnostic trace mode still exists because its bounded minutes-horizon is
 the only one you can hand-walk line by line (a real day spans thousands of
 events). (D-105, D-110)
+
+### Q: Why is the event trace not one of the widgets you can switch off?
+
+**Answer:** Because it is the artefact a viva is read from, and as a card inside
+the scrolling widget list it was one scroll away from not existing at all — it
+was the last card, so scrolling up to a metric pushed it out of sight. "Always
+visible" was a default value rather than a property of the layout, which means
+any future widget added below it would have re-broken it silently. So it is now
+**grid row 2, a sibling of the scroll area**, not a child of it: no scroll
+position can hide it. That is the same shape the calculations dialog's footer
+got in D-170, and for the same reason — a thing you must be able to find cannot
+be the thing the scroll position controls.
+
+Two consequences I would defend rather than apologise for. Its height is
+**capped at 240 px** and a long trace scrolls *inside* the box, because the
+alternative is a trace that consumes the panel and hides the metrics it is meant
+to explain. And it was **removed from the Customise list** rather than left in
+as a disabled row: a checkbox that can only produce states the requirement
+forbids is a control that lies about what it does. (D-184)
+
+### Q: What happens to a saved view that still lists the event trace?
+
+**Answer:** Nothing breaks, and nothing comes back. `VisibleWidgets` is a
+`List<string>`, so an old file's `"trace"` entry parses fine — it is filtered
+out when the panel applies it, and the next widget you toggle rewrites the file
+without it. I considered making the key an enum so the old file would be
+rejected loudly, and rejected it: that would throw away the user's other seven
+choices to defend one dead key. (D-184)
+
+### Q: Why are preferences loaded from a file written back to the same file?
+
+**Answer:** Because that was broken, and 8Q.4 found it. `WidgetPreferences.Load`
+returned the object `JsonSerializer` had just built — and `System.Text.Json`
+satisfies a **public parameterless constructor**, which chained to the
+*default* path. So loading `some-temp-file.json` produced an object that saved
+to `~/.config/OpdSimulator/ui.json`, silently: the caller's file was never
+updated and the developer's real preferences were overwritten. A test in the
+suite had been doing exactly that on every run.
+
+The fix is to copy the parsed collections onto `new WidgetPreferences(filePath)`
+rather than return the deserialised instance. The reason it survived so long is
+the assertion style: the natural test — "toggling a widget updates the visible
+list" — **passes under both the broken and the fixed code**, because the
+in-memory list is correct either way. Only asserting against **the file on disk**
+fails against the bug. That is the same lesson as the D-176 receipt defect, and
+it is the reason this phase's test reads the file rather than the object. (D-185)
 
 ### Q: Why does the GUI refuse to run when nothing about the run is set?
 

@@ -35,7 +35,7 @@ public class Phase5cScreenshot
         Assert.True(outcome.TraceLines.Count > 100, "a 1500-min State trace must be long");
 
         var prefs = new WidgetPreferences(Path.Combine(Path.GetTempPath(), $"opdsim-screenshot-{Guid.NewGuid():N}.json"));
-        prefs.VisibleWidgets = new() { "metrics", "chiSquare", "trace" };
+        prefs.VisibleWidgets = new() { "metrics", "chiSquare" };
         var vm = new ResultsPanelViewModel(prefs);
 
         var host = new Window
@@ -52,13 +52,11 @@ public class Phase5cScreenshot
             vm.CompleteRun(outcome);
             host.UpdateLayout();
 
-            // The outer ScrollViewer is the one whose content carries BOTH the
-            // metrics and the trace widgets (the trace widget's own nested
-            // ScrollViewer only holds the trace text).
+            // The widget ScrollViewer, named in the XAML. The old heuristic —
+            // "the one whose content carries both metrics and the trace" — matched
+            // nothing once 8Q.4 moved the trace out to a pinned row (FR-UI-35).
             var outer = host.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Content is StackPanel
-                    && s.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "System totals")
-                    && s.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Event trace"));
+                .Single(s => s.Name == "WidgetScroller");
 
             Assert.True(outer.Extent.Height > outer.Viewport.Height + 1,
                 $"widget content must overflow the viewport (extent {outer.Extent.Height:0} > viewport {outer.Viewport.Height:0})");
@@ -89,7 +87,7 @@ public class Phase5cScreenshot
         // ResultsPanelViewModel directly with all-on preferences so the frame
         // is deterministic regardless of the per-user ui.json (FR-UI-14).
         var prefs = new WidgetPreferences(Path.Combine(Path.GetTempPath(), $"opdsim-welcome-{Guid.NewGuid():N}.json"));
-        prefs.VisibleWidgets = new() { "metrics", "chiSquare", "trace" };
+        prefs.VisibleWidgets = new() { "metrics", "chiSquare" };
         var welcomeVm = new WelcomeCardViewModel();
 
         var host = new Window

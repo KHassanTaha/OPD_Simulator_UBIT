@@ -109,18 +109,25 @@
     <sys:Double x:Key="FontSizeBody">14</sys:Double>
     <sys:Double x:Key="FontSizeTitle">18</sys:Double>
 
-    <!-- ============ Spacing (4, 8, 12, 16, 24) ============ -->
+    <!-- ============ Spacing (4, 8, 12, 16, 24, 32) ============ -->
+    <!-- SpaceXl was added in Phase 8Q.4 (D-184): the scale stopped at 24, which is
+         below the 32 px clearance the Results panel's bottom buffer needs, and
+         reaching further meant either a hardcoded Height or a second theme token
+         for the same value. The calculations dialog stays on SpaceL (24) — it
+         ships that way and its own clearance criterion is met. -->
     <sys:Double x:Key="SpaceXxs">4</sys:Double>
     <sys:Double x:Key="SpaceXs">8</sys:Double>
     <sys:Double x:Key="SpaceS">12</sys:Double>
     <sys:Double x:Key="SpaceM">16</sys:Double>
     <sys:Double x:Key="SpaceL">24</sys:Double>
+    <sys:Double x:Key="SpaceXl">32</sys:Double>
 
     <Thickness x:Key="ThicknessSpaceXxs">4</Thickness>
     <Thickness x:Key="ThicknessSpaceXs">8</Thickness>
     <Thickness x:Key="ThicknessSpaceS">12</Thickness>
     <Thickness x:Key="ThicknessSpaceM">16</Thickness>
     <Thickness x:Key="ThicknessSpaceL">24</Thickness>
+    <Thickness x:Key="ThicknessSpaceXl">32</Thickness>
 
     <Thickness x:Key="ThicknessWindowPadding">16</Thickness>
     <Thickness x:Key="ThicknessControlPadding">10,6</Thickness>

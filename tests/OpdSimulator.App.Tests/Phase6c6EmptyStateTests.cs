@@ -73,8 +73,9 @@ public class Phase6c6EmptyStateTests
     /// <summary>
     /// FR-UI-14 persistence: a widget deliberately switched off must stay off
     /// across a restart (a fresh panel constructed from the same preferences
-    /// file) — verified with the "trace" widget, which predates the post-6c.4
-    /// widgets and therefore has no migration attached.
+    /// file) — verified with the "chiSquare" widget, which predates the post-6c.4
+    /// widgets and therefore has no migration attached. It was "trace" until 8Q.4
+    /// (D-184), when the trace stopped being toggleable.
     /// </summary>
     [Fact]
     public void WidgetVisibility_ToggledOff_PersistsAcrossRestart()
@@ -84,13 +85,13 @@ public class Phase6c6EmptyStateTests
         string file = Path.Combine(dir, "ui.json");
         try
         {
-            // Trace is a pre-6c.4 widget: a deliberate off persists cleanly.
+            // Chi-square is a pre-6c.4 widget: a deliberate off persists cleanly.
             var panel = new ResultsPanelViewModel(new WidgetPreferences(file));
-            panel.ToggleWidget("trace");
-            Assert.False(panel.ShowTrace);
+            panel.ToggleWidget("chiSquare");
+            Assert.False(panel.ShowChiSquare);
 
             var restarted = new ResultsPanelViewModel(WidgetPreferences.Load(file));
-            Assert.False(restarted.ShowTrace, "trace was switched off and must stay off after restart");
+            Assert.False(restarted.ShowChiSquare, "chi-square was switched off and must stay off after restart");
         }
         finally
         {

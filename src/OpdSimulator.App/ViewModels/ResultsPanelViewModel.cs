@@ -150,7 +150,13 @@ public partial class ResultsPanelViewModel : ObservableObject
 
         ShowMetrics = visible.Contains("metrics");
         ShowChiSquare = visible.Contains("chiSquare");
-        ShowTrace = visible.Contains("trace");
+
+        // "trace" is read but deliberately NOT honoured. An existing ui.json still
+        // carries the key, and FR-UI-35 makes the trace permanently visible, so a
+        // user who once switched it off must still get it back. The key is not
+        // dropped from the loaded list here either — it is filtered out on write,
+        // so the file heals itself the next time any widget toggles.
+        ShowTrace = true;
         ShowUtilisation = visible.Contains("utilisation");
         ShowQueueLength = visible.Contains("queueLength");
         ShowWaitHistogram = visible.Contains("waitHistogram");
@@ -558,6 +564,26 @@ public partial class ResultsPanelViewModel : ObservableObject
     [ObservableProperty]
     private string _traceText = string.Empty;
 
+    /// <summary>Body of the pinned trace panel, or the reason it is empty.</summary>
+    /// <remarks>
+    /// A permanently visible box that says nothing reads as a broken panel, and a
+    /// refused run legitimately produces no trace lines. Rather than leave 240 px
+    /// of blank space, the empty case states why — AGENTS §16.1: the user always
+    /// knows why something is blank.
+    /// </remarks>
+    public string TraceBody
+        => string.IsNullOrWhiteSpace(TraceText)
+            ? "No trace was recorded for this run."
+            : TraceText;
+
+    /// <summary>
+    /// Fixed caption under the "Event Trace" heading (FR-UI-35). Fixed, not
+    /// derived from the run, because the panel itself never varies — only its
+    /// contents do, and <see cref="TraceBody"/> is where that is said.
+    /// </summary>
+    public const string TracePanelCaption =
+        "Every event of the last run, in order. Scrolls within this box.";
+
     /// <summary>Built per-server utilisation chart (Phase 6c.4), or null before the first run.</summary>
     [ObservableProperty]
     private Control? _utilisationChart;
@@ -814,7 +840,10 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnShowChiSquareChanged(bool value) => OnWidgetVisibilityChanged();
 
-    partial void OnShowTraceChanged(bool value) => OnWidgetVisibilityChanged();
+    // ShowTrace is retained only so persisted data naming "trace" still deserialises
+    // (see the constructor). It is forced true and drives no visibility, so its
+    // change hook must NOT write preferences — doing so would re-add the key this
+    // phase is removing.
 
     partial void OnShowUtilisationChanged(bool value) => OnWidgetVisibilityChanged();
 
@@ -827,7 +856,7 @@ public partial class ResultsPanelViewModel : ObservableObject
     partial void OnShowAnalyticalValidationChanged(bool value) => OnWidgetVisibilityChanged();
 
     /// <summary>Programmatic toggle used by tests and presets (the strip uses TwoWay binds).</summary>
-    /// <param name="key">The widget key ("metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation").</param>
+    /// <param name="key">The widget key ("metrics", "chiSquare", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation"). "trace" is not a key: the trace is pinned (FR-UI-35).</param>
     public void ToggleWidget(string key)
     {
         switch (key)
@@ -837,9 +866,6 @@ public partial class ResultsPanelViewModel : ObservableObject
                 break;
             case "chiSquare":
                 ShowChiSquare = !ShowChiSquare;
-                break;
-            case "trace":
-                ShowTrace = !ShowTrace;
                 break;
             case "utilisation":
                 ShowUtilisation = !ShowUtilisation;
@@ -867,7 +893,6 @@ public partial class ResultsPanelViewModel : ObservableObject
         var visible = new List<string>();
         if (ShowMetrics) { visible.Add("metrics"); }
         if (ShowChiSquare) { visible.Add("chiSquare"); }
-        if (ShowTrace) { visible.Add("trace"); }
         if (ShowUtilisation) { visible.Add("utilisation"); }
         if (ShowQueueLength) { visible.Add("queueLength"); }
         if (ShowWaitHistogram) { visible.Add("waitHistogram"); }
@@ -883,7 +908,11 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
     }
 
-    /// <summary>Widget keys currently visible (mirrors the Show flags).</summary>
+    /// <summary>
+    /// Widget keys currently visible (mirrors the Show flags). Seven, not eight:
+    /// the trace is pinned and always on (FR-UI-35), so it is not a toggleable
+    /// widget and does not appear here.
+    /// </summary>
     public IReadOnlyList<string> VisibleWidgets { get; private set; } =
-        new[] { "metrics", "chiSquare", "trace", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
+        new[] { "metrics", "chiSquare", "utilisation", "queueLength", "waitHistogram", "simulationVerification", "analyticalValidation" };
 }

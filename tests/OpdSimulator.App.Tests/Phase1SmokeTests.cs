@@ -85,6 +85,10 @@ public class Phase1SmokeTests
         Assert.Equal(12d, Try<double>("SpaceS"));
         Assert.Equal(16d, Try<double>("SpaceM"));
         Assert.Equal(24d, Try<double>("SpaceL"));
+        // 8Q.4 (D-184): the scale gained a 32 px step so the Results panel's
+        // bottom buffer is a theme token rather than a hardcoded Height.
+        Assert.Equal(32d, Try<double>("SpaceXl"));
+        Assert.Equal(new Thickness(32), Try<Thickness>("ThicknessSpaceXl"));
 
         Assert.Equal(new Thickness(16), Try<Thickness>("ThicknessWindowPadding"));
     }

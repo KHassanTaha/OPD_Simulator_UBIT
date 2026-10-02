@@ -72,24 +72,28 @@ public class Phase5cFixesTests
                 new[] { "t=0 ARRIVAL patient=1 queueLen=1" }, SimulationCoordinator.DefaultExitProbability, 0.0, null));
             window.UpdateLayout();
 
-// The outer ScrollViewer is the one whose content carries BOTH the
-            // metrics and the trace widgets (the trace widget's own nested
-            // ScrollViewer only holds the trace text).
+// The widget ScrollViewer is named in the XAML. Picking it by "which one has
+            // the most descendants" or "which one contains both headings" stopped
+            // working in 8Q.4: the trace moved out to a pinned sibling row, so
+            // those descriptions now either match the wrong element or match
+            // nothing at all.
             var outer = panel.GetVisualDescendants().OfType<ScrollViewer>()
-                .Where(s => s.Content is StackPanel)
-                .OrderBy(s => s.GetVisualDescendants().Count())
-                .Single(s =>
-                    s.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "System totals")
-                    && s.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Event trace"));
+                .Single(s => s.Name == "WidgetScroller");
 
-            // All three widgets live inside the scrolling area.
+            // Every toggleable widget lives inside the scrolling area.
             var headers = outer.GetVisualDescendants().OfType<TextBlock>()
                 .Select(t => t.Text)
                 .Where(t => t is not null)
                 .ToList();
             Assert.Contains(headers, t => t == "System totals");
             Assert.Contains(headers, t => t!.StartsWith("Chi-square goodness-of-fit"));
-            Assert.Contains(headers, t => t == "Event trace");
+
+            // The trace is deliberately NOT in here (FR-UI-35, D-184): it is a
+            // pinned sibling of the scroller so it can never be scrolled away.
+            // Asserted, not assumed — the whole point of the change is that this
+            // stays true.
+            Assert.DoesNotContain("Event trace",
+                outer.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
 
             // The customise toggle is pinned above the ScrollViewer, not inside it.
             var toggle = panel.GetVisualDescendants().OfType<ToggleButton>()

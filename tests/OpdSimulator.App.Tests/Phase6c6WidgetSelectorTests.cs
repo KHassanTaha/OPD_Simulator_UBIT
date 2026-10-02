@@ -19,13 +19,13 @@ namespace OpdSimulator.App.Tests;
 /// the Data preview widget (it now lives on the Input tab). The XAML picker IS
 /// the contract, so this is a rendered-window test: the checkboxes are read from
 /// the real ResultPanel (D-123 window seam), and the view-model key set is
-/// cross-checked so the persisted preferences and the "exactly eight" rule stay
+/// cross-checked so the persisted preferences and the "exactly seven" rule stay
 /// consistent.
 /// </summary>
 public class Phase6c6WidgetSelectorTests
 {
     [AvaloniaFact]
-    public void ResultsPanel_WidgetSelector_ListsExactlyEightResultsWidgets()
+    public void ResultsPanel_WidgetSelector_ListsExactlySevenResultsWidgets()
     {
         var window = new MainWindow();
         window.Show();
@@ -46,7 +46,7 @@ public class Phase6c6WidgetSelectorTests
             picker.IsVisible = true;
             window.UpdateLayout();
 
-            string[] expected = { "Metrics", "Chi-square", "Event trace",
+            string[] expected = { "Metrics", "Chi-square",
                 "Utilisation", "Queue length", "Wait histogram", "Simulation verification",
                 "Analytical validation" };
             string[] actual = picker.GetVisualDescendants().OfType<CheckBox>()
@@ -54,25 +54,26 @@ public class Phase6c6WidgetSelectorTests
                 .ToArray();
             Assert.Equal(expected, actual);
 
-            // VM contract matches the UI exactly: these eight keys, no more.
+            // VM contract matches the UI exactly: these seven keys, no more.
             // A fresh panel (no persisted ui.json) proves the contract hermetically
             // — MainWindow's instance reflects this machine's real preferences file
             // and is not the thing under test here. Phase 7D removed the
             // "dataPreview" widget; Phase 8B added "simulationVerification";
             // Phase 8C added "analyticalValidation".
             var results = new ResultsPanelViewModel();
-            Assert.Equal(8, expected.Length);
-            Assert.Equal(new[] { "metrics", "chiSquare", "trace",
+            Assert.Equal(7, expected.Length);
+            // 8→7 in Phase 8Q.4 (D-184): the trace is pinned, not toggleable (FR-UI-35).
+            Assert.Equal(new[] { "metrics", "chiSquare",
                 "utilisation", "queueLength", "waitHistogram", "simulationVerification",
                 "analyticalValidation" }, results.VisibleWidgets);
 
-            // An unknown key must not introduce a ninth widget or throw.
+            // An unknown key must not introduce an eighth widget or throw.
             results.ToggleWidget("bogus-widget");
-            Assert.Equal(8, results.VisibleWidgets.Count);
+            Assert.Equal(7, results.VisibleWidgets.Count);
 
             // The removed key is inert: toggling it changes nothing.
             results.ToggleWidget("dataPreview");
-            Assert.Equal(8, results.VisibleWidgets.Count);
+            Assert.Equal(7, results.VisibleWidgets.Count);
         }
         finally
         {

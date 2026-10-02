@@ -2,6 +2,177 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-10-03 Phase 8Q.4
+Branch: fix/phase-8q
+Status: In-Progress (committed on request; 8Q.5 deliberately NOT started)
+
+### Done
+- **Phase 8Q.4 — results bottom buffer + the always-visible event trace (D-184)** — marked `[x]` in TODO.md.
+- **D-185 — `WidgetPreferences.Load` path bug found and fixed** (pre-existing, not introduced by 8Q.4).
+
+### In Progress
+Nothing. The phase is complete and verified. **8Q.5 has NOT been started** and is
+awaiting the owner's "go", per instruction.
+
+### What is complete:
+
+**The layout change.** The results grid is now `RowDefinitions="Auto,*,Auto"`: header,
+scrolling widget body, and the event trace **as a sibling of the ScrollViewer in row 2**.
+The trace was previously the last card *inside* the scroll body, which made "always
+visible" a default value rather than a property of the layout — scrolling up to a metric
+pushed it out of sight. `MaxHeight="240"` with a nested ScrollViewer, one heading
+(`Event Trace`) and one fixed caption. The trace checkbox is gone from the Customise
+picker, which now lists **seven** widgets.
+
+**The buffer.** `SpaceXl` (32) and `ThicknessSpaceXl` are new theme tokens. The results
+buffer is a trailing `Border` named `ResultsBottomBuffer`, `Height="{DynamicResource
+SpaceXl}"`, the **last child of the scrollable StackPanel** — not `ScrollViewer.Padding`,
+which D-142 already measured as sitting outside the scroll extent (it shrinks the viewport
+rather than extending the content). `SpaceL` (24) is untouched and stays with the
+calculations dialog's footer (D-170).
+
+**Backward compatibility.** `VisibleWidgets` stays a `List<string>`. An old `ui.json`
+listing `"trace"` parses, the panel filters the key, and the next visibility change
+rewrites the file with seven keys. The test asserts against **the file on disk**, not the
+in-memory list — see the finding below for why that distinction is the whole test.
+
+### What remains:
+- **8Q.5**, on the owner's word only.
+- **Owner visual inspection of `logs/screenshots/phase-8q-results-buffer-trace.png`**
+  (B-012, now twenty-four frames). This host has no image input (D-089); the frame's
+  geometry is asserted numerically, but "asserted" is not "looks right".
+
+### Next Session Should Start With
+Ask the owner for the 8Q.5 scope. Do not begin it unprompted.
+
+Read `docs/BLOCKERS.md` B-012 before quoting any frame as evidence.
+
+### Blocked
+- **B-012** — twenty-four headless frames have never been inspected by a human. Owner
+  action required; see `docs/BLOCKERS.md`.
+
+### Git State
+Commits made this session: see the commit list reported at the end of this entry.
+
+Pushed to origin: **No** — commits are local; `fix/phase-8q` is 4 commits ahead of the
+last push. Push was not performed in this session.
+
+Uncommitted changes: none at the time of writing (all listed files were staged and
+committed together with this handoff).
+
+### Build & Test
+```
+dotnet build -c Release --no-incremental   →  Build succeeded. 0 Warning(s) 0 Error(s)
+dotnet test  -c Release --no-build         →  779 passed, 0 failed
+                                              (Cli 35 / Data 134 / Core 125 / App 485)
+dotnet build -c Debug   --no-incremental   →  Build succeeded. 0 Warning(s) 0 Error(s)
+dotnet test  -c Debug   --no-build         →  779 passed, 0 failed
+                                              (Cli 35 / Data 134 / Core 125 / App 485)
+```
+Verified on **Ubuntu** (.NET SDK 8.0.x), 2026-10-03.
+
+Warnings: **0** in both configurations. One `xUnit2012` warning
+(`Assert.False(...Any(...))` → `Assert.DoesNotContain`) was raised during the work and
+fixed before the gate.
+
+### Files Touched
+```
+src/OpdSimulator.App/Assets/Theme.axaml                        modified (SpaceXl, ThicknessSpaceXl)
+src/OpdSimulator.App/Services/WidgetPreferences.cs             modified (D-185 rebinding; 7-key default)
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs       modified (ShowTrace forced; 7 keys; TraceBody; TracePanelCaption)
+src/OpdSimulator.App/Views/ResultsPanel.axaml                  modified (Auto,*,Auto; WidgetScroller; ResultsBottomBuffer; pinned trace)
+tests/OpdSimulator.App.Tests/ResultsPanelBufferTraceTests.cs   added (7 tests)
+tests/OpdSimulator.App.Tests/Phase8Q4Screenshot.cs             added (1 test)
+tests/OpdSimulator.App.Tests/Phase1SmokeTests.cs               modified (spacing token assertions)
+tests/OpdSimulator.App.Tests/Phase5cFixesTests.cs              modified (named scroller; trace now asserted OUTSIDE)
+tests/OpdSimulator.App.Tests/Phase5cScreenshot.cs              modified (named scroller)
+tests/OpdSimulator.App.Tests/Phase6c4UtilisationTests.cs       modified (toggle vehicle)
+tests/OpdSimulator.App.Tests/Phase6c6EmptyStateTests.cs        modified (toggle vehicle)
+tests/OpdSimulator.App.Tests/Phase6c6Screenshots.cs            modified (7 widgets; "Event Trace" heading)
+tests/OpdSimulator.App.Tests/Phase6c6WidgetSelectorTests.cs    modified (7 widgets; ToggleButton + Click)
+tests/OpdSimulator.App.Tests/Phase8BVerificationTests.cs       modified (7 widgets; test renamed)
+tests/OpdSimulator.App.Tests/Phase8CValidationTests.cs         modified (dead ShowTrace restore removed)
+docs/PRD.md                                                    modified (v1.10.0; FR-UI-34 merge; FR-UI-35 trace; FR-UI-14)
+docs/REQUIREMENTS.md                                           modified (rows + coverage recount)
+docs/DECISIONS.md                                              modified (D-184, D-185)
+docs/TODO.md                                                   modified (8Q.4 entry)
+docs/USER_MANUAL.md                                            modified (§6.3; picker list; changelog)
+docs/VIVA_ANSWERS.md                                           modified (3 new questions)
+docs/DEV_LAUNCH.md                                             modified (Last verified; changelog)
+docs/BLOCKERS.md                                               modified (B-012 → 24 frames)
+```
+
+### Decisions Made
+- **D-184** — the trace is pinned below the widget scroller rather than placed inside it;
+  the buffer is a trailing element rather than scroll padding; the ScrollViewer is named
+  `WidgetScroller` rather than found by guessing. See `docs/DECISIONS.md` D-184.
+- **D-185** — `WidgetPreferences.Load` copies parsed state onto a new instance bound to
+  the requested path, instead of returning the deserialised object. See `docs/DECISIONS.md`
+  D-185.
+
+### Findings worth carrying forward
+
+**1. A pre-existing bug that a passing test could not see (D-185).** The owner's test #3
+was unanswerable as written, and finding out why was the phase's most valuable result.
+`WidgetPreferences.Load(path)` returned the instance `JsonSerializer` had built — and
+`System.Text.Json` satisfies the **public parameterless constructor**, which chained to
+`DefaultFilePath`. So an object loaded from a temp file wrote to
+`~/.config/OpdSimulator/ui.json` and the caller's file was never updated.
+`Phase6c6EmptyStateTests` had been overwriting the developer's own UI preferences on
+**every test run**. Two consequences for how tests are written here:
+
+  - The natural assertion — "toggling a widget updates the visible list" — **passes under
+    both the broken and the fixed code**, because the in-memory list is correct either
+    way. Only asserting against **the file on disk** fails against the bug. The phase's
+    test reads the file for that reason, and
+    `WidgetPreferences_Load_RebindsToTheFileItRead` pins it.
+  - I spent several rounds guessing at this and should have instrumented the file in the
+    first round. Two `Assert.Fail` probes with the resolved paths would have found it
+    immediately; the reflection dump that named `_filePath` as the *default* path is what
+    actually located the constructor.
+
+**2. The widget-count change touched more sites than the four named, and the reason is
+the finding.** Five tests identified "the widget ScrollViewer" by a **guess** — "the one
+whose content carries both the metrics and the trace" — and every one of those guesses
+became false the moment the trace left the scroll body. The ScrollViewer is now named in
+the XAML. **A name in the XAML cannot go stale the way a description does.**
+
+**3. One test had been pinning the old behaviour as correct.**
+`Phase5cFixesTests.ResultsPanel_ScrollViewer_ContainsAllWidgets` asserted the trace was
+*inside* the scroller — so it would have failed the requirement rather than the defect. It
+now asserts the opposite.
+
+**4. One test was asserting against a hidden control.**
+`Phase6c6WidgetSelectorTests` looked for a `CheckBox` named `CustomiseToggle` (it is a
+`ToggleButton`) and set `IsChecked` (the picker opens from the `Click` handler). It would
+have read the labels of a **closed** picker and passed. It now raises the Click and asserts
+the picker is open first.
+
+**5. A second stale number, found while recounting.** The `REQUIREMENTS.md` Coverage
+Summary was **already wrong before this phase**: it claimed 81 total and 6 in-progress
+where the rows carry **83 and 8**. Every figure was recounted off the status column with
+`awk` rather than adjusted, so coverage **falls** 77.8 % → 75.9 % (63/83) with no work
+undone — the denominator was understated. A summary that has been "corrected" twice by
+incrementing is a number nobody re-derived.
+
+### Assumptions Added/Changed
+None. No new `[UNVERIFIED]` assumption was introduced, and none was promoted to
+`[VERIFIED]`. The D-185 defect was a code fact, not an assumption.
+
+### Notes for Next Session
+- **Do not start 8Q.5 without an explicit "go" from the owner.**
+- `phase-8q-results-buffer-trace.png` is captured through the real `MainWindow` at the
+  declared 1200×760 with **no size supplied by the test** (D-166). It snapshots and
+  restores `~/.config/OpdSimulator/ui.json`, because `MainWindow`'s constructor binds the
+  real preferences store and showing every widget is a visibility change.
+- `phase-8q-performance-measures.png` is **not frozen** — its test is still active and
+  re-rendered it during this gate (107,834 B → 110,544 B), because the layout it captures
+  moved. Permitted under D-166 (unreviewed frames may be regenerated), but do not treat
+  its byte size as stable, unlike `phase-8n-calculations.png` whose writer was retired.
+- `ShowTrace` is retained on `ResultsPanelViewModel` but forced `true` and ignored as a
+  preference. It is still read before any run exists. Do not "clean it up" without reading
+  D-184's rationale.
+
 ## Session Handoff — 2026-10-03 Phase 8Q.3
 Branch: `fix/phase-8q`
 Status: In-Progress (work complete and gated; owner visual inspection outstanding)

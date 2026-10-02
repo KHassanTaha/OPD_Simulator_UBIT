@@ -428,6 +428,15 @@ chart failure never blocks the results.
 > supplied binned data + fitted PDF points, so no engine rework was needed.
 > The 6C completion gate is D-124 (Phase 6c.6).
 >
+> **[VERIFIED — 2026-10-03, Phase 8Q.4, D-184]** The **event trace is always
+> visible** and is **not** a toggleable widget. It sits in its own grid row *below*
+> the scrolling results body, with a 240 px ceiling and its own internal scrollbar.
+> The reasoning worth keeping: as the last card *inside* the scrolling list it was
+> one scroll away from not existing, and "always visible" was a default value
+> rather than a property of the layout — so any future widget added below it would
+> have re-broken it silently. A trace you have to scroll to find is a trace that was
+> not read. See `VIVA_ANSWERS.md` for the Q&A form.
+>
 > **[VERIFIED — 2026-09-18, Phase 7D]** The data-derived charts and the data
 > upload/preview UI now share one **Input** tab (tab 2 of four:
 > Simulation | Input | Token Generator | Help). The Simulation tab's former

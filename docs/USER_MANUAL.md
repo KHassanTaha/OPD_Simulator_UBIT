@@ -444,7 +444,8 @@ engine actually did.
      whole-minutes field) and the **Trace level** dropdown
      (Minimal / Standard / Detailed / Debug).
      Clinic-day and multi-day runs also record an event trace — it appears in
-     the right panel's **Event trace** widget, most detailed in diagnostic mode.
+     the **Event Trace** box pinned below the right panel, most detailed in
+     diagnostic mode. That box is always shown (§6.3); you do not switch it on.
 
 10. **(Diagnostic trace only) Set the trace level.**
     "Minimal" records nothing; "Standard" records arrivals, service start/end,
@@ -485,13 +486,14 @@ members, professor). It is replaced by the results the moment you start a
 calculation. If the run was refused, an error banner explains exactly why.
 
 The widget selector (a "Customise results" toggle at the top of the right
-panel) shows or hides the individual Results widgets below it: the **Performance
-Measures** group (§6.1), the **per-server utilisation chart**, the **queue-length-over-time
-chart**, the **waiting-time distribution**, the **chi-square results**, the
-**simulation verification** (§6.8), the **analytical validation** (§6.9), and
-the **event trace**. Your choice is
+panel) shows or hides the seven individual Results widgets below it: the
+**Performance Measures** group (§6.1), the **per-server utilisation chart**, the
+**queue-length-over-time chart**, the **waiting-time distribution**, the
+**chi-square results**, the **simulation verification** (§6.8), and the
+**analytical validation** (§6.9). Your choice is
 remembered between sessions. (The **data preview** moved to the **Input** tab
-in Phase 7D and is no longer a Results widget.)
+in Phase 7D and is no longer a Results widget. The **event trace** is not in
+this list — it is always visible; see §6.3.)
 
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
@@ -547,9 +549,16 @@ Shows how well the chosen distribution fits the data:
 - **Decision** — "Accept" or "Reject".
 
 ### 6.3 Event Log
-Chronological trace of every event, rendered only by a **Diagnostic trace**
-run (§5 step 7). Choose the trace level in the Horizon section to include
-queue-state snapshots and (at `Debug`) random-number draws.
+Chronological trace of every event, from a **Diagnostic trace** run (§5 step 7)
+or from any run that recorded a trace. Choose the trace level in the Horizon
+section to include queue-state snapshots and (at `Debug`) random-number draws.
+
+The box is **pinned below the widgets** rather than sitting inside the scrolling
+list, so scrolling to a metric never pushes the trace off screen, and it **is
+not** in the "Customise results" list — there is no switch to turn it off. Its
+height is capped, and a long trace scrolls **inside** the box so it cannot
+squash the widgets above it. A run that recorded no trace says so in the box
+rather than leaving it blank.
 
 ### 6.4 Per-Server Utilisation Chart
 Shows what the engine's own servers actually did during a run (one bar per
@@ -1198,6 +1207,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-03 | Phase 8Q.4: the **event trace** is now **always visible**, pinned in a box below the results widgets instead of scrolling away with them, so it can never be pushed off screen. It has been **removed from the "Customise results" list** — there is nothing to switch on. The box keeps a fixed maximum height and a long trace scrolls inside it. The widgets above now have a little breathing room at the bottom, so the last card is never hidden behind the trace box. If you had an older saved view that included the event trace, it is simply ignored — the trace stays visible and the setting is cleaned up the next time you change a widget. |
 | 2026-10-03 | Phase 8Q.3: the results panel's first group is now headed **Performance Measures** and carries a **stability verdict** per stage plus a named **bottleneck** (§6.1a). Stages are numbered `#` in visit order. Bands: **Stable** below ρ 0.90, **Near capacity** from 0.90 up to 1.00, **Unstable** at 1.00 or above (which the simulator refuses to run, so it is normally not seen) |
 | 2026-10-03 | Phase 8Q.2: patients who skip Screening can now be modelled and read from data. A new **p_bypass** field in the Parameters section fits "went straight to the Doctor" from your file, and the **p_exit** fit now counts only the patients who were actually **screened** — before, direct-to-doctor traffic diluted it. Blank screening times on a bypass row are accepted instead of being reported as errors, so the sample bypass file now loads cleanly; blank Reception times still are not (§7.1). The event log now records the destination the patient actually went to, instead of printing the default next stage before the decision was made. A new sample file, `samples/sample_overcapacity.csv`, demonstrates a stage booked beyond its capacity. |
 | 2026-10-03 | Phase 8Q.1: the **Input** tab now has a **Servers** field for each stage the file records, and a **Historical utilisation** line beside it showing `busy ÷ (servers × minutes)` with the division printed so you can check it. The divisor is named on screen — *observed* when the file has a `session_date` column, *spanned* otherwise. A stage above 100 % is shown as recorded, with a warning suggesting more servers, and is never silently capped. **Use for simulation** copies these counts into the Stages configuration once (§7.1b). |

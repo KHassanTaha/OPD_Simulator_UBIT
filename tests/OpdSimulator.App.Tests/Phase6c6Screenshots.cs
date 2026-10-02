@@ -25,7 +25,7 @@ namespace OpdSimulator.App.Tests;
 /// <item><c>phase-6c-input-analysis.png</c> — Input tab: histogram +
 /// fitted-PDF card and chi-square observed-vs-expected card per fit.</item>
 /// <item><c>phase-6c-results-all.png</c> — Simulation tab after a real engine
-/// run with the sample multi-stage clinic loaded: all eight widgets (metrics,
+/// run with the sample multi-stage clinic loaded: all seven widgets (metrics,
 /// utilisation, queue length, waiting-time histogram, chi-square, simulation
 /// verification, analytical validation, trace) in one frame.</item>
 /// <item><c>phase-6c-widget-toggled.png</c> — same run with the "Customise
@@ -168,7 +168,7 @@ if (window.DataContext is not MainViewModel main)
 
     private static readonly string[] WidgetKeys =
     {
-        "metrics", "chiSquare", "trace",
+        "metrics", "chiSquare",
         "utilisation", "queueLength", "waitHistogram", "simulationVerification",
         "analyticalValidation",
     };
@@ -255,7 +255,7 @@ if (window.DataContext is not MainViewModel main)
     }
 
     /// <summary>
-    /// Proves every one of the eight widget cards is realised after the run
+    /// Proves every one of the seven widget cards is realised after the run
     /// wiring and carries its expected content (the screenshot is evidence, the
     /// asserts are the proof). Seven carry real data; the analytical-validation
     /// card intentionally shows its documented empty state because this run is a
@@ -319,8 +319,10 @@ if (window.DataContext is not MainViewModel main)
         Assert.True(r.AnalyticalValidation.IsEmpty);
         Assert.Empty(r.AnalyticalValidation.Rows);
 
-        // And the FR-UI-14 contract: all eight widgets are visible together.
-        Assert.Equal(new[] { "metrics", "chiSquare", "trace",
+        // And the FR-UI-14 contract: all seven toggleable widgets are visible
+        // together. "trace" is absent by design since 8Q.4 (D-184) — the trace is
+        // pinned at the bottom of the panel and is not a toggleable widget.
+        Assert.Equal(new[] { "metrics", "chiSquare",
             "utilisation", "queueLength", "waitHistogram", "simulationVerification",
             "analyticalValidation" }, r.VisibleWidgets);
     }
@@ -328,8 +330,11 @@ if (window.DataContext is not MainViewModel main)
     /// <summary>
     /// The widget stack scrolls (5c.1), so a tall window alone does not prove the
     /// capture shows everything — a widget below the results viewport would be
-    /// clipped. The event trace is the last widget in the stack, so if its card
-    /// bottom fits inside the window, every widget above it does too.
+    /// clipped. The event trace is the last thing in grid order, so if its card
+    /// bottom fits inside the window, every widget above it does too. Since 8Q.4 it
+    /// is a pinned sibling of the scroller rather than the last card inside it
+    /// (FR-UI-35), which makes this check stricter: the trace can never be clipped
+    /// at all now, so a failure here means the WIDGET stack overflowed.
     /// </summary>
     private static void AssertAllWidgetsInsideOneFrame(Window window)
     {
@@ -339,7 +344,7 @@ if (window.DataContext is not MainViewModel main)
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .ToArray();
         var traceHeader = panel.GetVisualDescendants().OfType<TextBlock>()
-            .FirstOrDefault(t => t.Text == "Event trace");
+            .FirstOrDefault(t => t.Text == "Event Trace");
         Assert.True(traceHeader is not null,
             $"event-trace header not realised; headers found were: [{string.Join(", ", headers)}]");
         var traceCard = traceHeader.GetVisualAncestors().OfType<Border>().First();

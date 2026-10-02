@@ -352,7 +352,6 @@ public class Phase8CValidationTests
     {
         results.ShowMetrics = originalVisible.Contains("metrics");
         results.ShowChiSquare = originalVisible.Contains("chiSquare");
-        results.ShowTrace = originalVisible.Contains("trace");
         results.ShowUtilisation = originalVisible.Contains("utilisation");
         results.ShowQueueLength = originalVisible.Contains("queueLength");
         results.ShowWaitHistogram = originalVisible.Contains("waitHistogram");
