@@ -1024,6 +1024,87 @@ public partial class ConfigPanelViewModel : ObservableObject
         Log.Information("Stages synced to the loaded data: {Stages}", string.Join(", ", names));
     }
 
+    /// <summary>
+    /// Copies recorded historical server counts into the Stages section's Servers
+    /// fields (Phase 8Q.1, rulings 6, D-178).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>These are different numbers and this is the only place they meet.</b> The
+    /// Input tab's counts are a recollection about the clinic as it was when the
+    /// data was recorded, and they drive the historical-utilisation readout. The
+    /// Stages section's counts are a decision about the model the simulation will
+    /// run. Seeding is a one-way copy made once, when the user asks for it, and it
+    /// is never re-applied: editing the Input tab afterwards does not rewrite
+    /// Stages, so a hand-tuned configuration cannot be overwritten by a later
+    /// visit to a historical field.
+    /// </para>
+    /// <para>
+    /// Stages whose name matches no recorded count are left alone rather than
+    /// reset, and a recorded count with no matching row is reported as skipped.
+    /// Silently writing a 1 over a configured 3 would be the one outcome the
+    /// separation exists to prevent.
+    /// </para>
+    /// </remarks>
+    /// <param name="counts">Stage name → recorded server count.</param>
+    /// <returns>The number of Stages rows written.</returns>
+    public int SeedServerCountsFromHistory(IReadOnlyDictionary<string, int> counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+
+        if (counts.Count == 0)
+        {
+            return 0;
+        }
+
+        int applied = 0;
+        var unmatched = new List<string>();
+
+        foreach (var row in StageRows)
+        {
+            if (counts.TryGetValue(row.StageName, out int servers) && servers >= 1)
+            {
+                row.Servers.Value = servers.ToString();
+                applied++;
+            }
+            else if (!counts.ContainsKey(row.StageName))
+            {
+                unmatched.Add(row.StageName);
+            }
+        }
+
+        // A recorded count the Stages section has no row for is worth saying out
+        // loud: the user recorded a stage the model does not have.
+        foreach (string stage in counts.Keys)
+        {
+            if (!StageRows.Any(r => string.Equals(r.StageName, stage, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.Warning(
+                    "Recorded server count for {Stage} did not seed any Stages row — the "
+                  + "configured stages do not include it.",
+                    stage);
+            }
+        }
+
+        if (unmatched.Count > 0)
+        {
+            Log.Information(
+                "Stages left unchanged while seeding server counts (no recorded count): {Stages}",
+                string.Join(", ", unmatched));
+        }
+
+        // The gate reads every stage's fields, so it has to re-evaluate after the
+        // write (7C.6, same reason SyncStagesToData does).
+        RecomputeBlockingState();
+
+        Log.Information(
+            "Seeded simulation server counts from recorded historical counts: {Applied} of {Total} rows",
+            applied,
+            StageRows.Count);
+
+        return applied;
+    }
+
     /// <summary>Dismisses the stage-data mismatch warning for the rest of the session (5d.3).</summary>
     public void DismissStageMismatchWarning()
     {

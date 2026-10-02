@@ -241,6 +241,17 @@ public partial class MainViewModel : ObservableObject
     private void OnUseForSimulationRequested(object? sender, EventArgs e)
     {
         Config.SourceMode = DataSourceMode.FitFromData;
+
+        // Phase 8Q.1 (rulings 6): the recorded HISTORICAL server counts seed the
+        // Stages section once, on this explicit click. They are acknowledged
+        // straight after so a later visit to this tab — with no edit in between —
+        // cannot overwrite a configuration the user has since tuned by hand.
+        if (InputTab.SeedableServerCounts is { Count: > 0 } counts)
+        {
+            Config.SeedServerCountsFromHistory(counts);
+            InputTab.AcknowledgeSeededServerCounts();
+        }
+
         SetSelectedTabIndex(0);
     }
 

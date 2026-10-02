@@ -931,6 +931,86 @@ and the window each was computed from — with the division printed, so you can
 confirm `60 ÷ 825` really is the λ beside it. A result can be read back later
 without guessing. See [§6.11](#611-reading-the-calculations-dialog).
 
+### 7.1b Recording how many servers were working, and what the file says about them
+
+<a id="historical-server-counts"></a>
+
+The Input tab asks you one thing the file cannot answer: **how many servers were
+working at each stage while the data was being collected.** There is one field
+per stage the file's own columns describe, in clinic order, each starting at 1.
+
+These fields say "recorded during data collection" because that is what they
+are — your record, not a value in the file. The note under them says plainly
+that **server-ID columns are not present**: no column in the file says which
+server a patient saw, so the count you type is an assumption about how many
+could work at once. If two tables shared one queue, the honest answer is 1 for
+that stage.
+
+Enter a whole number of 1 or more. A blank or non-numeric field is refused in
+place with a message saying what to type, rather than being quietly read as 1.
+
+#### Historical utilisation, and how to check it
+
+Underneath, each stage shows what utilisation *would* have been over the period
+you recorded. It is calculated as:
+
+```
+utilisation = total service minutes recorded ÷ (servers × operating minutes)
+```
+
+So the number depends on the count you typed. Change the count and the figure
+changes — that is the point of showing them together.
+
+Every row prints the division that produced it, so you never have to trust a
+percentage:
+
+```
+Screening   48.5 %   = 80.0 ÷ (1 × 165.0)   (observed window)
+```
+
+**Which operating minutes are used.** The app always names the basis, because
+the two available answers are different numbers:
+
+| Basis | When | How it is worked out |
+|-------|------|---------------------|
+| **Observed** | the file has a `session_date` column | operating days × 165 minutes |
+| **Spanned** | no `session_date` column | last service completion − first arrival |
+
+A file with no dates carries no evidence of how long the clinic was open, so the
+app measures the span of the recorded work instead and says so. The spanned
+window is measured to the **last service completion**, not the last arrival,
+because the clinic was still open until the last patient finished.
+
+#### A figure above 100 %
+
+If a stage shows **more than 100 %**, the app does **not** cap it at 100. It
+shows the real figure and a warning, because a number over 100 % is a finding
+worth seeing rather than a glitch to hide. It means the recorded service time
+cannot be explained by the number of servers you entered — either the true count
+was higher, or the file's service times are wrong.
+
+The remedy is to raise the server count for that stage and watch the figure
+drop. Hiding the excess would leave a plausible-looking number that disagrees
+with the data.
+
+#### These counts and the run's server counts are two different things
+
+The counts here describe the **collection period**. The **Stages** section of the
+Simulation tab describes the **simulation**. They are shown separately and are
+not linked while you type — editing a field here will not change the Stages
+section.
+
+To copy these counts across, use **Use for simulation**. It copies them into the
+Stages rows **once**, at the moment you press it, and its label says that it
+overwrites them. After that, the two are yours to set independently: a
+simulation may deliberately try a busier clinic than the one that was recorded.
+
+#### What historical utilisation is not
+
+This figure is not the same as the **per-server utilisation** in the results
+panel, which comes from the simulation's own run. One describes history, one
+describes the model. They will not agree, and they are not meant to.
+
 ### 7.2 Check your file first
 
 ```bash

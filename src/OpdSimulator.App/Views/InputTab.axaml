@@ -3,6 +3,7 @@
              xmlns:controls="using:OpdSimulator.App.Controls"
              xmlns:views="using:OpdSimulator.App.Views"
              xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             xmlns:vm="using:OpdSimulator.App.ViewModels"
              x:Class="OpdSimulator.App.Views.InputTab"
              x:DataType="viewModels:InputTabViewModel">
 
@@ -91,6 +92,99 @@
 
             <!-- Distribution-fit analysis for the loaded file -->
             <Border Height="1" Background="{DynamicResource BrushBorderDefault}"/>
+
+            <!-- ── Servers present during data collection (Phase 8Q.1, D-178) ──
+                 Sits directly below the upload row because it qualifies the file
+                 that was just loaded: the counts are a property of the RECORDING,
+                 not of the run, and historical utilisation cannot be computed
+                 without them. -->
+            <Border IsVisible="{Binding HasServerCounts}"
+                    Classes="PanelCard"
+                    Padding="{DynamicResource ThicknessSpaceM}">
+                <StackPanel Spacing="{DynamicResource SpaceS}">
+                    <TextBlock Text="Servers present during data collection"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="{Binding ServerCountCaption}"
+                               Classes="Caption"
+                               TextWrapping="Wrap"/>
+
+                    <ItemsControl ItemsSource="{Binding ServerCounts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HistoricalServerCountRow">
+                                <controls:ValidatedField
+                                    Margin="0,4,0,0"
+                                    Label="{Binding StageName}"
+                                    Watermark="1"
+                                    Unit="servers"
+                                    Value="{Binding Servers, Mode=TwoWay}"
+                                    HasError="{Binding HasError}"
+                                    ErrorMessage="{Binding ErrorMessage}"
+                                    Tooltip="{Binding Tooltip}"
+                                    HelpAnchor="historical-server-counts"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Historical utilisation: what the recorded counts imply about
+                         the recorded data. The basis line names the divisor so the
+                         figure is reproducible from what is on screen (D-176). -->
+                    <StackPanel Spacing="{DynamicResource SpaceXs}"
+                                Margin="0,8,0,0"
+                                IsVisible="{Binding HistoricalMetrics.HasMetrics}">
+                        <TextBlock Text="Historical utilisation"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="{Binding HistoricalMetrics.BasisText}"
+                                   Classes="Caption"
+                                   TextWrapping="Wrap"/>
+
+                        <ItemsControl ItemsSource="{Binding HistoricalMetrics.Stages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HistoricalStageRow">
+                                    <Border Margin="0,4,0,0"
+                                            Padding="{DynamicResource ThicknessSpaceS}"
+                                            CornerRadius="4"
+                                            Background="{DynamicResource BrushSurfaceSecondary}">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding Headline}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                                            <TextBlock Classes="Caption" TextWrapping="Wrap">
+                                                <Run Text="Total time in service:"/>
+                                                <Run Text="{Binding BusyTimeText, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Classes="Caption" TextWrapping="Wrap">
+                                                <Run Text="Operating time:"/>
+                                                <Run Text="{Binding OperatingTimeText, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Run Text="Stage utilisation:"/>
+                                                <Run Text="{Binding UtilisationText, Mode=OneWay}"
+                                                     FontWeight="SemiBold"/>
+                                                <Run Text="{Binding CalculationText, Mode=OneWay}"
+                                                     Classes="Caption"/>
+                                            </TextBlock>
+                                            <!-- Above 100% is reported, never clamped:
+                                                 it is evidence the recorded count is
+                                                 too low (rulings 4). -->
+                                            <controls:ErrorBanner
+                                                Message="{Binding CapacityWarning}"
+                                                Severity="Warning"
+                                                IsVisible="{Binding HasCapacityWarning}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding HistoricalMetrics.PerServerNote}"
+                                   Classes="Caption"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
             <!-- ── Observation window (D-172) ─────────────────────────────────
                  Sits above the fit charts because the window decides which

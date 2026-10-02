@@ -1,7 +1,10 @@
 namespace OpdSimulator.App.ViewModels;
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
@@ -69,6 +72,80 @@ public partial class InputTabViewModel : ObservableObject
     /// <summary>True once a file has been loaded (valid or rejected).</summary>
     [ObservableProperty]
     private bool hasFile;
+
+    /// <summary>
+    /// The servers recorded as open at each detected stage during data collection
+    /// (Phase 8Q.1, D-178) — one field per stage, empty when no file is loaded.
+    /// </summary>
+    /// <remarks>
+    /// These are the HISTORICAL counts. They feed
+    /// <see cref="HistoricalMetrics"/> and are seeded into the Stages section once
+    /// by "Use for simulation"; they are never re-read afterwards (rulings 6).
+    /// </remarks>
+    public ObservableCollection<HistoricalServerCountRow> ServerCounts { get; } = new();
+
+    /// <summary>True when there is at least one recorded count to show.</summary>
+    public bool HasServerCounts => ServerCounts.Count > 0;
+
+    /// <summary>The historical-utilisation readout for the loaded file.</summary>
+    public HistoricalMetricsViewModel HistoricalMetrics { get; } = new();
+
+    /// <summary>
+    /// The caption explaining what the recorded counts are for, shown above the
+    /// per-stage fields.
+    /// </summary>
+    public string ServerCountCaption =>
+        "How many servers (tables, doctors, counters) were open at each stage when this "
+        + "data was recorded. Used to compute historical utilisation.";
+
+    /// <summary>
+    /// The valid recorded counts, stage name → count, for the stages whose field
+    /// currently holds a usable value.
+    /// </summary>
+    /// <remarks>
+    /// A stage with an invalid entry is <b>omitted</b> rather than defaulted to 1.
+    /// Defaulting would silently compute a utilisation from a number the user has
+    /// said is wrong, which is the exact failure this input exists to prevent.
+    /// </remarks>
+    public IReadOnlyDictionary<string, int> ValidServerCounts()
+        => ServerCounts
+            .Where(r => r.ParsedServers is not null)
+            .ToDictionary(r => r.StageName, r => r.ParsedServers!.Value, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Rebuilds the per-stage count fields for a loaded file, one per detected
+    /// stage, each defaulting to 1 (Phase 8Q.1).
+    /// </summary>
+    /// <param name="binding">The analysed data binding, or null to empty the section.</param>
+    private void ApplyServerCounts(DataBindingResult? binding)
+    {
+        foreach (var row in ServerCounts)
+            row.Changed -= OnServerCountChanged;
+
+        ServerCounts.Clear();
+
+        if (binding?.DataSet is not null)
+        {
+            foreach (string stage in binding.StageNames)
+            {
+                var row = new HistoricalServerCountRow(stage);
+                row.Changed += OnServerCountChanged;
+                ServerCounts.Add(row);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasServerCounts));
+        RefreshHistoricalMetrics();
+    }
+
+    /// <summary>
+    /// Recomputes the historical-utilisation readout from the current counts.
+    /// </summary>
+    private void RefreshHistoricalMetrics()
+        => HistoricalMetrics.Apply(_lastBinding, ValidServerCounts());
+
+    /// <summary>Recomputes the readout when a count is edited.</summary>
+    private void OnServerCountChanged(object? sender, EventArgs e) => RefreshHistoricalMetrics();
 
     /// <summary>
     /// The window the file's own session dates imply, chosen from the preset
@@ -280,9 +357,36 @@ public partial class InputTabViewModel : ObservableObject
         ClearFileRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Asks the shell to fit the run from this file and show the Simulation tab.</summary>
+    /// <summary>
+    /// The valid recorded counts to seed the Stages section with, or null when
+    /// none are usable.
+    /// </summary>
+    /// <remarks>
+    /// Published beside <see cref="UseForSimulationRequested"/> rather than sent as
+    /// the event's argument: the shell already owns that event and its other
+    /// subscribers, and a second channel for the same click would be a second path
+    /// that could drift from the first.
+    /// </remarks>
+    public IReadOnlyDictionary<string, int>? SeedableServerCounts { get; private set; }
+
+    /// <summary>
+    /// Asks the shell to fit the run from this file and show the Simulation tab,
+    /// carrying the recorded server counts so the Stages section can be seeded
+    /// once (rulings 6).
+    /// </summary>
     [RelayCommand]
-    private void UseForSimulation() => UseForSimulationRequested?.Invoke(this, EventArgs.Empty);
+    private void UseForSimulation()
+    {
+        var counts = ValidServerCounts();
+        SeedableServerCounts = counts.Count > 0 ? counts : null;
+        UseForSimulationRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Clears the published seed counts once the shell has applied them, so a
+    /// later "Use for simulation" with no edit in between cannot re-seed (rulings 6).
+    /// </summary>
+    public void AcknowledgeSeededServerCounts() => SeedableServerCounts = null;
 
     /// <summary>Asks the shell to replace the config's stage list with the data's stages.</summary>
     [RelayCommand]
@@ -310,6 +414,7 @@ public partial class InputTabViewModel : ObservableObject
             : $"Loaded {binding.DataSet?.RowCount ?? 0} rows from {name}.";
 
         ApplyBindingLambda(binding);
+        ApplyServerCounts(binding);
     }
 
     /// <summary>
@@ -502,6 +607,7 @@ public partial class InputTabViewModel : ObservableObject
         SelectedWindow = null;
         IsCustomWindowInvalid = false;
         CustomWindowErrorText = "";
+        ApplyServerCounts(null);
         // Phase 8L: an empty per-stage list, not a placeholder "Exponential". There
         // is no binding here, so FitAll returns before it reads any family — an
         // empty list states that honestly instead of implying a family was chosen.

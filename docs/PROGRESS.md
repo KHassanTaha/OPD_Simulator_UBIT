@@ -2,6 +2,81 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-10-03 Phase 8Q.1
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- [x] **Per-stage recorded server count on the Input tab** (D-178 rulings 1, 2). One field per stage the file's own columns imply, discovered by **reusing `StagePairDetector.Detect` and `ClinicStageOrder.Flow`** — a second prefix-matching detector would disagree with the first on the first unusual column pair, and that is a bug waiting for a data file rather than a design question. Default 1, shared `ValidatedField` with a unit, and a note stating **server-ID columns are absent** so the count reads as an assumption about simultaneous capacity rather than a measurement.
+- [x] **Historical stage utilisation, printed as its division** (rulings 3, 7). `busy ÷ (servers × operating minutes)`, with busy minutes, server count and operating minutes all rendered literally beside the percentage — `48.5 % = 80.0 ÷ (1 × 165.0)`. The reader can check the figure from the row alone, which is D-176's lesson applied to a new surface.
+- [x] **Divisor basis, always named on screen** (ruling 4). **Observed** = `operating days × 165` when the file carries `session_date`; **spanned** = last service *completion* − first arrival otherwise. Both are labelled. 165 minutes is itself a documented assumption (D-172), so a figure printed without its basis is a number nobody can verify.
+- [x] **Above 100 % shown raw with a remedy-naming warning, never clamped** (ruling 5). A figure over capacity means the recorded service time cannot be explained by the recorded count — a finding, not a glitch. Clamping it to 100 % would leave a plausible-looking number that disagrees with the data, which is the failure mode that costs a viva. The clinic file reads ~199 % at one screening server, so this path is exercised on real data.
+- [x] **Counts and Stages stay two separate things** (ruling 6). "Use for simulation" copies the recorded counts into the Stages rows **once**, at the moment of the action, and its label says it overwrites them. Later edits on the Input tab do not rewrite Stages. This is the D-176 mirror defect **prevented** rather than fixed — D-176 corrected a value that followed the wrong view; here the direction of travel is declared one-way instead.
+- [x] **Committed CI fixture `samples/sample_bypass.csv`**: 4 of 14 Screening departures converted to bypass rows (indices 6, 10, 15, 19 — evenly spaced, not the first four), plus a `.gitignore` allowlist entry so the ignore rule for real data does not swallow it. The real clinic capture stays local and uncommitted.
+- [x] **The validator gap this phase deliberately did not close**, now pinned by a test: `samples/sample_bypass.csv` **reports 8 validation issues** for its 4 bypass rows. `DataValidator.StageMayBeBlankFor` forgives a blank stage cell only when the stage comes *after* `departure_stage`, and a bypass row's blank `screening_*` sits *before* a Doctor departure — so the validator cannot distinguish a patient who skipped Screening from one whose screening time was omitted, because it never consults the filled `doctor_*` pair. That fix belongs to 8Q.2 with the bypass detection it serves. `SampleBypassFixture_CarriesBypassRowsAndKeepsTheRestValid` asserts the **current** behaviour with a comment naming 8Q.2 as the phase that must invert it, so the change cannot land quietly and the test that watches it fails loudly.
+- [x] **A frame that skips in CI, deliberately** (D-178). The above-100 % frame is taken from the real clinic capture, which is uncommitted by design, so the test returns early when the file is absent. The alternative — asserting the warning against `sample_bypass.csv`, which peaks at 48.5 % at c = 1 and never shows it — would be a green test standing in for evidence that does not exist. The behaviour is asserted against constructed data in `HistoricalMetrics_BusyTimeAboveCapacity_ReportsWarningAndDoesNotClamp`, which runs everywhere including CI.
+- [x] **A D-169 resize test for the new section**, which found something. It asserted the utilisation heading was inside the window at 1100×700 and found it at **Y = 773**. The finding was **not** a clipping bug: the Input tab body is a `ScrollViewer`, so below the fold is normal. The test now asserts the three things that actually have to hold — the resize **took effect** (bounds shrank, or the assertions would silently measure the default layout), the region still **scrolls** (`Extent.Height > Viewport.Height`), and the section can be **scrolled into view** by offset. The offset is the heading's position *inside* the scroll content; the first version scrolled to the scroll *extent* and parked the heading at **Y = −3206**, ~4000 px above the viewport.
+
+In Progress
+- Nothing in code. The branch is gated and ready to commit; **8Q.2 has not been started**, by instruction.
+
+What is complete:
+Every 8Q.1 sub-block: the count fields, the historical figures, the one-time seeding, the fixture, the tests, and the documentation (D-178, PRD v1.7.0 with FR-UI-31/32/33, REQUIREMENTS traceability, USER_MANUAL §7.1b, CONTEXT §1 and §5.4, DEV_LAUNCH §1 + sample tree + Troubleshooting + changelog, BLOCKERS B-012).
+
+What remains:
+1. **Owner visual inspection of the two frames** (§18, D-089). This host has **no image input**, so "does it look right" is unconfirmed — every structural claim is asserted numerically and the pixels are unverified.
+2. **8Q.2**, on instruction after this commit: `p_exit` denominator per `FR-DATA-6` (`TotalCandidates` → `ScreenedPatients`, JSON key, all-bypass `DataValidationException`), bypass detection and routing (`RouteTo(patient, destinationIndex)`, constructor-validated `BypassProbability` `[0,1)`), `p_bypass = bypassCount ÷ totalArrivals` (**17/109 ≈ 0.156**, superseding the stale 0.185 in the docs), the general per-stage-inflow λ (amending D-007), verdict thresholds (green < 0.9 / amber [0.9, 1) / red ≥ 1, red as a defensive pure classifier) and the always-visible trace (FR-UI-34, removed from the toggle list, old `"trace"` key still parsed and ignored). **The validator fix above is the first item of that phase.**
+
+### Phase 8Q.1 requirement verification (AGENTS §18)
+
+| Requirement | Verified how | Result |
+|---|---|---|
+| FR-UI-31 — per-stage recorded count, shared `ValidatedField`, default 1, server-ID limitation stated | 4 unit tests on the real `InputTabViewModel` (defaults, follows-the-file, blank/non-numeric rejected with a remedy, >9 accepted / 0 rejected) + structural assertions on the rendered tab | PASS by assertion; **visual unverified** |
+| FR-UI-32 — utilisation with named basis, printed division, unclamped above-100 % warning | 9 unit tests incl. `HistoricalMetrics_IsBusyDividedByServersTimesOperatingMinutes`, `_OverCapacity_FlagIsSetAndTheFigureIsNotClamped`, `_AtExactlyCapacity_ReportsNoWarning`, `_ObservedWindow_IsOperatingDaysTimes165`, `_NoSessionColumn_UsesSpannedWindow`, `_NoTimesAtAll_ReportsNoBasis` | PASS by assertion; **visual unverified** |
+| FR-UI-32 (layout) — section usable at the declared size **and** at the minimum window size | `Phase8Q1Screenshot` 3 tests: frame at the declared 1200×760, plus the D-169 resize test asserting resize-effect / scroll-extent / scrolled-into-view | PASS by assertion; **visual unverified** |
+| FR-UI-33 — one-time seeding, no later rewrite, label says it overwrites | 3 unit tests (seeds the Stages rows, edits after seeding do not rewrite them, only the stages the file covers are seeded) | PASS |
+| Fixture — committed, shaped, gitignore-allowlisted, and its validator gap recorded | `SampleBypassFixture_*` asserting the **current** 8-issue behaviour, plus the DEV_LAUNCH Troubleshooting row | PASS (gap recorded, not fixed — by design) |
+
+Next Session Should Start With
+**Commit and push `fix/phase-8q`** — the work is complete and gated; §11.4 says push the branch, tell the owner it is ready, and stop. Do not open a PR.
+
+Then, on instruction, **Phase 8Q.2**, starting with the bypass validator fix that 8Q.1 pinned.
+
+Blocked
+- **B-012** — owner visual inspection of the screenshots; now twenty-one frames outstanding, two of them from this phase.
+- **B-007** — M5 keyboard acceptance run; unchanged by this phase.
+
+Git State
+Commits made this session: *none yet — the 8Q.1 change is staged in the working tree and awaiting the commit described above.*
+Pushed to origin: No
+Uncommitted changes: the full 8Q.1 change set (`.gitignore`, 5 App source files, 2 new App files, 2 new test files, the new fixture, and 8 docs files)
+Build & Test
+dotnet build: PASS — Release **and** Debug, `--no-incremental`, **0 errors / 0 warnings** in both
+dotnet test: PASS — **719/719 in both** (Cli 35 / Data 114 / Core 114 / App 456)
+Warnings: 0
+Files Touched
+src/OpdSimulator.App/Services/HistoricalMetricsService.cs: added
+src/OpdSimulator.App/ViewModels/HistoricalMetricsViewModel.cs: added
+src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+src/OpdSimulator.App/Views/InputTab.axaml: modified
+tests/OpdSimulator.App.Tests/Phase8Q1Tests.cs: added
+tests/OpdSimulator.App.Tests/Phase8Q1Screenshot.cs: added
+samples/sample_bypass.csv: added
+.gitignore: modified
+docs/DECISIONS.md, PRD.md, REQUIREMENTS.md, TODO.md, PROGRESS.md, CONTEXT.md, DEV_LAUNCH.md, USER_MANUAL.md, BLOCKERS.md: modified
+Decisions Made
+- **D-178** — the server count is recorded on the Input tab beside its stage; the historical figure is printed as the division that produced it; the basis is always named; above 100 % is never clamped; seeding is one-way and one-time.
+Assumptions Added/Changed
+- `server count per stage is user-recorded, not file-recorded` — **VERIFIED** (owner ruling 2026-10-03), in CONTEXT §1.
+- `p_exit denominator = count(non-empty screening_start)` — **UNVERIFIED** in the sense of *unimplemented*: logged in CONTEXT §5.4 as an 8Q.2 obligation with the 0.807 → 0.956 consequence recorded, and deliberately **not** written into FR-DATA-6 so no requirement describes behaviour the code lacks.
+- `p_bypass = bypassCount ÷ totalArrivals` (17/109 ≈ 0.156, superseding 0.185) — **UNVERIFIED**, same treatment, same reason.
+Notes for Next Session
+- The clinic capture is at `samples/opd_collection_28_sep_2026_1.csv`, **local only** (gitignored, not allowlisted). If the owner moved it, the warning frame will skip and that is expected, not a failure.
+- Do **not** add the validator fix to 8Q.1 — a test asserts the current 8-issue behaviour and will fail loudly when it changes.
+- The temporary `ProbeTests.cs` diagnostic file created while chasing the `8:0` time-format bug has been **deleted**; it was never committed.
+
 ## Session Handoff — 2026-09-29 Phase 8O
 Branch: `fix/phase-8o-window`
 Status: In-Progress (work complete and gated; owner visual inspection outstanding)

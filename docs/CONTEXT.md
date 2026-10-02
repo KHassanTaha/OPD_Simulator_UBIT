@@ -13,6 +13,8 @@
 - **Operating days:** Monday–Thursday and Saturday.
 - **Closed:** Friday, Sunday.
 - **Official hours:** 8:15 AM – 11:00 AM (165 operating minutes). _(Corrected 2026-09-29, D-172 — was recorded as 9:00 AM.)_
+- **Server count per stage is user-recorded, not file-recorded.** _(Owner ruling 2026-10-03, D-178.)_ The clinic capture has **no server-ID columns**: nothing in it says which server a patient saw, so the per-stage count on the Input tab is an **assumption about how many could work simultaneously**, and the UI says so. A stage served by two tables sharing one queue is honestly `1`. The historical utilisation figure therefore divides by a number the user supplied, which is why the Input tab shows the count, the figure and the division together rather than the percentage alone.
+
 - **Observed reality:** Patients begin arriving around **8:15 AM**; tokens issued from reception; screening service can begin as early as **8:45 AM**.
 - **Patient cap:** Observed average of roughly 80–100 patients/day (subject to confirmation). Modelled implicitly; not enforced as a hard constraint unless the user sets it.
 - **No shifts:** Staff do not rotate within the 2-hour window.
@@ -219,6 +221,12 @@ Each row of input data represents one patient. Columns:
 
 **Exit probability:**
 `p_exit = count(departure_stage = "Screening") / count(departure_stage ∈ {Screening, Doctor})`
+
+> **[UNVERIFIED — owner ruling 2026-10-03, Phase 8Q.2, NOT YET IMPLEMENTED]** The denominator above is **wrong** for files containing bypass rows, and the correction is **queued for 8Q.2, not applied in 8Q.1**. The new definition is
+> `p_exit = count(departure_stage = "Screening") / count(non-empty screening_start)`.
+> The present denominator counts `departure_stage ∈ {Screening, Doctor}`, which on the real clinic capture (`opd_collection_28_sep_2026_1.csv`: 109 arrivals, 17 bypass, 92 screened, 88 Screening exits, 21 Doctor visits) gives **0.807**, while the screened-only denominator gives **0.956** — a difference of 0.15 in a parameter that drives whether the Doctor stage is stable at all. The reason is structural, not a rounding matter: a patient who bypassed Screening **has no screening exit to report**, so counting them in the denominator of "of those who reached a decision point, how many stopped at Screening" answers the wrong question. `PExitResult.TotalCandidates` is also to be **renamed** to `ScreenedPatients`, the JSON key `totalCandidates` to `screenedPatients` (with `FitCommand` and `SimulateDataCommand` output updated), and a file with **no** screened patient to throw `DataValidationException("No screened patients in file — p_exit undefined.")`. FR-DATA-6 and D-008 are to be amended in the same phase. **Nothing in the code or the PRD describes this yet**, deliberately — a requirement that describes unimplemented behaviour is a lie in a traceability matrix.
+>
+> **[UNVERIFIED — owner ruling 2026-10-03, Phase 8Q.2]** The bypass fraction is `p_bypass = bypassCount ÷ totalArrivals` — **all** arrivals, not the screened subset. On the same capture that is **17 / 109 ≈ 0.156**, and the project's own documents previously carried **0.185** (17 / 92), which divided by the *screened* count while calling it a fraction of arrivals. The two conventions are not interchangeable and the stale figure is the one that reads like a percentage of everyone who walked in. Every UI label, calculation and document must state the 0.156 form.
 
 > **[VERIFIED — owner clarification, 2026-09-13]** `departure_stage = "Reception"` is treated as a **data anomaly** (a patient leaving at Reception is reneging, which is out of scope). On upload, such rows trigger a **warning** and are **excluded** from the `p_exit` numerator and denominator. They are never modelled as a route.
 

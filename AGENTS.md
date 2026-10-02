@@ -309,6 +309,15 @@ This rule exists because of a real miss: the Phase 8M screenshot test set
 width and ran at 440. The frame was clean, every assertion was green, and the
 dialog a user opened was clipped. See D-166.
 
+**A test that needs data the repository does not have must skip, not fake (D-178).**
+When the honest way to show a feature requires a file that is deliberately
+uncommitted — real patient data, a private capture — the frame test returns
+early and says so, and the *behaviour* is asserted against constructed data
+that CI can run. The alternative is to assert against a committed fixture that
+never reaches the condition, which produces a green test standing in for
+evidence that does not exist. Name the fixture, name what it cannot show, and
+say which test covers the behaviour instead.
+
 **Screenshot evidence is append-only (D-166).** Never overwrite a screenshot
 that is cited as evidence of a known defect — always add a new file with a
 new name. The old frame is the evidence that the defect existed, and the
