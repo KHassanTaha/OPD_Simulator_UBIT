@@ -2990,3 +2990,115 @@ impact (positive and negative), alternatives considered.
 - **Impact:** (+) 17 numeric columns across five tables are right-aligned and every text column declares `Left` explicitly, so a text column can no longer inherit the numeric rule unnoticed. (+) Three serial columns are contiguous `1..n`, so a row can be cited in the viva. (+) The per-server table's D-171 numbers are now individually checkable (divide one by the server count, get the other). (−) `#` and `No.` coexist until the owner rules. (−) Four tests that asserted on substrings of the old per-server strings now assert on row members, which is the stronger form: a row showing the right number in the wrong column no longer passes.
 - **Open for the owner:** unify the serial headers (amend FR-UI-34 and change one string) or keep both. Also flagged, not fixed: `DataPreviewTable` computes `RowBackground`, `RowBorderBrush` and `RowBorderThickness` per row (`Controls/DataPreviewTableModels.cs:101-112`) but its `DataTemplate` binds none of them, so the FR-UI-17 invalid-row treatment is constructed and discarded.
 - **Alternatives considered:** numbering the overview listing anyway (rejected — decorative); rebuilding the preview table with a serial column and per-column type detection (rejected — a large change to a virtualised control, on the Input tab, for a phase scoped to alignment); asserting alignment on cell bounds rather than on `TextAlignment` (rejected — cells are stretched to their column, so their bounds coincide whether the text inside is left- or right-aligned; the test would pass over the defect it was written for. See `TableSerialAlignmentTests`' remarks).
+
+
+---
+
+## D-188 — FR-UI-17 invalid-row treatment in the data preview, and how it was missed
+
+**Date:** 2026-10-03
+**Status:** Accepted (owner ruling 2026-10-03, Phase 8Q.6)
+
+### Decision
+
+1. **Bind the three computed row values in the `DataTemplate`.** The row's root
+   `Border` carries `Background="{Binding RowBackground}"`,
+   `BorderBrush="{Binding RowBorderBrush}"` and
+   `BorderThickness="{Binding RowBorderThickness}"`.
+2. **Add an inline issue indicator in its own fixed-width leading gutter**, whose
+   glyph is `⚠` for an invalid row and empty for a valid one, with the validator's
+   specific reason as both its tooltip and its accessible name. The row's `Border`
+   carries the same tooltip, so hovering anywhere on the row explains it.
+3. **`PreviewRow.IssueGlyph` is a new property** on the model.
+4. **`DataPreviewTable.IndicatorGutter` is a public `const double`**, bound as the
+   indicator's `Width` in XAML and used to size a matching spacer added to the
+   header strip, so the value exists in exactly one place.
+
+### Rationale
+
+**The model was never wrong; the template simply ignored it.** `PreviewRow` has
+computed a red background, a red leading accent and a 3 px thickness for an
+invalid row since D-080 (2026-07). Nothing bound them. A rejected row and a good
+row were byte-identical on screen, so the promise in FR-UI-20 — "invalid rows
+inherit the FR-UI-17 error treatment (red border + icon + tooltip with the
+specific reason)" — was unmet while FR-UI-20 nonetheless read `[x]` with a green
+test beside it.
+
+**That combination is the actual lesson.** FR-UI-20's test column names
+`DataPreviewStoreTests`, which covers the store: which rows the validator
+rejected and why. The data path was well tested; the *rendering* was not tested at
+all, so a requirement could be marked complete on evidence that never touched the
+defect. The three new tests are therefore all rendering tests, and each one asserts
+on the realised `Border` rather than on `PreviewRow`. An assertion like
+`Assert.Equal(3, rows[1].RowBorderThickness.Left)` would have been green against
+the broken control — the value was always right — so a test in that shape would
+have documented the bug rather than caught it.
+
+**Why the indicator is not appended to the cell strip.** The cells are
+`SelectableTextBlock`s with positional fixed `Width`s, matched to the headers by
+`ComputeWidths`. Putting an icon inside that strip makes its width part of the
+strip, so an invalid row's columns start further right than a valid row's and
+neither lines up with its heading. A variable-width leading icon would also mean
+the first column of a file with many invalid rows is ragged. Hence a fixed-width
+gutter, present on every row, with a matching spacer in the header strip.
+
+**Why `IssueGlyph` returns `string.Empty` rather than collapsing the element.**
+Hiding the icon with `IsVisible` would let the auto-sized slot collapse to zero,
+shifting that row's cells — the exact defect the gutter exists to prevent. The
+slot's width is forced from outside, so it holds its size whether or not there is
+a glyph to show. An empty `Text` also leaves nothing for a screen reader to
+announce on a valid row, and `AutomationProperties.Name` is empty there for the
+same reason.
+
+**Why no screenshot.** The owner is closing the B-012 review backlog after 8Q.6.
+Adding a twenty-sixth unreviewed frame to demonstrate a one-line visual change
+would work against that. The tests assert the rendered brushes, thickness, glyph
+and tooltip directly, which is stronger than a frame nobody has looked at.
+
+### Impact
+
+**Positive.** FR-UI-17's preview-table promise is now real and tested at the
+location it lands. A rejected row is distinguishable without relying on hue
+(border, glyph, tooltip, accessible name). Every row's columns align with the
+headers, invalid or not.
+
+**Negative.** The rows are now one `Border` deeper, which costs one layout node per
+realised row — negligible against the 10,000-row budget, since only visible rows
+are realised by the `VirtualizingStackPanel`. The `PreviewRow` type gained a
+property. FR-UI-17 remains `[~]`, not `[x]`: this covers the preview-table path,
+and `ValidatedField`'s live-region announcements are still outstanding.
+
+**Alternatives considered.**
+- *Bind the brushes onto the `ListBoxItem` container style instead of the template
+  root.* Fewer nodes, but it puts presentation into the control's code-behind and
+  hides the treatment from the template, which is where a reviewer looks.
+- *An icon at the trailing end of the row*, avoiding the header spacer. It would not
+  disturb column alignment, but a red accent on the leading edge with its icon at
+  the far right reads as two unrelated marks.
+- *Inline text in the row instead of a tooltip.* FR-UI-17's "inline message below
+  the field" is written for form fields; a message on every cell of a rejected row
+  would reflow the fixed-width grid the control's alignment depends on. The owner
+  specified icon plus tooltip, and the tooltip is also on the row itself.
+- *Overturning FR-UI-20's `[x]` retroactively.* Rejected: the requirement was met
+  for sorting, virtualisation, header sourcing and selection. Only its
+  FR-UI-17 clause was unmet, and that is recorded here and in the PRD rather than
+  by rewriting history.
+
+### Related
+
+- D-080 — the requirement and the model that computed the treatment nobody bound.
+- D-186 — assert where the side effect landed. Every test here reads the rendered
+  element; the in-memory equivalent would have passed either way.
+- D-169 — the rendered rows are asserted only after proving the list realised
+  them, so a virtualised list that realised nothing cannot pass vacuously.
+
+---
+
+## D-187 amendment — serial header unified to `#` (owner ruling, 2026-10-03)
+
+The point (b) open item below is **closed**. The owner reviewed the split and ruled
+that `#` is the accepted form, on the grounds that the inconsistency originated in
+their own prompts — 8Q.3 said `#`, 8Q.5 said `No.` — so this corrects the brief,
+not the implementation. The three tables added in 8Q.5 now read `#`, no
+requirement is amended (FR-UI-34 already specified `#`), and all three serial tests
+assert `#`. Recorded as v1.11.1 in the PRD and D-188 here.

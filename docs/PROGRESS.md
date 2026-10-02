@@ -1,3 +1,120 @@
+## Session Handoff — 2026-10-03 Phase 8Q.6
+Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.6 complete and pushed; awaiting owner merge instructions)
+
+### Done
+- **Owner ruling 1** — serial headers unified to `#` across all four listing tables; no requirement amended.
+- **Phase 8Q.6** — `DataPreviewTable` FR-UI-17 invalid-row treatment (D-188), `[x]` in `docs/TODO.md`.
+- PRD **v1.11.1** (`[FIXED]`, D-188).
+
+### In Progress
+None. 8Q.6 is finished.
+
+### What is complete
+Both rulings. 8Q.5 accepted by the owner; 8Q.6 landed with three mutation-proven
+rendering tests.
+
+**What remains:** your merge instructions. You said merge happens after 8Q.6 lands,
+so this branch is ready for it.
+
+### Next Session Should Start With
+Merge `fix/phase-8q` on your instruction, then close the B-012 backlog (25 frames).
+
+### Blocked
+- **B-012** — twenty-five frames still await your eyes; you are closing that backlog
+  after 8Q.6 and before merge.
+- Nothing technical.
+
+### Git State
+Commits made this session: `fix: DataPreviewTable FR-UI-17 invalid-row treatment (Phase 8Q.6)`
+Pushed to origin: **Yes** — `fix/phase-8q`
+Uncommitted changes: none at the time of writing
+
+### Build & Test
+`dotnet build -c Release --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Release --no-build` → **789/789** (Cli 35 / Data 134 / Core 125 / App 495)
+`dotnet build -c Debug --no-incremental` → **0 warnings / 0 errors**
+`dotnet test -c Debug --no-build` → **789/789**
+
+### Files Touched
+`src/OpdSimulator.App/Controls/DataPreviewTable.axaml` — the three bindings, the issue icon in its gutter.
+`src/OpdSimulator.App/Controls/DataPreviewTableModels.cs` — `PreviewRow.IssueGlyph`.
+`src/OpdSimulator.App/Controls/DataPreviewTable.axaml.cs` — `IndicatorGutter` const, header spacer.
+`src/OpdSimulator.App/Views/ResultsPanel.axaml` — three headers `No.` → `#`.
+`tests/OpdSimulator.App.Tests/DataPreviewInvalidRowTests.cs` — new, 3 tests.
+`tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs` — asserts `#`.
+`tests/OpdSimulator.App.Tests/Phase8Q5Screenshot.cs` — dropped the `No.` assertion.
+`docs/PRD.md` v1.11.1 · `docs/DECISIONS.md` D-188 + D-187 amendment · `docs/REQUIREMENTS.md` FR-UI-17 · `docs/CONTEXT.md` · `docs/TODO.md`
+
+### Decisions Made
+- **D-188** — the fix, the gutter, and why the tests must read the rendered element.
+- **D-187 amendment** — serial header is `#` panel-wide.
+
+### Assumptions Added/Changed
+- `[VERIFIED]` Serial header is `#` on every listing table (owner ruling, 2026-10-03).
+
+### Notes for Next Session
+**The defect was not a missing feature. It was a computed value thrown away at
+render time, and it survived a green test beside it.**
+
+`PreviewRow` has computed a red background, a red leading accent and a 3 px
+thickness for a rejected row since D-080 in July. The `DataTemplate` bound none of
+the three. A rejected row and a good row were identical on screen — no border, no
+icon, no reason — for roughly three months.
+
+FR-UI-20 promised "invalid rows inherit the FR-UI-17 error treatment (red border +
+icon + tooltip with the specific reason)" and read `[x]` with a test beside it
+naming `DataPreviewStoreTests`. That test covers *which* rows the validator
+rejected and why. The data path was thoroughly tested; **the rendering path was not
+tested at all.** A requirement marked complete on evidence that never touched the
+defect — so the three new tests are all rendering tests, which is the shape of thing
+FR-UI-20's test column should have had.
+
+**The trap worth naming: the obvious assertion passes against the broken code.**
+`Assert.Equal(3, rows[1].RowBorderThickness.Left)` is green before and after the
+fix, because the value was always correct. Every assertion here reads the realised
+`Border` instead, located by matching the model's own brush and thickness — so the
+lookup itself can only succeed if the bindings landed. This is D-185's mistake in a
+new costume: observing the value rather than the location.
+
+**All three tests were proved non-vacuous by restoring the pre-fix template and
+watching all three fail** with `expected exactly one rendered Border carrying this
+row's treatment; found 0`. The failure message names the missing thing.
+
+**The icon could not simply join the cells, and the reason is the same fixed-width
+design that made 8Q.5's alignment audit necessary.** `ComputeWidths` gives every
+column a pixel width shared by its header `Button` and every cell. An icon inside
+the cell `StackPanel` becomes part of that strip, so an invalid row's columns start
+further right than a valid row's and neither lines up with its heading. Hence a
+fixed-width leading gutter on every row plus a matching spacer in the header strip,
+with `IndicatorGutter` as one `const` both sides read.
+
+**Collapsing the icon with `IsVisible` would have reintroduced the same shift** — a
+hidden element leaves an auto-sized slot at zero width. `IssueGlyph` returns
+`string.Empty` instead, and the width is forced from outside, so the slot holds its
+size either way. An empty `Text` also leaves nothing for a screen reader to announce
+on a valid row.
+
+**The negative case carries half the weight.** A template that painted every row red
+would satisfy "invalid rows have a red border" and still be useless, so
+`ValidRow_NoRedBorder` holds the gate on the other side, and the invalid row sits in
+the **middle** of three — a control that only treated the first or last correctly
+would fail.
+
+**No screenshot, on purpose.** You are closing the B-012 backlog after this phase;
+a twenty-sixth unreviewed frame for a one-line visual change works against that. The
+tests assert the rendered brushes, thickness, glyph and tooltip, which is stronger
+evidence than a frame nobody has looked at. Say the word if you want one anyway.
+
+**FR-UI-17 stays `[~]`, deliberately.** This phase covered the preview-table path.
+`ValidatedField`'s live-region announcements are still outstanding, so the row now
+reads `DataPreviewInvalidRowTests` in its test column with the gap named, rather
+than flipping to `[x]` on partial coverage.
+
+**Correction carried from 8Q.5:** its TODO entry said the frame was `120,754 B`; it
+is **110,754 B**. Fixed in the same pass as this entry.
+
+---
+
 ## Session Handoff — 2026-10-03 Phase 8Q.5
 Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.5 complete and pushed; awaiting owner "go" before merge)
 

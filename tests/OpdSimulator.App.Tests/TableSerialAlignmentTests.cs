@@ -279,7 +279,6 @@ public class TableSerialAlignmentTests
                 var label = Cell(row, 0);
                 var value = Cell(row, 1);
                 Assert.NotEqual("#", label.Text);
-                Assert.NotEqual("No.", label.Text);
 
                 // The value column carries magnitudes, so it follows the numeric rule.
                 Assert.Equal(TextAlignment.Right, value.TextAlignment);
@@ -320,7 +319,7 @@ public class TableSerialAlignmentTests
             ExpandPerServerSection(window);
 
             var header = HeaderGrid(panel, "Stage util");
-            Assert.Equal("No.", Cell(header, 0).Text);
+            Assert.Equal("#", Cell(header, 0).Text);
             Assert.Equal(7, header.ColumnDefinitions.Count);
 
             var rows = RowsFor(header);
@@ -354,7 +353,7 @@ public class TableSerialAlignmentTests
             Assert.Equal(4, vm.ChiSquareRows.Count);
 
             var header = HeaderGrid(panel, "Distribution");
-            Assert.Equal("No.", Cell(header, 0).Text);
+            Assert.Equal("#", Cell(header, 0).Text);
             Assert.Equal(7, header.ColumnDefinitions.Count);
 
             var rows = RowsFor(header);
@@ -381,11 +380,10 @@ public class TableSerialAlignmentTests
     /// The Performance Measures per-stage table carries a contiguous serial column.
     /// </summary>
     /// <remarks>
-    /// Verified from Phase 8Q.3 rather than added by 8Q.5. Note the header is
-    /// <c>#</c>, not <c>No.</c>: FR-UI-34 mandates <c>#</c> and is a signed-off
-    /// requirement, so 8Q.5 did not rewrite it. The inconsistency with the three
-    /// tables that read <c>No.</c> is deliberate and flagged for the owner — see
-    /// D-187.
+    /// Verified from Phase 8Q.3 rather than added by 8Q.5. Its <c>#</c> header is
+    /// now the panel-wide convention: the three tables 8Q.5 added originally read
+    /// <c>No.</c>, and the owner unified them to <c>#</c> on 2026-10-03, so a reader
+    /// learns the numbering once rather than per table. See D-187.
     /// </remarks>
     [AvaloniaFact]
     public void PerformanceMeasuresTable_HasSerialNumberColumn()

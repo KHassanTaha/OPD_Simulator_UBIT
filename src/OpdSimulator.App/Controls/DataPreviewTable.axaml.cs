@@ -18,6 +18,13 @@ namespace OpdSimulator.App.Controls;
 /// </summary>
 public partial class DataPreviewTable : TemplatedControl
 {
+    /// <summary>
+    /// Width of the leading issue-gutter, in device-independent pixels. Shared
+    /// with <c>DataPreviewTable.axaml</c>, where the per-row indicator binds it as
+    /// its fixed <c>Width</c>, so the two cannot drift apart.
+    /// </summary>
+    public const double IndicatorGutter = 20;
+
     private readonly List<PreviewRow> _originalRows = new();
     private readonly List<Button> _headerButtons = new();
     private ObservableCollection<PreviewColumn> _columns = new();
@@ -147,6 +154,11 @@ public partial class DataPreviewTable : TemplatedControl
         _rows = new ObservableCollection<PreviewRow>(_originalRows);
         _headerPanel.Children.Clear();
         _headerButtons.Clear();
+
+        // Leading spacer matching the row template's issue gutter. Without it every
+        // data column would sit IndicatorGutter pixels right of its own heading,
+        // because the rows reserve that slot for the invalid-row icon.
+        _headerPanel.Children.Add(new Border { Width = IndicatorGutter });
         for (int i = 0; i < _columns.Count; i++)
         {
             var column = _columns[i];

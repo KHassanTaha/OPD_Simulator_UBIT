@@ -89,7 +89,6 @@ public class Phase8Q5Screenshot
             // The serial headers the alignment rule requires are really rendered —
             // read from the rendered text, not from the view model (D-186: the
             // location is what matters, and the location here is the screen).
-            Assert.Contains("No.", text, StringComparison.Ordinal);
             Assert.Contains("Distribution", text, StringComparison.Ordinal);
             Assert.Contains("M/M/c wait", text, StringComparison.Ordinal);
 

@@ -529,9 +529,11 @@ an explicit `Left` for the requirement to be readable in the XAML.
 asserting on the per-server table must expand it and assert the expansion took
 effect, or every assertion passes vacuously over zero rows (D-169).
 
-**[UNVERIFIED — owner ruling needed]** The per-stage serial header is `#`
-(FR-UI-34, signed off) while the three tables added in 8Q.5 use `No.` (the 8Q.5
-brief). Both are now visible in one panel. Unifying means amending FR-UI-34.
+**[VERIFIED — owner ruled 2026-10-03]** The per-stage serial header is `#`
+(FR-UI-34, signed off) while the three tables added in 8Q.5 used `No.` (the 8Q.5
+brief). The owner unified all of them to **`#`**, on the grounds that the split came
+from their own two prompts rather than from the implementation, so no requirement
+is amended. All three serial tests assert `#`. See D-188.
 
 **[VERIFIED — pre-existing defect, not fixed here]**
 `DataPreviewTable` computes `RowBackground`, `RowBorderBrush` and
@@ -540,3 +542,35 @@ its `DataTemplate` (`Controls/DataPreviewTable.axaml:53-74`) binds **none** of
 them, so the FR-UI-17 invalid-row treatment is constructed and discarded. The
 data path is live (`InvalidRows` is exposed and consumed); only the rendering is
 missing.
+
+
+## Phase 8Q.6 findings — the data preview's invalid-row treatment (2026-10-03)
+
+**[VERIFIED] `PreviewRow` was never wrong.** It has computed `RowBackground`,
+`RowBorderBrush` and `RowBorderThickness` for an invalid row since D-080
+(2026-07). The `DataTemplate` bound none of them, so a rejected row rendered
+identically to a good one: no red border, no icon, no reason. The treatment was
+built and thrown away at render time.
+
+**[VERIFIED] FR-UI-20 read `[x]` with a green test that could not have caught this.**
+Its test column names `DataPreviewStoreTests`, which covers the store — which rows
+the validator rejected, and why. The data path was thoroughly tested and the
+rendering path was not tested at all. A requirement marked complete on evidence
+that never touched the defect is the generalisable failure here, not the missing
+binding.
+
+**[VERIFIED] An in-memory assertion would have passed against the broken control.**
+`Assert.Equal(3, rows[1].RowBorderThickness.Left)` is green before and after the
+fix, because the value was always correct. Every new test reads the realised
+`Border` instead. Same shape of mistake as D-185: observing the value rather than
+the location.
+
+**[VERIFIED] The cells are positional fixed widths, so an in-row icon must not be
+a strip element.** `ComputeWidths` assigns each column a pixel width shared by the
+header `Button` and every cell; an icon inside the cell `StackPanel` would shift
+that row's columns right and break alignment with the headers. A fixed-width
+leading gutter plus a matching header spacer keeps every row's columns aligned.
+
+**[VERIFIED] Collapsing the icon with `IsVisible` reintroduces the same shift.**
+A hidden element leaves an auto-sized slot at zero width. `IssueGlyph` returns
+`string.Empty` for a valid row and the width is forced from outside instead.

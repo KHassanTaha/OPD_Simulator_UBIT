@@ -277,7 +277,7 @@
                              header. The data was already structured, so it is now a
                              real table (FR-UI-36). -->
                         <Grid ColumnDefinitions="30,86,52,68,78,68,*" ColumnSpacing="8">
-                            <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                             <TextBlock Grid.Column="2" Text="Server" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="3" Text="Busy" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
@@ -446,9 +446,12 @@
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource BrushTextPrimary}"/>
                     <!-- Phase 8Q.5 (FR-UI-36): serial column added, numeric
-                         columns (χ², df, p) right-aligned. -->
+                         columns (χ², df, p) right-aligned. The header reads "#",
+                         matching the per-stage table (owner ruling 2026-10-03):
+                         every listing table on this panel numbers its rows the
+                         same way, so a reader learns it once. -->
                     <Grid ColumnDefinitions="30,130,110,72,46,72,*" ColumnSpacing="8">
-                        <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                         <TextBlock Grid.Column="1" Text="Series" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                         <TextBlock Grid.Column="2" Text="Distribution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                         <TextBlock Grid.Column="3" Text="χ²" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
@@ -555,7 +558,7 @@
                              numeric columns right-aligned so the two sides of each
                              comparison share a decimal point. -->
                         <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8">
-                            <TextBlock Text="No." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                             <TextBlock Grid.Column="2" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="3" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
