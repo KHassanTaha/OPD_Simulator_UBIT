@@ -118,6 +118,30 @@ Examples:
 
 If λ ≥ c·μ, then arrivals come in at least as fast as the system can serve them. Over time, the queue grows without bound — the system never reaches steady state. The analytical formulas assume ρ < 1. **Our simulator must refuse to run if any stage has ρ ≥ 1**, because the results would be meaningless.
 
+> **[VERIFIED — owner ruling, 2026-10-03]** The owner supplied the **complete**
+> blank-cell validity table, and it supersedes the fragment circulated during
+> 8Q.2. Blank cells are judged **per cell and independently**, and the table is:
+>
+> | Departure stage | Reception | Screening | Doctor | Valid? |
+> |---|---|---|---|---|
+> | Screening | filled | filled | — | ✅ valid (patient left at Screening) |
+> | Doctor | filled | filled | filled | ✅ valid |
+> | Doctor | filled | — | filled | ✅ valid (skipped screening; the `doctor_*` pair vouches) |
+> | Doctor | filled | filled | — | ✅ valid (incomplete `doctor_end` stamp; the patient left) |
+> | Doctor | — | any | any | ❌ invalid — no recorded entry into the clinic |
+> | Doctor | filled | — | — | ❌ invalid — no screening evidence **and** no doctor record |
+> | Reception | any | any | any | ❌ invalid — reneging is out of scope (D-008) |
+>
+> Two facts worth defending. First, **Reception is never forgivable**: a patient
+> with no `reception_*` times never entered the clinic, so there is nothing for
+> the blank cells to be missing *from* — this is why the earlier reading that
+> Reception's blanks were "acceptable" was wrong. Second, **blank `screening_end`
+> on a *Screening* departure is still an error**, because that timestamp is the
+> sample μ is fitted from: forgiving it discards data rather than recording a
+> routing outcome. The whole table is pinned by
+> `DataValidatorTests.TheOwnersValidityTable_RejectedRows_AreRefused` — both
+> halves, because asserting only the valid half is how the fragment error arose.
+
 > **[VERIFIED — owner clarification, 2026-09-13]** ρ is **per-stage**: ρᵢ = λᵢ / (cᵢ·μᵢ) for stage i. There is **no single whole-network ρ** in a multi-stage model — the traffic intensity is defined only stage-by-stage. λᵢ is derived from the external arrival rate λ₀ and the routing probabilities (e.g., with bypass off, λ_screening = λ₀ and λ_doctor = λ₀·(1 − p_exit); with bypass on, see §1.2 and D-179). The ρ ≥ 1 refusal check uses these routing-derived rates, and the results panel shows ρᵢ for every stage (PRD FR-STAT-6).
 
 ---

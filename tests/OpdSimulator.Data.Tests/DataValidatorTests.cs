@@ -256,6 +256,31 @@ public class BypassValidityTests
         Assert.True(issues.Count == 0, $"expected no issues, got: {string.Join("; ", issues.Select(i => $"{i.RowNumber}/{i.ColumnName}"))}");
     }
 
+    [Theory]
+    // The rejected half of the owner's validity table. Every combination of cells
+    // below is invalid, and each names the column that refuses it.
+    //
+    // A Reception departure is rejected **whatever its cells hold** — including
+    // the two rows where the cells would otherwise be perfectly acceptable. That
+    // is the point: D-008's value check and D-180's cell check are independent
+    // mechanisms, and a cell check cannot rescue a value the value check refuses.
+    // `reception: true, screening: true, doctor: true` is the strongest form of
+    // that claim — a complete, clean row that is still invalid, because leaving
+    // at Reception is reneging and reneging is out of scope.
+    [InlineData("Reception", true, false, false, "departure_stage")]
+    [InlineData("Reception", true, true, true, "departure_stage")]
+    [InlineData("Reception", false, true, true, "departure_stage")]
+    [InlineData("Doctor", false, true, true, "reception_start")]
+    [InlineData("Doctor", false, false, false, "reception_start")]
+    [InlineData("Doctor", true, false, false, "screening_start")]
+    public void TheOwnersValidityTable_RejectedRows_AreRefused(
+        string departure, bool reception, bool screening, bool doctor, string expectedColumn)
+    {
+        var issues = DataValidator.ValidateReturningIssues(Row(departure, reception, screening, doctor));
+
+        Assert.Contains(issues, i => i.ColumnName == expectedColumn);
+    }
+
     [Fact]
     public void DoctorDepartureWithNoScreeningAndNoDoctor_IsDirty()
     {

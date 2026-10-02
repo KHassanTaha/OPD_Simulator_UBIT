@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Engine;
 
 /// <summary>One metrics-table label/value pair (FR-STAT-6).</summary>
 /// <param name="Label">Human metric name.</param>
@@ -16,7 +17,14 @@ using OpdSimulator.App.Services;
 public sealed record MetricRow(string Label, string Value);
 
 /// <summary>One per-stage row of the results metrics table (FR-STAT-6/7).</summary>
+/// <param name="SerialNumber">
+/// The stage's 1-based position in the run's stage list, shown as its own
+/// column. Added in Phase 8Q.3 under the 8Q.5 rule that every listing table
+/// carries one, so a row can be cited unambiguously in the viva ("stage 2")
+/// without the reader counting columns or rows.
+/// </param>
 public sealed record StageMetricRow(
+    string SerialNumber,
     string StageName,
     string ArrivalRate,
     string Servers,
@@ -26,6 +34,28 @@ public sealed record StageMetricRow(
     string Wait,
     string Queue,
     string Utilisation);
+
+/// <summary>
+/// One stage's stability verdict (Phase 8Q.3, D-183).
+/// </summary>
+/// <param name="StageName">The stage the verdict describes.</param>
+/// <param name="Rho">Traffic intensity as displayed, so the row reads against the table above it.</param>
+/// <param name="Verdict">Plain-language band name — the cue that carries the meaning.</param>
+/// <param name="BandBrush">
+/// Theme brush for the band, from <see cref="StabilityBandPalette"/>. Carried on
+/// the row rather than bound through three booleans and a style block, matching
+/// how <see cref="StageLegendItem"/> already carries its swatch, and so the
+/// colour is assertable in a test instead of only visible on screen.
+/// </param>
+/// <remarks>
+/// The verdict text is rendered alongside the colour because colour alone is not
+/// an accessible signal (AGENTS §16.9).
+/// </remarks>
+public sealed record StabilityRow(
+    string StageName,
+    string Rho,
+    string Verdict,
+    IBrush BandBrush);
 
 /// <summary>
 /// One stage-colour legend entry (Phase 8M, D-163, FR-UI-27). The legend is
@@ -225,6 +255,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         ChiSquareCaption = DefaultChiSquareCaption;
         SystemMetrics.Clear();
         StageRows.Clear();
+        StabilityRows.Clear();
+        BottleneckText = string.Empty;
         ChiSquareRows.Clear();
         UtilisationChart = null;
         QueueLengthChart = null;
@@ -238,7 +270,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         ApplyPreferences();
     }
 
-    private void SetMetrics(OpdSimulator.Core.Engine.SimulationResult? result)
+    private void SetMetrics(SimulationResult? result)
     {
         SystemMetrics.Clear();
         StageRows.Clear();
@@ -254,9 +286,14 @@ public partial class ResultsPanelViewModel : ObservableObject
         SystemMetrics.Add(new MetricRow("Throughput (per min)", N0(result.ThroughputPerMinute)));
         SystemMetrics.Add(new MetricRow("Operating time (min)", N0(result.OperatingTimeMinutes)));
 
+        StabilityRows.Clear();
+        BottleneckText = string.Empty;
+
+        var serial = 1;
         foreach (var stage in result.StageMetrics)
         {
             StageRows.Add(new StageMetricRow(
+                $"{serial++}",
                 stage.StageName,
                 N0(stage.ArrivalRate),
                 $"{stage.ServerCount}",
@@ -267,7 +304,58 @@ public partial class ResultsPanelViewModel : ObservableObject
                 N0(stage.AverageQueueLength),
                 $"{stage.StageUtilisation:0.##}"));
         }
+
+        SetStability(result);
     }
+
+    /// <summary>
+    /// Builds the stability rows and names the bottleneck (Phase 8Q.3, D-183).
+    /// </summary>
+    /// <remarks>
+    /// The verdict itself comes from <see cref="StabilityClassifier"/>, a pure
+    /// function in Core, so the thresholds are stated in exactly one place and
+    /// are testable without a display. This method only renders what it returns.
+    /// </remarks>
+    private void SetStability(SimulationResult result)
+    {
+        var rhos = result.StageMetrics
+            .Select(m => (m.StageName, m.Rho))
+            .ToList();
+
+        if (rhos.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (stageName, rho) in rhos)
+        {
+            var band = StabilityClassifier.Classify(rho);
+            StabilityRows.Add(new StabilityRow(
+                stageName,
+                N0(rho),
+                Describe(band),
+                StabilityBandPalette.BrushFor(band)));
+        }
+
+        var (worstBand, bottleneck) = StabilityClassifier.ClassifySet(rhos);
+
+        // The bottleneck is named with its ρ, not alone: "Screening" is only
+        // half an answer, and the number beside it is what a reader checks
+        // against the table above (D-176).
+        BottleneckText = $"{bottleneck} — ρ {N0(rhos.First(r => r.StageName == bottleneck).Rho)} ({Describe(worstBand)})";
+    }
+
+    /// <summary>
+    /// Plain-language name for a band. Chosen over the bare band name because
+    /// "Amber" on its own says nothing to a reader who has not memorised the
+    /// thresholds, whereas the sentence states the consequence.
+    /// </summary>
+    private static string Describe(StabilityBand band) => band switch
+    {
+        StabilityBand.Green => "Stable",
+        StabilityBand.Amber => "Near capacity",
+        _ => "Unstable",
+    };
 
     /// <summary>
     /// Feeds the per-server utilisation widget (FR-STAT-7, Phase 6c.4). The
@@ -435,6 +523,22 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Per-stage rows of the metrics widget.</summary>
     public ObservableCollection<StageMetricRow> StageRows { get; } = new();
+
+    /// <summary>Per-stage stability verdicts, shown once a run exists (Phase 8Q.3, D-183).</summary>
+    public ObservableCollection<StabilityRow> StabilityRows { get; } = new();
+
+    /// <summary>
+    /// The stage closest to saturation, named with its ρ. Empty until a run
+    /// finishes, which is also what hides the whole stability block.
+    /// </summary>
+    public string BottleneckText { get; private set; } = string.Empty;
+
+    /// <summary>True once a run has produced at least one stage to judge.</summary>
+    public bool HasStability => StabilityRows.Count > 0;
+
+    /// <summary>Label plus value for the bottleneck line, or empty before a run.</summary>
+    public string BottleneckCaption =>
+        string.IsNullOrEmpty(BottleneckText) ? string.Empty : $"Bottleneck: {BottleneckText}";
 
     /// <summary>Chi-square verdict rows.</summary>
     public ObservableCollection<ChiSquareRow> ChiSquareRows { get; } = new();

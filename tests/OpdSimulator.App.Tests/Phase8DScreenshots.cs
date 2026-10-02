@@ -30,7 +30,7 @@ public class Phase8DScreenshots
 {
     private static readonly string[] ExpectedHeadings =
     {
-        "Overview",
+        "Performance Measures",
         "Server Performance",
         "Charts",
         "Statistical Validation",

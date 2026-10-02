@@ -2,6 +2,72 @@
 
 > Session handoffs (AGENTS §13) and resume lines (AGENTS §14.2) are stored here newest-first at the top.
 
+## Session Handoff — 2026-10-03 Phase 8Q.3
+Branch: `fix/phase-8q`
+Status: In-Progress (work complete and gated; owner visual inspection outstanding)
+
+Done
+- **Phase 8Q.3 — Performance Measures section + the stability verdict** (TODO `[x]`): the per-stage results group is renamed "Overview" → **Performance Measures**, with a `#` serial column, a per-stage stability block, and a bottleneck caption.
+- **`StabilityClassifier`** in `OpdSimulator.Core.Engine` (D-183): `Classify(ρ)` green `< 0.9` / amber `[0.9, 1)` / red `>= 1`, and `ClassifySet(...)` returning the worst band plus the highest-ρ stage.
+- **`StabilityBandPalette`** for the theme brushes, replacing the three `Classes.green/amber/red` booleans I first wired.
+- **10 owner-named tests** (8 `PerformanceMeasures_*`, 4 `VerdictClassifier_Threshold_*` as four separate cases rather than one theory) plus 3 supporting cases and `Phase8Q3Screenshot`.
+- **The owner's Reception ruling**: the final row and the **entire rejected half** of the validity table pinned in `DataValidatorTests.TheOwnersValidityTable_RejectedRows_AreRefused`. D-008 untouched — the code was already correct.
+- **Documentation**: D-183 + the D-180 amendment; PRD v1.9.0 (FR-UI-34/35); REQUIREMENTS rows + changelog; USER_MANUAL §6.1 consolidated; VIVA_ANSWERS (5 questions); CONTEXT §5.4 validity table; DEV_LAUNCH verified line + changelog; BLOCKERS B-012 → 23 frames; TODO entry.
+
+In Progress
+Nothing. 8Q.3 is finished and gated; the next task is **8Q.4** and it has **not** been started, per the owner's instruction to stop.
+
+What is complete:
+Everything listed under Done. Gate green in both configurations.
+
+What remains:
+Owner visual inspection of `logs/screenshots/phase-8q-performance-measures.png` (B-012, 23 frames outstanding). 8Q.4 — the always-visible trace — not started.
+
+Next Session Should Start With
+Phase 8Q.4: the always-visible event trace. Note it currently has **no PRD requirement** — it is called "FR-UI-34" in TODO prose only, and D-183 took that number, so a new number must be allocated in `PRD.md` rather than reusing FR-UI-34.
+
+Blocked
+B-012 — 23 headless frames still need human eyes; no image input on this host (D-089).
+
+Git State
+Commits made this session: 8Q.2 landed as `02c7296` (pushed). 8Q.3 is **staged for the commit** `feat: performance measures section in results (Phase 8Q.3)`.
+
+Pushed to origin: `02c7296` yes. 8Q.3 pushed on the same branch after commit.
+
+Uncommitted changes: none after the 8Q.3 commit — 14 modified files and 4 new.
+
+Build & Test
+dotnet build: PASS — Release and Debug, 0 errors / 0 warnings, both `--no-incremental`.
+
+dotnet test: PASS — **771 passed, 0 failed in each** configuration (Core 125 / Data 134 / Cli 35 / App 477).
+
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Engine/StabilityVerdict.cs: added
+src/OpdSimulator.App/Services/StabilityBandPalette.cs: added
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: `StageMetricRow.SerialNumber`, `StabilityRow` (now carrying an `IBrush`), `StabilityRows`, `BottleneckText`, `BottleneckCaption`, `HasStability`, `SetStability`
+src/OpdSimulator.App/Views/ResultsPanel.axaml: heading rename, `#` column, stability block, verdict brush
+tests/OpdSimulator.App.Tests/PerformanceMeasuresTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8Q3Screenshot.cs: added
+tests/OpdSimulator.App.Tests/Phase8DScreenshots.cs: heading assertion updated
+tests/OpdSimulator.Data.Tests/DataValidatorTests.cs: final Reception row + rejected-half theory
+docs/DECISIONS.md, PRD.md, REQUIREMENTS.md, USER_MANUAL.md, VIVA_ANSWERS.md, CONTEXT.md, DEV_LAUNCH.md, BLOCKERS.md, TODO.md, PROGRESS.md: modified
+
+Decisions Made
+D-183 — the band is one pure Core function; the section is renamed, not duplicated; colour rides a theme brush on the row
+D-180 amendment — my earlier reading of the Reception ruling was wrong and is withdrawn
+
+Assumptions Added/Changed
+No new assumptions. The Reception validity table is now `[VERIFIED — owner ruling, 2026-10-03]` in `CONTEXT.md` §5.4.
+
+Notes for Next Session
+1. **A §10.7 violation I created and fixed** — worth remembering because it is easy to repeat: my first USER_MANUAL pass added "6.1a Performance Measures" *beside* the existing "6.1 Metrics Table". Two instructions for one table is precisely what §10.7 forbids, so they were consolidated into a single canonical §6.1. When adding a section next to an existing one, check first whether it is the same section renamed.
+2. **`REQUIREMENTS.md`'s Coverage Summary was wrong before I touched it**, three ways (claimed 79 total against its own /81, 59 `[x]` against 61 real, 8 `[~]` against 6 real). Recounted from the status column rather than incremented. Any future count in these docs must be recounted, not adjusted.
+3. **`Phase8DScreenshots.ExpectedHeadings` failing on a renamed heading is the test working.** Do not "fix" it by loosening the assertion.
+4. The four threshold boundaries are deliberately four named tests, not a `[Theory]`. I collapsed them into a theory first and reverted it, because the owner named them separately and a boundary bug should be findable by reading a test name.
+5. The red band is unreachable from the GUI. A red verdict seen in a hand-launched app means the Start gate was bypassed — investigate the gate, not the threshold.
+
 ## Session Handoff — 2026-10-03 Phase 8Q.2
 Branch: `fix/phase-8q`
 Status: In-Progress (work complete and gated; owner visual inspection outstanding)
@@ -74,8 +140,8 @@ Assumptions Added/Changed
 `p_bypass` defaults to **0**, unlike `p_exit`'s 0.4 — [VERIFIED] in D-179; there is no documented norm for skipping screening.
 
 Notes for Next Session
-Three of my own test assertions were wrong and are recorded in DECISIONS/TODO because each would have passed over a real defect: `PatientsServed` counts service completions **at each stage**, so a patient who is screened and then continues is counted at both and per-stage counts are not additive. Conservation must be asserted as a flow rate over a stable horizon, not as exact counts. If a future phase adds a stage, that trap is still there.
-`docs/CONTEXT.md` contained a duplicated §3-§5 block; the stale copy is removed. If a §-number reference looks wrong in another document, check whether it was written against the duplicate.
+Four of my own mistakes this session, all recorded because each would have passed review unnoticed — one of them (the CONTEXT duplication) was first reported to the owner as pre-existing, which was wrong, and was corrected on 2026-10-03 when asked to confirm it in the diff. Three of the four were test assertions: `PatientsServed` counts service completions **at each stage**, so a patient who is screened and then continues is counted at both and per-stage counts are not additive. Conservation must be asserted as a flow rate over a stable horizon, not as exact counts. If a future phase adds a stage, that trap is still there.
+`docs/CONTEXT.md` acquired a duplicated §3-§5 block from **this session's own scripted edit** to it — the edit anchored its end marker on a string appearing twice in the file. Removed before the commit; `98e83ac` is clean. Anchor scripted document edits on a unique string. Also: `USER_MANUAL.md` had no 8Q.1 changelog row (genuinely pre-existing), now added.
 Still open and deliberately not in 8Q.2: the verdict-threshold classifier (green < 0.9 / amber [0.9, 1) / red ≥ 1) and the always-visible trace (FR-UI-34).
 
 ## Session Handoff — 2026-10-03 Phase 8Q.1

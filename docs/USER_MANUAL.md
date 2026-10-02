@@ -485,8 +485,8 @@ members, professor). It is replaced by the results the moment you start a
 calculation. If the run was refused, an error banner explains exactly why.
 
 The widget selector (a "Customise results" toggle at the top of the right
-panel) shows or hides the individual Results widgets below it: the **metrics
-table**, the **per-server utilisation chart**, the **queue-length-over-time
+panel) shows or hides the individual Results widgets below it: the **Performance
+Measures** group (§6.1), the **per-server utilisation chart**, the **queue-length-over-time
 chart**, the **waiting-time distribution**, the **chi-square results**, the
 **simulation verification** (§6.8), the **analytical validation** (§6.9), and
 the **event trace**. Your choice is
@@ -496,15 +496,47 @@ in Phase 7D and is no longer a Results widget.)
 The charts live on two tabs and answer two different questions — see §6.7 for
 how to tell them apart and read the data-derived ones.
 
-### 6.1 Metrics Table
-For each stage:
+### 6.1 Performance Measures
+
+The first group on the results side is headed **Performance Measures**. It holds
+two readings of the same run: the figures, and a verdict on them.
+
+**System totals** — the whole network in one place: total patients served and
+total waiting time.
+
+**Per-stage table** — one row per stage, numbered `#` from 1 in the order the
+patient visits them:
 
 | Metric | Meaning |
 |--------|---------|
-| Average wait | Mean time patients spent waiting in queue (minutes) |
-| Average queue length | Mean number of patients waiting |
-| Server utilisation | Fraction of time each server was busy (0–100%) |
-| Throughput | Number of patients served |
+| # | Stage number, in visit order |
+| Stage | The stage name (Reception, Screening, Doctor) |
+| Served | Number of patients who completed service at this stage |
+| Avg wait | Mean time patients spent waiting in this stage's queue (minutes) |
+| Avg queue | Mean number of patients waiting |
+| Utilisation | Fraction of the stage's server time that was busy (0–100 %) |
+| ρ | Arrival pressure = λ ÷ (c × μ). See the verdict table below. |
+
+**Stability** — the same stages again, each with its ρ and a verdict:
+
+| ρ | Verdict | What it means |
+|---|---------|---------------|
+| below 0.90 | **Stable** | The stage has spare capacity |
+| 0.90 up to (not including) 1.00 | **Near capacity** | Arrivals are close to what the servers can absorb; a small change in λ or μ will make this stage the bottleneck |
+| 1.00 or more | **Unstable** | Arrivals meet or exceed capacity |
+
+One line under the table names the **bottleneck** — the stage with the **highest
+ρ**. If two stages tie, the earlier one is named. The bottleneck is the stage to
+fix first: raising its server count or service rate relieves every stage after
+it.
+
+The verdict is written as words as well as coloured, so it can be read without
+relying on colour.
+
+You will not normally see **Unstable**. A network where some stage reaches
+ρ ≥ 1 cannot run to a steady state, so the simulator refuses it and explains
+which stage failed. The verdict is still defined so that a figure printed for a
+stage measured at the edge shows the truth rather than a blank.
 
 ### 6.2 Chi-Square Results
 Shows how well the chosen distribution fits the data:
@@ -530,7 +562,7 @@ servers in the stage × total operating time)*. It is deliberately not the
 server's own utilisation, because of this consequence:
 
 > **The bars of one stage always add up to that stage's utilisation** — the
-> same number printed in the metrics table.
+> same number printed in the Performance Measures table (§6.1).
 
 A three-doctor stage at 60% utilisation draws three bars of 20% each, and
 20 + 20 + 20 = 60, which is the figure beside it.
@@ -660,7 +692,7 @@ so the picture and the number always agree.
 says *"Load a data file to see fit analysis."* Before a run the three Results
 charts each show their own *"Run a simulation to see …"* message. If a chart
 cannot be drawn, the widget falls back to that same text rather than crashing
-the run — the numbers in the metrics table are always present.
+the run — the numbers in the Performance Measures table (§6.1) are always present.
 
 ### 6.8 Simulation Verification (Output-Side Chi-Square)
 
@@ -1166,6 +1198,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-03 | Phase 8Q.3: the results panel's first group is now headed **Performance Measures** and carries a **stability verdict** per stage plus a named **bottleneck** (§6.1a). Stages are numbered `#` in visit order. Bands: **Stable** below ρ 0.90, **Near capacity** from 0.90 up to 1.00, **Unstable** at 1.00 or above (which the simulator refuses to run, so it is normally not seen) |
 | 2026-10-03 | Phase 8Q.2: patients who skip Screening can now be modelled and read from data. A new **p_bypass** field in the Parameters section fits "went straight to the Doctor" from your file, and the **p_exit** fit now counts only the patients who were actually **screened** — before, direct-to-doctor traffic diluted it. Blank screening times on a bypass row are accepted instead of being reported as errors, so the sample bypass file now loads cleanly; blank Reception times still are not (§7.1). The event log now records the destination the patient actually went to, instead of printing the default next stage before the decision was made. A new sample file, `samples/sample_overcapacity.csv`, demonstrates a stage booked beyond its capacity. |
 | 2026-10-03 | Phase 8Q.1: the **Input** tab now has a **Servers** field for each stage the file records, and a **Historical utilisation** line beside it showing `busy ÷ (servers × minutes)` with the division printed so you can check it. The divisor is named on screen — *observed* when the file has a `session_date` column, *spanned* otherwise. A stage above 100 % is shown as recorded, with a warning suggesting more servers, and is never silently capped. **Use for simulation** copies these counts into the Stages configuration once (§7.1b). |
 | 2026-09-26 | Phase 8E: four fixes you may notice. (1) A **single-stage** network now runs even when the fitted `p_exit` is 1.0 — the "every row exits after Screening" message only appears when there is a later stage to reach (§9). (2) Dropdown fields show a **green** focus ring instead of the system blue, matching the rest of the app; the ring is still there when you tab through the form. (3) Opening a dropdown that already has a value now lists **all** the options instead of only the current one, **clicking an option selects it**, and **× clears the value and leaves the list open** so you can pick a replacement straight away. (4) The Clear-all confirmation dialog has more breathing room. §9 and the field descriptions updated |

@@ -110,7 +110,7 @@
                  into a two-column row so the "View Calculations" action can sit
                  on the same line as the heading it belongs to, right-aligned. -->
             <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,8">
-                <TextBlock Text="Overview"
+                <TextBlock Text="Performance Measures"
                            FontSize="{DynamicResource FontSizeTitle}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource BrushTextPrimary}"/>
@@ -153,34 +153,65 @@
                     <TextBlock Text="Per stage"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <Grid ColumnDefinitions="90,52,40,58,52,56,64,64,64" ColumnSpacing="8">
-                        <TextBlock Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="1" Text="λ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="2" Text="c" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="3" Text="μ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="4" Text="ρ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="5" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="6" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="7" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                        <TextBlock Grid.Column="8" Text="Util." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                    <!-- The "#" column is the 8Q.5 serial-number rule, applied here
+                         because this is the per-stage listing (Phase 8Q.3). -->
+                    <Grid ColumnDefinitions="30,86,52,40,58,52,56,64,64,64" ColumnSpacing="8">
+                        <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="2" Text="λ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="3" Text="c" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="4" Text="μ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="5" Text="ρ" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="6" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="7" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="8" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                        <TextBlock Grid.Column="9" Text="Util." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
                     </Grid>
                     <ItemsControl ItemsSource="{Binding StageRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:StageMetricRow">
-                                <Grid ColumnDefinitions="90,52,40,58,52,56,64,64,64" ColumnSpacing="8" Margin="0,2">
-                                    <TextBlock Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding ArrivalRate}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding Servers}"/>
-                                    <TextBlock Grid.Column="3" Text="{Binding ServiceRate}"/>
-                                    <TextBlock Grid.Column="4" Text="{Binding Rho}"/>
-                                    <TextBlock Grid.Column="5" Text="{Binding Served}"/>
-                                    <TextBlock Grid.Column="6" Text="{Binding Wait}"/>
-                                    <TextBlock Grid.Column="7" Text="{Binding Queue}"/>
-                                    <TextBlock Grid.Column="8" Text="{Binding Utilisation}"/>
+                                <Grid ColumnDefinitions="30,86,52,40,58,52,56,64,64,64" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Text="{Binding SerialNumber}"
+                                               Foreground="{DynamicResource BrushTextMuted}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ArrivalRate}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Servers}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding ServiceRate}"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Rho}"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding Served}"/>
+                                    <TextBlock Grid.Column="7" Text="{Binding Wait}"/>
+                                    <TextBlock Grid.Column="8" Text="{Binding Queue}"/>
+                                    <TextBlock Grid.Column="9" Text="{Binding Utilisation}"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- Stability (Phase 8Q.3, D-183). Hidden until a run
+                         exists, because a verdict about a run that has not
+                         happened is not a verdict. The band name is rendered as
+                         text AND colour, never colour alone (AGENTS §16.9). -->
+                    <StackPanel Spacing="{DynamicResource SpaceS}"
+                                IsVisible="{Binding HasStability}">
+                        <TextBlock Text="Stability"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="{Binding BottleneckCaption}"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextSecondary}"/>
+                        <ItemsControl ItemsSource="{Binding StabilityRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StabilityRow">
+                                    <Grid ColumnDefinitions="86,64,*" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding StageName}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Rho}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Verdict}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{Binding BandBrush}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
