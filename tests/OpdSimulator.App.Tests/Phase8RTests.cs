@@ -355,11 +355,11 @@ public class Phase8RTests
         var result = NewEngine().Run(
             topology, new ClinicCalendar(), generatorDays: 3, seed: 11, dailyCap: 85);
 
-        Assert.Equal(3, result.BacklogPerDay.Count);
-        Assert.Equal(3, result.DrainPerDay.Count);
-        Assert.All(result.BacklogPerDay, b => Assert.True(b >= 0, $"backlog cannot be negative, got {b}"));
-        Assert.All(result.DrainPerDay, d => Assert.True(d >= 0, $"drain cannot be negative, got {d}"));
-        Assert.True(result.DrainPerDay.Any(d => d > 0), "a capped, slow system must have drained something");
+        Assert.Equal(3, result.BacklogPerSession.Count);
+        Assert.Equal(3, result.DrainPerSession.Count);
+        Assert.All(result.BacklogPerSession, b => Assert.True(b >= 0, $"backlog cannot be negative, got {b}"));
+        Assert.All(result.DrainPerSession, d => Assert.True(d >= 0, $"drain cannot be negative, got {d}"));
+        Assert.True(result.DrainPerSession.Any(d => d > 0), "a capped, slow system must have drained something");
     }
 
     [Fact]
@@ -384,10 +384,10 @@ public class Phase8RTests
 
         var result = NewEngine().Run(topology, new ClinicCalendar(), generatorDays: 1, seed: 5, dailyCap: 85);
 
-        Assert.Equal(85, result.ScreeningAdmittedPerDay[0]);
+        Assert.Equal(85, result.ScreeningAdmittedPerSession[0]);
         Assert.True(
-            result.AdmittedPerDay[0] > 85,
-            $"bypass arrivals must not consume screening places: admitted {result.AdmittedPerDay[0]}");
+            result.AdmittedPerSession[0] > 85,
+            $"bypass arrivals must not consume screening places: admitted {result.AdmittedPerSession[0]}");
     }
 
     [Fact]
@@ -591,8 +591,8 @@ public class Phase8RTests
                 DrainMinutesBySession = [2.0, 2.0, 9.0],
             },
         ],
-        BacklogPerDay = [3, 8, 5],
-        DrainPerDay = [10.0, 2.0, 9.0],
+        BacklogPerSession = [3, 8, 5],
+        DrainPerSession = [10.0, 2.0, 9.0],
         GeneratorDays = 3,
     };
 
@@ -778,8 +778,8 @@ public class Phase8RTests
                 BacklogAtCloseBySession = [5, 7, 4], DrainMinutesBySession = [1.0, 3.0, 9.0],
             },
         ],
-        BacklogPerDay = [4, 6, 8],
-        DrainPerDay = [2.0, 4.0, 6.0],
+        BacklogPerSession = [4, 6, 8],
+        DrainPerSession = [2.0, 4.0, 6.0],
         GeneratorDays = 3,
     };
 

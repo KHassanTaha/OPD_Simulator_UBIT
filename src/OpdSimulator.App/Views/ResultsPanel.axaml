@@ -52,6 +52,13 @@
                     <TextBlock Text="{Binding EffectiveBypassText}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <!-- Which weekdays the requested days resolved to (FR-SIM-12).
+                         Hidden for a horizon run, which has no sessions. -->
+                    <TextBlock x:Name="SessionSummaryText"
+                               Text="{Binding SessionSummaryText}"
+                               IsVisible="{Binding HasSessionSummary}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
                 </StackPanel>
                 <ToggleButton Grid.Column="1"
                               x:Name="CustomiseToggle"
@@ -601,10 +608,18 @@
                  that starved the scrolling middle down to 101 px, which read to the
                  owner as the header and the trace overlapping the content. Measured:
                  the rows tiled exactly and never overlapped; the middle was simply
-                 squeezed. The ceiling is now 208 px, just above the inner
+                 squeezed. The ceiling is now 200 px, still above the inner
                  ScrollViewer's own 176 px, so the box gives up only the heading
                  chrome it cannot scroll away and no more. The 120 px MinHeight
-                 keeps the trace readable at its smallest. -->
+                 keeps the trace readable at its smallest.
+
+                 Phase 8T.1: 208 -> 200. The run header gained a fourth line naming
+                 the resolved operating sessions (FR-SIM-12), which pushed the three
+                 rows to 426 px in a 420 px window, and Avalonia's Grid then shrank
+                 the Auto header row by 3 px so the header and the scrolling middle
+                 overlapped. The pinned trace box is the row that is meant to give up
+                 space under pressure, so it gives up 8 px; the middle row keeps its
+                 120 px floor. Phase 8T.5 deletes this row, and with it this ceiling. -->
             <Border Grid.Row="2"
                     Classes="results-trace-panel"
                     Margin="16,0"
@@ -614,7 +629,7 @@
                     BorderThickness="1,1,1,0"
                     CornerRadius="{DynamicResource CornerRadiusM}"
                     MinHeight="120"
-                    MaxHeight="208">
+                    MaxHeight="200">
                 <Grid RowDefinitions="Auto,Auto,*">
                     <!-- One heading, and one caption. 8D.1 shipped a group heading
                          here and M4 shipped an inner label, so the trace carried

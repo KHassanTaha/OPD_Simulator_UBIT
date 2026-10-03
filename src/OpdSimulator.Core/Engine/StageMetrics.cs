@@ -59,7 +59,7 @@ public sealed record StageMetrics
     /// </summary>
     /// <remarks>
     /// For a multi-day run this is the final day's figure; the per-day series behind
-    /// the average lives on <see cref="SimulationResult.BacklogPerDay"/>. 0 when the
+    /// the average lives on <see cref="SimulationResult.BacklogPerSession"/>. 0 when the
     /// run ended before the close, because then nothing was left over.
     /// </remarks>
     public int BacklogAtClose { get; init; }
@@ -71,7 +71,7 @@ public sealed record StageMetrics
     /// <remarks>
     /// 0 for a stage that had already finished serving before the close. A
     /// multi-day run reports the final day's drain here; the per-day series is on
-    /// <see cref="SimulationResult.DrainPerDay"/>.
+    /// <see cref="SimulationResult.DrainPerSession"/>.
     /// </remarks>
     public double DrainMinutes { get; init; }
 

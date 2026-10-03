@@ -895,7 +895,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
         else
         {
-            Days.SetError($"Days must be a whole number of at least 1. You entered \"{value}\".");
+            Days.SetError($"Operating days must be a whole number of at least 1. You entered \"{value}\".");
         }
 
         RecomputeBlockingState();

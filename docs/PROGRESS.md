@@ -1,3 +1,93 @@
+Session Handoff — 2026-10-04 04:42 — Phase 8T.1 IMPLEMENTED (semantics + caption + a CLI defect; green, awaiting owner eyes)
+Branch: feat/phase-8t-operating-days
+Status: In-Progress
+
+Done
+8T.1 — the calendar now counts operating sessions end to end, with the resolved sessions stated on the run. `ClinicCalendar.EnumerateSessions` resolves `Days = N` to the Nth **open** day; `CalendarGate` derives `StopTime` from the last open block, sizes every per-session array from the session list, and resets the arrival cap per operating session; `SimulationResult.Sessions` carries ordinal, weekday and block index.
+
+In Progress
+Nothing in code. 8T.1's row stays `[~]` because the caption is a UI change and AGENTS §18 requires an executed click sequence with an observed result — this host has no image input, so `logs/screenshots/phase-8t1-session-caption.png` needs owner eyes before it can be `[x]`.
+
+What is complete:
+
+**Semantics (FR-SIM-12, D-199).** `ClinicSession(int Ordinal, int BlockIndex, DayOfWeek DayOfWeek)` is a new public Core record; `EnumerateSessions(int sessionCount)` walks the calendar from the start weekday and returns only open days, so `Days = 4` from Saturday is Sat/Mon/Tue/Wed and the closed Sunday consumes clock but produces no session, no row and no `0.0` in any average. `CalendarGate.StopTime` is the close of the last session's block — for Saturday + 4 sessions that is `4 × 1440 + 165 = 5 925` minutes, where the old formula stopped at `3 × 1440 + 165 = 4 485`, which is exactly the D-192 bug. Cap counters, first-arrival stamps, service ends, backlog-at-close and drain are all indexed by **session ordinal**, and the cap resets at each session open rather than at each block boundary. `SimulationResult` gained `Sessions`; `AdmittedPerDay`, `ScreeningAdmittedPerDay`, `BacklogPerDay` and `DrainPerDay` became `AdmittedPerSession`, `ScreeningAdmittedPerSession`, `BacklogPerSession` and `DrainPerSession`. `SimulationParameters.GeneratorDays` and `SimulationResult.GeneratorDays` keep their names on purpose — renaming them buys nothing a caller can see and costs every consumer.
+
+**The run says which days ran.** The Config field reads `Operating days` with a tooltip that spells out the closed days; the validation message, the calculations receipt and the diagnostic-mode copy all use "operating session" rather than "day". The results header gains one caption line, `4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …`, abbreviated after five named sessions, built from the run's own `Sessions` so it cannot disagree with the numbers beside it.
+
+**A real layout regression was caught and fixed honestly (D-204).** The new caption is a fourth header line, and at a 420 px window the three pinned rows then wanted 426 px (Auto header 98 + `MinHeight` 120 + trace 208). Avalonia's Grid resolved the overflow by shrinking the **Auto header row** by 3 px, so the header and the scrolling middle overlapped and `Phase8SLayoutTests.ResultsLayout_MiddleRowKeepsAUsableHeightAtEveryWindowSize(420)` went red with expected 98 / actual 95. The pinned trace box is the row whose declared job is to give up space under pressure, so **its ceiling goes 208 -> 200 px** and the middle row keeps its floor. The alternative — relaxing the 8S tiling tolerance — would have made the test pass over a defect that grows with every added header line. 200 px is still above the inner ScrollViewer's own 176 px, so the box still gives up only the heading chrome it cannot scroll away, which is what 208 was chosen for. Phase 8T.5 deletes the row anyway.
+
+**Two of my own test assertions were weak and are now real.** The stop-time test asserted `Assert.Equal(expectedStop, expectedStop)` — a line that cannot fail. It now asserts what a user can observe: the arrival stream's cumulative time lands within 5 minutes of the last session's close (measured **5 924.73** against 5 925) **and** strictly past the previous block's close, which is the old formula. The 12-session test asserted `Assert.Equal(16, sessions.Sum(s => 1) + 4)`, a sum of ones plus a hardcoded constant; it now derives both numbers from the session list.
+
+**Gates.** Release and Debug `--no-incremental`: **0 errors, 0 warnings**. Full suite **879/879 green in both** (Cli 38 / Data 134 / Core 150 / App 557). Core 134 -> 150 (`Phase8TTests`, 16 tests), App 548 -> 557 (`Phase8T1CaptionTests`, 9 tests), Cli 35 -> 38 (`StartDay_ResolvesTheSessionsItNames`). Every existing test that asserted a horizon or a per-session length from `Days` was rewritten to assert sessions (`Phase5RunFlowTests`, `Phase8RTests`, `Phase8RScreenshots`, `EngineTests`) — per D-192's precedent, a test encoding the old arithmetic is a test of the old bug.
+
+**Baseline, measured both ways on the same seed.** The old build with `Days = 4` from Saturday and cap 4 gave admissions per block `[4, 0, 4, 4]`, served **12**, operating time **29.68**. The new build gives sessions Sat/Mon/Tue/Wed, admissions `[4, 4, 4, 4]`, served **16**, operating time **44.49**.
+
+**The CLI silently ignored `--start-day` (D-205), and printing the sessions is what exposed it.** `SimulateNetworkCommand` parsed, validated and echoed `--start-day`, then handed the engine `new ClinicCalendar()` — which starts on **Monday**. So `--start-day Saturday --days 4` simulated Mon/Tue/Wed/Thu while the receipt directly above the metrics read `Start day: Saturday`. The defect survived because the only CLI test that passed the flag passed `Monday`, i.e. exercised it only at the value the bug already produced: *a flag tested solely at its default cannot detect being ignored.* It is the same shape as D-176, where the printed line was individually correct and described a run that never happened. The fix passes `new ClinicCalendar(startDayOfWeek: startDay ?? DayOfWeek.Monday)`, and the day-model block now prints `Operating sessions`, `First session weekday`, `Per-session cap` and a `Sessions` line. The new test asserts the **resolved sessions on stdout**, not the echoed flag, and is verified by reverting: **2 of its 3 cases fail** against the old code (Saturday, Friday) and 0 fail with the fix; the Monday case passes both ways, which is precisely why the old suite was green.
+
+**Five documentation defects corrected, one of them mine.** (a) `FR-STAT-10`'s planned App source pointed at `App/Models/RunOutcome.cs`, which does not exist — it is `src/OpdSimulator.App/Services/SimulationCoordinator.cs`. (b) The 8T prose said the coverage denominator "grew by ten"; it grew by **eight** (81 -> 89). (c) D-199 said "8 sites" while listing **nine** `Engine.cs` locations, and gave a 4 944-minute run span where the arrival window closes at **5 925**. (d) A stray blank line was splitting the `FR-UI` matrix into two rendered tables, which made a scripted status count read **89 rows instead of 92** — that is why the coverage number had been adjustable rather than countable. (e) `docs/PRD.md` §10's change-history table had its `|---|` delimiter **below three data rows** instead of under the header, so GFM did not render the three newest entries as a table at all; the delimiter moved up one row, which is why the new v1.14.1 row renders. Coverage recounted by script, not adjusted: **92 rows, 64 `[x]`, 9 `[~]`, 19 `[ ]`, 69.6 %**; `FR-SIM-12` moved `[ ]` -> `[~]` with sources and tests filled in.
+
+What remains:
+8T.2 (per-session served + waits, D-201) → 8T.3 (session selector on the queue chart, D-203) → 8T.4 (trace table + not-admitted note, D-202) → 8T.5 (one inline results sequence, D-200), each with the gate its `docs/TODO.md` row names. Nothing reaches `[x]` on a green suite alone (§18).
+
+Next Session Should Start With
+Owner visual inspection of `logs/screenshots/phase-8t1-session-caption.png` and a decision on the open modelling question below. With 8T.1 accepted, the next item is **8T.2**: make `StageMetrics.WaitingTimeSamples` timestamped so a wait sample can be attributed to a session, and prove the change is additive by asserting the waiting-time histogram's bins stay **byte-identical** before and after.
+
+Blocked
+B-012 — owner visual inspection of the five 8S frames; this host has no image input. Unchanged by this session, not blocking 8T.1.
+Owner eyes on the new 8T.1 caption frame — the same limitation, and it is the only thing keeping 8T.1 at `[~]`.
+Open question for the owner, parked, not blocking: arrivals are still drawn across the whole 1 440-minute block, so **3,201 of 3,524** arrival events were refused as outside the opening window. Fixing it is a real improvement and a breaking change to every published number.
+
+Git State
+Commits made this session: `b0d6379` docs: record Phase 8T in PRD v1.14.0 before any of it is built (8T.1 first) — pushed.
+Pushed to origin: yes for `b0d6379`; the 8T.1 code and the documentation corrections in this handoff are **not yet committed**.
+Uncommitted changes: 21 modified files + 3 new (`src/OpdSimulator.Core/Calendar/ClinicSession.cs`, `tests/OpdSimulator.Core.Tests/Phase8TTests.cs`, `tests/OpdSimulator.App.Tests/Phase8T1CaptionTests.cs`), 436 insertions / 223 deletions.
+
+Build & Test
+dotnet build: PASS — Release and Debug, `--no-incremental`, 0 errors / 0 warnings both.
+dotnet test: PASS — 879 passed, 0 failed, in Release **and** Debug (Cli 38 / Data 134 / Core 150 / App 557).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Calendar/ClinicSession.cs: added
+src/OpdSimulator.Core/Calendar/ClinicCalendar.cs: `EnumerateSessions`
+src/OpdSimulator.Core/Engine/Engine.cs: session-aware `CalendarGate`, `StopTime`, per-session projections
+src/OpdSimulator.Core/Engine/SimulationResult.cs: `Sessions`, `*PerSession` series
+src/OpdSimulator.Core/Engine/StageMetrics.cs: doc references
+src/OpdSimulator.App/Models/SimulationParameters.cs: operating-session docs on `GeneratorDays`
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: Days validation wording
+src/OpdSimulator.App/Views/ConfigPanel.axaml: `Operating days` label + tooltip
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: `Operating sessions`
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: `BuildSessionSummary`, `SessionSummaryText`, `HasSessionSummary`
+src/OpdSimulator.App/Views/ResultsPanel.axaml: caption TextBlock; trace ceiling 208 -> 200 (D-204)
+tests/OpdSimulator.Core.Tests/Phase8TTests.cs: added (16)
+tests/OpdSimulator.App.Tests/Phase8T1CaptionTests.cs: added (9)
+tests/OpdSimulator.Core.Tests/EngineTests.cs: block semantics -> session semantics
+tests/OpdSimulator.App.Tests/Phase5RunFlowTests.cs, Phase8RTests.cs, Phase8RScreenshots.cs: `*PerDay` -> `*PerSession`
+tests/OpdSimulator.App.Tests/ResultsPanelBufferTraceTests.cs: ceiling assertion re-pointed at 200 (D-204)
+src/OpdSimulator.Cli/Commands/SimulateNetworkCommand.cs: `--start-day` honoured, session-aware usage/help/day-model block (D-205)
+tests/OpdSimulator.Cli.Tests/CliSimulateNetworkTests.cs: `StartDay_ResolvesTheSessionsItNames` (3 cases)
+docs/USER_MANUAL.md: `Operating days` label, operating-session reading, new §6.0, changelog row
+docs/DEV_LAUNCH.md: 8T.1 "Last verified" line superseding 8S's stale 208 px figure
+docs/TODO.md: 8T.1 `[~]`, tests and gates `[x]`
+docs/REQUIREMENTS.md: `FR-SIM-12` `[~]` with sources/tests, coverage recount, provenance row, 4 defects fixed
+docs/DECISIONS.md: D-204 and D-205 added; D-199 site count and minute figure corrected
+docs/PROGRESS.md: this handoff
+
+Decisions Made
+D-204 — the pinned trace box gives up 8 px so the middle row keeps its floor (ceiling 208 -> 200); the alternatives (relax the 8S tolerance, drop the caption, responsive pinned row) and why each was rejected.
+D-199 — corrected in place: **nine** `CalendarGate` sites, and the arrival window closes at **5 925** minutes from Saturday for four sessions.
+D-205 — the CLI honours `--start-day` and prints the sessions it resolved; removing the flag, warning instead of fixing, and an ambient process-wide calendar were each rejected.
+
+Assumptions Added/Changed
+No new assumption. The standing one is unchanged and still tagged in `CONTEXT.md`: the clinic opens Mon-Thu and Sat, 08:15-11:00, 165 operating minutes per session, Friday and Sunday closed (corrected 2026-09-29).
+
+Notes for Next Session
+The generated-run evidence frame is `logs/screenshots/phase-8t1-session-caption.png` (66 282 bytes, rendered 814 px wide). The caption test asserts the TextBlock's right edge is inside the window, so a clipped caption fails rather than passing quietly — but **no one has looked at the frame**, and §18 is explicit that a green render is not a verification.
+`ResultsPanel_EventTrace_HasFixedMaxHeight` now asserts 200 px and is on 8T.5's replacement list, so it has been edited once here rather than rewritten twice. When 8T.5 collapses the three rows into one scroll region, that assertion and `Phase8SLayoutTests`'s tiling clauses are **replaced, not repaired** (D-200).
+A temporary `TempLayoutProbe` test was written to measure the 420 px overlap and **deleted** before the suite run; it is not in the tree.
+The CLI evidence command was **run**, not assumed: `dotnet run --project src/OpdSimulator.Cli -c Release -- simulate-network --lambda 0.2 --c 1,2,3 --mu 0.5,0.25,0.2 --p-exit 0.7 --days 4 --start-day Saturday --cap 80` now prints `Sessions : Day 1 (Sat) · Day 2 (Mon) · Day 3 (Tue) · Day 4 (Wed)`. Before the D-205 fix the same command printed `Day 1 (Mon) · Day 2 (Tue) · Day 3 (Wed) · Day 4 (Thu)` under a header that said Saturday — worth re-running by hand, because it is the same shape of evidence as the D-176 finding.
+**Not built, and not in scope here:** the in-program guide UI (§17.1) still has no view; `docs/USER_MANUAL.md` is embedded directly as a resource (`OpdSimulator.App.csproj`, `LogicalName=OpdSimulator.App.Assets.UserManual.md`) and nothing reads it yet, so the 8T.1 manual edits are documentation only until that view exists. No copy of the manual exists to drift from, which is why there is no drift-guard test to update.
+
 Session Handoff — 2026-10-04 — Phase 8T PLANNING (documentation only, no code written)
 Branch: fix/phase-8s
 Status: In-Progress

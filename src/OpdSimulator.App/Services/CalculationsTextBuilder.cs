@@ -188,7 +188,7 @@ public static class CalculationsTextBuilder
         if (parameters is not null)
         {
             Field(text, "Start day", parameters.StartDay.ToString());
-            Field(text, "Days generated", parameters.GeneratorDays.ToString(CultureInfo.InvariantCulture));
+            Field(text, "Operating sessions", parameters.GeneratorDays.ToString(CultureInfo.InvariantCulture));
             if (parameters.RunMode == RunMode.DiagnosticTrace)
             {
                 // Named "Duration" to match the dropdown the user set it in.

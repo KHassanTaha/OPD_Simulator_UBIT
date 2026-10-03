@@ -70,8 +70,8 @@ public sealed class Engine
     // the backlog and the drain time. All per-run, released like the buffers above.
     private double[]? _stageLastServiceEnd;
     private int[]? _backlogAtClose;
-    private int[][]? _backlogPerDayAtClose;
-    private bool[]? _dailyBacklogCaptured;
+    private int[][]? _backlogPerSessionAtClose;
+    private bool[]? _sessionBacklogCaptured;
     private bool _backlogCaptured;
 
     // Per-run generated-value samples (Phase 8A): the inter-arrival and service
@@ -179,28 +179,35 @@ public sealed class Engine
     /// <remarks>
     /// <para>
     /// The calendar anchors t = 0 at the day-0 arrival window (CONTEXT §5.1).
-    /// Arrivals are generated as one continuous Poisson stream for
-    /// <paramref name="generatorDays"/> calendar-day blocks and admitted only
+    /// Arrivals are generated as one continuous Poisson stream and admitted only
     /// on open weekdays inside the arrival window; arrivals landing elsewhere
     /// are gated out but the stream continues (the clinic's demand exists, the
     /// calendar is the admission gate). Services in progress keep running to
     /// completion, so a run drains past the last window (FR-SIM-6).
     /// </para>
     /// <para>
-    /// Operating time (D-018) is summed per open day block: first admitted
-    /// arrival to last service end within that block, so overnight gaps never
+    /// <paramref name="generatorDays"/> counts operating sessions, not calendar
+    /// days: closed weekdays between them are stepped over and not counted
+    /// (FR-SIM-12, D-199). A 4-session run from Saturday spans five 1440-minute
+    /// blocks — Sat, closed Sun, Mon, Tue, Wed — and its per-session series carry
+    /// four entries with no row for the Sunday. The resolved list is on
+    /// <see cref="SimulationResult.Sessions"/>.
+    /// </para>
+    /// <para>
+    /// Operating time (D-018) is summed per operating session: first admitted
+    /// arrival to last service end within that session, so overnight gaps never
     /// dilute utilisation. The optional <paramref name="dailyCap"/> resets each
-    /// day block (D-009).
+    /// session (D-009).
     /// </para>
     /// </remarks>
     /// <param name="topology">The ordered stage configuration to simulate.</param>
     /// <param name="calendar">The clinic schedule (weekdays + arrival window).</param>
-    /// <param name="generatorDays">Number of calendar-day blocks over which arrivals are generated.</param>
+    /// <param name="generatorDays">Number of operating sessions over which arrivals are generated; closed weekdays between them are skipped and not counted (FR-SIM-12).</param>
     /// <param name="seed">Random seed for reproducibility (FR-VAL-3, default 42).</param>
-    /// <param name="dailyCap">Maximum admissions per day block; null = unlimited.</param>
+    /// <param name="dailyCap">Maximum admissions per operating session; null = unlimited.</param>
     /// <param name="traceSink">Optional sink that receives the human-readable
     /// event trace (<see cref="ITraceSink"/>); null disables tracing.</param>
-    /// <returns>The collected statistics of the run, including <see cref="SimulationResult.AdmittedPerDay"/>.</returns>
+    /// <returns>The collected statistics of the run, including <see cref="SimulationResult.AdmittedPerSession"/>.</returns>
     /// <exception cref="ArgumentNullException">If <paramref name="topology"/> or <paramref name="calendar"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">If <paramref name="generatorDays"/> &lt; 1 or <paramref name="dailyCap"/> &lt; 1.</exception>
     /// <exception cref="UnstableSystemException">If any stage has ρ ≥ 1 (FR-VAL-1).</exception>
@@ -212,7 +219,7 @@ public sealed class Engine
         if (calendar is null)
             throw new ArgumentNullException(nameof(calendar));
         if (generatorDays < 1)
-            throw new ArgumentOutOfRangeException(nameof(generatorDays), generatorDays, "At least one day must be generated.");
+            throw new ArgumentOutOfRangeException(nameof(generatorDays), generatorDays, "At least one operating session must be generated.");
         if (dailyCap is < 1)
             throw new ArgumentOutOfRangeException(nameof(dailyCap), dailyCap, "The daily cap must be at least 1.");
 
@@ -252,7 +259,7 @@ public sealed class Engine
         }
         else
         {
-            _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} days={Days} window={Window} cap={Cap} start-day={StartDay} ρs=[{Rhos}]",
+            _log.Information("Simulation start: stages={Stages} λ0={ArrivalRate} seed={Seed} sessions={Sessions} window={Window} cap={Cap} start-day={StartDay} ρs=[{Rhos}]",
                 string.Join(" → ", topology.StageSpecs.Select(s => $"{s.Name}(c={s.ServerCount}, μ={s.ServiceRate:F3})")),
                 topology.ArrivalRate, seed, generatorDays,
                 $"{calendar.FormatClock(0)}–{calendar.FormatClock(calendar.OpenDurationMinutes)}",
@@ -302,10 +309,10 @@ public sealed class Engine
         // calendar run; a horizon run has a single close.
         _stageLastServiceEnd = new double[stages.Length];
         _backlogAtClose = new int[stages.Length];
-        _backlogPerDayAtClose = gate is null
+        _backlogPerSessionAtClose = gate is null
             ? null
-            : Enumerable.Range(0, gate.GeneratorDays).Select(_ => new int[stages.Length]).ToArray();
-        _dailyBacklogCaptured = gate is null ? null : new bool[gate.GeneratorDays];
+            : Enumerable.Range(0, gate.SessionCount).Select(_ => new int[stages.Length]).ToArray();
+        _sessionBacklogCaptured = gate is null ? null : new bool[gate.SessionCount];
         _backlogCaptured = false;
 
         // Generated-value buffers (Phase 8A): one inter-arrival list and one
@@ -338,17 +345,17 @@ public sealed class Engine
             // had a backlog to clear, so it stays at zero.
             if (gate is not null)
             {
-                // Calendar run: captured at the close of EACH day block, so a
-                // multi-day run can report a per-day average rather than one number
-                // for the whole horizon. CurrentDayIndex is clamped to the last
-                // block, so trailing drain stays on the final day — the same
-                // attribution the operating-time denominator already uses.
-                int day = gate.CurrentDayIndex;
-                if (!_dailyBacklogCaptured![day] && clock >= gate.CloseTimeForDay(day))
+                // Calendar run: captured at the close of EACH operating session, so
+                // a multi-day run can report a per-session average rather than one
+                // number for the whole horizon. The gate attributes trailing drain
+                // to the session that produced it, so work spilling past midnight —
+                // or across a closed day — stays on the session it belongs to.
+                int session = gate.CurrentSessionIndex;
+                if (!_sessionBacklogCaptured![session] && clock >= gate.CloseTimeForSession(session))
                 {
                     for (int i = 0; i < stages.Length; i++)
-                        _backlogPerDayAtClose![day][i] = stages[i].Queue.Count + stages[i].Servers.Count(s => s.IsBusy);
-                    _dailyBacklogCaptured![day] = true;
+                        _backlogPerSessionAtClose![session][i] = stages[i].Queue.Count + stages[i].Servers.Count(s => s.IsBusy);
+                    _sessionBacklogCaptured![session] = true;
                 }
             }
             else if (!_backlogCaptured && clock >= closeTime)
@@ -405,8 +412,8 @@ public sealed class Engine
         // Operating time = time from first arrival (t=0) to last service end
         // (D-018). In a horizon run the FEL drains at the last service end, so
         // `clock` is exactly that (FR-SIM-6). In a calendar run the denominator
-        // is summed per open day block so overnight gaps do not dilute
-        // utilisation.
+        // is summed per operating session so overnight gaps and closed days do not
+        // dilute utilisation.
         double operatingTime = gate is not null ? gate.OperatingTimeMinutes : clock;
 
         var stageMetrics = stages.Select((stage, i) =>
@@ -441,33 +448,35 @@ public sealed class Engine
                 // operating session, so a multi-day average can be computed from
                 // real per-stage numbers instead of one day's figure reused.
                 BacklogAtClose = gate is not null
-                    ? _backlogPerDayAtClose![gate.GeneratorDays - 1][i]
+                    ? _backlogPerSessionAtClose![gate.SessionCount - 1][i]
                     : _backlogAtClose![i],
                 DrainMinutes = drain,
                 BacklogAtCloseBySession = gate is null
                     ? new[] { _backlogAtClose![i] }
-                    : Enumerable.Range(0, gate.GeneratorDays)
-                        .Select(d => _backlogPerDayAtClose![d][i]).ToArray(),
+                    : Enumerable.Range(0, gate.SessionCount)
+                        .Select(s => _backlogPerSessionAtClose![s][i]).ToArray(),
                 DrainMinutesBySession = gate is null
                     ? new[] { drain }
-                    : Enumerable.Range(0, gate.GeneratorDays)
-                        .Select(d => gate.DrainMinutesForDay(d, i)).ToArray(),
+                    : Enumerable.Range(0, gate.SessionCount)
+                        .Select(s => gate.DrainMinutesForSession(s, i)).ToArray(),
             };
         }).ToArray();
 
-        // Per-day close-of-session figures for a multi-day average (D-191). The
-        // backlog is the whole system's count at that day's close; the drain is that
-        // day's close to that day's last service end, reusing the same per-day
-        // service-end bookkeeping the operating-time denominator is built from.
-        int[] backlogPerDay = gate is null
+        // Per-session close-of-session figures for a multi-day average (D-191). The
+        // backlog is the whole system's count at that session's close; the drain is
+        // that session's close to its last service end, reusing the same service-end
+        // bookkeeping the operating-time denominator is built from. One entry per
+        // operating session — a closed day has no session and so contributes no row
+        // (FR-SIM-12).
+        int[] backlogPerSession = gate is null
             ? Array.Empty<int>()
-            : Enumerable.Range(0, gate.GeneratorDays)
-                .Select(d => _backlogPerDayAtClose![d].Sum())
+            : Enumerable.Range(0, gate.SessionCount)
+                .Select(s => _backlogPerSessionAtClose![s].Sum())
                 .ToArray();
-        double[] drainPerDay = gate is null
+        double[] drainPerSession = gate is null
             ? Array.Empty<double>()
-            : Enumerable.Range(0, gate.GeneratorDays)
-                .Select(d => gate.DrainMinutesForDay(d))
+            : Enumerable.Range(0, gate.SessionCount)
+                .Select(s => gate.DrainMinutesForSession(s))
                 .ToArray();
 
         // Release the per-run buffers; a later run allocates fresh ones.
@@ -479,8 +488,8 @@ public sealed class Engine
         _stageQueueSeries = null;
         _stageLastServiceEnd = null;
         _backlogAtClose = null;
-        _backlogPerDayAtClose = null;
-        _dailyBacklogCaptured = null;
+        _backlogPerSessionAtClose = null;
+        _sessionBacklogCaptured = null;
         _generatedInterArrivals = null;
         _generatedServiceSamples = null;
         _serviceSamplers = null;
@@ -500,11 +509,12 @@ public sealed class Engine
             ThroughputPerMinute = operatingTime > 0 ? completed / operatingTime : 0,
             OperatingTimeMinutes = operatingTime,
             StageMetrics = stageMetrics,
-            AdmittedPerDay = gate?.AdmittedPerDay ?? Array.Empty<int>(),
-            ScreeningAdmittedPerDay = gate?.ScreeningAdmittedPerDay ?? Array.Empty<int>(),
-            BacklogPerDay = backlogPerDay,
-            DrainPerDay = drainPerDay,
-            GeneratorDays = gate?.GeneratorDays ?? 0,
+            AdmittedPerSession = gate?.AdmittedPerSession ?? Array.Empty<int>(),
+            ScreeningAdmittedPerSession = gate?.ScreeningAdmittedPerSession ?? Array.Empty<int>(),
+            BacklogPerSession = backlogPerSession,
+            DrainPerSession = drainPerSession,
+            Sessions = gate?.Sessions ?? Array.Empty<ClinicSession>(),
+            GeneratorDays = gate?.SessionCount ?? 0,
             DailyCap = gate?.DailyCap,
             GeneratedInterArrivalSamples = generatedInterArrivals,
             GeneratedServiceSamplesByStage = generatedServiceSamplesByStage,
@@ -861,123 +871,145 @@ public sealed class Engine
     private sealed class CalendarGate
     {
         private readonly ClinicCalendar _calendar;
+        private readonly IReadOnlyList<ClinicSession> _sessions;
 
-        private readonly int[] _admittedPerDay;
-        private readonly int[] _screeningAdmittedPerDay;
-        private readonly double?[] _dayFirstArrival;
-        private readonly double[] _dayLastServiceEnd;
+        private readonly int[] _admittedPerSession;
+        private readonly int[] _screeningAdmittedPerSession;
+        private readonly double?[] _sessionFirstArrival;
+        private readonly double[] _sessionLastServiceEnd;
 
         /// <summary>
-        /// Per-stage last service end per day block (D-193). Separate from
-        /// <see cref="_dayLastServiceEnd"/>, which stays system-wide because the
+        /// Per-stage last service end per operating session (D-193). Separate from
+        /// <see cref="_sessionLastServiceEnd"/>, which stays system-wide because the
         /// operating-time denominator is defined on the whole system's last service
         /// end — repurpose it and every recorded utilisation baseline moves.
         /// </summary>
-        private readonly double[][] _dayStageLastServiceEnd;
+        private readonly double[][] _sessionStageLastServiceEnd;
 
         /// <summary>
-        /// Creates the gate for a run of <paramref name="generatorDays"/>
-        /// calendar days.
+        /// Creates the gate for a run of <paramref name="sessionCount"/>
+        /// operating sessions.
         /// </summary>
         /// <param name="calendar">The clinic schedule.</param>
-        /// <param name="generatorDays">Number of calendar-day blocks to generate arrivals for.</param>
-        /// <param name="dailyCap">Maximum <b>Screening-bound</b> admissions per day block;
+        /// <param name="sessionCount">Number of operating sessions to generate arrivals for.
+        /// Closed weekdays between them are stepped over and not counted (FR-SIM-12).</param>
+        /// <param name="dailyCap">Maximum <b>Screening-bound</b> admissions per session;
         /// null = unlimited. A patient routed past Screening by the arrival-time bypass
         /// does not consume a place (D-190).</param>
-        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap, int stageCount)
+        public CalendarGate(ClinicCalendar calendar, int sessionCount, int? dailyCap, int stageCount)
         {
             _calendar = calendar;
-            GeneratorDays = generatorDays;
+            _sessions = calendar.EnumerateSessions(sessionCount);
+            SessionCount = _sessions.Count;
             DailyCap = dailyCap;
 
-            // Arrivals stop at the arrival-window end of the last generated day
-            // block; the run then drains service events only (FR-SIM-6).
-            StopTime = (generatorDays - 1) * ClinicCalendar.MinutesPerDay + calendar.OpenDurationMinutes;
+            // Arrivals stop at the arrival-window end of the LAST operating session,
+            // which is not the last block: a 4-session run from Saturday spans five
+            // blocks and ends in Wednesday's block (D-199). The run then drains
+            // service events only (FR-SIM-6).
+            StopTime = CloseTimeForSession(SessionCount - 1);
 
-            _admittedPerDay = new int[generatorDays];
-            _screeningAdmittedPerDay = new int[generatorDays];
-            _dayFirstArrival = new double?[generatorDays];
-            _dayLastServiceEnd = new double[generatorDays];
-            _dayStageLastServiceEnd = new double[generatorDays][];
-            for (var d = 0; d < generatorDays; d++)
+            _admittedPerSession = new int[SessionCount];
+            _screeningAdmittedPerSession = new int[SessionCount];
+            _sessionFirstArrival = new double?[SessionCount];
+            _sessionLastServiceEnd = new double[SessionCount];
+            _sessionStageLastServiceEnd = new double[SessionCount][];
+            for (var s = 0; s < SessionCount; s++)
             {
-                _dayStageLastServiceEnd[d] = new double[stageCount];
+                _sessionStageLastServiceEnd[s] = new double[stageCount];
             }
 
-            CurrentDayIndex = -1;
+            CurrentSessionIndex = 0;
         }
 
-        /// <summary>Number of calendar-day blocks the run generates arrivals for.</summary>
-        public int GeneratorDays { get; }
+        /// <summary>Number of operating sessions the run covers.</summary>
+        public int SessionCount { get; }
+
+        /// <summary>The resolved operating sessions, in order.</summary>
+        public IReadOnlyList<ClinicSession> Sessions => _sessions;
 
         /// <summary>
-        /// Maximum Screening-bound admissions per day block, or null when unlimited.
+        /// Maximum Screening-bound admissions per operating session, or null when
+        /// unlimited.
         /// </summary>
         public int? DailyCap { get; }
 
         /// <summary>Clock time after which no further arrivals are scheduled.</summary>
         public double StopTime { get; }
 
-        /// <summary>The day block the clock is currently inside (clamped).</summary>
-        public int CurrentDayIndex { get; private set; }
+        /// <summary>
+        /// The operating session the clock is currently inside. Work that runs past
+        /// midnight, or across a closed day, stays attributed to the session that
+        /// produced it rather than to a session that never opened.
+        /// </summary>
+        public int CurrentSessionIndex { get; private set; }
 
         /// <summary>
-        /// Every admitted arrival so far in the current day block, including
+        /// Every admitted arrival so far in the current operating session, including
         /// arrivals routed past Screening by the bypass.
         /// </summary>
         /// <remarks>
         /// This is the counter the admission metrics report, and it deliberately
         /// still counts <i>all</i> arrivals. The daily cap reads a different
-        /// counter — <see cref="ScreeningAdmittedToday"/> — so that turning the cap
+        /// counter — <see cref="ScreeningAdmittedThisSession"/> — so that turning the cap
         /// on cannot silently change what "admitted" means in the results (D-190).
         /// </remarks>
-        public int AdmittedToday { get; private set; }
+        public int AdmittedThisSession { get; private set; }
 
         /// <summary>
-        /// Admissions so far in the current day block that are bound for Screening —
-        /// the only arrivals the daily cap constrains (D-190).
+        /// Admissions so far in the current operating session that are bound for
+        /// Screening — the only arrivals the daily cap constrains (D-190).
         /// </summary>
-        public int ScreeningAdmittedToday { get; private set; }
+        public int ScreeningAdmittedThisSession { get; private set; }
 
         /// <summary>
-        /// The instant arrivals close for the given day block: the end of that day's
-        /// arrival window (D-191).
+        /// The instant arrivals close for the given operating session: the end of
+        /// that day's arrival window (D-191).
         /// </summary>
-        /// <param name="dayIndex">Zero-based day block index.</param>
-        /// <returns>Clock time at which that day's arrivals stop.</returns>
-        public double CloseTimeForDay(int dayIndex)
-            => dayIndex * ClinicCalendar.MinutesPerDay + _calendar.OpenDurationMinutes;
+        /// <param name="sessionIndex">Zero-based session index — the position in
+        /// <see cref="Sessions"/>, <i>not</i> a block index.</param>
+        /// <returns>Clock time at which that session's arrivals stop.</returns>
+        public double CloseTimeForSession(int sessionIndex)
+            => _sessions[sessionIndex].BlockIndex * ClinicCalendar.MinutesPerDay + _calendar.OpenDurationMinutes;
 
         /// <summary>
-        /// Minutes from a day block's close of arrivals to that day's last service
+        /// Minutes from a session's close of arrivals to that session's last service
         /// end — the time taken to clear the backlog left at the close (D-191).
         /// </summary>
-        /// <param name="dayIndex">Zero-based day block index.</param>
-        /// <returns>Drain time in minutes; 0 when the day had nothing to drain.</returns>
-        public double DrainMinutesForDay(int dayIndex)
-            => Math.Max(0.0, _dayLastServiceEnd[dayIndex] - CloseTimeForDay(dayIndex));
+        /// <param name="sessionIndex">Zero-based session index.</param>
+        /// <returns>Drain time in minutes; 0 when the session had nothing to drain.</returns>
+        public double DrainMinutesForSession(int sessionIndex)
+            => Math.Max(0.0, _sessionLastServiceEnd[sessionIndex] - CloseTimeForSession(sessionIndex));
 
-        /// <summary>Admitted arrivals per day block over the whole run.</summary>
-        public int[] AdmittedPerDay => _admittedPerDay;
+        /// <summary>Admitted arrivals per operating session over the whole run.</summary>
+        public int[] AdmittedPerSession => _admittedPerSession;
 
-        /// <summary>Screening-bound admissions per day block over the whole run.</summary>
-        public int[] ScreeningAdmittedPerDay => _screeningAdmittedPerDay;
+        /// <summary>Screening-bound admissions per operating session over the whole run.</summary>
+        public int[] ScreeningAdmittedPerSession => _screeningAdmittedPerSession;
 
         /// <summary>
-        /// Switches the day bookkeeping to the block containing
-        /// <paramref name="clock"/>. Blocks past the last generated day are
-        /// clamped so trailing drain work stays attributed to that day.
+        /// Switches the session bookkeeping to the last session whose block the
+        /// clock has reached. The clock is monotonic, so the cursor only ever
+        /// moves forward, and a closed block never advances it — that is what
+        /// keeps a session's counters (and its drain) intact across the overnight
+        /// and closed-day gap instead of attributing them to a session that
+        /// never opened.
         /// </summary>
         /// <param name="clock">The current simulation clock.</param>
         public void AdvanceTo(double clock)
         {
-            int absoluteDay = (int)(clock / ClinicCalendar.MinutesPerDay);
-            int day = Math.Min(absoluteDay, GeneratorDays - 1);
-            if (day != CurrentDayIndex)
+            int absoluteBlock = (int)(clock / ClinicCalendar.MinutesPerDay);
+            int previous = CurrentSessionIndex;
+            while (CurrentSessionIndex + 1 < SessionCount
+                   && _sessions[CurrentSessionIndex + 1].BlockIndex <= absoluteBlock)
             {
-                CurrentDayIndex = day;
-                AdmittedToday = 0; // daily cap resets each day block (D-009)
-                ScreeningAdmittedToday = 0; // and so does the counter it actually constrains (D-190)
+                CurrentSessionIndex++;
+            }
+
+            if (CurrentSessionIndex != previous)
+            {
+                AdmittedThisSession = 0; // the cap resets each operating session (D-009)
+                ScreeningAdmittedThisSession = 0; // and so does the counter it actually constrains (D-190)
             }
         }
 
@@ -1010,55 +1042,56 @@ public sealed class Engine
         {
             if (!_calendar.IsInArrivalWindow(clock))
                 return false;
-            if (screeningBound && DailyCap is { } cap && ScreeningAdmittedToday >= cap)
+            if (screeningBound && DailyCap is { } cap && ScreeningAdmittedThisSession >= cap)
                 return false;
 
-            AdmittedToday++;
-            _admittedPerDay[CurrentDayIndex]++;
+            AdmittedThisSession++;
+            _admittedPerSession[CurrentSessionIndex]++;
             if (screeningBound)
             {
-                ScreeningAdmittedToday++;
-                _screeningAdmittedPerDay[CurrentDayIndex]++;
+                ScreeningAdmittedThisSession++;
+                _screeningAdmittedPerSession[CurrentSessionIndex]++;
             }
-            _dayFirstArrival[CurrentDayIndex] ??= clock;
+            _sessionFirstArrival[CurrentSessionIndex] ??= clock;
             return true;
         }
 
         /// <summary>
-        /// Records a service-completion time for the current day block, keeping
-        /// that day's last service end monotonic.
+        /// Records a service-completion time for the current operating session,
+        /// keeping that session's last service end monotonic.
         /// </summary>
         /// <param name="clock">The completion's simulation time.</param>
         public void NoteServiceEnd(double clock, int stageIndex)
         {
-            var day = CurrentDayIndex;
-            _dayLastServiceEnd[day] = Math.Max(_dayLastServiceEnd[day], clock);
-            var perStage = _dayStageLastServiceEnd[day];
+            var session = CurrentSessionIndex;
+            _sessionLastServiceEnd[session] = Math.Max(_sessionLastServiceEnd[session], clock);
+            var perStage = _sessionStageLastServiceEnd[session];
             perStage[stageIndex] = Math.Max(perStage[stageIndex], clock);
         }
 
         /// <summary>
-        /// Drain for ONE stage on ONE day: that stage's last service end minus that
-        /// day's close, clamped at zero (D-193). The system-wide
-        /// <see cref="DrainMinutesForDay(int)"/> is the max across stages, which is
-        /// the right figure for "how long until the clinic is empty" and the wrong
+        /// Drain for ONE stage in ONE session: that stage's last service end minus
+        /// that session's close, clamped at zero (D-193). The system-wide
+        /// <see cref="DrainMinutesForSession(int)"/> is the max across stages, which
+        /// is the right figure for "how long until the clinic is empty" and the wrong
         /// one for "how long was this stage still working".
         /// </summary>
-        public double DrainMinutesForDay(int dayIndex, int stageIndex)
-            => Math.Max(0.0, _dayStageLastServiceEnd[dayIndex][stageIndex] - CloseTimeForDay(dayIndex));
+        public double DrainMinutesForSession(int sessionIndex, int stageIndex)
+            => Math.Max(0.0, _sessionStageLastServiceEnd[sessionIndex][stageIndex] - CloseTimeForSession(sessionIndex));
 
         /// <summary>
-        /// Operating-time denominator: summed per open day block (first admitted
-        /// arrival to last service end), never diluted by overnight gaps (D-018).
+        /// Operating-time denominator: summed per operating session (first admitted
+        /// arrival to last service end), never diluted by overnight gaps or by
+        /// closed days that no session ever opened (D-018).
         /// </summary>
         public double OperatingTimeMinutes
         {
             get
             {
                 double sum = 0;
-                for (int i = 0; i < GeneratorDays; i++)
-                    if (_dayFirstArrival[i] is { } firstArrival)
-                        sum += _dayLastServiceEnd[i] - firstArrival;
+                for (int s = 0; s < SessionCount; s++)
+                    if (_sessionFirstArrival[s] is { } firstArrival)
+                        sum += _sessionLastServiceEnd[s] - firstArrival;
                 return sum;
             }
         }

@@ -87,7 +87,7 @@ public class Phase8RScreenshots
 
             var result = outcome.Result!;
             Assert.Equal(2, result.StageMetrics.Count);
-            Assert.Equal(85, result.ScreeningAdmittedPerDay[0]);
+            Assert.Equal(85, result.ScreeningAdmittedPerSession[0]);
 
             main.Results.StartRun();
             main.Results.CompleteRun(outcome);

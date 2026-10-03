@@ -1,3 +1,5 @@
+using OpdSimulator.Core.Calendar;
+
 namespace OpdSimulator.Core.Engine;
 
 /// <summary>
@@ -51,41 +53,63 @@ public sealed class SimulationResult
     public IReadOnlyList<StageMetrics> StageMetrics { get; init; } = Array.Empty<StageMetrics>();
 
     /// <summary>
-    /// Patients admitted per calendar-day block. Only populated by a
-    /// calendar-aware run (<see cref="Engine.Run(NetworkTopology, ClinicCalendar, int, int, int?)"/>);
-    /// closed days hold 0. Empty for a plain horizon run.
+    /// Patients admitted per operating session. Only populated by a
+    /// calendar-aware run (<see cref="Engine.Run(NetworkTopology, ClinicCalendar, int, int, int?)"/>).
+    /// One entry per session, so a closed day contributes no entry at all
+    /// (FR-SIM-12). Empty for a plain horizon run.
     /// </summary>
-    public IReadOnlyList<int> AdmittedPerDay { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> AdmittedPerSession { get; init; } = Array.Empty<int>();
 
     /// <summary>
-    /// Screening-bound admissions per calendar-day block — the subset the daily cap
-    /// actually constrains. A day can hold more entries here than
-    /// <see cref="AdmittedPerDay"/> minus nothing: bypass arrivals land in
-    /// <see cref="AdmittedPerDay"/> but not here, because they skip the screening
+    /// Screening-bound admissions per operating session — the subset the daily cap
+    /// actually constrains. A session can hold more entries here than
+    /// <see cref="AdmittedPerSession"/> minus nothing: bypass arrivals land in
+    /// <see cref="AdmittedPerSession"/> but not here, because they skip the screening
     /// session the cap models (D-190).
     /// </summary>
     /// <remarks>Empty for a plain horizon run.</remarks>
-    public IReadOnlyList<int> ScreeningAdmittedPerDay { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> ScreeningAdmittedPerSession { get; init; } = Array.Empty<int>();
 
     /// <summary>
-    /// Patients still in the system when each day block's arrivals closed — the
-    /// admitted load left waiting at the close (D-191).
+    /// Patients still in the system when each operating session's arrivals closed —
+    /// the admitted load left waiting at the close (D-191). One entry per session;
+    /// a closed day contributes no entry (FR-SIM-12).
     /// </summary>
     /// <remarks>Empty for a plain horizon run.</remarks>
-    public IReadOnlyList<int> BacklogPerDay { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> BacklogPerSession { get; init; } = Array.Empty<int>();
 
     /// <summary>
-    /// Minutes from each day block's close of arrivals to that day's last service
-    /// end — the time taken to clear that day's backlog (D-191).
+    /// Minutes from each operating session's close of arrivals to that session's
+    /// last service end — the time taken to clear that session's backlog (D-191).
     /// </summary>
     /// <remarks>Empty for a plain horizon run.</remarks>
-    public IReadOnlyList<double> DrainPerDay { get; init; } = Array.Empty<double>();
+    public IReadOnlyList<double> DrainPerSession { get; init; } = Array.Empty<double>();
 
     /// <summary>
-    /// Number of calendar days over which arrivals were generated in a
-    /// calendar-aware run; 0 for a plain horizon run.
+    /// Number of operating sessions the run covered — the count the user asked
+    /// for, where closed weekdays between them are stepped over and NOT counted
+    /// (FR-SIM-12, D-199); 0 for a plain horizon run.
     /// </summary>
+    /// <remarks>
+    /// Named for the field the config panel binds to rather than for the unit: the
+    /// value is identical to the requested Days setting. Use
+    /// <see cref="Sessions"/> when the weekdays or block indices are needed, and
+    /// never read this as a count of 1440-minute blocks — from a Saturday start,
+    /// 4 sessions span 5.
+    /// </remarks>
     public int GeneratorDays { get; init; }
+
+    /// <summary>
+    /// The operating sessions this run covered, in order: each one's 1-based
+    /// ordinal, the 1440-minute block it occupies, and its weekday (FR-SIM-12).
+    /// Empty for a plain horizon run.
+    /// </summary>
+    /// <remarks>
+    /// Every per-session series on this result is indexed by the position in this
+    /// list, so index <c>i</c> is <c>Sessions[i]</c> — which is what lets a label
+    /// read "Day 3 (Tue)" instead of guessing from a clock time.
+    /// </remarks>
+    public IReadOnlyList<ClinicSession> Sessions { get; init; } = Array.Empty<ClinicSession>();
 
     /// <summary>
     /// If this run was calendar-aware and capped, the daily admission cap;

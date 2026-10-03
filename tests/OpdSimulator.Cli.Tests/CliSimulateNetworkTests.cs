@@ -97,6 +97,34 @@ public class CliSimulateNetworkTests
         Assert.Contains("── Network totals ─", first);
     }
 
+    /// <summary>
+    /// <c>--start-day</c> was parsed, validated and printed, then dropped: the engine was
+    /// handed <c>new ClinicCalendar()</c>, which starts on Monday, so
+    /// <c>--start-day Saturday --days 4</c> simulated Mon/Tue/Wed/Thu while the receipt
+    /// announced Saturday. The assertion is on the printed <b>sessions</b>, not on the
+    /// echoed flag, because echoing the flag was exactly what hid the defect.
+    /// </summary>
+    [Theory]
+    [InlineData("Saturday", "Day 1 (Sat) · Day 2 (Mon) · Day 3 (Tue) · Day 4 (Wed)")]
+    [InlineData("Friday", "Day 1 (Sat) · Day 2 (Mon) · Day 3 (Tue) · Day 4 (Wed)")]
+    [InlineData("Monday", "Day 1 (Mon) · Day 2 (Tue) · Day 3 (Wed) · Day 4 (Thu)")]
+    public void StartDay_ResolvesTheSessionsItNames(string startDay, string expectedSessions)
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        int exitCode = Program.Run(
+            new[]
+            {
+                "simulate-network", "--lambda", "0.2", "--c", "1,2,3", "--mu", "0.5,0.25,0.2",
+                "--p-exit", "0.7", "--days", "4", "--start-day", startDay, "--seed", "42",
+            },
+            stdout, stderr, NullLogger);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains(expectedSessions, stdout.ToString());
+    }
+
     [Fact]
     public void UnstableStage_RefusedListingAllUnstable()
     {

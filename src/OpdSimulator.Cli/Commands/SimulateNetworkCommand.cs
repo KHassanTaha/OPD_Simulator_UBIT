@@ -39,9 +39,10 @@ internal static class SimulateNetworkCommand
         "  --mu            one service rate μᵢ per stage, patients/minute/server (required)\n" +
         "  --stages        stage names, default the clinic flow (Reception, Screening, Doctor)\n" +
         "  --p-exit        probability of exiting after Screening (needs ≥ 3 stages; default 0)\n" +
-        "  --days N        run N calendar day blocks (open Mon–Thu + Sat, window 08:15–11:00)\n" +
-        "  --start-day     weekday of day 0, used with --days (default Monday)\n" +
-        "  --cap N         daily admission cap, used with --days (default unlimited)\n" +
+        "  --days N        run N operating sessions (open Mon–Thu + Sat, window 08:15–11:00;\n" +
+        "                  Friday and Sunday are skipped, so 4 from Saturday is Sat/Mon/Tue/Wed)\n" +
+        "  --start-day     weekday the first session falls on, used with --days (default Monday)\n" +
+        "  --cap N         admission cap per operating session, used with --days (default unlimited)\n" +
         "  --horizon       arrival-generation window in minutes, used without --days (default 10000)\n" +
         "  --seed          random seed, default 42 (FR-VAL-3)\n" +
         "  --verbose       print pre-run routing-derived ρᵢ per stage (B3)";
@@ -143,7 +144,7 @@ internal static class SimulateNetworkCommand
         {
             if (daysText is null)
             {
-                stderr.WriteLine("--cap requires --days (the cap resets per calendar day block).");
+                stderr.WriteLine("--cap requires --days (the cap resets per operating session).");
                 return 2;
             }
             if (!int.TryParse(capText, NumberStyles.None, CultureInfo.InvariantCulture, out int cap) || cap < 1)
@@ -183,11 +184,11 @@ internal static class SimulateNetworkCommand
         try
         {
             SimulationResult result = generatorDays > 0
-                ? engine.Run(topology, new ClinicCalendar(), generatorDays, seed, dailyCap)
+                ? engine.Run(topology, new ClinicCalendar(startDayOfWeek: startDay ?? DayOfWeek.Monday), generatorDays, seed, dailyCap)
                 : engine.Run(topology, seed, horizon);
 
             if (generatorDays > 0)
-                PrintDayModel(stdout, generatorDays, startDay ?? DayOfWeek.Monday, dailyCap);
+                PrintDayModel(stdout, generatorDays, startDay ?? DayOfWeek.Monday, dailyCap, result.Sessions);
 
             Program.PrintNetworkMetrics(stdout, result);
             return 0;
@@ -218,14 +219,23 @@ internal static class SimulateNetworkCommand
         stdout.WriteLine();
     }
 
-    private static void PrintDayModel(TextWriter stdout, int generatorDays, DayOfWeek startDay, int? dailyCap)
+    private static void PrintDayModel(
+        TextWriter stdout,
+        int generatorDays,
+        DayOfWeek startDay,
+        int? dailyCap,
+        IReadOnlyList<ClinicSession> sessions)
     {
         stdout.WriteLine("── Clinic day model ──");
-        stdout.WriteLine($"  Generator days       : {generatorDays}");
-        stdout.WriteLine($"  Start day            : {startDay}");
+        stdout.WriteLine($"  Operating sessions   : {generatorDays}");
+        stdout.WriteLine($"  First session weekday: {startDay}");
         stdout.WriteLine($"  Open weekdays        : Mon, Tue, Wed, Thu, Sat");
         stdout.WriteLine($"  Arrival window       : 08:15 – 11:00 (services drain past it)");
-        stdout.WriteLine($"  Daily cap            : {(dailyCap.HasValue ? dailyCap.ToString() : "unlimited")}");
+        stdout.WriteLine($"  Per-session cap      : {(dailyCap.HasValue ? dailyCap.ToString() : "unlimited")}");
+        // The resolved sessions are printed rather than left for the reader to infer from
+        // the start weekday, because that inference is the bug this phase fixed.
+        stdout.WriteLine(
+            $"  Sessions             : {string.Join(" · ", sessions.Select(s => $"Day {s.Ordinal} ({s.DayOfWeek.ToString()[..3]})"))}");
         stdout.WriteLine("─────────────────────────────────────────────────────");
     }
 

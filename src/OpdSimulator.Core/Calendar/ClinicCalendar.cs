@@ -105,6 +105,48 @@ public sealed class ClinicCalendar
     }
 
     /// <summary>
+    /// Lists the operating sessions a run of <paramref name="sessionCount"/>
+    /// sessions covers, in order (FR-SIM-12).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A session is the nth <i>open</i> weekday on or after
+    /// <see cref="StartDayOfWeek"/>; closed weekdays are stepped over without
+    /// being counted. From a Saturday start, four sessions are Saturday, Monday,
+    /// Tuesday and Wednesday — blocks 0, 2, 3 and 4 — so the caller must also
+    /// budget five 1440-minute blocks to reach the fourth session (D-199).
+    /// </para>
+    /// <para>
+    /// The scan always terminates: <see cref="OpenDays"/> is non-empty (enforced by
+    /// the constructor), so at least one of every seven consecutive blocks is open.
+    /// </para>
+    /// </remarks>
+    /// <param name="sessionCount">Number of operating sessions to resolve;
+    /// must be at least 1.</param>
+    /// <returns>The resolved sessions, each carrying its 1-based ordinal and its
+    /// block index.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">If
+    /// <paramref name="sessionCount"/> is less than 1.</exception>
+    public IReadOnlyList<ClinicSession> EnumerateSessions(int sessionCount)
+    {
+        if (sessionCount < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(sessionCount), sessionCount, "A run needs at least one operating session.");
+
+        var sessions = new List<ClinicSession>(sessionCount);
+        int block = 0;
+        while (sessions.Count < sessionCount)
+        {
+            DayOfWeek day = DayOfWeekAt(block);
+            if (IsOpenDay(day))
+                sessions.Add(new ClinicSession(sessions.Count + 1, block, day));
+            block++;
+        }
+
+        return sessions;
+    }
+
+    /// <summary>
     /// Reports whether the given weekday is a clinic day.
     /// </summary>
     /// <param name="day">The weekday to test.</param>

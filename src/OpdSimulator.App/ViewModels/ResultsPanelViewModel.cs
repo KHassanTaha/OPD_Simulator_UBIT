@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Controls;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Engine;
 
 /// <summary>One metrics-table label/value pair (FR-STAT-6).</summary>
@@ -240,6 +241,10 @@ public partial class ResultsPanelViewModel : ObservableObject
         RunSummary = outcome.Error is null
             ? "Run complete"
             : "The run was refused before it started";
+        SessionSummaryText = outcome.Result is null
+            ? string.Empty
+            : BuildSessionSummary(outcome.Result.Sessions);
+        OnPropertyChanged(nameof(HasSessionSummary));
         EffectiveExitText = $"Effective exit probability (after Screening): {outcome.EffectiveExitProbability:0.###}";
         _effectiveBypassProbability = outcome.EffectiveBypassProbability;
         OnPropertyChanged(nameof(EffectiveBypassText));
@@ -285,6 +290,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         IsBusy = false;
         StatusText = string.Empty;
         RunSummary = string.Empty;
+        SessionSummaryText = string.Empty;
+        OnPropertyChanged(nameof(HasSessionSummary));
         EffectiveExitText = string.Empty;
         _effectiveBypassProbability = 0.0;
         OnPropertyChanged(nameof(EffectiveBypassText));
@@ -595,6 +602,49 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// <summary>Header line of the results area ("Run complete" or "The run was refused…").</summary>
     [ObservableProperty]
     private string _runSummary = string.Empty;
+
+    /// <summary>
+    /// Caption naming the operating sessions the run actually resolved, e.g.
+    /// "4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · Day 3 (Tue) · Day 4 (Wed)".
+    /// Empty for a horizon run, which has no sessions.
+    /// </summary>
+    /// <remarks>
+    /// A user who asks for 4 days and gets four sessions on four different weekdays
+    /// has no other way to confirm which four — the run summary used to say only
+    /// "Run complete", which is precisely the ambiguity FR-SIM-12 exists to remove.
+    /// Long horizons are abbreviated after five sessions so the header cannot wrap
+    /// into a paragraph.
+    /// </remarks>
+    [ObservableProperty]
+    private string _sessionSummaryText = string.Empty;
+
+    /// <summary>True when <see cref="SessionSummaryText"/> has something to say.</summary>
+    public bool HasSessionSummary => !string.IsNullOrEmpty(SessionSummaryText);
+
+    /// <summary>
+    /// Builds the session caption from the resolved session list: the count, then
+    /// each session as "Day n (Weekday)" — the same label the per-session totals
+    /// table uses (FR-UI-38), abbreviated past five sessions.
+    /// </summary>
+    /// <param name="sessions">The run's resolved operating sessions; empty for a
+    /// horizon run.</param>
+    /// <returns>The caption text, or an empty string when there are no sessions.</returns>
+    public static string BuildSessionSummary(IReadOnlyList<ClinicSession> sessions)
+    {
+        if (sessions.Count == 0)
+            return string.Empty;
+
+        const int named = 5;
+        string label(ClinicSession session) => $"Day {session.Ordinal} ({session.DayOfWeek.ToString()[..3]})";
+
+        var shown = sessions.Take(named).Select(label);
+        string list = string.Join(" · ", shown);
+        if (sessions.Count > named)
+            list += $" · … Day {sessions[^1].Ordinal} ({sessions[^1].DayOfWeek.ToString()[..3]})";
+
+        string unit = sessions.Count == 1 ? "1 operating session" : $"{sessions.Count} operating sessions";
+        return $"{unit}: {list}";
+    }
 
     /// <summary>Effective exit probability actually used by the last run.</summary>
     [ObservableProperty]

@@ -315,31 +315,39 @@ public class EngineTests
         var result = new Engine(new SeededRandomSource(), Log)
             .Run(topology, calendar, generatorDays: 1, seed: 42);
 
-        Assert.Single(result.AdmittedPerDay);
-        Assert.Equal(result.AdmittedPerDay[0], result.TotalPatientsServed);
-        Assert.InRange(result.AdmittedPerDay[0], 40, 130);   // ~82 expected at λ0 = 0.5 over 165 min
+        Assert.Single(result.AdmittedPerSession);
+        Assert.Equal(result.AdmittedPerSession[0], result.TotalPatientsServed);
+        Assert.InRange(result.AdmittedPerSession[0], 40, 130);   // ~82 expected at λ0 = 0.5 over 165 min
         Assert.True(result.OperatingTimeMinutes > 0, "operating time must cover the day's window");
     }
 
     [Fact]
-    public void Run_Calendar_SevenDays_ClosedFridayAndSundayAdmitNothing()
+    public void Run_Calendar_SevenSessions_CountsOpenDaysOnly()
     {
-        // Day 0 = Monday: open Mon–Thu (0..3), closed Fri (4), open Sat (5),
-        // closed Sun (6). Admissions must mirror the calendar exactly and every
-        // admitted patient must be served (drain completes).
+        // Day 0 = Monday, so seven operating sessions are Mon, Tue, Wed, Thu, Sat,
+        // Mon, Tue — the Friday and Sunday blocks in between are stepped over and
+        // NOT counted (FR-SIM-12). Under the old block-counting semantics this run
+        // stopped after Tuesday; it must now reach the following Tuesday.
         var calendar = new ClinicCalendar();
 
         var result = new Engine(new SeededRandomSource(), Log)
             .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
 
-        Assert.Equal(7, result.AdmittedPerDay.Count);
-        for (int d = 0; d < 4; d++)
-            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
-        Assert.Equal(0, result.AdmittedPerDay[4]); // Friday
-        Assert.True(result.AdmittedPerDay[5] > 0);
-        Assert.Equal(0, result.AdmittedPerDay[6]); // Sunday
+        Assert.Equal(
+            new[]
+            {
+                (1, 0, DayOfWeek.Monday), (2, 1, DayOfWeek.Tuesday),
+                (3, 2, DayOfWeek.Wednesday), (4, 3, DayOfWeek.Thursday),
+                (5, 5, DayOfWeek.Saturday), (6, 7, DayOfWeek.Monday),
+                (7, 8, DayOfWeek.Tuesday),
+            },
+            result.Sessions.Select(s => (s.Ordinal, s.BlockIndex, s.DayOfWeek)));
 
-        Assert.Equal(result.AdmittedPerDay.Sum(), result.TotalPatientsServed);
+        // One admission entry per session, none of them closed — a closed day has
+        // no row at all, which is the defect this phase exists to remove.
+        Assert.Equal(7, result.AdmittedPerSession.Count);
+        Assert.All(result.AdmittedPerSession, a => Assert.True(a > 0, "every operating session admits patients"));
+        Assert.Equal(result.AdmittedPerSession.Sum(), result.TotalPatientsServed);
 
         // Per-stage metrics must remain sane across the multi-day run.
         Assert.Equal(3, result.StageMetrics.Count);
@@ -352,48 +360,57 @@ public class EngineTests
     }
 
     [Fact]
-    public void Run_Calendar_StartDayFriday_ExposesFirstClosedBlock()
+    public void Run_Calendar_StartDayFriday_SkipsTheClosedLeadingBlock()
     {
-        // Day 0 = Friday: closed (0), open Sat (1), closed Sun (2),
-        // open Mon–Thu (3..6). Proves --start-day semantics at the engine level.
+        // Day 0 = Friday, which is closed. Four sessions must therefore start on
+        // Saturday and skip both the leading Friday and the Sunday: Sat, Mon, Tue,
+        // Wed at blocks 1, 3, 4, 5. The first admitted patient lands on Saturday,
+        // so nothing on the leading closed block can be attributed to session 1.
         var calendar = new ClinicCalendar(startDayOfWeek: DayOfWeek.Friday);
 
         var result = new Engine(new SeededRandomSource(), Log)
-            .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
+            .Run(ClinicNetwork(), calendar, generatorDays: 4, seed: 42);
 
-        Assert.Equal(0, result.AdmittedPerDay[0]); // Friday
-        Assert.True(result.AdmittedPerDay[1] > 0); // Saturday
-        Assert.Equal(0, result.AdmittedPerDay[2]); // Sunday
-        for (int d = 3; d <= 6; d++)
-            Assert.True(result.AdmittedPerDay[d] > 0, $"day {d} (Mon–Thu) should admit patients");
+        Assert.Equal(
+            new[]
+            {
+                (1, 1, DayOfWeek.Saturday), (2, 3, DayOfWeek.Monday),
+                (3, 4, DayOfWeek.Tuesday), (4, 5, DayOfWeek.Wednesday),
+            },
+            result.Sessions.Select(s => (s.Ordinal, s.BlockIndex, s.DayOfWeek)));
+        Assert.Equal(4, result.AdmittedPerSession.Count);
+        Assert.All(result.AdmittedPerSession, a => Assert.True(a > 0, "every operating session admits patients"));
     }
 
     [Fact]
     public void Run_Calendar_Cap_BindsEveryOpenDay_ResetsDaily()
     {
-        // Cap = 4 with ~82 arrivals/day: every open day must hit exactly the cap
-        // (subsequent Poisson arrivals that day are gated out), while closed
-        // days stay at 0. Proves the cap resets per day block (D-009).
+        // Cap = 4 with ~82 arrivals/session: every session must hit exactly the cap
+        // (subsequent Poisson arrivals in that session are gated out). Proves the
+        // cap resets per operating session (D-009) — and that no closed day
+        // contributes a zero row that would make the count of capped sessions
+        // disagree with the number of sessions requested.
         var calendar = new ClinicCalendar();
 
         var result = new Engine(new SeededRandomSource(), Log)
             .Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42, dailyCap: 4);
 
-        Assert.Equal(new[] { 4, 4, 4, 4, 0, 4, 0 }, result.AdmittedPerDay);
-        Assert.Equal(4 * 5, result.TotalPatientsServed); // 5 open days × cap
+        Assert.Equal(new[] { 4, 4, 4, 4, 4, 4, 4 }, result.AdmittedPerSession);
+        Assert.Equal(4 * 7, result.TotalPatientsServed); // 7 sessions × cap
         Assert.Equal(4, result.DailyCap);
         Assert.Equal(7, result.GeneratorDays);
+        Assert.Equal(7, result.Sessions.Count);
     }
 
     [Fact]
-    public void Run_Calendar_SameSeed_TwoRuns_ProduceIdenticalDayAdmissions()
+    public void Run_Calendar_SameSeed_TwoRuns_ProduceIdenticalSessionAdmissions()
     {
         var calendar = new ClinicCalendar();
 
         var first = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
         var second = new Engine(new SeededRandomSource(), Log).Run(ClinicNetwork(), calendar, generatorDays: 7, seed: 42);
 
-        Assert.Equal(first.AdmittedPerDay, second.AdmittedPerDay);
+        Assert.Equal(first.AdmittedPerSession, second.AdmittedPerSession);
         Assert.Equal(first.TotalPatientsServed, second.TotalPatientsServed);
         Assert.Equal(first.OperatingTimeMinutes, second.OperatingTimeMinutes);
     }

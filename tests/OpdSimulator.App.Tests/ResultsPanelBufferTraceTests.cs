@@ -357,21 +357,24 @@ public class ResultsPanelBufferTraceTests
         try
         {
 
-            // Phase 8S (D-195): the ceiling is 208 px, not the original 240. At
-            // 240 the pinned box left the scrolling middle only 101 px in a 420 px
-            // window, which the owner reported as the header and trace crowding the
-            // content. Asserted as a real bound: a MaxHeight that never bites leaves
-            // the panel growing unbounded and pushing the widgets off.
+            // Phase 8S (D-195): the ceiling was 240 px, and at 240 the pinned box
+            // left the scrolling middle only 101 px in a 420 px window, which the
+            // owner reported as the header and trace crowding the content. Phase 8T.1
+            // lowered it to 200 px when the session-caption line made the three rows
+            // 6 px too tall at 420 px; the pinned box gives up space under pressure,
+            // the middle row does not. Asserted as a real bound: a MaxHeight that
+            // never bites leaves the panel growing unbounded and pushing the widgets
+            // off. Phase 8T.5 replaces this row, and with it this clause.
             var trace = TracePanel(window);
-            Assert.Equal(208d, trace.MaxHeight);
+            Assert.Equal(200d, trace.MaxHeight);
 
             // With a long trace the panel must clamp to it, not exceed it.
             var host = window.Bounds.Height;
             var bottom = trace.TranslatePoint(
                 new Point(0, trace.Bounds.Height), window)!.Value.Y;
             Assert.True(
-                trace.Bounds.Height <= 208.5,
-                $"the trace panel rendered at {trace.Bounds.Height:F1}px, above its 208px ceiling");
+                trace.Bounds.Height <= 200.5,
+                $"the trace panel rendered at {trace.Bounds.Height:F1}px, above its 200px ceiling");
             Assert.True(
                 bottom <= host + 0.5,
                 $"the trace panel ends at y={bottom:F1} in a {host:F1}px window");

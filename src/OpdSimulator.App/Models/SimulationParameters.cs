@@ -20,9 +20,9 @@ using OpdSimulator.Data.Parameters;
 /// <param name="ManualServiceRates">Manual μ per server per stage (mode-converted); null entry = fitted from data.</param>
 /// <param name="RunMode">ClinicDay, MultiDay or DiagnosticTrace (D-105).</param>
 /// <param name="HorizonMinutes">Arrival-window minutes, used by <see cref="RunMode.DiagnosticTrace"/>.</param>
-/// <param name="GeneratorDays">Number of calendar-day blocks, used by <see cref="RunMode.MultiDay"/>.</param>
+/// <param name="GeneratorDays">Number of operating SESSIONS, used by <see cref="RunMode.MultiDay"/>; closed weekdays between them are skipped and not counted (FR-SIM-12).</param>
 /// <param name="StartDay">Weekday of day block 0 in a calendar run.</param>
-/// <param name="DailyCap">Maximum admissions per day block; null = unlimited.</param>
+/// <param name="DailyCap">Maximum admissions per operating session; null = unlimited.</param>
 /// <param name="Seed">Random seed for reproducibility (FR-VAL-3).</param>
 /// <param name="PExitOverride">Manual exit probability after Screening; null = fitted (or default 0.4 with no data).</param>
 /// <param name="TraceLevelName">Human-readable trace level: "Minimal", "Standard", "Detailed" or "Debug".</param>

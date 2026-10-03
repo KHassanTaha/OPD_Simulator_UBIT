@@ -319,10 +319,12 @@ questions are being asked — an earlier version of this panel had one control
 answering both, which is withdrawn (D-174).
 
 **For a calendar run** (Single day or Multi-day), the length comes only from
-the **Days** field. Multi-day also has a **Start day** (which weekday the run
-begins on). The clinic runs 08:15–11:00 on Monday–Thursday and Saturday, so a
-"day" here is one 165-minute operating session, not a calendar day: the
-weekends are skipped rather than simulated as empty days.
+the **Operating days** field. Multi-day also has a **Start day** (which weekday
+the run begins on). The clinic runs 08:15–11:00 on Monday–Thursday and
+Saturday, so an "operating day" here is one 165-minute session, not a calendar
+day: Friday and Sunday are skipped rather than simulated as empty days, and
+**Operating days = 4** starting on Saturday therefore means Saturday, Monday,
+Tuesday and Wednesday.
 
 **For a Diagnostic trace**, the arrival window comes only from the
 **Duration** dropdown, which appears in that run mode and nowhere else:
@@ -436,8 +438,10 @@ engine actually did.
      08:15 start, services continue past 11:00 until they finish). *Default.*
      No length field: the length is the session.
    - **Multi-day** — N consecutive operating days (Friday/Sunday are skipped).
-     Shows the fields **Days**, **Start day**, and **Daily patient cap**. The
-     run length comes from **Days** and nowhere else.
+     Shows the fields **Operating days**, **Start day**, and **Daily patient
+     cap**. The run length comes from **Operating days** and nowhere else, and
+     it counts **operating sessions**: from a Saturday start, 4 means Sat, Mon,
+     Tue, Wed — the Sunday in between is skipped, not counted.
    - **Diagnostic trace** — a fixed-length run in minutes, used to walk
      DES correctness line by line. Shows the **Duration** dropdown
      (1 hour — the default — / 15 minutes / Custom minutes…, which reveals a
@@ -455,7 +459,10 @@ engine actually did.
     same bytes.
 
 11. **(Multi-day only) Set the horizon and cap.**
-    Days, start day, and an optional daily patient cap (blank = no cap).
+    **Operating days**, start day, and an optional daily patient cap (blank =
+    no cap). "Operating days" counts the clinic's open days, so a run of 4 from
+    Saturday is Sat/Mon/Tue/Wed; the results panel names the sessions it
+    actually ran (§6.0).
 
 12. **Set the random seed** (default `42`, under the **Advanced** section).
     Same seed = same results. Change it to explore variability.
@@ -480,6 +487,19 @@ manual μ in **Parameters**).
 ---
 
 ## 6. Reading the Results
+
+### 6.0 Which sessions a run covered
+
+A multi-day run does not necessarily cover consecutive calendar days — the
+clinic is closed on Friday and Sunday. The line under the run heading names the
+sessions that actually ran, in order, as `Day n (Weekday)`:
+
+> **4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · Day 3 (Tue) · Day 4 (Wed)**
+
+Read it as the answer to "which days am I looking at?" — it is what every
+per-session figure elsewhere in the panel is counted over. Runs longer than
+five sessions abbreviate the middle with an ellipsis and still name the last
+session. A run that was refused, or one in diagnostic mode, shows no such line.
 
 Before the first run, the right panel shows a **welcome card** (project, course,
 members, professor). It is replaced by the results the moment you start a
@@ -1221,6 +1241,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-04 | Phase 8T.1: **Days now means operating days.** The run length field reads **Operating days** and counts the clinic's open days, so 4 from a Saturday start is Sat/Mon/Tue/Wed — the Sunday in between no longer counts as a day and no longer adds an empty day of zeros to any average. The results panel names the sessions a run covered, e.g. *4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …* (§6.0). A **daily patient cap** resets at the start of each operating session rather than each calendar day. Single-day and diagnostic-trace runs are unchanged. |
 | 2026-10-03 | Phase 8S — six fixes from a review of the app's own screenshots. **(1)** In the results panel's **System totals**, each value now sits **beside its label** instead of at the far right of the panel. **(2)** The pinned event-trace box no longer squeezes the widgets above it: on a short window you get a readable strip of results rather than a sliver. **(3) The event trace now fills in.** If your event box said *"No trace was recorded for this run."* after a run that clearly recorded one, that was a real fault — the trace was recorded and the panel was never told. It now updates after every run, in every run mode. **(4)** The **Per-server detail** table under the utilisation chart has been **removed**; hover a bar for that server's numbers instead (§6.4). **(5)** The equal-share **dashed benchmark line** now sits exactly where it is drawn relative to the bars. **(6)** The **Input** tab's last section can now scroll clear of the window edge. |
 | 2026-10-03 | Phase 8Q.4: the **event trace** is now **always visible**, pinned in a box below the results widgets instead of scrolling away with them, so it can never be pushed off screen. It has been **removed from the "Customise results" list** — there is nothing to switch on. The box keeps a fixed maximum height and a long trace scrolls inside it. The widgets above now have a little breathing room at the bottom, so the last card is never hidden behind the trace box. If you had an older saved view that included the event trace, it is simply ignored — the trace stays visible and the setting is cleaned up the next time you change a widget. |
 | 2026-10-03 | Phase 8Q.3: the results panel's first group is now headed **Performance Measures** and carries a **stability verdict** per stage plus a named **bottleneck** (§6.1a). Stages are numbered `#` in visit order. Bands: **Stable** below ρ 0.90, **Near capacity** from 0.90 up to 1.00, **Unstable** at 1.00 or above (which the simulator refuses to run, so it is normally not seen) |

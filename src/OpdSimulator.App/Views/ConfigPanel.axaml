@@ -273,9 +273,9 @@
                         <StackPanel IsVisible="{Binding IsMultiDay}"
                                     Spacing="{DynamicResource SpaceM}">
                             <controls:ValidatedField x:Name="DaysField"
-                                                     Label="Days"
+                                                     Label="Operating days"
                                                      Watermark="e.g., 5"
-                                                     Tooltip="Number of consecutive clinic days to simulate"
+                                                     Tooltip="Number of clinic sessions to simulate. Closed days (Friday and Sunday by default) are skipped and do not count: 4 from a Saturday start covers Saturday, Monday, Tuesday and Wednesday."
                                                      Value="{Binding Days.Value, Mode=TwoWay}"
                                                      HasError="{Binding Days.HasError}"
                                                      ErrorMessage="{Binding Days.ErrorMessage}"

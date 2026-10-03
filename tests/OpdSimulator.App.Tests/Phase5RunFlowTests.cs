@@ -112,7 +112,7 @@ public class Phase5RunFlowTests
         Assert.Null(outcome.Error);
         Assert.NotNull(outcome.Result);
         Assert.Equal(1, outcome.Result!.GeneratorDays);
-        Assert.Single(outcome.Result.AdmittedPerDay);
+        Assert.Single(outcome.Result.AdmittedPerSession);
         // 5c.3 (D-110): the calendar overload forwards an ITraceSink now, so
         // ClinicDay runs populate the event trace like every other mode.
         Assert.NotEmpty(outcome.TraceLines);
@@ -181,7 +181,7 @@ public class Phase5RunFlowTests
         Assert.Null(outcome.Error);
         Assert.NotNull(outcome.Result);
         Assert.Equal(3, outcome.Result!.GeneratorDays);
-        Assert.Equal(3, outcome.Result.AdmittedPerDay.Count);
+        Assert.Equal(3, outcome.Result.AdmittedPerSession.Count);
         // 5c.3: multi-day calendar runs record a trace too.
         Assert.NotEmpty(outcome.TraceLines);
     }
