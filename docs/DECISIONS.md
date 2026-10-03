@@ -3261,6 +3261,17 @@ assert `#`. Recorded as v1.11.1 in the PRD and D-188 here.
 
 ---
 
+## D-198 — Bottom buffers: Input tab gains one, Config panel's is measured and kept (Phase 8S, issue 6)
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8S.
+- **Decision:** Add a `SpaceXl` (32 px) trailing buffer inside the Input tab's scrolling `StackPanel`. **Keep the Config panel's existing `SpaceL` (24 px)** — measured, not assumed.
+- **Rationale:** Both buffers are real elements inside the scrolling content, because a taller `ScrollViewer.Padding` would extend the **viewport** rather than the scrollable **extent** and would not let the last section travel clear. The Config panel's `PinnedFooterBar` measures **67 px** tall and begins exactly where the viewport ends, so its 24 px buffer is the gap the last section gets when scrolled fully down — real clearance, and the test asserts a ≥ 16 px floor so a future token change cannot quietly remove it. The Input tab has nothing pinned beneath its scroller, so the buffer is the only breathing room its last section gets, and it gets `SpaceXl`.
+- **Impact:** (+) The Input tab's last section can scroll clear of the window edge. (+) Both buffers are asserted at 900 px **and** 420 px, and `InputTab_LastFieldFullyVisible_OnShortWindow` scrolls to the end and checks the content no longer overruns the viewport (D-169 — a default-size frame is not the failing size).
+- **Note on the fixture:** the empty Input tab fits a 420 px window, so that test would pass vacuously. It loads the committed `samples/sample_3stage_clinic.csv` rather than inventing data, so the scrollable content is what a user actually sees after choosing a file (D-178).
+
+---
+
 ## D-187 amendment — the numeric-alignment rule needs a shared column (Phase 8S, issue 1, owner ruling)
 
 The owner reviewed the System totals widget and ruled that its values belong **beside

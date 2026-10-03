@@ -363,3 +363,20 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [x] **8R.1 owner acceptance (2026-10-03)** — all three rulings accepted with no further work. (1) The D-189 hash verification stands as measured, and the self-caught correction is to be kept, not softened. (2) Correcting the pre-existing system-average test is approved: implementation right, test wrong, test corrected — the opposite of the "never change a test to make a failing implementation pass" rule. (3) The total-drain summary keeps the final-session scalars; the mean basis is ruled out. Branch is ready; **the owner merges manually after frame review.**
 - [ ] **Owner visual inspection of the three 8R frames (§18 / D-089)** — this host has no image input, so the frames are captured and content-asserted but not looked at; B-012
 
+---
+
+## Phase 8S — six display defects from owner frame review
+
+- [x] **Issue 1 — System totals values adrift from their labels** — `170,*` + Right pushed each value to the panel's far edge (x=1118 vs a label column ending at x=186) without aligning any two values. Now `170,Auto` + Left; measured x=179 on every row. D-187 amendment — 2026-10-03
+- [x] **Issue 2 — pinned rows starved the scrolling middle** — the 240 px trace ceiling left the `*` row 101 px at a 420 px window. Ceiling now 208 px, `MinHeight="120"` on the scroller. Middle measured 473/273/133 px at 760/560/420. D-195 — 2026-10-03
+- [x] **Issue 3 — event trace never populated (the functional defect)** — `TraceBody` is computed from `TraceText`, and the generated setter raised only `TraceText`, so the binding was first read against the empty state at launch and never re-read. 9,471 characters recorded, *"No trace was recorded for this run."* on screen. Fixed by `OnTraceTextChanged` re-raising `TraceBody`. D-194 — 2026-10-03
+- [x] **Issue 3 test reversal** — `ResultsPanel_EventTrace_AlwaysVisible_AfterRun` showed the window *after* the run, a state the app never reaches; it passed against the defect. Now `ResultsPanel_EventTrace_PopulatesAfterRunShownWindow`, asserting the rendered `SelectableTextBlock`, plus first-row/last-row content assertions. Mutation-verified — 2026-10-03
+- [x] **Issue 4 — Per-server detail table removed** — the section plus `PerServerDetailRow(s)`, `BuildPerServerRows`, the orphaned `FormatPercent`, and `UtilisationChartData.PerServerDetail` / `UtilisationServerDetail`. The bars already carry every number; `UtilisationChart_BarsCarryEverythingTheDetailTableCarried` asserts that rather than assuming it. D-196 — 2026-10-03
+- [x] **Issue 5 — equal-share benchmark alignment** — pixel extraction attempted and abandoned (the headless frame has no LiveCharts Skia layer); alignment pinned by the invariant that each category is claimed by exactly one `ColumnSeries`, mutation-verified, plus `Padding = 0`. D-197 — 2026-10-03
+- [x] **Issue 6 — bottom buffers** — Input tab gains a `SpaceXl` buffer; Config panel's `SpaceL` measured against a 67 px `PinnedFooterBar` and kept. D-198 — 2026-10-03
+- [x] Tests: App +18 (530 → 548) — `Phase8SLayoutTests` 5, `Phase8SBenchmarkTests` 2, `Phase8SBufferTests` 5 (one of which also writes the input frame), `Phase8SScreenshots` 4, `ResultsPanelBufferTraceTests` +2, `Phase5RunFlowTests` +1, less 1 removed per-server table test. Suite 833 → 851 — 2026-10-03
+- [x] Gates: Release and Debug 0 errors / 0 warnings (both `--no-incremental` — the first pass had hidden 6 nullability warnings in the new test files because the test project was not recompiled); full suite 851 green in each (Core 134 / Data 134 / Cli 35 / App 548) — 2026-10-03
+- [x] Docs: D-194..D-198 + D-187 amendment, TODO, PROGRESS, DEV_LAUNCH, USER_MANUAL (Per-server detail removed; trace populates after every run) — 2026-10-03
+- [x] Evidence: five new frames — `phase-8s-overview-alignment.png`, `phase-8s-results-layout.png`, `phase-8s-event-trace-populated.png`, `phase-8s-utilisation-benchmark.png`, `phase-8s-input-buffer.png` (D-166, new filenames) — 2026-10-03
+- [ ] **Owner visual inspection of the five 8S frames (§18 / D-089)** — this host has no image input; every frame is content-asserted but not looked at; B-012
+

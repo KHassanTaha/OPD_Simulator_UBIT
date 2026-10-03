@@ -567,8 +567,12 @@ The box is **pinned below the widgets** rather than sitting inside the scrolling
 list, so scrolling to a metric never pushes the trace off screen, and it **is
 not** in the "Customise results" list — there is no switch to turn it off. Its
 height is capped, and a long trace scrolls **inside** the box so it cannot
-squash the widgets above it. A run that recorded no trace says so in the box
-rather than leaving it blank.
+squash the widgets above it. Before you run anything the box says
+*"No trace was recorded for this run."*; it fills in as soon as a run finishes,
+in **every** run mode. A run that genuinely recorded no trace says so rather
+than leaving it blank. The box gives up its height to the widgets above only
+down to a floor, so on a short window you still get a readable strip of
+results above it.
 
 ### 6.4 Per-Server Utilisation Chart
 Shows what the engine's own servers actually did during a run (one bar per
@@ -588,8 +592,7 @@ A three-doctor stage at 60% utilisation draws three bars of 20% each, and
 
 **A bar's height is not the server's utilisation.** It is that server's
 *share* of its stage. Wherever a per-server utilisation appears in this app —
-the bar tooltip, the per-server list below the chart, the calculations dialog,
-and the CLI report — **the server's own utilisation is shown next to it**, so
+the bar tooltip, the calculations dialog, and the CLI report — **the server's own utilisation is shown next to it**, so
 you never have to guess which of the two you are reading. Divide the
 contribution by the stage's server count and you get the server's own
 utilisation; on a one-server stage the two are equal.
@@ -616,13 +619,12 @@ How to read it:
   The trade-off is that a clinic with many servers at every stage gets a
   flatter-looking chart, because the honest ceiling for a six-server stage is
   one sixth.
-- The **per-server table** under the chart names every server with **both**
-  numbers — its own `Busy` percentage and its `Contrib.` share of the stage —
-  alongside the `Stage util` it belongs to, and marks the deviating ones in the
-  `Deviation` column. Those are the same numbers the chart draws, so the two can
-  be read against each other. It is collapsed until you open it, and each row is
-  numbered from 1 in the same order the bars are drawn, so "row 4" and "the
-  fourth bar" are the same server.
+- To read a **single** server's numbers, **hover its bar**: the tooltip names the
+  stage and server and gives **both** numbers — its own utilisation and the share
+  the bar is drawn at. A **table** of every server used to sit under this chart
+  and was removed in Phase 8S: it repeated what the bars, the tooltips and the
+  caption already say, and one representation of a number is easier to keep
+  correct than two.
 
 The utilisation chart is a **Results** widget: it describes a run, so it
 lives on the Simulation tab next to the metrics, not on the Input
@@ -1219,6 +1221,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-10-03 | Phase 8S — six fixes from a review of the app's own screenshots. **(1)** In the results panel's **System totals**, each value now sits **beside its label** instead of at the far right of the panel. **(2)** The pinned event-trace box no longer squeezes the widgets above it: on a short window you get a readable strip of results rather than a sliver. **(3) The event trace now fills in.** If your event box said *"No trace was recorded for this run."* after a run that clearly recorded one, that was a real fault — the trace was recorded and the panel was never told. It now updates after every run, in every run mode. **(4)** The **Per-server detail** table under the utilisation chart has been **removed**; hover a bar for that server's numbers instead (§6.4). **(5)** The equal-share **dashed benchmark line** now sits exactly where it is drawn relative to the bars. **(6)** The **Input** tab's last section can now scroll clear of the window edge. |
 | 2026-10-03 | Phase 8Q.4: the **event trace** is now **always visible**, pinned in a box below the results widgets instead of scrolling away with them, so it can never be pushed off screen. It has been **removed from the "Customise results" list** — there is nothing to switch on. The box keeps a fixed maximum height and a long trace scrolls inside it. The widgets above now have a little breathing room at the bottom, so the last card is never hidden behind the trace box. If you had an older saved view that included the event trace, it is simply ignored — the trace stays visible and the setting is cleaned up the next time you change a widget. |
 | 2026-10-03 | Phase 8Q.3: the results panel's first group is now headed **Performance Measures** and carries a **stability verdict** per stage plus a named **bottleneck** (§6.1a). Stages are numbered `#` in visit order. Bands: **Stable** below ρ 0.90, **Near capacity** from 0.90 up to 1.00, **Unstable** at 1.00 or above (which the simulator refuses to run, so it is normally not seen) |
 | 2026-10-03 | Phase 8Q.2: patients who skip Screening can now be modelled and read from data. A new **p_bypass** field in the Parameters section fits "went straight to the Doctor" from your file, and the **p_exit** fit now counts only the patients who were actually **screened** — before, direct-to-doctor traffic diluted it. Blank screening times on a bypass row are accepted instead of being reported as errors, so the sample bypass file now loads cleanly; blank Reception times still are not (§7.1). The event log now records the destination the patient actually went to, instead of printing the default next stage before the decision was made. A new sample file, `samples/sample_overcapacity.csv`, demonstrates a stage booked beyond its capacity. |

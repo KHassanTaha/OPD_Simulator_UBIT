@@ -1,3 +1,87 @@
+Session Handoff — 2026-10-03 22:40
+Branch: fix/phase-8s
+Status: Clean
+
+Done
+All six Phase 8S issues implemented, verified and documented; five new evidence frames written; the branch is pushed and ready for owner frame review.
+
+In Progress
+Nothing. Phase 8S is closed on this host; the owner's visual inspection of the five frames is the only outstanding step (§18 / D-089, B-012).
+
+What is complete:
+
+**The functional defect (issue 3).** The event-trace box recorded 9,471 characters and displayed "No trace was recorded for this run." for the rest of the session. `TraceBody` is computed from `TraceText`; the generated setter announced only `TraceText`, so a panel on screen from launch read the binding once, against the empty state, and never again. A direct probe produced 136 trace lines, which is how the recorder and the engine were cleared of suspicion before the view model was looked at.
+
+**The test that should have caught it was wrong, not the implementation.** `ResultsPanel_EventTrace_AlwaysVisible_AfterRun` built the completed run and *then* showed the window — a state the app never reaches — so it passed against the defect. Replaced by `ResultsPanel_EventTrace_PopulatesAfterRunShownWindow`, which shows the window empty, lands the run afterwards, and asserts the rendered `SelectableTextBlock`. Mutation-verified: removing the notification fails it with "Assert.Contains() Failure" while six sibling tests stay green.
+
+**Issues 1, 2, 4, 5, 6** are display-only, with the measured numbers recorded in DECISIONS.md (D-187 amendment, D-195, D-196, D-197, D-198).
+
+**Two verification problems found and fixed during this session, both worth remembering:**
+1. The first gate pass reported "0 warnings" from an *incremental* build, which had skipped the test project. A `--no-incremental` build surfaced six CS8600/CS8602/CS8604 nullability warnings in the two new test files. Fixed at source (`Assert.IsType<MainViewModel>` instead of a cast, `Assert.NotNull` on `series.Values`) and the gate re-run clean in both configurations.
+2. A seventh test turned out to be a near-duplicate: the input-buffer screenshot reached exactly the state `InputTab_LastFieldFullyVisible_OnShortWindow` already reached. Rather than keep two setups, the frame capture was folded into the buffer test and the duplicate deleted — App 549 -> 548.
+
+**What was deliberately not claimed.** Issue 5 asked for verification against realised bar geometry. A pixel probe was written and failed: `HeadlessScreenshot.Capture` does not contain LiveCharts' Skia layer, so there are no bar pixels to measure. The alignment is pinned structurally instead (one `ColumnSeries` claimant per category, mutation-verified) and D-197 says so in the open. `phase-8s-utilisation-benchmark.png` is the owner's visual check.
+
+What remains:
+Owner review of five frames in `logs/screenshots/`: `phase-8s-overview-alignment.png`, `phase-8s-results-layout.png`, `phase-8s-event-trace-populated.png`, `phase-8s-utilisation-benchmark.png`, `phase-8s-input-buffer.png`. Then the owner merges manually.
+
+Next Session Should Start With
+Nothing on 8S. Await the frame review and the manual merge, or a new phase instruction.
+
+Blocked
+B-012 — owner visual inspection pending on this host (no image input). Every frame is content-asserted but none has been looked at.
+
+Git State
+Commits made this session: f468ce4 (issues 1-5: trace notification, overview alignment, pinned-row layout, per-server table removal, benchmark alignment) plus this second commit for issue 6 and the phase documentation.
+Pushed to origin: yes — fix/phase-8s.
+Uncommitted changes: none after this commit.
+
+Build & Test
+dotnet build: PASS — Release and Debug, both `--no-incremental`, 0 errors / 0 warnings each.
+dotnet test: PASS — 851 green in each configuration (Core 134 / Data 134 / Cli 35 / App 548).
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Views/ResultsPanel.axaml: overview columns 170,Auto + Left alignment; trace Border MinHeight 120 / MaxHeight 208 and class `results-trace-panel`; trace TextBlock named `TraceBodyText`; Per-server detail section removed
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: `OnTraceTextChanged` re-raises `TraceBody`; `PerServerDetailRow(s)`, `BuildPerServerRows` and the orphaned `FormatPercent` removed
+src/OpdSimulator.App/Services/UtilisationChartService.cs: `PerServerDetail` and `UtilisationServerDetail` removed
+src/OpdSimulator.App/Services/ChartControlBuilder.cs: `Padding = 0` on per-stage ColumnSeries
+src/OpdSimulator.App/Views/ConfigPanel.axaml: existing bottom buffer classed `scroll-buffer`
+src/OpdSimulator.App/Views/InputTab.axaml: trailing `SpaceXl` buffer inside the scrolling content
+tests/OpdSimulator.App.Tests/ResultsPanelBufferTraceTests.cs: trace lifecycle test rewritten; rendered first-row / last-row assertions; shared helpers made internal
+tests/OpdSimulator.App.Tests/Phase5RunFlowTests.cs: DiagnosticTrace rendered-population regression
+tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs: overview left-aligned; per-server serial test removed
+tests/OpdSimulator.App.Tests/Phase8MChartTests.cs: bars replace the detail table as the per-server assertion
+tests/OpdSimulator.App.Tests/Phase8MScreenshots.cs: per-server row-count assertion dropped
+tests/OpdSimulator.App.Tests/Phase8NTests.cs: chart and reference lines replace the removed rows
+tests/OpdSimulator.App.Tests/Phase8SLayoutTests.cs (new): glyph-position and three-window tiling regressions
+tests/OpdSimulator.App.Tests/Phase8SBenchmarkTests.cs (new): benchmark data and single-claimant structure
+tests/OpdSimulator.App.Tests/Phase8SBufferTests.cs (new): Config and Input buffers at 900/420 px, loaded-sample scroll clearance, and the input evidence frame
+tests/OpdSimulator.App.Tests/Phase8SScreenshots.cs (new): four frames for issues 1-4
+docs/DECISIONS.md: D-194, D-195, D-196, D-197, D-198, D-187 amendment
+docs/TODO.md: Phase 8S block
+docs/DEV_LAUNCH.md: Phase 8S verified line
+docs/USER_MANUAL.md: §6.3 trace behaviour, §6.4 per-server bullet, changelog row
+docs/PROGRESS.md: this entry
+
+Decisions Made
+D-194 — a computed get-only property needs its own `PropertyChanged`; the binding is re-read on every trace update.
+D-195 — trace ceiling 208 px, scrolling middle floored at 120 px; the rows never overlapped, the middle was starved.
+D-196 — the Per-server detail table is removed and the bars are asserted to carry everything it carried.
+D-197 — benchmark alignment verified structurally, not by pixel extraction, because the headless frame has no LiveCharts layer.
+D-198 — Input tab gains a `SpaceXl` buffer; the Config panel's `SpaceL` was measured against a 67 px pinned footer and kept.
+D-187 amendment — the numeric-alignment rule is unchanged for the four listing tables and does not apply to the label:value System totals list.
+
+Assumptions Added/Changed
+None new. The existing `[UNVERIFIED]` tag on the D-178 real-capture fixture is unchanged; every 8S assertion runs on constructed or committed sample data, so CI needs no patient data.
+
+Notes for Next Session
+**Run the gate with `--no-incremental`, both configurations, before writing a verified line.** An incremental build can leave the test project unrecompiled and report zero warnings while six sit in the files you just wrote.
+
+**`HeadlessScreenshot.Capture` does not capture LiveCharts content.** Any future "check the chart visually" test will find no pixels to measure. Structural assertions on the series, or an owner frame review, are the two routes that actually work here.
+
+**`phase-8s-overview-alignment.png` and `phase-8s-event-trace-populated.png` are byte-identical** (147,931 B). Expected, not a bug: both tests reach the same 900 px window in the same post-run state, and each asserts something inside that shared frame.
+
 Session Handoff — 2026-10-03 21:58
 Branch: fix/phase-8r
 Status: Clean

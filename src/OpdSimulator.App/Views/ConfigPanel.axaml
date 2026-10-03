@@ -361,7 +361,8 @@
                      so it extends the scrollable extent — a taller
                      ScrollViewer.Padding would not have. Height is the SpaceL
                      token, so it restyles with the theme. -->
-                <Border Height="{DynamicResource SpaceL}"
+                <Border Classes="scroll-buffer"
+                        Height="{DynamicResource SpaceL}"
                         Background="Transparent"/>
 
             </StackPanel>

@@ -288,6 +288,17 @@
                            HorizontalAlignment="Center"/>
             </StackPanel>
 
+            <!-- Phase 8S (D-198): the input tab had no trailing buffer at all, so the
+                 last section sat flush against the window edge with no room to scroll
+                 it clear. A real element inside the scrolling content — a taller
+                 ScrollViewer.Padding would extend the viewport instead of the extent.
+                 SpaceXl rather than SpaceL because nothing is pinned beneath this
+                 scroller, so the buffer is the only breathing room the last section
+                 gets. -->
+            <Border Classes="scroll-buffer"
+                    Height="{DynamicResource SpaceXl}"
+                    Background="Transparent"/>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
