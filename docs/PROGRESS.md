@@ -1,3 +1,52 @@
+Session Handoff — 2026-10-03 21:58
+Branch: fix/phase-8r
+Status: Clean
+
+Done
+Phase 8R.1 accepted by the owner with three rulings; all three recorded in the docs, no code change.
+
+In Progress
+Nothing.
+
+What is complete:
+Ruling 1 (hash verification): accepted as measured. The D-189 correction — that the earlier claim rested on a green suite whose FNV-1a64 literals run on a topology with no bypass, and so could not detect a moved draw — is kept verbatim at the owner's instruction, not softened.
+Ruling 2 (the corrected test): approved without second-guessing. The old assertion pinned the system-average-on-every-row behaviour, so it could not survive the fix. Recorded as the opposite case to "never change a test to make a failing implementation pass": implementation right, test wrong, test corrected.
+Ruling 3 (summary basis): the total-drain summary stays on the final-session scalars, `max()`, never a sum. It answers "when does the clinic finish on the last day", and moving it to the mean would reintroduce the confusion the per-stage series exists to remove. Logged as an amendment to D-193.
+
+What remains:
+Owner visual inspection of the three 8R frames (B-012), after which the owner merges manually.
+
+Next Session Should Start With
+Nothing on 8R or 8R.1. Await the owner's frame review and manual merge, or a new phase instruction.
+
+Blocked
+None.
+
+Git State
+Commits made this session: d39afe4 (8R.1, pushed), plus this documentation-only commit for the three rulings.
+Pushed to origin: yes — fix/phase-8r tracks origin/fix/phase-8r.
+Uncommitted changes: none after this commit.
+
+Build & Test
+dotnet build: unchanged since d39afe4 — PASS (Release and Debug, 0 errors / 0 warnings). This commit is documentation only; no rebuild was run or is warranted.
+dotnet test: unchanged since d39afe4 — PASS, 833 green. Documentation-only commit; no re-run.
+Warnings: 0
+
+Files Touched
+docs/DECISIONS.md: D-193 amendment recording the summary-basis ruling
+docs/PRD.md: v1.13.1 change-history row for the 8R.1 acceptance and three rulings
+docs/TODO.md: 8R.1 owner-acceptance row
+docs/PROGRESS.md: this entry
+
+Decisions Made
+D-193 amendment — the total-drain summary remains on the final-session scalars by owner ruling.
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+**No further work on 8R.1.** The branch is ready and the owner merges manually after reviewing the three frames. Per the owner's instruction, break the next phase at its natural checkpoint rather than running two tasks in one pass — the 8R + 8R.1 pairing overshot the 30k session budget.
+
 Session Handoff — 2026-10-03 21:40
 Branch: fix/phase-8r
 Status: Clean

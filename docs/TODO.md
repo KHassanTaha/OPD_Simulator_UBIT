@@ -360,5 +360,6 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [x] Tests: App +8 (`Phase8RTests` 34) — 2026-10-03
 - [x] Gates: Release and Debug 0 errors / 0 warnings; full suite 833 green (Core 134 / Data 134 / Cli 35 / App 530) — 2026-10-03
 - [x] Docs: D-193, D-189 corrected-verification paragraph, D-190 8J note, REQUIREMENTS rows, USER_MANUAL scalar-vs-mean section, VIVA_ANSWERS entry — 2026-10-03
+- [x] **8R.1 owner acceptance (2026-10-03)** — all three rulings accepted with no further work. (1) The D-189 hash verification stands as measured, and the self-caught correction is to be kept, not softened. (2) Correcting the pre-existing system-average test is approved: implementation right, test wrong, test corrected — the opposite of the "never change a test to make a failing implementation pass" rule. (3) The total-drain summary keeps the final-session scalars; the mean basis is ruled out. Branch is ready; **the owner merges manually after frame review.**
 - [ ] **Owner visual inspection of the three 8R frames (§18 / D-089)** — this host has no image input, so the frames are captured and content-asserted but not looked at; B-012
 

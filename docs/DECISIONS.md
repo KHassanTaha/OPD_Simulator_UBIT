@@ -3167,6 +3167,13 @@ and `ValidatedField`'s live-region announcements are still outstanding.
     "final session" so it cannot be read as the mean shown beside it.
   - *Negative:* two similarly named figures now coexist, which is a presentation
     cost. Mitigated by labelling both at every point they appear.
+- **Owner ruling (2026-10-03), accepted without change:** the total-drain summary
+  **stays on the final-session scalars**. It answers "when does the clinic actually
+  finish on the last day", which is a final-session question, and the scalars mean
+  final session. Putting the summary on the mean basis would reintroduce exactly the
+  semantic confusion the per-stage series was added to remove. The summary therefore
+  reads `max()` of the per-stage final-session drains and says "final session" in its
+  own text, so it cannot be read as the mean displayed beside it.
 - **Alternatives considered:** (a) redefining the scalar as the mean — rejected, it
   silently changes the meaning of an existing, already-documented field; (b) dropping
   the scalar and showing only series — rejected, the final-session reading is the one
