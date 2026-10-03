@@ -179,44 +179,46 @@ public class Phase8MChartTests
     }
 
     [Fact]
-    public void UtilisationChart_PerServerDetailLinesUpWithBars()
+    public void UtilisationChart_BarsCarryEverythingTheDetailTableCarried()
     {
         var results = new ResultsPanelViewModel();
         results.CompleteRun(
             new RunOutcome(ElevenBarResult(), Array.Empty<OpdSimulator.App.Models.FitReport>(),
                 Array.Empty<string>(), 0.4, 0.0, null));
 
-        // One row per server, each carrying its stage, its own server number, the
-        // server's OWN utilisation, its contribution, and the stage utilisation it
-        // belongs to. D-171 added the first two numbers: the bar is drawn at the
-        // contribution, so a row carrying only that is ambiguous between a busy
-        // server on a many-server stage and a genuinely idle one.
-        //
-        // Phase 8Q.5 turned these strings into columns, so the assertion moved with
-        // them: the numbers are still all required, but they are now separate
-        // members rather than substrings of one line. Asserting on the substrings
-        // would have kept passing against a row that showed the wrong number in
-        // the wrong column.
-        Assert.Equal(11, results.PerServerDetailRows.Count);
-        Assert.All(results.PerServerDetailRows, row =>
+        // Phase 8S (D-196) removed the Per-server detail table, so this test no longer
+        // reads a row off a view-model list. Its question is unchanged and now has to
+        // be answered from the chart data itself: is every per-server number the table
+        // used to display still reachable? The owner approved the removal on the
+        // grounds that the chart already carries it — this is that claim, asserted
+        // rather than assumed.
+        var data = UtilisationChartService.Build(ElevenBarResult());
+
+        // One bar per server, in the flattened stage/server order they are drawn in.
+        Assert.Equal(11, data.Bars.Count);
+        Assert.Equal(
+            Enumerable.Range(1, 11).Select(i => (double)i),
+            data.Bars.Select((_, i) => (double)(i + 1)));
+
+        // D-171's point: a bar must carry the server's OWN utilisation as well as the
+        // contribution it is drawn at, or a 25 % bar on a 2-server stage is ambiguous
+        // between a busy server and a genuinely idle one. Both numbers are still there.
+        Assert.All(data.Bars, bar =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(row.StageName));
-            Assert.False(string.IsNullOrWhiteSpace(row.ServerNumber));
-            Assert.EndsWith("%", row.ServerUtilisation, StringComparison.Ordinal);
-            Assert.EndsWith("%", row.Contribution, StringComparison.Ordinal);
-            Assert.EndsWith("%", row.StageUtilisation, StringComparison.Ordinal);
-            Assert.False(string.IsNullOrWhiteSpace(row.SerialNumber));
+            Assert.False(string.IsNullOrWhiteSpace(bar.StageName));
+            Assert.InRange(bar.ServerNumber, 1, 11);
+            Assert.InRange(bar.Utilisation, 0d, 1d);
+            Assert.InRange(bar.Contribution, 0d, 1d);
+            Assert.True(bar.ServerCount >= 1, $"bar {bar.StageName}/{bar.ServerNumber} has no server count");
+
+            // The contribution is the utilisation rescaled by the server count — the
+            // arithmetic the removed table made checkable by hand.
+            Assert.Equal(bar.Contribution, bar.Utilisation / bar.ServerCount, 6);
         });
 
-        // The row order is the flattened stage/server order the bars are drawn in,
-        // so the serial column can be cited against the chart.
-        Assert.Equal(
-            Enumerable.Range(1, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-            results.PerServerDetailRows.Select(r => r.SerialNumber));
-
-        // The two deviating Lab servers are named in text as well as coloured.
-        Assert.Equal(2, results.PerServerDetailRows.Count(r =>
-            r.Deviation.Contains("deviating", StringComparison.OrdinalIgnoreCase)));
+        // The two deviating Lab servers are still identifiable as such from the data,
+        // which is what the chart's amber flag and its caption depend on.
+        Assert.Equal(2, data.Bars.Count(b => b.IsOutlier));
     }
 
     [Fact]

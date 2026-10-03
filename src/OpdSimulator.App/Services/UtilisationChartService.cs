@@ -62,38 +62,6 @@ public sealed record UtilisationStageReference(
 }
 
 /// <summary>
-/// One line of the per-server detail table shown under the chart (Phase 8M,
-/// D-160). The chart alone cannot say how long a server was actually busy —
-/// the contribution scale deliberately hides the operating-time division — so
-/// this table is where a reader gets the individual numbers back.
-/// </summary>
-/// <param name="StageName">The stage that owns the server.</param>
-/// <param name="ServerNumber">1-based server index within the stage.</param>
-/// <param name="Contribution">This server's share of its stage's utilisation.</param>
-/// <param name="StageUtilisation">The stage's overall utilisation, for context.</param>
-/// <param name="IsOutlier">True when this server deviates from the stage mean by more than the threshold.</param>
-public sealed record UtilisationServerDetail(
-    string StageName,
-    int ServerNumber,
-    double Contribution,
-    double StageUtilisation,
-    bool IsOutlier)
-{
-    /// <summary>
-    /// The server's own utilisation — busy time ÷ operating time (Phase 8N
-    /// follow-up 2, D-171). The row has to carry both numbers: the contribution
-    /// is what the bar is drawn at, and without the server utilisation beside it a
-    /// reader cannot tell a 37.75 % bar on a 2-server stage from a genuinely idle
-    /// server. The two are related by <c>Contribution = ServerUtilisation / c</c>,
-    /// and only the contributions sum to the stage utilisation.
-    /// </summary>
-    public double ServerUtilisation { get; init; }
-
-    /// <summary>How many servers the owning stage has (the divisor for the contribution).</summary>
-    public int ServerCount { get; init; } = 1;
-}
-
-/// <summary>
 /// Pure, engine-independent description of the per-server utilisation chart
 /// (FR-STAT-7, FR-UI-28). Bars are laid out per stage in stage order, server
 /// 1..n within each stage; every bar is compared against its stage's mean
@@ -108,12 +76,7 @@ public sealed record UtilisationChartData(
     IReadOnlyList<UtilisationBarRow> Bars,
     IReadOnlyList<UtilisationStageReference> ReferenceLines)
 {
-    /// <summary>
-    /// Per-server detail rows under the chart, in the same order as
-    /// <see cref="Bars"/>. Empty when there are no bars.
-    /// </summary>
-    public IReadOnlyList<UtilisationServerDetail> PerServerDetail { get; init; } =
-        Array.Empty<UtilisationServerDetail>();
+
 
     /// <summary>An empty card shown before the first run.</summary>
     public static UtilisationChartData Empty { get; } =
@@ -159,7 +122,6 @@ public static class UtilisationChartService
             return new UtilisationChartData(false, bars, references);
         }
 
-        var details = new List<UtilisationServerDetail>();
         int stageIndex = 0;
         foreach (var stage in result.StageMetrics)
         {
@@ -193,22 +155,6 @@ public static class UtilisationChartService
 
             if (perServer.Count > 0)
             {
-                foreach (var bar in bars.Skip(firstBarIndex))
-                {
-                    // D-171: carry the server's own utilisation alongside the
-                    // contribution, so every surface that shows one can show both.
-                    details.Add(new UtilisationServerDetail(
-                        bar.StageName,
-                        bar.ServerNumber,
-                        bar.Contribution,
-                        average,
-                        bar.IsOutlier)
-                    {
-                        ServerUtilisation = bar.Utilisation,
-                        ServerCount = bar.ServerCount,
-                    });
-                }
-
                 // The benchmark is the equal share: what each server would
                 // contribute if the stage's utilisation were spread evenly.
                 // Using the stage average here (the pre-8M value) would sit at
@@ -223,6 +169,6 @@ public static class UtilisationChartService
             }
         }
 
-        return new UtilisationChartData(bars.Count > 0, bars, references) { PerServerDetail = details };
+        return new UtilisationChartData(bars.Count > 0, bars, references);
     }
 }

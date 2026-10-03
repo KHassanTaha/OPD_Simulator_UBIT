@@ -30,14 +30,14 @@ public class Phase8MScreenshots
     [AvaloniaFact]
     public void Render_UtilisationContributionChart_SavePhase8mUtilisationPng()
     {
-        // The 1/2/3 six-bar case: contribution heights, the equal-share line per
-        // stage, the amber overlay, the caption and the detail table.
+        // The 1/2/3 six-bar case: contribution heights, the equal-share benchmark
+        // per stage, the amber overlay and the caption. Phase 8S (D-196) removed the
+        // Per-server detail table from under the chart, so there is no row count to
+        // assert here any more; the bar count comes from the data instead.
         CaptureResults("phase-8m-utilisation.png", new[] { 1, 2, 3 }, "0.8, 0.5, 0.4", 2400, main =>
         {
             Assert.True(main.Results.HasUtilisationChart);
             Assert.NotNull(main.Results.UtilisationChart);
-            // One row per server under the chart, collapsed by default.
-            Assert.Equal(6, main.Results.PerServerDetailRows.Count);
         });
     }
 
@@ -51,7 +51,7 @@ public class Phase8MScreenshots
         CaptureResults("phase-8m-utilisation-varied.png", new[] { 2, 4, 5 }, "0.8, 0.5, 0.4", 2400, main =>
         {
             Assert.True(main.Results.HasUtilisationChart);
-            Assert.Equal(11, main.Results.PerServerDetailRows.Count);
+            Assert.NotNull(main.Results.UtilisationChart);
         });
     }
 

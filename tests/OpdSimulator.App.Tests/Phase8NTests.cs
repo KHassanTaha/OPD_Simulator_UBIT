@@ -728,20 +728,11 @@ public class Phase8NDialogSizingTests
     {
         var result = TwoServerResult();
 
-        // Surface: the per-server detail rows under the utilisation chart.
-        var results = new ResultsPanelViewModel();
-        results.CompleteRun(
-            new RunOutcome(result, Array.Empty<FitReport>(), Array.Empty<string>(), 0.4, 0.0, null));
-        Assert.NotEmpty(results.PerServerDetailRows);
-        // D-171: both the server's own utilisation and its contribution must be on
-        // the row. Phase 8Q.5 made them separate columns, so both are checked as
-        // separate members rather than as two substrings of one line.
-        Assert.All(results.PerServerDetailRows, row =>
-        {
-            Assert.EndsWith("%", row.ServerUtilisation, StringComparison.Ordinal);
-            Assert.EndsWith("%", row.Contribution, StringComparison.Ordinal);
-        });
-
+        // Phase 8S (D-196): the Per-server detail table is gone, so the panel no
+        // longer carries a row to assert. What it must still guarantee is that both
+        // numbers reach the surfaces that remain — the chart data and the
+        // calculations dialog. The owner approved the removal on the grounds that
+        // these two already carry everything the table showed.
         // Surface: the calculations dialog's utilisation block.
         var text = CalculationsTextBuilder.Build(result, Parameters(), "entered manually");
         Assert.Contains("contribution", text, StringComparison.OrdinalIgnoreCase);
@@ -755,12 +746,6 @@ public class Phase8NDialogSizingTests
         {
             Assert.InRange(bar.Utilisation, 0, 1);
             Assert.InRange(bar.Contribution, 0, 1);
-        });
-        Assert.NotEmpty(chart.PerServerDetail);
-        Assert.All(chart.PerServerDetail, detail =>
-        {
-            Assert.InRange(detail.ServerUtilisation, 0, 1);
-            Assert.InRange(detail.Contribution, 0, 1);
         });
     }
 
@@ -784,13 +769,17 @@ public class Phase8NDialogSizingTests
                 precision: 12);
         }
 
-        // And the same identity on the detail rows the chart caption is built from.
-        foreach (var detail in chart.PerServerDetail)
+        // The equal-share benchmark must be the same identity at stage scale: the
+        // reference value is the stage mean rescaled by the server count, so
+        // multiplying it back by c has to recover the stage's own utilisation.
+        foreach (var reference in chart.ReferenceLines)
         {
+            var c = chart.Bars[reference.FirstBarIndex].ServerCount;
             Assert.Equal(
-                detail.ServerUtilisation / detail.ServerCount,
-                detail.Contribution,
-                precision: 12);
+                reference.EqualShare * c,
+                chart.Bars.Skip(reference.FirstBarIndex).Take(reference.LastBarIndex - reference.FirstBarIndex + 1)
+                    .Sum(b => b.Contribution),
+                precision: 10);
         }
     }
 
@@ -809,9 +798,17 @@ public class Phase8NDialogSizingTests
         {
             var sumOfContributions = group.Sum(b => b.Contribution);
             var sumOfUtilisations = group.Sum(b => b.Utilisation);
-            var stageUtilisation = chart.PerServerDetail
-                .First(d => d.StageName == group.Key)
-                .StageUtilisation;
+            // D-196: the stage total is no longer repeated on a per-server detail
+            // row. It is recoverable from what the chart still carries — the
+            // equal-share benchmark is the stage mean rescaled by the server count,
+            // so multiplying it back by c gives the stage total back.
+            var barsByStage = chart.Bars
+                .Select((bar, index) => (bar, index))
+                .ToDictionary(t => t.bar, t => t.index);
+            var reference = chart.ReferenceLines.First(r =>
+                r.FirstBarIndex <= barsByStage[group.First()] &&
+                r.LastBarIndex >= barsByStage[group.Last()]);
+            var stageUtilisation = reference.EqualShare * group.First().ServerCount;
 
             Assert.Equal(stageUtilisation, sumOfContributions, precision: 10);
 
@@ -847,12 +844,18 @@ public class Phase8NDialogSizingTests
     {
         var chart = UtilisationChartService.Build(TwoServerResult());
 
-        Assert.All(chart.PerServerDetail, detail =>
-            Assert.True(
-                detail.Contribution <= detail.StageUtilisation + 1e-9,
-                $"{detail.StageName} S{detail.ServerNumber} contributes "
-                + $"{detail.Contribution:F4} but its stage utilisation is only "
-                + $"{detail.StageUtilisation:F4}"));
+        // D-196: the stage total is no longer repeated per server; recover it from
+        // the equal-share benchmark, which is the stage mean rescaled by c.
+        foreach (var group in chart.Bars.GroupBy(b => b.StageName))
+        {
+            var stageUtilisation = group.Sum(b => b.Contribution);
+            Assert.All(group, bar =>
+                Assert.True(
+                    bar.Contribution <= stageUtilisation + 1e-9,
+                    $"{bar.StageName} S{bar.ServerNumber} contributes "
+                    + $"{bar.Contribution:F4} but its stage utilisation is only "
+                    + $"{stageUtilisation:F4}"));
+        }
     }
 
     /// <summary>

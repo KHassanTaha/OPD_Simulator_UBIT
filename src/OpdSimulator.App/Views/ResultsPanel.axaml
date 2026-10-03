@@ -92,8 +92,16 @@
                  stay pinned. The data preview moved to the Input tab in Phase 7D.
                  8Q.4 (D-184): the trace left this ScrollViewer for grid row 2, so
                  "scroll here" no longer includes it. -->
+            <!-- Phase 8S (D-195): the 120 px floor is what the owner review asked
+                 for. Row 1 is a * row between two Auto rows, so on a short window it
+                 absorbs every pixel the pinned rows do not want — measured at 101 px
+                 at a 420 px window, which is a strip of widgets rather than a
+                 readable area. The floor guarantees a usable middle, and because the
+                 two pinned rows are Auto and capped, the window scrolls rather than
+                 crushing this row further. -->
             <ScrollViewer x:Name="WidgetScroller"
                           Grid.Row="1"
+                          MinHeight="120"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
@@ -142,7 +150,7 @@
                     <ItemsControl ItemsSource="{Binding SystemMetrics}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:MetricRow">
-                                <Grid ColumnDefinitions="170,*" ColumnSpacing="8" Margin="0,2">
+                                <Grid ColumnDefinitions="170,Auto" ColumnSpacing="8" Margin="0,2">
                                     <TextBlock Text="{Binding Label}"
                                                FontSize="{DynamicResource FontSizeCaption}"
                                                Foreground="{DynamicResource BrushTextSecondary}"
@@ -150,13 +158,22 @@
                                     <!-- A label:value list, not a listing table: no
                                          header row and no shared column set, so the
                                          serial-number rule does not apply (FR-UI-36).
-                                         The values are all magnitudes, so they are
-                                         right-aligned to line up their decimals. -->
+                                         D-187 right-aligns numeric columns so their
+                                         decimals line up, but that only works when
+                                         the column is shared. Here each row is its
+                                         own Grid, so an Auto column is sized by its
+                                         own value and the two never align anyway —
+                                         while a * column plus Right pushed every
+                                         value to the panel's far edge, metres from
+                                         its label. Left-aligned in an Auto column
+                                         the value sits beside its label, which is
+                                         what a label:value list is for. The four
+                                         real listing tables keep right-alignment. -->
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Value}"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource BrushTextPrimary}"
-                                               TextAlignment="Right"/>
+                                               TextAlignment="Left"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -297,75 +314,6 @@
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <ContentControl IsVisible="{Binding HasUtilisationChart}"
                                     Content="{Binding UtilisationChart}"/>
-
-                    <!-- Per-server detail (Phase 8M, D-160; both values D-171).
-                         Collapsed by default: the chart answers "who is out of
-                         line?", and this table is the receipt for anyone who wants
-                         the raw per-server numbers. -->
-                    <controls:CollapsibleSection Title="Per-server detail"
-                                                IsVisible="{Binding HasUtilisationChart}"
-                                                IsExpanded="False"
-                                                HelpText="Every server's own utilisation and its contribution to the stage total.">
-                        <!-- A CollapsibleSection takes ONE content child; the table
-                             needs a header grid plus the rows control, so they are
-                             wrapped (Phase 8Q.5, FR-UI-36). -->
-                        <StackPanel Spacing="{DynamicResource SpaceS}">
-                        <!-- Phase 8Q.5: this was a list of pre-formatted monospace
-                             strings that faked columns with run-together format
-                             arguments, so nothing here could be aligned or carry a
-                             header. The data was already structured, so it is now a
-                             real table (FR-UI-36). -->
-                        <Grid ColumnDefinitions="30,86,52,68,78,68,*" ColumnSpacing="8">
-                            <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
-                            <TextBlock Grid.Column="2" Text="Server" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="3" Text="Busy" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="4" Text="Contrib." FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="5" Text="Stage util" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="6" Text="Deviation" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding PerServerDetailRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:PerServerDetailRow">
-                                    <Grid ColumnDefinitions="30,86,52,68,78,68,*" ColumnSpacing="8" Margin="0,2">
-                                        <TextBlock Text="{Binding SerialNumber}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextMuted}"
-                                                   TextAlignment="Right"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding StageName}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   TextAlignment="Left"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding ServerNumber}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextAlignment="Right"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding ServerUtilisation}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextAlignment="Right"/>
-                                        <TextBlock Grid.Column="4" Text="{Binding Contribution}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextAlignment="Right"/>
-                                        <TextBlock Grid.Column="5" Text="{Binding StageUtilisation}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextAlignment="Right"/>
-                                        <!-- The imbalance flag is a word as well as the
-                                             amber colour on the chart, never colour
-                                             alone (AGENTS §16.9). -->
-                                        <TextBlock Grid.Column="6" Text="{Binding Deviation}"
-                                                   FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="{DynamicResource BrushTextSecondary}"
-                                                   TextAlignment="Left"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        </StackPanel>
-                    </controls:CollapsibleSection>
                 </StackPanel>
             </Border>
 
@@ -645,17 +593,28 @@
                  ScrollViewer, never its child, for the same reason D-170 gave for
                  the calculations dialog's footer: a trace that scrolls away is not
                  a trace the user can read while reading anything else, and
-                 scrolling the body can never take it out of reach. The 240 px
-                 ceiling is what keeps it pinned without stealing the widgets'
-                 space — below it the inner ScrollViewer scrolls. -->
+                 scrolling the body can never take it out of reach. The ceiling is what
+                 keeps it pinned without stealing the widgets' space — below it
+                 the inner ScrollViewer scrolls.
+
+                 Phase 8S (D-195): the ceiling was 240 px, and at a 420 px window
+                 that starved the scrolling middle down to 101 px, which read to the
+                 owner as the header and the trace overlapping the content. Measured:
+                 the rows tiled exactly and never overlapped; the middle was simply
+                 squeezed. The ceiling is now 208 px, just above the inner
+                 ScrollViewer's own 176 px, so the box gives up only the heading
+                 chrome it cannot scroll away and no more. The 120 px MinHeight
+                 keeps the trace readable at its smallest. -->
             <Border Grid.Row="2"
+                    Classes="results-trace-panel"
                     Margin="16,0"
                     Padding="{DynamicResource ThicknessSpaceM}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1,1,1,0"
                     CornerRadius="{DynamicResource CornerRadiusM}"
-                    MaxHeight="240">
+                    MinHeight="120"
+                    MaxHeight="208">
                 <Grid RowDefinitions="Auto,Auto,*">
                     <!-- One heading, and one caption. 8D.1 shipped a group heading
                          here and M4 shipped an inner label, so the trace carried
@@ -674,7 +633,8 @@
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Auto"
                                   MaxHeight="176">
-                        <SelectableTextBlock Text="{Binding TraceBody}"
+                        <SelectableTextBlock x:Name="TraceBodyText"
+                                             Text="{Binding TraceBody}"
                                              FontFamily="{DynamicResource FontFamilyMono}"
                                              FontSize="{DynamicResource FontSizeCaption}"
                                              Foreground="{DynamicResource BrushTextPrimary}"

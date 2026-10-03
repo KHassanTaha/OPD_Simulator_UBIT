@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using Avalonia;
@@ -59,7 +60,31 @@ public class ResultsPanelBufferTraceTests
     }
 
     /// <summary>Builds a real completed run so the panel has metrics and trace lines.</summary>
-    private static ResultsPanelViewModel CompletedRun()
+    /// <summary>
+    /// A real completed run. Internal rather than private so the Phase 8S layout
+    /// tests can measure a populated panel without duplicating the run setup.
+    /// </summary>
+    internal static ResultsPanelViewModel CompletedRun()
+    {
+        var results = new ResultsPanelViewModel(ThrowawayPreferences());
+        results.StartRun();
+        results.CompleteRun(CompletedOutcome());
+        return results;
+    }
+
+    /// <summary>
+    /// A throwaway preferences path, so the FR-UI-14 defaults are the ones under test
+    /// rather than whatever the machine last saved (D-186: never touch real state).
+    /// </summary>
+    private static WidgetPreferences ThrowawayPreferences() =>
+        new(Path.Combine(
+            Path.GetTempPath(), "OpdSimulatorTests", Guid.NewGuid().ToString("N") + ".json"));
+
+    /// <summary>
+    /// One real three-stage run through the coordinator, with a throwaway
+    /// preferences file so the defaults are the ones under test.
+    /// </summary>
+    private static RunOutcome CompletedOutcome()
     {
         var sample = Path.Combine(
             FindRepoRoot(AppContext.BaseDirectory), "samples", "sample_3stage_clinic.csv");
@@ -79,15 +104,19 @@ public class ResultsPanelBufferTraceTests
         Assert.Null(outcome.Error);
         Assert.NotNull(outcome.Result);
 
-        // A throwaway preferences file, so the FR-UI-14 defaults are the ones under
-        // test rather than whatever the machine last saved.
-        var prefs = new WidgetPreferences(Path.Combine(
-            Path.GetTempPath(), "OpdSimulatorTests", Guid.NewGuid().ToString("N") + ".json"));
-        var results = new ResultsPanelViewModel(prefs);
-        results.StartRun();
-        results.CompleteRun(outcome);
-        return results;
+        return outcome;
     }
+
+    /// <summary>
+    /// The trace body as the user sees it: the rendered TextBlock inside the pinned
+    /// panel. Reading <c>vm.TraceBody</c> instead would pass under the D-194 defect,
+    /// because the property is correct while the binding is stale.
+    /// </summary>
+    private static string RenderedTraceText(Window window) =>
+        window.GetVisualDescendants()
+            .OfType<SelectableTextBlock>()
+            .Single(t => t.Name == "TraceBodyText")
+            .Text ?? string.Empty;
 
     [AvaloniaFact]
     public void ResultsPanel_BottomBuffer_LastWidgetFullyVisible()
@@ -149,13 +178,32 @@ public class ResultsPanelBufferTraceTests
         }
     }
 
+    /// <summary>
+    /// The pinned trace panel, on screen, showing the run that has just finished.
+    /// </summary>
+    /// <remarks>
+    /// This test was reversed as part of Phase 8S. It used to build a completed run
+    /// and only then show the window, which meant the trace binding was first
+    /// evaluated against populated state — a state the app never reaches, because the
+    /// window is on screen from launch and the run arrives afterwards. It passed
+    /// against a real defect: the trace recorded 9,471 characters and the screen kept
+    /// saying "No trace was recorded for this run." forever (D-194, D-166's family).
+    /// It now shows the window empty and runs afterwards.
+    /// </remarks>
     [AvaloniaFact]
-    public void ResultsPanel_EventTrace_AlwaysVisible_AfterRun()
+    public void ResultsPanel_EventTrace_PopulatesAfterRunShownWindow()
     {
-        var vm = CompletedRun();
+        var vm = new ResultsPanelViewModel(new WidgetPreferences(Path.Combine(
+            Path.GetTempPath(), "OpdSimulatorTests", Guid.NewGuid().ToString("N") + ".json")));
         var window = Host(vm);
         try
         {
+            // Before any run: the panel says why it is empty. Asserted so the test
+            // cannot pass by the binding being absent altogether.
+            Assert.Equal("No trace was recorded for this run.", vm.TraceBody);
+
+            vm.CompleteRun(CompletedOutcome());
+            window.UpdateLayout();
 
             // "Always visible" has to mean ON SCREEN, not merely bound. A pinned
             // panel can be laid out below the window's bottom edge while every
@@ -180,13 +228,84 @@ public class ResultsPanelBufferTraceTests
                 trace.GetVisualAncestors().OfType<ScrollViewer>().Contains(scroller),
                 "the trace must be a sibling of the widget ScrollViewer, not a child of it");
 
-            // Its content is the run's own trace, not a placeholder.
-            Assert.Contains("ARRIVAL", vm.TraceBody);
+            // Its RENDERED content is the run's own trace. Asserted on the TextBlock
+            // because that is what the user reads: the view-model property can be
+            // correct while the binding never re-evaluates, which is exactly the bug
+            // this test now exists to catch (D-194).
+            Assert.Contains("ARRIVAL", RenderedTraceText(window));
         }
         finally
         {
             window.Close();
         }
+    }
+
+    [AvaloniaFact]
+    public void EventTrace_FirstRow_IsTheFirstArrival()
+    {
+        // The recorder's first line is the RNG seed row at Standard and below, so the
+        // first ARRIVAL is the first patient through the door. Asserted on the
+        // rendered panel, in simulation order, because "the trace has content" is not
+        // the requirement — the trace STARTS at the arrival is.
+        var vm = new ResultsPanelViewModel(ThrowawayPreferences());
+        var window = Host(vm);
+        try
+        {
+            vm.CompleteRun(CompletedOutcome());
+            window.UpdateLayout();
+
+            var rows = RenderedTraceRows(window);
+            Assert.NotEmpty(rows);
+
+            var firstArrival = rows.First(r => r.Contains("ARRIVAL"));
+            Assert.Equal("P1", PatientId(firstArrival));
+            Assert.Contains("Reception", firstArrival, StringComparison.Ordinal);
+            Assert.Contains("08:15:00", firstArrival, StringComparison.Ordinal);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void EventTrace_LastRow_IsTheLastServiceCompletion()
+    {
+        // The trace must END on a service completion, not on a queue join or a
+        // routing row: the last thing the clinic does is finish serving someone.
+        var vm = new ResultsPanelViewModel(ThrowawayPreferences());
+        var window = Host(vm);
+        try
+        {
+            vm.CompleteRun(CompletedOutcome());
+            window.UpdateLayout();
+
+            var rows = RenderedTraceRows(window);
+            Assert.NotEmpty(rows);
+
+            // The final non-blank row carries a completion marker for the stage that
+            // finished last.
+            var last = rows.Last(r => r.Trim().Length > 0);
+            Assert.True(
+                last.Contains("END") || last.Contains("EXIT"),
+                $"the trace's last row should be a service completion or exit, but was: {last}");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>The trace body split into its rendered rows, in order.</summary>
+    private static string[] RenderedTraceRows(Window window) =>
+        RenderedTraceText(window).Split(
+            new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+    /// <summary>The patient id column of a rendered trace row ("P12"), or null.</summary>
+    private static string? PatientId(string row)
+    {
+        var parts = row.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.FirstOrDefault(p => p.Length > 1 && p[0] == 'P' && char.IsDigit(p[1]));
     }
 
     [AvaloniaFact]
@@ -238,19 +357,21 @@ public class ResultsPanelBufferTraceTests
         try
         {
 
-            // 240 px is the ceiling that lets the trace be pinned without stealing
-            // the widgets' space. Asserted as a real bound: a MaxHeight that never
-            // bites leaves the panel growing unbounded and pushing the widgets off.
+            // Phase 8S (D-195): the ceiling is 208 px, not the original 240. At
+            // 240 the pinned box left the scrolling middle only 101 px in a 420 px
+            // window, which the owner reported as the header and trace crowding the
+            // content. Asserted as a real bound: a MaxHeight that never bites leaves
+            // the panel growing unbounded and pushing the widgets off.
             var trace = TracePanel(window);
-            Assert.Equal(240d, trace.MaxHeight);
+            Assert.Equal(208d, trace.MaxHeight);
 
             // With a long trace the panel must clamp to it, not exceed it.
             var host = window.Bounds.Height;
             var bottom = trace.TranslatePoint(
                 new Point(0, trace.Bounds.Height), window)!.Value.Y;
             Assert.True(
-                trace.Bounds.Height <= 240.5,
-                $"the trace panel rendered at {trace.Bounds.Height:F1}px, above its 240px ceiling");
+                trace.Bounds.Height <= 208.5,
+                $"the trace panel rendered at {trace.Bounds.Height:F1}px, above its 208px ceiling");
             Assert.True(
                 bottom <= host + 0.5,
                 $"the trace panel ends at y={bottom:F1} in a {host:F1}px window");

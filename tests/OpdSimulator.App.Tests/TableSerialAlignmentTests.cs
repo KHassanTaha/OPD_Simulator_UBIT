@@ -211,31 +211,6 @@ public class TableSerialAlignmentTests
     private static List<string> SerialsOf(Grid header, IReadOnlyList<Grid> rows) =>
         rows.Select(r => Cell(r, 0).Text ?? "<null>").ToList();
 
-    /// <summary>Expands the collapsed per-server section and proves it took effect.</summary>
-    private static void ExpandPerServerSection(Window window)
-    {
-        var section = window.GetVisualDescendants()
-            .OfType<OpdSimulator.App.Controls.CollapsibleSection>()
-            .Single(s => (s.Title ?? string.Empty)
-                .Contains("Per-server", StringComparison.OrdinalIgnoreCase));
-
-        section.IsExpanded = true;
-        for (int pass = 0; pass < 3; pass++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
-        }
-
-        // D-169: assert the change actually landed rather than assuming it. A
-        // collapsed section realises no rows at all, so the serial assertions below
-        // would pass vacuously (zero rows) if the expansion silently failed.
-        Assert.True(section.IsExpanded, "precondition: the per-server section must be open");
-        Assert.True(
-            section.GetVisualDescendants().OfType<Grid>()
-                .Any(g => g.ColumnDefinitions.Count == 7),
-            "precondition: the expanded section must realise its table");
-    }
-
     // ---------------------------------------------------------------- Overview
 
     /// <summary>
@@ -280,8 +255,14 @@ public class TableSerialAlignmentTests
                 var value = Cell(row, 1);
                 Assert.NotEqual("#", label.Text);
 
-                // The value column carries magnitudes, so it follows the numeric rule.
-                Assert.Equal(TextAlignment.Right, value.TextAlignment);
+                // Phase 8S (D-187 amendment): the numeric-alignment rule needs a
+                // SHARED column to pay off. These rows are independent Grids, so
+                // right-aligning the value pushed it to the panel's far edge without
+                // lining any two values up — the owner saw a number adrift from its
+                // label. An Auto column with Left alignment keeps it beside the label,
+                // which is what a label:value list is for. The four real listing
+                // tables below keep right-alignment and are asserted separately.
+                Assert.Equal(TextAlignment.Left, value.TextAlignment);
                 Assert.Equal(TextAlignment.Left, label.TextAlignment);
             }
         }
@@ -297,48 +278,6 @@ public class TableSerialAlignmentTests
     /// The per-server detail table carries a contiguous serial column. Phase 8Q.5
     /// converted it from pre-formatted monospace strings into a real table.
     /// </summary>
-    /// <remarks>
-    /// The strings it replaced faked columns with run-together format arguments, so
-    /// there was no column to number and nothing to align. The data was already
-    /// structured; only the display was flattened. The serial runs over the
-    /// flattened stage/server order the chart bars are drawn in, so "row 7" and
-    /// "the seventh bar" are the same server.
-    /// </remarks>
-    [AvaloniaFact]
-    public void PerServerTable_HasSerialNumberColumn()
-    {
-        var vm = CompletedRun(out _);
-        var window = Host(vm);
-        try
-        {
-            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
-            Assert.True(
-            vm.PerServerDetailRows.Count > 0,
-            "precondition: the run produced per-server rows");
-
-            ExpandPerServerSection(window);
-
-            var header = HeaderGrid(panel, "Stage util");
-            Assert.Equal("#", Cell(header, 0).Text);
-            Assert.Equal(7, header.ColumnDefinitions.Count);
-
-            var rows = RowsFor(header);
-            Assert.Equal(vm.PerServerDetailRows.Count, rows.Count);
-
-            // 1..n with no gaps: a serial that skipped a number could not be cited.
-            Assert.Equal(
-                Enumerable.Range(1, rows.Count).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                SerialsOf(header, rows));
-
-            // Every server in the run is present, not just the visible page.
-            Assert.All(rows, r => Assert.False(string.IsNullOrWhiteSpace(Cell(r, 2).Text)));
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
     // -------------------------------------------------------------- Chi-square
 
     /// <summary>The chi-square verdict table carries a contiguous serial column.</summary>
@@ -432,15 +371,12 @@ public class TableSerialAlignmentTests
             var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
             AttachSteadyStateAnalyticalRows(vm, actual);
             window.UpdateLayout();
-            ExpandPerServerSection(window);
-
             // (marker, numeric columns) per table.
             var tables = new (string Marker, int[] Numeric)[]
             {
                 ("Wait (min)", new[] { 0, 2, 3, 4, 5, 6, 7, 8, 9 }),   // per stage
                 ("Distribution", new[] { 0, 3, 4, 5 }),                   // chi-square: χ², df, p
                 ("M/M/c wait", new[] { 0, 2, 3, 4, 5, 6 }),               // analytical: all five
-                ("Stage util", new[] { 0, 2, 3, 4, 5 }),                 // per-server: No./Server/Busy/Contrib./Stage util
             };
 
             foreach (var (marker, numeric) in tables)
@@ -467,12 +403,11 @@ public class TableSerialAlignmentTests
             Assert.NotEmpty(rho);
             Assert.All(rho, t => Assert.Equal(TextAlignment.Right, t.TextAlignment));
 
-            // And the overview listing's value column.
-            var values = panel.GetVisualDescendants().OfType<TextBlock>()
-                .Where(t => t.Text == vm.SystemMetrics[0].Value)
-                .ToList();
-            Assert.NotEmpty(values);
-            Assert.All(values, t => Assert.Equal(TextAlignment.Right, t.TextAlignment));
+            // Phase 8S (D-187 amendment): the overview listing's value column is no
+            // longer asserted here. It is not a listing table — each row is its own
+            // Grid — so right-aligning it put the value at the panel's far edge with
+            // nothing to line up against. It is asserted Left, beside its label, in
+            // OverviewMetrics_IsALabelValueList_SoSerialNumbersDoNotApply.
         }
         finally
         {
@@ -494,15 +429,12 @@ public class TableSerialAlignmentTests
             var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
             AttachSteadyStateAnalyticalRows(vm, actual);
             window.UpdateLayout();
-            ExpandPerServerSection(window);
-
             // (marker, text columns) per table.
             var tables = new (string Marker, int[] Text)[]
             {
                 ("Wait (min)", new[] { 1 }),                  // per stage: Stage
                 ("Distribution", new[] { 1, 2, 6 }),          // chi-square: Series, Distribution, Decision
                 ("M/M/c wait", new[] { 1 }),                   // analytical: Stage
-                ("Stage util", new[] { 1, 6 }),                // per-server: Stage, Deviation
             };
 
             foreach (var (marker, text) in tables)

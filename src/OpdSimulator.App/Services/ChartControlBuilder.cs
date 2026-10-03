@@ -176,6 +176,12 @@ public static class ChartControlBuilder
                 Values = values,
                 Fill = new SolidColorPaint(stageColor),
                 MaxBarWidth = 28,
+                // Phase 8S (D-197): no padding between bars within a band. LiveCharts
+                // sizes each bar inside its share of the category band and then insets
+                // it by Padding, which shifts the drawn bar off the category centre
+                // the benchmark line is drawn at. Padding = 0 leaves the bar centred
+                // where the line is.
+                Padding = 0,
                 // The chart draws contributions, so the tooltip has to give the
                 // underlying numbers back: a reader hovering a bar wants to know
                 // both its share and the server utilisation it came from.

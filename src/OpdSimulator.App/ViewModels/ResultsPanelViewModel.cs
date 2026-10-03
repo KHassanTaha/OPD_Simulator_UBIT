@@ -16,30 +16,7 @@ using OpdSimulator.Core.Engine;
 /// <param name="Value">Formatted metric value.</param>
 public sealed record MetricRow(string Label, string Value);
 
-/// <summary>
-/// One per-server row of the utilisation detail table (Phase 8Q.5).
-/// </summary>
-/// <remarks>
-/// Every numeric member is a pre-formatted string rather than a
-/// <see cref="double"/> so the template can right-align it (FR-UI-36) without
-/// each row re-deciding its own precision, and so <c>0.00%</c> renders as
-/// <c>0.00%</c> in the invariant culture the rest of the results panel uses.
-/// </remarks>
-/// <param name="SerialNumber">The server's 1-based position in the flattened stage/server list.</param>
-/// <param name="StageName">Owning stage's name (text column).</param>
-/// <param name="ServerNumber">Server's own number within its stage (numeric column).</param>
-/// <param name="ServerUtilisation">The server's own busy share of operating time (numeric column).</param>
-/// <param name="Contribution">The server's share of the stage total, which is what the chart bar is drawn at (numeric column).</param>
-/// <param name="StageUtilisation">The owning stage's utilisation, repeated so a lone bar can be read against its stage (numeric column).</param>
-/// <param name="Deviation">Text marker when the server is an imbalance outlier, otherwise empty (text column).</param>
-public sealed record PerServerDetailRow(
-    string SerialNumber,
-    string StageName,
-    string ServerNumber,
-    string ServerUtilisation,
-    string Contribution,
-    string StageUtilisation,
-    string Deviation);
+
 
 /// <summary>One per-stage row of the results metrics table (FR-STAT-6/7).</summary>
 /// <param name="SerialNumber">
@@ -490,13 +467,11 @@ public partial class ResultsPanelViewModel : ObservableObject
         if (result is null)
         {
             UtilisationChart = null;
-            PerServerDetailRows = Array.Empty<PerServerDetailRow>();
             BuildStageLegend(null);
             return;
         }
 
         var data = UtilisationChartService.Build(result);
-        PerServerDetailRows = BuildPerServerRows(data);
         BuildStageLegend(result);
         try
         {
@@ -688,8 +663,27 @@ public partial class ResultsPanelViewModel : ObservableObject
         ChiSquareCaption = $"Chi-square goodness-of-fit (α = {alpha:0.###})";
 
     /// <summary>Rendered trace lines of the diagnostic run, joined for the log widget.</summary>
+    /// <remarks>
+    /// Paired with <see cref="OnTraceTextChanged"/>, which is not optional. The view
+    /// binds <see cref="TraceBody"/>, not this property, and <c>TraceBody</c> is
+    /// computed from this one — so raising only <c>TraceText</c> leaves the binding
+    /// holding the value it read at launch (D-194).
+    /// </remarks>
     [ObservableProperty]
     private string _traceText = string.Empty;
+
+    /// <summary>
+    /// Re-raises <see cref="TraceBody"/> whenever <see cref="TraceText"/> changes.
+    /// </summary>
+    /// <remarks>
+    /// <c>TraceBody</c> is a computed get-only property, so the
+    /// <c>[ObservableProperty]</c> generator has no field to attach to and no way to
+    /// know a binding depends on it. Without this the trace widget keeps rendering
+    /// "No trace was recorded for this run." after a run that recorded 9,000+
+    /// characters — the recorder worked, the screen never updated.
+    /// </remarks>
+    partial void OnTraceTextChanged(string value) =>
+        OnPropertyChanged(nameof(TraceBody));
 
     /// <summary>Body of the pinned trace panel, or the reason it is empty.</summary>
     /// <remarks>
@@ -731,49 +725,6 @@ public partial class ResultsPanelViewModel : ObservableObject
     public string UtilisationCaption => UtilisationChartService.Caption;
 
     /// <summary>
-    /// Builds one table row per server, carrying BOTH numbers the reader needs
-    /// (Phase 8N follow-up 2, D-171):
-    /// server utilisation, and the contribution the bar is drawn at.
-    /// <para>
-    /// Both, not either. The bar is drawn at the contribution, so a reader who only
-    /// sees the contribution cannot tell a 25 % bar on a 2-server stage (server
-    /// perfectly busy at 50 %) from a server that really is idle at 25 %. Labelling
-    /// them separately is also what makes the arithmetic checkable: the reader can
-    /// divide one by the server count and get the other, and can add the
-    /// contributions to the stage utilisation.
-    /// </para>
-    /// <para>
-    /// Phase 8Q.5 replaced the pre-formatted monospace string this used to return.
-    /// Each number is now its own column (FR-UI-36), which is what allows the
-    /// numeric columns to be right-aligned so their decimal points line up; run
-    /// together in one string they could not be aligned at all.
-    /// </para>
-    /// <para>
-    /// A marker is carried in its own column when the server deviates from its
-    /// stage mean by more than the imbalance threshold, so the amber flag is not
-    /// carried by colour alone (AGENTS §16.9).
-    /// </para>
-    /// </summary>
-    private static IReadOnlyList<PerServerDetailRow> BuildPerServerRows(UtilisationChartData data)
-    {
-        var rows = new List<PerServerDetailRow>(data.PerServerDetail.Count);
-        for (var i = 0; i < data.PerServerDetail.Count; i++)
-        {
-            var detail = data.PerServerDetail[i];
-            rows.Add(new PerServerDetailRow(
-                (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                detail.StageName,
-                detail.ServerNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                FormatPercent(detail.ServerUtilisation),
-                FormatPercent(detail.Contribution),
-                FormatPercent(detail.StageUtilisation),
-                detail.IsOutlier ? "deviating" : string.Empty));
-        }
-
-        return rows;
-    }
-
-    /// <summary>
     /// Formats a fraction as a percentage with two decimals in the invariant
     /// culture, matching the rest of the results panel.
     /// </summary>
@@ -806,20 +757,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         StageLegend = items;
     }
 
-    /// <summary>
-    /// The per-server detail rows under the utilisation chart (Phase 8M, D-160).
-    /// The chart deliberately hides the individual server numbers behind a 1/c
-    /// rescale, so this table is where a reader gets them back.
-    /// </summary>
-    /// <remarks>
-    /// Phase 8Q.5 turned these from pre-formatted monospace strings into a real
-    /// table. The strings faked columns with run-together format arguments, so
-    /// nothing could be aligned and no column could carry a header; the data was
-    /// already structured in <see cref="UtilisationServerDetail"/> and was being
-    /// flattened only for display.
-    /// </remarks>
-    public IReadOnlyList<PerServerDetailRow> PerServerDetailRows { get; private set; } =
-        Array.Empty<PerServerDetailRow>();
+
 
     /// <summary>
     /// The stage-colour legend (Phase 8M, D-163, FR-UI-27), generated from the

@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.Linq;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
@@ -10,7 +13,7 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 5 gate — run flow (feat/gui-rebuild). Verification intent: the three
-/// run modes dispatch correctly (D-105) — only DiagnosticTrace records a trace,
+/// run modes dispatch correctly (D-105) — every mode records a trace,
 /// ClinicDay is a one-session calendar run, MultiDay generates exactly the
 /// requested day blocks; trace detail follows the selected level; and the three
 /// refusal paths surface clean banners — missing λ, the fitted p_exit = 1.0
@@ -114,6 +117,54 @@ public class Phase5RunFlowTests
         // ClinicDay runs populate the event trace like every other mode.
         Assert.NotEmpty(outcome.TraceLines);
         Assert.Contains(outcome.TraceLines, line => line.Contains("ARRIVAL"));
+    }
+
+    [AvaloniaFact]
+    public void DiagnosticTrace_RenderedPanel_StillPopulatedAfterAWindowIsShown()
+    {
+        // The regression half of the D-194 fix. The trace rendered empty in EVERY mode
+        // — the defect was the binding, not the recorder — so the ClinicDay reversal
+        // alone would not have covered the mode the trace was originally built for.
+        var config = ManualClinic();
+        config.IsDiagnosticTrace = true;
+        config.Duration = DiagnosticDurationPreset.OneHour;
+        var parameters = config.TryBuildRunParameters();
+        Assert.Equal(RunMode.DiagnosticTrace, parameters!.RunMode);
+
+        var outcome = SimulationCoordinator.Run(parameters, binding: null);
+        Assert.Null(outcome.Error);
+        Assert.NotEmpty(outcome.TraceLines);
+
+        var vm = new ResultsPanelViewModel(new WidgetPreferences(Path.Combine(
+            Path.GetTempPath(), "OpdSimulatorTests", Guid.NewGuid().ToString("N") + ".json")));
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 760,
+            Content = new Views.ResultsPanel { DataContext = vm },
+        };
+        window.Show();
+        window.UpdateLayout();
+
+        try
+        {
+            Assert.Equal("No trace was recorded for this run.", vm.TraceBody);
+
+            vm.CompleteRun(outcome);
+            window.UpdateLayout();
+
+            var rendered = window.GetVisualDescendants()
+                .OfType<SelectableTextBlock>()
+                .Single(t => t.Name == "TraceBodyText")
+                .Text ?? string.Empty;
+
+            Assert.Contains("ARRIVAL", rendered, StringComparison.Ordinal);
+            Assert.NotEqual("No trace was recorded for this run.", rendered);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [Fact]

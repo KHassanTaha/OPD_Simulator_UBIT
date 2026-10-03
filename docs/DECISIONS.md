@@ -3202,3 +3202,84 @@ their own prompts — 8Q.3 said `#`, 8Q.5 said `No.` — so this corrects the br
 not the implementation. The three tables added in 8Q.5 now read `#`, no
 requirement is amended (FR-UI-34 already specified `#`), and all three serial tests
 assert `#`. Recorded as v1.11.1 in the PRD and D-188 here.
+
+---
+
+## D-194 — A computed get-only property needs its own `PropertyChanged` (Phase 8S, issue 3)
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8S.
+- **Decision:** `ResultsPanelViewModel.TraceBody` is computed from `TraceText`, and the XAML binds `TraceBody`. Because a computed get-only property has no field for the `[ObservableProperty]` generator to attach to, the class raises it explicitly from `partial void OnTraceTextChanged(string value) => OnPropertyChanged(nameof(TraceBody))`.
+- **Rationale:** The generated setter raised only `TraceText`. The panel is on screen from launch and the run arrives afterwards, so the trace binding was first evaluated against the empty state and never re-evaluated: a ClinicDay/Detailed run recorded **9,471 characters** and the screen said *"No trace was recorded for this run."* for the rest of the session. The recorder, the coordinator and the engine were all correct — a direct probe produced 136 trace lines — so the defect was entirely in the notification.
+- **Impact:** (+) The trace panel is a live surface in every run mode. (+) The failure mode is impossible to reintroduce silently: the rendered assertion reads the `TextBlock`, not the property. (−) One extra notification per trace update; negligible at these sizes.
+- **Alternatives considered:** binding the XAML to `TraceText` and dropping `TraceBody` (rejected — `TraceBody` carries the "state why it is empty" behaviour, AGENTS §16.1); making `TraceBody` an observable field (rejected — it would duplicate the state and let the two disagree).
+
+**The test that was wrong, and why it matters.** `ResultsPanel_EventTrace_AlwaysVisible_AfterRun` built a completed run and *then* showed the window, so the binding was first read against populated state — a state the app never reaches. It passed against this defect. It is now
+`ResultsPanel_EventTrace_PopulatesAfterRunShownWindow`: the window is shown empty, the run lands afterwards, and the assertion reads the rendered `SelectableTextBlock`. Verified by mutation — removing the notification makes it fail with *"Assert.Contains() Failure"* while the six sibling tests stay green. This is D-166's family again: a test that modelled a state the user never sees.
+
+---
+
+## D-195 — The pinned trace ceiling is 208 px and the scrolling middle has a 120 px floor (Phase 8S, issue 2)
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8S.
+- **Decision:** Keep the existing `Grid RowDefinitions="Auto,*,Auto"`. Lower the trace `Border`'s `MaxHeight` from 240 to **208** px and add `MinHeight="120"` to `WidgetScroller`.
+- **Rationale:** The owner reported the header and the trace as overlapping the widget area at a short window. Measured, the three rows **tiled exactly and never overlapped** — what actually happened is that the 240 px ceiling left the `*` row only **101 px** at a 420 px window, a strip rather than a readable area. 208 px sits just above the trace's own inner `ScrollViewer` (176 px), so the box gives up only heading chrome it cannot scroll away. The floor guarantees a usable middle at any window height.
+- **Measured after the change** (`Phase8SLayoutTests`, 1200 px wide):
+
+  | Window | Header | Middle | Trace | Middle extent vs viewport |
+  |---|---|---|---|---|
+  | 760 | 63 | **473** (was 441) | 208 | 2875 / 473 |
+  | 560 | 63 | 273 | 208 | 2875 / 273 |
+  | 420 | 63 | **133** (was 101) | 208 | 2875 / 133 |
+
+- **Impact:** (+) +32 px of scrolling area at both 760 px and 420 px. (+) The tiling is asserted in window coordinates, so "they do not overlap" is a test rather than a claim. (−) The trace panel is 32 px shorter at full size; it scrolls internally.
+- **Alternatives considered:** restructuring to explicit proportional rows (rejected — `Auto,*,Auto` is not the defect and rewriting it would change the tiling that D-169 relies on); a `MaxHeight` in the 180–200 range (rejected — below 208 the box would clip its own scrollbar chrome).
+
+---
+
+## D-196 — The Per-server detail table is removed; the chart's bars carry everything (Phase 8S, issue 4)
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8S.
+- **Decision:** Remove the collapsed "Per-server detail" section from `ResultsPanel.axaml`, and with it `PerServerDetailRow`, `PerServerDetailRows`, `BuildPerServerRows`, the `FormatPercent` helper it orphaned, and `UtilisationChartData.PerServerDetail` with the `UtilisationServerDetail` record. Nothing else in the codebase consumed them.
+- **Rationale:** The owner's ruling. The section existed to give back the individual server numbers that the chart's 1/c rescale hides — but `UtilisationBarRow` already carries every one of them (`StageName`, `ServerNumber`, `Utilisation`, `Contribution`, `ServerCount`, `IsOutlier`), the bar tooltip prints them, and the caption states the arithmetic. The table duplicated a surface that was already complete, and D-171's "both numbers" requirement is a property of the **data**, which outlives the table.
+- **Impact:** (+) One fewer collapsed section and one fewer representation of the same numbers to keep in step. (+) `PerServerDetail_...` could not go stale against the bars, because it no longer exists. (−) A reader who wanted a per-server number must hover a bar or read the tooltip.
+- **Verification:** `UtilisationChart_BarsCarryEverythingTheDetailTableCarried` asserts the removal claim rather than assuming it — 11 bars in flattened order, both numbers in range on every bar, `Contribution == Utilisation / ServerCount` to 6 places, and exactly 2 outliers. The two D-171 invariants that previously read the detail rows now recover the stage total from the equal-share benchmark (`EqualShare × c`), which is the same number by a different route.
+
+---
+
+## D-197 — The equal-share benchmark is verified structurally, not by pixel extraction (Phase 8S, issue 5)
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8S. **Pixel-level verification was attempted and abandoned; recorded rather than glossed.**
+- **Decision:** Assert the benchmark's position from the structure that decides it, and add `Padding = 0` to the per-stage `ColumnSeries`.
+- **Rationale:** The owner asked for verification against realised bar geometry. A pixel probe was written: capture the window, scan for tall dark runs (bars) and wide dark runs (the line). **`HeadlessScreenshot.Capture` does not contain LiveCharts' Skia layer** — the probe found the x-axis rule and the plot border but no bar or benchmark pixels, so there is nothing to measure. Rather than claim a verification that did not happen, the alignment is pinned by the invariant that determines it: there is one `ColumnSeries` per stage, each holding a value only at its own stage's slots, so **every category is claimed by exactly one column series**. LiveCharts divides a category's band between the series that have a value in it; with one claimant the bar is centred, and a line at the same index is centred on it. Two claimants would split the band and slide the bar off the line.
+- **Verified by mutation:** forcing every stage to start at slot 0 made `UtilisationChart_BenchmarkLine_AlignedWithBarCentres` fail with *"category 0 ('Triage S1') is claimed by 3 column series — the band would split and the benchmark would miss the bar centre"*.
+- **`Padding = 0`:** LiveCharts insets each bar inside its share of the band by `Padding`, which moves the drawn bar off the category centre the line is drawn at. Zero removes the inset.
+- **Impact:** (+) The alignment has a test with teeth and a stated mechanism. (+) Markers stay off (`GeometrySize = 0`) so the benchmark reads as a reference, not a second data series. (−) The exact pixel position is still unverified in an automated gate; `phase-8s-utilisation-benchmark.png` is the owner's visual check, per §18 / D-089.
+
+---
+
+## D-187 amendment — the numeric-alignment rule needs a shared column (Phase 8S, issue 1, owner ruling)
+
+The owner reviewed the System totals widget and ruled that its values belong **beside
+their labels**. D-187 right-aligns numeric columns so their decimal points line up,
+and that rule is unchanged for the **four real listing tables** (per stage,
+performance measures, chi-square, analytical) — all of them keep right-alignment and
+their serial columns.
+
+The amendment is to the Overview **System totals** widget only. It is a `label:value`
+list, not a listing table: it has no header row and no shared column set, because every
+row is its own `Grid`. `ColumnDefinitions="170,*"` with `TextAlignment="Right"` pushed
+every value to the panel's far right edge — measured at **x = 1118** when the label
+column ends at **x = 186** — without lining any two values up with each other, since
+each row sizes independently. `ColumnDefinitions="170,Auto"` with
+`TextAlignment="Left"` puts the value next to its own label, which is what a
+label:value list is for.
+
+The test that proves it measures **where the glyphs are**, not the cell: a
+right-aligned `TextBlock` in a `*` column has an identical box either way — the digits
+move inside it — so measuring `Bounds` is precisely the mistake to avoid (D-186).
+Measured after the fix, every value starts at **x = 179**, matching the label column
+plus the 8 px spacing, and each value cell hugs its text.
