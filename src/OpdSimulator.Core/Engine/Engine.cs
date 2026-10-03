@@ -65,6 +65,15 @@ public sealed class Engine
     private List<double>[]? _stageWaitSamples;
     private List<QueueSample>[]? _stageQueueSeries;
 
+    // Close-of-session bookkeeping (D-191): patients present per stage when
+    // arrivals stopped, and each stage's last service end, which together give
+    // the backlog and the drain time. All per-run, released like the buffers above.
+    private double[]? _stageLastServiceEnd;
+    private int[]? _backlogAtClose;
+    private int[][]? _backlogPerDayAtClose;
+    private bool[]? _dailyBacklogCaptured;
+    private bool _backlogCaptured;
+
     // Per-run generated-value samples (Phase 8A): the inter-arrival and service
     // times the RNG actually produced, retained so a later goodness-of-fit pass
     // can test the simulation output itself. Always recorded; released at the
@@ -227,7 +236,6 @@ public sealed class Engine
         // never consumes draws.
         topology.Validate();
 
-        var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap);
 
         // Per-run trace target; null means no tracing for this run. Seeding the
         // wrapper resets its draw counter, so draw numbers always start at #1.
@@ -253,6 +261,8 @@ public sealed class Engine
         }
 
         // Fresh per-run runtime state: queues and servers never leak between runs.
+        var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap, topology.StageSpecs.Count);
+
         var stages = Enumerable.Range(0, topology.StageSpecs.Count)
             .Select(i => topology.CreateStage(i))
             .ToArray();
@@ -288,6 +298,16 @@ public sealed class Engine
         _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<double>()).ToArray();
         _stageQueueSeries = Enumerable.Range(0, stages.Length).Select(_ => new List<QueueSample>()).ToArray();
 
+        // Close-of-session buffers (D-191). The per-day arrays exist only for a
+        // calendar run; a horizon run has a single close.
+        _stageLastServiceEnd = new double[stages.Length];
+        _backlogAtClose = new int[stages.Length];
+        _backlogPerDayAtClose = gate is null
+            ? null
+            : Enumerable.Range(0, gate.GeneratorDays).Select(_ => new int[stages.Length]).ToArray();
+        _dailyBacklogCaptured = gate is null ? null : new bool[gate.GeneratorDays];
+        _backlogCaptured = false;
+
         // Generated-value buffers (Phase 8A): one inter-arrival list and one
         // service-time list per stage. Always retained, released after the run.
         _generatedInterArrivals = new List<double>();
@@ -295,6 +315,12 @@ public sealed class Engine
 
         // First arrival at t = 0 (CONTEXT §4.3).
         fel.Enqueue(new Event(0, EventType.Arrival, nextPatientId));
+
+        // Arrivals stop at this instant, and the run then drains whatever is still
+        // in the system (FR-SIM-6). It is the "close" the backlog is measured at:
+        // the admitted load that arrived inside the session and had not yet been
+        // served when the session ended (D-191).
+        double closeTime = gate is not null ? gate.StopTime : horizonMinutes;
 
         while (fel.Count > 0)
         {
@@ -304,6 +330,34 @@ public sealed class Engine
             // Calendar bookkeeping must be current before any admission or
             // service-accounting decision in this event.
             gate?.AdvanceTo(clock);
+
+            // Capture the backlog at the close of arrivals (D-191). Events are
+            // processed in time order and the run always has one at or after the
+            // close whenever anyone was still in the system, so this lands exactly
+            // on the close and never twice. A run that ends before the close never
+            // had a backlog to clear, so it stays at zero.
+            if (gate is not null)
+            {
+                // Calendar run: captured at the close of EACH day block, so a
+                // multi-day run can report a per-day average rather than one number
+                // for the whole horizon. CurrentDayIndex is clamped to the last
+                // block, so trailing drain stays on the final day — the same
+                // attribution the operating-time denominator already uses.
+                int day = gate.CurrentDayIndex;
+                if (!_dailyBacklogCaptured![day] && clock >= gate.CloseTimeForDay(day))
+                {
+                    for (int i = 0; i < stages.Length; i++)
+                        _backlogPerDayAtClose![day][i] = stages[i].Queue.Count + stages[i].Servers.Count(s => s.IsBusy);
+                    _dailyBacklogCaptured![day] = true;
+                }
+            }
+            else if (!_backlogCaptured && clock >= closeTime)
+            {
+                // Horizon run: there is one close, at the end of the arrival window.
+                for (int i = 0; i < stages.Length; i++)
+                    _backlogAtClose![i] = stages[i].Queue.Count + stages[i].Servers.Count(s => s.IsBusy);
+                _backlogCaptured = true;
+            }
 
             // Time-weighted queue length: each stage's queue sampled throughout
             // the interval [lastMetricTime, clock] held its previous length.
@@ -323,7 +377,7 @@ public sealed class Engine
             switch (evt.Type)
             {
                 case EventType.Arrival:
-                    HandleArrival(evt, clock, stages[0], topology.ArrivalRate, fel,
+                    HandleArrival(evt, clock, topology, stages, topology.ArrivalRate, fel,
                         inService, patientServer, ref nextPatientId, stageWaitMinutes,
                         gate, horizonMinutes);
                     break;
@@ -331,9 +385,8 @@ public sealed class Engine
                 case EventType.ReceptionEnd:
                 case EventType.ScreeningEnd:
                 case EventType.DoctorEnd:
-                    gate?.NoteServiceEnd(clock);
                     HandleServiceEnd(evt, clock, stages, topology, fel, inService, patientServer,
-                        stageWaitMinutes, ref totalSystemMinutes, ref completed);
+                        stageWaitMinutes, ref totalSystemMinutes, ref completed, gate);
                     break;
 
                 default:
@@ -363,6 +416,11 @@ public sealed class Engine
                 .ToArray();
             int servedHere = stage.Servers.Sum(s => s.PatientsServed);
 
+            // Drain is measured from the close of arrivals to the stage's last
+            // service end. A stage that finished serving before the close — or that
+            // never saw a patient — has nothing to drain, hence the clamp (D-191).
+            double drain = Math.Max(0.0, _stageLastServiceEnd![i] - closeTime);
+
             return new StageMetrics
             {
                 StageName = stage.Name,
@@ -378,8 +436,39 @@ public sealed class Engine
                 ThroughputPerMinute = operatingTime > 0 ? servedHere / operatingTime : 0,
                 WaitingTimeSamples = _stageWaitSamples![i],
                 QueueLengthSeries = _stageQueueSeries![i],
+                // The scalars keep their original meaning: the state at the FINAL
+                // close of the run (D-193). The series carries one entry per
+                // operating session, so a multi-day average can be computed from
+                // real per-stage numbers instead of one day's figure reused.
+                BacklogAtClose = gate is not null
+                    ? _backlogPerDayAtClose![gate.GeneratorDays - 1][i]
+                    : _backlogAtClose![i],
+                DrainMinutes = drain,
+                BacklogAtCloseBySession = gate is null
+                    ? new[] { _backlogAtClose![i] }
+                    : Enumerable.Range(0, gate.GeneratorDays)
+                        .Select(d => _backlogPerDayAtClose![d][i]).ToArray(),
+                DrainMinutesBySession = gate is null
+                    ? new[] { drain }
+                    : Enumerable.Range(0, gate.GeneratorDays)
+                        .Select(d => gate.DrainMinutesForDay(d, i)).ToArray(),
             };
         }).ToArray();
+
+        // Per-day close-of-session figures for a multi-day average (D-191). The
+        // backlog is the whole system's count at that day's close; the drain is that
+        // day's close to that day's last service end, reusing the same per-day
+        // service-end bookkeeping the operating-time denominator is built from.
+        int[] backlogPerDay = gate is null
+            ? Array.Empty<int>()
+            : Enumerable.Range(0, gate.GeneratorDays)
+                .Select(d => _backlogPerDayAtClose![d].Sum())
+                .ToArray();
+        double[] drainPerDay = gate is null
+            ? Array.Empty<double>()
+            : Enumerable.Range(0, gate.GeneratorDays)
+                .Select(d => gate.DrainMinutesForDay(d))
+                .ToArray();
 
         // Release the per-run buffers; a later run allocates fresh ones.
         var generatedInterArrivals = _generatedInterArrivals!;
@@ -388,6 +477,10 @@ public sealed class Engine
             .ToList();
         _stageWaitSamples = null;
         _stageQueueSeries = null;
+        _stageLastServiceEnd = null;
+        _backlogAtClose = null;
+        _backlogPerDayAtClose = null;
+        _dailyBacklogCaptured = null;
         _generatedInterArrivals = null;
         _generatedServiceSamples = null;
         _serviceSamplers = null;
@@ -408,6 +501,9 @@ public sealed class Engine
             OperatingTimeMinutes = operatingTime,
             StageMetrics = stageMetrics,
             AdmittedPerDay = gate?.AdmittedPerDay ?? Array.Empty<int>(),
+            ScreeningAdmittedPerDay = gate?.ScreeningAdmittedPerDay ?? Array.Empty<int>(),
+            BacklogPerDay = backlogPerDay,
+            DrainPerDay = drainPerDay,
             GeneratorDays = gate?.GeneratorDays ?? 0,
             DailyCap = gate?.DailyCap,
             GeneratedInterArrivalSamples = generatedInterArrivals,
@@ -418,7 +514,8 @@ public sealed class Engine
     private void HandleArrival(
         Event evt,
         double clock,
-        Stage stage,
+        NetworkTopology topology,
+        IReadOnlyList<Stage> stages,
         double arrivalRate,
         FEL fel,
         Dictionary<int, Patient> inService,
@@ -429,12 +526,43 @@ public sealed class Engine
         double horizonMinutes)
     {
         // A calendar run admits only arrivals that land inside an open-day
-        // window and remain under the daily cap; everything else is gated out
-        // but the Poisson stream still advances (the demand exists, the
-        // calendar is the admission gate).
-        if (gate is null || gate.TryAdmit(clock))
+        // window; everything else is gated out but the Poisson stream still
+        // advances (the demand exists, the calendar is the admission gate).
+        //
+        // The window is checked FIRST and on its own, before any routing draw. A
+        // patient who cannot be admitted never reaches a routing decision, and a
+        // bypass arrival is subject to the opening hours exactly like a
+        // Screening-bound one (D-190).
+        bool inWindow = gate is null || gate.IsInWindow(clock);
+
+        // When the skipped stage is the first one, the bypass draw happens HERE at
+        // the arrival event rather than at a service completion (D-189). This is the
+        // 2-stage clinic topology: a bypassed patient never enters Screening at all,
+        // which is what makes λ_screening = λ₀(1 − p_bypass) in the first place.
+        bool bypassed = false;
+        if (inWindow && topology.BypassAtArrival)
         {
-            var patient = new Patient(evt.PatientId, clock, stageIndex: 0);
+            double u = _random.NextDouble();
+            bypassed = u < topology.BypassProbability;
+            string outcome = bypassed
+                ? $"skip stage {topology.BypassStageIndex} ({stages[topology.BypassStageIndex].Name})"
+                : $"enter stage {topology.BypassStageIndex} ({stages[topology.BypassStageIndex].Name})";
+            EmitRngDraw(clock, FormattableString.Invariant(
+                $"arrival-time bypass draw U={u:0.####} vs p_bypass={topology.BypassProbability:0.####} → {outcome}"));
+            _log.Debug("    -> arrival bypass draw={Draw:0.####} p_bypass={PBypass:0.####}", u, topology.BypassProbability);
+        }
+
+        int destinationIndex = bypassed ? topology.BypassDestinationIndex : 0;
+        var stage = stages[destinationIndex];
+
+        // Only a Screening-bound arrival consumes a place under the daily cap.
+        if (!inWindow || !(gate is null || gate.TryAdmit(clock, screeningBound: destinationIndex == 0)))
+        {
+            _log.Debug("    -> arrival not admitted (outside the window, or over the daily screening cap): patient={PatientId}", evt.PatientId);
+        }
+        else
+        {
+            var patient = new Patient(evt.PatientId, clock, stageIndex: destinationIndex);
 
             // Arrival row: the arriving patient is present in the stage whether
             // they are queued or served at once, so q = queue + 1.
@@ -452,10 +580,6 @@ public sealed class Engine
                 stage.Queue.Enqueue(patient);
                 _log.Debug("    -> queued patient={PatientId}, queueLen={QueueLen}", patient.Id, stage.Queue.Count);
             }
-        }
-        else
-        {
-            _log.Debug("    -> arrival outside the window (or over the daily cap): patient={PatientId} not admitted", evt.PatientId);
         }
 
         // Schedule the next arrival only inside the arrival window — horizon
@@ -525,16 +649,31 @@ public sealed class Engine
         Dictionary<int, Server> patientServer,
         double[] stageWaitMinutes,
         ref double totalSystemMinutes,
-        ref int completed)
+        ref int completed,
+        CalendarGate? gate)
     {
         var patient = inService[evt.PatientId];
         var server = patientServer[evt.PatientId];
         var stage = stages[patient.StageIndex];
 
+        // The per-stage drain is recorded here, not at the event switch above,
+        // because this is the first point where the completing patient's stage is
+        // known (D-193). Recording it in the switch would have meant guessing the
+        // stage index from the event type and keeping that mapping in step with
+        // HandleServiceEnd's own.
+        gate?.NoteServiceEnd(clock, patient.StageIndex);
+
         patient.MarkServiceCompleted(clock);
         server.EndService(clock);
         inService.Remove(evt.PatientId);
         patientServer.Remove(evt.PatientId);
+
+        // Last service end per stage: the backlog present when arrivals stopped is
+        // drained once every patient present at that moment has completed, so the
+        // stage's drain time is measured from the close of arrivals to here (D-191).
+        var lastEnd = _stageLastServiceEnd!;
+        if (clock > lastEnd[patient.StageIndex])
+            lastEnd[patient.StageIndex] = clock;
 
         // Default flow: the next stage, and the last stage exits.
         int nextIndex = patient.StageIndex + 1;
@@ -551,11 +690,21 @@ public sealed class Engine
             exits = leaves;
         }
 
-        // Bypass (D-179): the same shape as the exit draw, but instead of leaving
-        // the system the patient jumps over the stages in between. The constructor
-        // refuses BypassStageIndex == ExitStageIndex, so the two draws can never
-        // both fire on one completion and the order between them cannot matter.
-        if (!exits && topology.BypassEnabled && patient.StageIndex == topology.BypassStageIndex)
+        // Bypass (D-179, reshaped by D-189): the same shape as the exit draw, but
+        // instead of leaving the system the patient jumps over the stage in
+        // between. S is the stage being SKIPPED, so the draw rides on the
+        // completion of stage S − 1 — the completion on which the patient would
+        // otherwise have been routed into S. S == 0 has no such completion and is
+        // drawn at the arrival event instead (HandleArrival).
+        //
+        // Because S is the skipped stage, drawing at S (the old behaviour) would
+        // mean the patient was served at S before jumping over it — the coin would
+        // fire once per stage rather than once per patient.
+        //
+        // The constructor refuses BypassTriggerStageIndex == ExitStageIndex, so the
+        // two draws can never both fire on one completion and the order between
+        // them cannot matter.
+        if (!exits && topology.BypassEnabled && patient.StageIndex == topology.BypassTriggerStageIndex)
         {
             double u = _random.NextDouble();
             bool bypasses = u < topology.BypassProbability;
@@ -714,8 +863,17 @@ public sealed class Engine
         private readonly ClinicCalendar _calendar;
 
         private readonly int[] _admittedPerDay;
+        private readonly int[] _screeningAdmittedPerDay;
         private readonly double?[] _dayFirstArrival;
         private readonly double[] _dayLastServiceEnd;
+
+        /// <summary>
+        /// Per-stage last service end per day block (D-193). Separate from
+        /// <see cref="_dayLastServiceEnd"/>, which stays system-wide because the
+        /// operating-time denominator is defined on the whole system's last service
+        /// end — repurpose it and every recorded utilisation baseline moves.
+        /// </summary>
+        private readonly double[][] _dayStageLastServiceEnd;
 
         /// <summary>
         /// Creates the gate for a run of <paramref name="generatorDays"/>
@@ -723,8 +881,10 @@ public sealed class Engine
         /// </summary>
         /// <param name="calendar">The clinic schedule.</param>
         /// <param name="generatorDays">Number of calendar-day blocks to generate arrivals for.</param>
-        /// <param name="dailyCap">Maximum admissions per day block; null = unlimited.</param>
-        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap)
+        /// <param name="dailyCap">Maximum <b>Screening-bound</b> admissions per day block;
+        /// null = unlimited. A patient routed past Screening by the arrival-time bypass
+        /// does not consume a place (D-190).</param>
+        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap, int stageCount)
         {
             _calendar = calendar;
             GeneratorDays = generatorDays;
@@ -735,8 +895,14 @@ public sealed class Engine
             StopTime = (generatorDays - 1) * ClinicCalendar.MinutesPerDay + calendar.OpenDurationMinutes;
 
             _admittedPerDay = new int[generatorDays];
+            _screeningAdmittedPerDay = new int[generatorDays];
             _dayFirstArrival = new double?[generatorDays];
             _dayLastServiceEnd = new double[generatorDays];
+            _dayStageLastServiceEnd = new double[generatorDays][];
+            for (var d = 0; d < generatorDays; d++)
+            {
+                _dayStageLastServiceEnd[d] = new double[stageCount];
+            }
 
             CurrentDayIndex = -1;
         }
@@ -744,7 +910,9 @@ public sealed class Engine
         /// <summary>Number of calendar-day blocks the run generates arrivals for.</summary>
         public int GeneratorDays { get; }
 
-        /// <summary>Maximum admissions per day block, or null when unlimited.</summary>
+        /// <summary>
+        /// Maximum Screening-bound admissions per day block, or null when unlimited.
+        /// </summary>
         public int? DailyCap { get; }
 
         /// <summary>Clock time after which no further arrivals are scheduled.</summary>
@@ -753,11 +921,47 @@ public sealed class Engine
         /// <summary>The day block the clock is currently inside (clamped).</summary>
         public int CurrentDayIndex { get; private set; }
 
-        /// <summary>Admissions so far in the current day block.</summary>
+        /// <summary>
+        /// Every admitted arrival so far in the current day block, including
+        /// arrivals routed past Screening by the bypass.
+        /// </summary>
+        /// <remarks>
+        /// This is the counter the admission metrics report, and it deliberately
+        /// still counts <i>all</i> arrivals. The daily cap reads a different
+        /// counter — <see cref="ScreeningAdmittedToday"/> — so that turning the cap
+        /// on cannot silently change what "admitted" means in the results (D-190).
+        /// </remarks>
         public int AdmittedToday { get; private set; }
+
+        /// <summary>
+        /// Admissions so far in the current day block that are bound for Screening —
+        /// the only arrivals the daily cap constrains (D-190).
+        /// </summary>
+        public int ScreeningAdmittedToday { get; private set; }
+
+        /// <summary>
+        /// The instant arrivals close for the given day block: the end of that day's
+        /// arrival window (D-191).
+        /// </summary>
+        /// <param name="dayIndex">Zero-based day block index.</param>
+        /// <returns>Clock time at which that day's arrivals stop.</returns>
+        public double CloseTimeForDay(int dayIndex)
+            => dayIndex * ClinicCalendar.MinutesPerDay + _calendar.OpenDurationMinutes;
+
+        /// <summary>
+        /// Minutes from a day block's close of arrivals to that day's last service
+        /// end — the time taken to clear the backlog left at the close (D-191).
+        /// </summary>
+        /// <param name="dayIndex">Zero-based day block index.</param>
+        /// <returns>Drain time in minutes; 0 when the day had nothing to drain.</returns>
+        public double DrainMinutesForDay(int dayIndex)
+            => Math.Max(0.0, _dayLastServiceEnd[dayIndex] - CloseTimeForDay(dayIndex));
 
         /// <summary>Admitted arrivals per day block over the whole run.</summary>
         public int[] AdmittedPerDay => _admittedPerDay;
+
+        /// <summary>Screening-bound admissions per day block over the whole run.</summary>
+        public int[] ScreeningAdmittedPerDay => _screeningAdmittedPerDay;
 
         /// <summary>
         /// Switches the day bookkeeping to the block containing
@@ -773,24 +977,49 @@ public sealed class Engine
             {
                 CurrentDayIndex = day;
                 AdmittedToday = 0; // daily cap resets each day block (D-009)
+                ScreeningAdmittedToday = 0; // and so does the counter it actually constrains (D-190)
             }
         }
+
+        /// <summary>
+        /// Whether <paramref name="clock"/> falls inside an open-day arrival
+        /// window.
+        /// </summary>
+        /// <remarks>
+        /// Checked before any routing draw, because a patient who cannot be
+        /// admitted at all never reaches a routing decision — and because the
+        /// window applies to bypass arrivals too: nobody walks in when the clinic
+        /// is shut, whether or not they are going to be screened (D-190).
+        /// </remarks>
+        /// <param name="clock">The arrival's simulation time.</param>
+        /// <returns>True when the clinic is taking arrivals at that time.</returns>
+        public bool IsInWindow(double clock) => _calendar.IsInArrivalWindow(clock);
 
         /// <summary>
         /// Attempts to admit an arrival at <paramref name="clock"/>.
         /// </summary>
         /// <param name="clock">The arrival's simulation time.</param>
-        /// <returns>True if the arrival is inside an open-day window and under
-        /// the daily cap; false (gated out) otherwise.</returns>
-        public bool TryAdmit(double clock)
+        /// <param name="screeningBound">Whether the patient is routed into Screening.
+        /// Only these arrivals consume a place under the daily cap: a patient who
+        /// jumps straight to a later stage is admitted regardless of how full the
+        /// Screening list is, because the cap models the screening session's
+        /// admitted load, not the building's head count (D-190).</param>
+        /// <returns>True if the arrival is inside an open-day window and, when it is
+        /// Screening-bound, under the daily cap; false (gated out) otherwise.</returns>
+        public bool TryAdmit(double clock, bool screeningBound = true)
         {
             if (!_calendar.IsInArrivalWindow(clock))
                 return false;
-            if (DailyCap is { } cap && AdmittedToday >= cap)
+            if (screeningBound && DailyCap is { } cap && ScreeningAdmittedToday >= cap)
                 return false;
 
             AdmittedToday++;
             _admittedPerDay[CurrentDayIndex]++;
+            if (screeningBound)
+            {
+                ScreeningAdmittedToday++;
+                _screeningAdmittedPerDay[CurrentDayIndex]++;
+            }
             _dayFirstArrival[CurrentDayIndex] ??= clock;
             return true;
         }
@@ -800,8 +1029,23 @@ public sealed class Engine
         /// that day's last service end monotonic.
         /// </summary>
         /// <param name="clock">The completion's simulation time.</param>
-        public void NoteServiceEnd(double clock)
-            => _dayLastServiceEnd[CurrentDayIndex] = Math.Max(_dayLastServiceEnd[CurrentDayIndex], clock);
+        public void NoteServiceEnd(double clock, int stageIndex)
+        {
+            var day = CurrentDayIndex;
+            _dayLastServiceEnd[day] = Math.Max(_dayLastServiceEnd[day], clock);
+            var perStage = _dayStageLastServiceEnd[day];
+            perStage[stageIndex] = Math.Max(perStage[stageIndex], clock);
+        }
+
+        /// <summary>
+        /// Drain for ONE stage on ONE day: that stage's last service end minus that
+        /// day's close, clamped at zero (D-193). The system-wide
+        /// <see cref="DrainMinutesForDay(int)"/> is the max across stages, which is
+        /// the right figure for "how long until the clinic is empty" and the wrong
+        /// one for "how long was this stage still working".
+        /// </summary>
+        public double DrainMinutesForDay(int dayIndex, int stageIndex)
+            => Math.Max(0.0, _dayStageLastServiceEnd[dayIndex][stageIndex] - CloseTimeForDay(dayIndex));
 
         /// <summary>
         /// Operating-time denominator: summed per open day block (first admitted

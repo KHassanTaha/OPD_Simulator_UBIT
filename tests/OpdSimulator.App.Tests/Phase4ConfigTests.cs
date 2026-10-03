@@ -185,7 +185,9 @@ public class Phase4ConfigTests
         Assert.False(vm.IsMultiDay);
         Assert.Equal("Monday", vm.StartDay);
         Assert.Equal("1", vm.Days.Value);
-        Assert.Equal("", vm.DailyCap.Value);
+        // D-190: a fresh launch carries the documented default, not a blank field.
+        Assert.Equal("85", vm.DailyCap.Value);
+        Assert.Equal(ConfigPanelViewModel.DefaultDailyCap, vm.DailyCap.Value);
         Assert.Equal("42", vm.Seed.Value);
         Assert.Equal("Detailed", vm.TraceLevel);
         // D-128: a reset returns to an empty fit-mode config, which is not startable.

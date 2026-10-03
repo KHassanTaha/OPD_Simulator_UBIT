@@ -199,6 +199,45 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- Backlog and drain (D-191). What the admitted load left behind
+                         when arrivals stopped, and how long each stage took to clear
+                         it. A "#" column per the 8Q.5 listing rule, and a Basis
+                         column so a multi-day average is never read as one day. -->
+                    <StackPanel Spacing="{DynamicResource SpaceS}" Margin="0,12,0,0">
+                        <TextBlock Text="Backlog and drain"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="{Binding TotalDrainText}"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                   TextWrapping="Wrap"/>
+                        <Grid ColumnDefinitions="30,86,*,64,*" ColumnSpacing="8">
+                            <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="2" Text="Backlog at close" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="3" Text="Drain (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Text="Basis" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding BacklogDrainRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BacklogDrainRow">
+                                    <Grid ColumnDefinitions="30,86,*,64,*" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding SerialNumber}"
+                                                   Foreground="{DynamicResource BrushTextMuted}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StageName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding BacklogAtClose}" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding DrainMinutes}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding Basis}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                                   TextAlignment="Left"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
                     <!-- Stability (Phase 8Q.3, D-183). Hidden until a run
                          exists, because a verdict about a run that has not
                          happened is not a verdict. The band name is rendered as

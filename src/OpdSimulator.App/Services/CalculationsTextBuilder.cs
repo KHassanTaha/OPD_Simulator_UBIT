@@ -406,6 +406,28 @@ public static class CalculationsTextBuilder
             Field(text, $"{stage.StageName} — served", stage.PatientsServed.ToString(CultureInfo.InvariantCulture));
             Field(text, $"{stage.StageName} — mean wait", $"{Num(stage.AverageWaitMinutes, 3)} min");
             Field(text, $"{stage.StageName} — mean queue", Num(stage.AverageQueueLength, 4));
+
+            // The scalar is the FINAL session's state. On a multi-day run the mean
+            // over sessions is a different and equally interesting number, so both
+            // are shown and both are named — a reader must never have to guess which
+            // one "backlog" refers to (D-193). One session: the scalar alone.
+            var backlogSeries = stage.BacklogAtCloseBySession;
+            if (backlogSeries.Count > 1)
+            {
+                Field(text, $"{stage.StageName} — final session",
+                    $"{stage.BacklogAtClose} patients");
+                Field(text, $"{stage.StageName} — mean across {backlogSeries.Count} sessions",
+                    $"{backlogSeries.Average():0.#} patients (range {backlogSeries.Min()}-{backlogSeries.Max()})");
+            }
+
+            var drainSeries = stage.DrainMinutesBySession;
+            if (drainSeries.Count > 1)
+            {
+                Field(text, $"{stage.StageName} — final session",
+                    $"{Num(stage.DrainMinutes, 2)} min");
+                Field(text, $"{stage.StageName} — mean across {drainSeries.Count} sessions",
+                    $"{Num(drainSeries.Average(), 2)} min (range {Num(drainSeries.Min(), 2)}-{Num(drainSeries.Max(), 2)})");
+            }
         }
 
         return text;

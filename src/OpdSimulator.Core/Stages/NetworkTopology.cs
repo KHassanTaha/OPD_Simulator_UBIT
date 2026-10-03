@@ -39,11 +39,18 @@ public sealed class NetworkTopology
     /// in [0, 1). Ignored when <paramref name="exitStageIndex"/> is −1.</param>
     /// <param name="bypassProbability">Probability p_bypass that a patient skips a stage and is
     /// routed straight past it, in [0, 1). 0 disables bypass entirely (D-179).</param>
-    /// <param name="bypassStageIndex">Zero-based index of the stage whose completion triggers the
-    /// bypass draw (Reception = 0); −1 for no bypass.</param>
+    /// <param name="bypassStageIndex">Zero-based index of the stage being <b>skipped</b> — the
+    /// stage a bypassed patient never enters. The draw fires on the completion of
+    /// <c>bypassStageIndex − 1</c>, or at the arrival event when this is 0 (D-189);
+    /// −1 for no bypass.</param>
     /// <param name="bypassDestinationIndex">Zero-based index of the stage a bypassed patient lands
     /// in; −1 for no bypass. Must be strictly after <paramref name="bypassStageIndex"/>, since
     /// routing backwards would be a cycle rather than a skip.</param>
+    /// <param name="screeningArrivalCap">Maximum admitted rate into
+    /// <paramref name="screeningCapStageIndex"/> in patients per minute — the daily cap
+    /// divided by the session length. null for no cap (D-190).</param>
+    /// <param name="screeningCapStageIndex">Index of the stage the admitted-load cap applies
+    /// to. −1 when no cap is configured.</param>
     public NetworkTopology(
         double arrivalRate,
         IReadOnlyList<StageSpec> stageSpecs,
@@ -51,7 +58,9 @@ public sealed class NetworkTopology
         double exitProbability = 0.0,
         double bypassProbability = 0.0,
         int bypassStageIndex = -1,
-        int bypassDestinationIndex = -1)
+        int bypassDestinationIndex = -1,
+        double? screeningArrivalCap = null,
+        int screeningCapStageIndex = -1)
     {
         if (arrivalRate <= 0)
             throw new ArgumentOutOfRangeException(nameof(arrivalRate), arrivalRate, "Arrival rate λ must be strictly positive.");
@@ -66,15 +75,41 @@ public sealed class NetworkTopology
         // domain, same "a probability of zero means the mechanism is off" reading.
         if (bypassProbability < 0.0 || bypassProbability >= 1.0)
             throw new ArgumentOutOfRangeException(nameof(bypassProbability), bypassProbability, "Bypass probability must be in [0, 1).");
+        if (bypassProbability > 0.0 && stageSpecs.Count < 2)
+            throw new ArgumentException(
+                "Bypass needs at least two stages: a patient cannot skip a stage and land somewhere else if there is nowhere else to land.",
+                nameof(bypassStageIndex));
         if (bypassProbability > 0.0 && (bypassStageIndex < 0 || bypassStageIndex >= stageSpecs.Count))
             throw new ArgumentOutOfRangeException(nameof(bypassStageIndex), bypassStageIndex, "The bypass stage must exist inside the stage list.");
         if (bypassProbability > 0.0 && (bypassDestinationIndex <= bypassStageIndex || bypassDestinationIndex >= stageSpecs.Count))
             throw new ArgumentOutOfRangeException(
                 nameof(bypassDestinationIndex), bypassDestinationIndex,
                 $"The bypass destination must come after the bypass stage ({bypassStageIndex}) and inside the stage list ({stageSpecs.Count - 1}).");
-        if (bypassProbability > 0.0 && bypassStageIndex == exitStageIndex)
+
+        // The collision test is OFF BY ONE relative to the exit stage, and getting
+        // it wrong rejects both configurations the owner requires (D-189).
+        //
+        // S is the stage being SKIPPED, so the bypass draw fires when the patient
+        // would be routed INTO S:
+        //
+        //   S == 0  → at the arrival event, before the patient enters any stage.
+        //              Not a service completion at all, so it can never collide
+        //              with the exit draw. This is the 2-stage clinic file
+        //              ([Screening, Doctor], S = 0, D = 1, ExitStageIndex = 0).
+        //
+        //   S > 0   → at the completion of stage S − 1.
+        //
+        // The exit draw fires at the completion of ExitStageIndex, so the two can
+        // compete for the same completion exactly when S − 1 == ExitStageIndex.
+        // S == ExitStageIndex is NOT the test: for the 3-stage OPD (S = 1,
+        // ExitStageIndex = 1) that reads as a collision while S − 1 = 0 ≠ 1 shows
+        // there is none, and rejecting on it refuses a configuration that runs
+        // perfectly well. The old rule (D-179) used S == ExitStageIndex and was
+        // therefore wrong twice over — it rejected the 2-stage file outright and
+        // rejected the 3-stage file for a collision that does not exist.
+        if (bypassProbability > 0.0 && bypassStageIndex > 0 && exitProbability > 0.0 && bypassStageIndex - 1 == exitStageIndex)
             throw new ArgumentException(
-                $"The bypass stage ({bypassStageIndex}) cannot also be the exit stage: both draws would fire on the same service completion and the destination would depend on which was consulted first.",
+                $"The bypass stage ({bypassStageIndex}) is entered on the completion of stage {bypassStageIndex - 1}, which is also the exit stage: one service completion would have to resolve to both an exit and a bypass, and the destination would depend on which was consulted first. Move the bypass source or the exit stage.",
                 nameof(bypassStageIndex));
 
         ArrivalRate = arrivalRate;
@@ -89,6 +124,19 @@ public sealed class NetworkTopology
         BypassProbability = bypassProbability;
         BypassStageIndex = bypassProbability > 0.0 ? bypassStageIndex : -1;
         BypassDestinationIndex = bypassProbability > 0.0 ? bypassDestinationIndex : -1;
+
+        // Admitted-load cap (D-190). A cap is meaningless without a stage to apply
+        // it to and without a positive rate, so both are checked together rather
+        // than letting a null rate fall through and quietly disable the cap.
+        if (screeningArrivalCap is { } cap && !(cap > 0))
+            throw new ArgumentOutOfRangeException(nameof(screeningArrivalCap), cap, "The admitted-load cap must be strictly positive.");
+        if (screeningArrivalCap is not null && (screeningCapStageIndex < 0 || screeningCapStageIndex >= stageSpecs.Count))
+            throw new ArgumentOutOfRangeException(nameof(screeningCapStageIndex), screeningCapStageIndex, "The capped stage must exist inside the stage list.");
+        if (screeningArrivalCap is null && screeningCapStageIndex != -1)
+            throw new ArgumentException("A capped stage index was supplied without a cap rate.", nameof(screeningCapStageIndex));
+
+        ScreeningArrivalCap = screeningArrivalCap;
+        ScreeningCapStageIndex = screeningArrivalCap is not null ? screeningCapStageIndex : -1;
     }
 
     /// <summary>External arrival rate λ₀ at the first stage (patients per minute).</summary>
@@ -116,14 +164,48 @@ public sealed class NetworkTopology
     /// </summary>
     public int BypassStageIndex { get; }
 
-    /// <summary>
-    /// Index of the stage a bypassed patient lands in, or −1 when bypass is
-    /// disabled.
-    /// </summary>
+    /// <summary>Index of a bypassed patient's destination, or −1 when bypass is disabled.</summary>
     public int BypassDestinationIndex { get; }
 
     /// <summary>Whether a bypass draw can fire at all.</summary>
     public bool BypassEnabled => BypassStageIndex >= 0;
+
+    /// <summary>
+    /// Index of the stage whose service completion carries the bypass draw — the
+    /// completion on which the patient would otherwise be routed into
+    /// <see cref="BypassStageIndex"/>. Equals <c>BypassStageIndex − 1</c>.
+    /// </summary>
+    /// <remarks>
+    /// −1 when bypass is disabled, and also when <see cref="BypassStageIndex"/> is 0:
+    /// a patient who skips the very first stage is routed at the <b>arrival</b> event,
+    /// which is not a service completion, so there is no stage completion that can
+    /// carry the draw (D-189).
+    /// </remarks>
+    public int BypassTriggerStageIndex => BypassEnabled && BypassStageIndex > 0 ? BypassStageIndex - 1 : -1;
+
+    /// <summary>
+    /// Whether the bypass draw fires at the arrival event rather than at a service
+    /// completion, because the skipped stage is the first one (D-189).
+    /// </summary>
+    public bool BypassAtArrival => BypassEnabled && BypassStageIndex == 0;
+
+    /// <summary>
+    /// Maximum admitted rate into <see cref="ScreeningCapStageIndex"/> in patients
+    /// per minute, or null when no admitted-load cap is configured (D-190).
+    /// </summary>
+    /// <remarks>
+    /// Set from the daily cap divided by the session length, so the two can never
+    /// disagree. When present, <see cref="EffectiveArrivalRate"/> returns the rate a
+    /// stage will actually see rather than the rate demand would place on it, which
+    /// is what the stability check and the reported metrics both need.
+    /// </remarks>
+    public double? ScreeningArrivalCap { get; }
+
+    /// <summary>
+    /// Index of the stage the admitted-load cap applies to, or −1 when no cap is
+    /// configured (D-190).
+    /// </summary>
+    public int ScreeningCapStageIndex { get; }
 
     /// <summary>
     /// Inflow rate λᵢ at the given stage, as the <b>sum over every route that
@@ -141,28 +223,82 @@ public sealed class NetworkTopology
     /// So the rate is now propagated as a probability mass over stages. Starting
     /// with all of the external inflow at stage 0, each stage sends its share
     /// forward: normally all of it to the next stage; at the exit stage,
-    /// (1 − p_exit) of it; at the bypass stage, (1 − p_bypass) of it to the next
-    /// stage and p_bypass of it to the destination. The rate at a stage is λ₀
-    /// times the mass that reaches it.
+    /// (1 − p_exit) of it. Bypass injects p_bypass of the arriving mass straight
+    /// onto the destination. With bypass disabled this collapses back to the
+    /// original D-007 product, so an unmodified caller sees the same numbers it
+    /// always did.
     /// </para>
     /// <para>
-    /// For the three-stage clinic with bypass at Reception this reproduces the
-    /// owner's formula exactly: λ_screening = λ₀(1 − p_bypass) and
-    /// λ_doctor = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit). With bypass
-    /// disabled it collapses back to the original D-007 product, so an
-    /// unmodified caller sees the same numbers it always did.
+    /// The bypass share is applied at the <b>trigger</b> node
+    /// (<see cref="BypassTriggerStageIndex"/> = S − 1), which is the completion on
+    /// which the patient would be routed into the skipped stage S. Applying it at S
+    /// instead would fire the coin twice for a 3-stage chain and double-count the
+    /// share (D-189). When S == 0 the split happens before any stage, because the
+    /// draw fires at the arrival event.
+    /// </para>
+    /// <para>
+    /// For the 2-stage clinic file this gives λ_screening = λ₀(1 − p_bypass) and
+    /// λ_doctor = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit). For the 3-stage
+    /// OPD with S = 1 it gives λ_reception = λ₀, λ_screening = λ₀(1 − p_bypass)
+    /// and λ_doctor = λ₀·p_bypass + λ₀(1 − p_bypass)(1 − p_exit) — the same
+    /// flows D-179 produced, because its S = 0 drew on the same node (stage 0)
+    /// that S = 1 draws on.
     /// </para>
     /// </remarks>
     /// <param name="stageIndex">Zero-based index of the stage.</param>
     /// <returns>λᵢ in patients per minute.</returns>
     /// <exception cref="ArgumentOutOfRangeException">If the index is outside the topology.</exception>
     public double EffectiveArrivalRate(int stageIndex)
+        => ComputeArrivalRate(stageIndex, applyCap: true);
+
+    /// <summary>
+    /// The inflow a stage would see with no admitted-load cap applied — the rate
+    /// demand places on it before the cap turns patients away (D-190).
+    /// </summary>
+    /// <remarks>
+    /// Reported alongside the capped rate when a run is refused, so the user can see
+    /// how much of the overload the cap is absorbing rather than only the remainder.
+    /// </remarks>
+    /// <param name="stageIndex">Zero-based index of the stage.</param>
+    /// <returns>Uncapped λᵢ in patients per minute.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">If the index is outside the topology.</exception>
+    public double OfferedArrivalRate(int stageIndex)
+        => ComputeArrivalRate(stageIndex, applyCap: false);
+
+    private double ComputeArrivalRate(int stageIndex, bool applyCap)
     {
         if (stageIndex < 0 || stageIndex >= _stageSpecs.Length)
             throw new ArgumentOutOfRangeException(nameof(stageIndex), stageIndex, "Stage index outside the topology.");
 
         double[] mass = new double[_stageSpecs.Length];
-        mass[0] = 1.0;
+        double[] freeAtDestination = new double[_stageSpecs.Length]; // mass that skipped the capped stage
+
+        if (BypassAtArrival)
+        {
+            // The draw happens at the arrival event (D-189), so the split happens
+            // here and not at any stage: only 1 − p_bypass enters stage 0, and the
+            // bypass share lands directly on the destination. This is the ONLY place
+            // the skipped stage is the first one, so the case has exactly one
+            // reachable configuration — the 2-stage clinic file — which is what
+            // makes it cheap to test exhaustively.
+            mass[0] = 1.0 - BypassProbability;
+            mass[BypassDestinationIndex] += BypassProbability;
+            freeAtDestination[BypassDestinationIndex] += BypassProbability;
+        }
+        else
+        {
+            mass[0] = 1.0;
+        }
+
+        // Bypass fires on the completion of stage S − 1, because that is the
+        // completion on which the patient would be routed INTO the skipped stage.
+        // Putting it at S instead would fire the coin twice in the 3-stage case:
+        // once at Reception's completion (skipping Screening) and again at
+        // Screening's completion, double-counting the bypass share (D-189).
+        //
+        // S == 0 leaves this at −1, so the loop below never takes the bypass branch
+        // for the arrival-time case — the split was already applied above.
+        int trigger = BypassTriggerStageIndex;
 
         for (int i = 0; i <= stageIndex; i++)
         {
@@ -171,22 +307,49 @@ public sealed class NetworkTopology
             // reduce it. That is the whole difference between λᵢ and λᵢ₊₁.
             double incoming = mass[i];
 
-            if (i == ExitStageIndex)
+            if (i == trigger)
+            {
+                // The bypass share jumps past the skipped stages; the remainder
+                // enters the skipped stage as normal. The share is marked "free" so
+                // a downstream cap does not throttle it: a patient who never queued
+                // for screening never consumed a place in the screening session.
+                mass[BypassDestinationIndex] += incoming * BypassProbability;
+                freeAtDestination[BypassDestinationIndex] += incoming * BypassProbability;
+                if (i + 1 < mass.Length)
+                    mass[i + 1] += incoming * (1.0 - BypassProbability);
+            }
+            else if (i == ExitStageIndex)
             {
                 // The exit share leaves the system and contributes nothing downstream.
+                // The constructor guarantees `trigger != ExitStageIndex`, so the two
+                // decisions can never both apply to one completion and their order
+                // cannot matter (D-189).
                 double forwarded = incoming * (1.0 - ExitProbability);
                 if (i + 1 < mass.Length)
                     mass[i + 1] += forwarded;
             }
-            else if (i == BypassStageIndex)
-            {
-                if (i + 1 < mass.Length)
-                    mass[i + 1] += incoming * (1.0 - BypassProbability);
-                mass[BypassDestinationIndex] += incoming * BypassProbability;
-            }
             else if (i + 1 < mass.Length)
             {
                 mass[i + 1] += incoming;
+            }
+        }
+
+        // Admitted-load cap (D-190). A daily cap of N over a session of T minutes
+        // admits at most N/T per minute, so the Screening-bound inflow is clamped
+        // here and every downstream stage inherits the reduction — the patients the
+        // cap turns away never arrive, so they cannot reach the Doctor either.
+        // The bypass stream is left alone, because those patients never take a place
+        // in the screening session.
+        if (applyCap && ScreeningArrivalCap is { } capRate && stageIndex >= ScreeningCapStageIndex)
+        {
+            double capMass = capRate / ArrivalRate;
+            double offered = mass[ScreeningCapStageIndex];
+            if (offered > capMass && offered > 0)
+            {
+                double admittedShare = capMass / offered;
+                for (int j = ScreeningCapStageIndex + 1; j <= stageIndex; j++)
+                    mass[j] = freeAtDestination[j] + (mass[j] - freeAtDestination[j]) * admittedShare;
+                mass[ScreeningCapStageIndex] = capMass;
             }
         }
 
@@ -231,7 +394,10 @@ public sealed class NetworkTopology
         {
             double rho = RhoFor(i);
             if (rho >= 1.0)
-                unstable.Add(new UnstableStage(_stageSpecs[i].Name, EffectiveArrivalRate(i), _stageSpecs[i].ServerCount, _stageSpecs[i].ServiceRate, rho));
+                unstable.Add(new UnstableStage(
+                    _stageSpecs[i].Name, EffectiveArrivalRate(i), _stageSpecs[i].ServerCount, _stageSpecs[i].ServiceRate, rho,
+                    ScreeningArrivalCap is null ? null : OfferedArrivalRate(i),
+                    ScreeningArrivalCap));
         }
 
         if (unstable.Count > 0)

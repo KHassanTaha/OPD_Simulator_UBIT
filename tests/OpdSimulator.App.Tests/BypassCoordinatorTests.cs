@@ -18,6 +18,21 @@ namespace OpdSimulator.App.Tests;
 /// </remarks>
 public class BypassCoordinatorTests
 {
+    /// <summary>
+    /// Stage names matching the stage COUNT, mirroring the shapes the engine really
+    /// has to run: one stage, the 2-stage clinic capture (Screening → Doctor), and
+    /// the 3-stage OPD network (Reception → Screening → Doctor). Routing is by
+    /// index, so the names are cosmetic — but a fixture calling the front door
+    /// "Reception" in a two-stage network would quietly misdescribe what is being
+    /// tested.
+    /// </summary>
+    private static string[] StageNamesFor(int stageCount) => stageCount switch
+    {
+        1 => ["Reception"],
+        2 => ["Screening", "Doctor"],
+        _ => ["Reception", "Screening", "Doctor"],
+    };
+
     private static SimulationParameters Parameters(
         int stageCount = 3,
         double? pBypassOverride = null,
@@ -25,7 +40,7 @@ public class BypassCoordinatorTests
         ParameterMode.RateWise,
         "Exponential",
         manualLambda,
-        Enumerable.Range(1, stageCount).Select(i => i == 1 ? "Reception" : i == stageCount ? "Doctor" : "Screening").ToArray(),
+        StageNamesFor(stageCount),
         Enumerable.Repeat(2, stageCount).ToArray(),
         Enumerable.Repeat<double?>(null, stageCount).ToArray(),
         RunMode.ClinicDay,
@@ -97,12 +112,41 @@ public class BypassCoordinatorTests
     }
 
     [Fact]
-    public void TwoStageNetwork_NormalisesTheBypassToZero()
+    public void TwoStageNetwork_RoutesTheBypassWithTheDrawAtArrival()
     {
-        // There is no middle stage to skip, so the routing is meaningless. The run
-        // still happens; the outcome reports 0 rather than the typed value, so the
-        // calculations text cannot claim a bypass the engine did not perform.
+        // Since 8R a two-stage network is the arrival-time case, not a refusal: the
+        // skipped stage is the front door, so a quarter of arrivals never enter it
+        // and land on the Doctor instead (D-189). This is the shape of the clinic
+        // capture, and the 8Q coordinator refused to run it at all.
         var outcome = SimulationCoordinator.Run(Parameters(stageCount: 2, pBypassOverride: 0.25), binding: null);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal(0.25, outcome.EffectiveBypassProbability);
+
+        var screening = outcome.Result!.StageMetrics.Single(m => m.StageName == "Screening");
+        var doctor = outcome.Result.StageMetrics.Single(m => m.StageName == "Doctor");
+
+        // λ₀ = 0.5. Screening is the skipped stage and the front door, so it sees
+        // 0.5 × (1 − 0.25) = 0.375 — the bypass share never arrives at all.
+        Assert.Equal(0.5 * 0.75, screening.ArrivalRate, 3);
+
+        // The Doctor absorbs that bypass share directly and only the 60% of screened
+        // patients who do not exit there: 0.5 × 0.25 + 0.375 × 0.6 = 0.35. The 0.6
+        // is the coordinator's default p_exit (0.4) with no override and no file.
+        Assert.Equal(0.5 * 0.25 + screening.ArrivalRate * 0.6, doctor.ArrivalRate, 3);
+        Assert.True(
+            doctor.ArrivalRate > 0.5 * 0.25,
+            $"Doctor inflow ({doctor.ArrivalRate}) must exceed the bypass share alone ({0.5 * 0.25})");
+    }
+
+    [Fact]
+    public void SingleStageNetwork_NormalisesTheBypassToZero()
+    {
+        // One stage can neither skip anything nor land anywhere else, so bypass is
+        // genuinely meaningless. The run still happens; the outcome reports 0 rather
+        // than the typed value, so the calculations text cannot claim a bypass the
+        // engine did not perform.
+        var outcome = SimulationCoordinator.Run(Parameters(stageCount: 1, pBypassOverride: 0.25), binding: null);
 
         Assert.Null(outcome.Error);
         Assert.Equal(0.0, outcome.EffectiveBypassProbability);

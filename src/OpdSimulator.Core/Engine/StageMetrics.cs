@@ -52,4 +52,45 @@ public sealed record StageMetrics
 
     /// <summary>Queue length sampled once per processed event — the P2 queue-length-over-time line series.</summary>
     public IReadOnlyList<QueueSample> QueueLengthSeries { get; init; } = Array.Empty<QueueSample>();
+
+    /// <summary>
+    /// Patients present in this stage (waiting or in service) when arrivals closed
+    /// — the part of the admitted load the session did not get to (D-191).
+    /// </summary>
+    /// <remarks>
+    /// For a multi-day run this is the final day's figure; the per-day series behind
+    /// the average lives on <see cref="SimulationResult.BacklogPerDay"/>. 0 when the
+    /// run ended before the close, because then nothing was left over.
+    /// </remarks>
+    public int BacklogAtClose { get; init; }
+
+    /// <summary>
+    /// Minutes from the close of arrivals to this stage's last service completion —
+    /// how long the stage took to clear what was left at the close (D-191).
+    /// </summary>
+    /// <remarks>
+    /// 0 for a stage that had already finished serving before the close. A
+    /// multi-day run reports the final day's drain here; the per-day series is on
+    /// <see cref="SimulationResult.DrainPerDay"/>.
+    /// </remarks>
+    public double DrainMinutes { get; init; }
+
+    /// <summary>
+    /// Patients still queued or in service at the close of each operating session,
+    /// in session order (D-193).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BacklogAtClose"/> is the FINAL session's figure and means exactly
+    /// that. This series is the per-session detail behind a multi-day average; where
+    /// both are shown they are labelled "Final session" and "Mean across N sessions"
+    /// so neither can be mistaken for the other.
+    /// </remarks>
+    public IReadOnlyList<int> BacklogAtCloseBySession { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Minutes from each session's close to this stage's last service end, in
+    /// session order (D-193). <see cref="DrainMinutes"/> is the final session's
+    /// figure; this series is the per-session detail.
+    /// </summary>
+    public IReadOnlyList<double> DrainMinutesBySession { get; init; } = Array.Empty<double>();
 }

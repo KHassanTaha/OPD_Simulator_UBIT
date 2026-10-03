@@ -58,6 +58,30 @@ public sealed class SimulationResult
     public IReadOnlyList<int> AdmittedPerDay { get; init; } = Array.Empty<int>();
 
     /// <summary>
+    /// Screening-bound admissions per calendar-day block — the subset the daily cap
+    /// actually constrains. A day can hold more entries here than
+    /// <see cref="AdmittedPerDay"/> minus nothing: bypass arrivals land in
+    /// <see cref="AdmittedPerDay"/> but not here, because they skip the screening
+    /// session the cap models (D-190).
+    /// </summary>
+    /// <remarks>Empty for a plain horizon run.</remarks>
+    public IReadOnlyList<int> ScreeningAdmittedPerDay { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Patients still in the system when each day block's arrivals closed — the
+    /// admitted load left waiting at the close (D-191).
+    /// </summary>
+    /// <remarks>Empty for a plain horizon run.</remarks>
+    public IReadOnlyList<int> BacklogPerDay { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Minutes from each day block's close of arrivals to that day's last service
+    /// end — the time taken to clear that day's backlog (D-191).
+    /// </summary>
+    /// <remarks>Empty for a plain horizon run.</remarks>
+    public IReadOnlyList<double> DrainPerDay { get; init; } = Array.Empty<double>();
+
+    /// <summary>
     /// Number of calendar days over which arrivals were generated in a
     /// calendar-aware run; 0 for a plain horizon run.
     /// </summary>

@@ -289,15 +289,18 @@
                                                          HelpAnchor="start-day"/>
                         </StackPanel>
                         <controls:ValidatedField x:Name="DailyCapField"
-                                                 Label="Daily patient cap (optional)"
-                                                 Watermark="blank = unlimited"
-                                                 Tooltip="Maximum patients per day. Blank means unlimited."
-                                                 IsVisible="{Binding IsMultiDay}"
+                                                 Label="Maximum patients admitted per session"
+                                                 Watermark="85"
+                                                 Tooltip="The most patients admitted to screening in one clinic session. The cap models the screening session's admitted load, not the building's head count: a patient sent straight to a doctor without screening does not use a place. Blank means unlimited."
+                                                 IsVisible="{Binding DailyCapVisible}"
                                                  Value="{Binding DailyCap.Value, Mode=TwoWay}"
                                                  HasError="{Binding DailyCap.HasError}"
                                                  ErrorMessage="{Binding DailyCap.ErrorMessage}"
                                                  HelpAnchor="daily-cap"
                                                  views:ConfigPanelValidation.ValidationKey="daily-cap"/>
+                        <TextBlock IsVisible="{Binding DailyCapVisible}"
+                                   Classes="Caption"
+                                   Text="Default 85. Applies to each clinic session on its own, and only to patients bound for screening."/>
                         <!-- Diagnostic duration (D-174, ruling 6). Sits after the run
                              mode because it only applies to the diagnostic trace;
                              the calendar modes take their length from the Days field

@@ -58,7 +58,28 @@ public sealed record StageMetricRow(
     string Served,
     string Wait,
     string Queue,
-    string Utilisation);
+    string Utilisation,
+    string BacklogAtClose,
+    string DrainMinutes);
+
+/// <summary>
+/// One stage's close-of-session row: what was left waiting when arrivals stopped,
+/// and how long that stage took to clear it (D-191).
+/// </summary>
+/// <param name="SerialNumber">1-based stage position, so a row can be cited in the viva.</param>
+/// <param name="StageName">The stage the row describes.</param>
+/// <param name="BacklogAtClose">Patients still waiting or in service at the close of arrivals.</param>
+/// <param name="DrainMinutes">Minutes from that close until this stage's last service completion.</param>
+/// <param name="Basis">
+/// "single session" or "average of N sessions" — which figure the two columns hold,
+/// so a multi-day average is never mistaken for one day's backlog.
+/// </param>
+public sealed record BacklogDrainRow(
+    string SerialNumber,
+    string StageName,
+    string BacklogAtClose,
+    string DrainMinutes,
+    string Basis);
 
 /// <summary>
 /// One stage's stability verdict (Phase 8Q.3, D-183).
@@ -295,6 +316,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         ChiSquareCaption = DefaultChiSquareCaption;
         SystemMetrics.Clear();
         StageRows.Clear();
+        BacklogDrainRows.Clear();
+        TotalDrainText = string.Empty;
         StabilityRows.Clear();
         BottleneckText = string.Empty;
         ChiSquareRows.Clear();
@@ -314,6 +337,8 @@ public partial class ResultsPanelViewModel : ObservableObject
     {
         SystemMetrics.Clear();
         StageRows.Clear();
+        BacklogDrainRows.Clear();
+        TotalDrainText = string.Empty;
         if (result is null)
         {
             return;
@@ -342,10 +367,66 @@ public partial class ResultsPanelViewModel : ObservableObject
                 $"{stage.PatientsServed}",
                 N0(stage.AverageWaitMinutes),
                 N0(stage.AverageQueueLength),
-                $"{stage.StageUtilisation:0.##}"));
+                $"{stage.StageUtilisation:0.##}",
+                $"{stage.BacklogAtClose}",
+                N0(stage.DrainMinutes)));
         }
 
+        SetBacklogAndDrain(result);
         SetStability(result);
+    }
+
+    /// <summary>
+    /// Builds the close-of-session rows and the total-drain summary (D-191).
+    /// </summary>
+    /// <remarks>
+    /// A multi-day run's per-stage figures are for its final day, which on their own
+    /// would understate a week. So when the engine reported a per-day series, the
+    /// table switches to the average across sessions and says so in the Basis
+    /// column — a number whose basis is unstated is a number a reader cannot trust.
+    /// The total drain is always the slowest stage, because the system is only empty
+    /// once its slowest stage is empty.
+    /// </remarks>
+    private void SetBacklogAndDrain(SimulationResult result)
+    {
+        BacklogDrainRows.Clear();
+
+        // Every stage is averaged over ITS OWN sessions (D-193). Averaging the
+        // system-wide series and printing it on each row — which is what 8R.0 did —
+        // made every row identical in exactly the multi-day runs where a per-stage
+        // backlog is the figure worth reading.
+        int sessionCount = result.StageMetrics.Count == 0
+            ? 0
+            : result.StageMetrics.Max(st => Math.Max(
+                st.BacklogAtCloseBySession.Count, st.DrainMinutesBySession.Count));
+
+        bool multiDay = sessionCount > 1;
+        string basis = multiDay
+            ? $"average of {sessionCount} sessions"
+            : "single session";
+
+        var serial = 1;
+        foreach (var stage in result.StageMetrics)
+        {
+            // A stage with no series (an older result, or a horizon run) falls back
+            // to its scalar, which is that run's single session.
+            string backlog = multiDay
+                ? $"{stage.BacklogAtCloseBySession.DefaultIfEmpty(stage.BacklogAtClose).Average():0.#}"
+                : $"{stage.BacklogAtClose}";
+            string drain = multiDay
+                ? $"{stage.DrainMinutesBySession.DefaultIfEmpty(stage.DrainMinutes).Average():0.#}"
+                : N0(stage.DrainMinutes);
+            BacklogDrainRows.Add(new BacklogDrainRow($"{serial++}", stage.StageName, backlog, drain, basis));
+        }
+
+        // The whole system is empty when its slowest stage is empty, so the total
+        // drain is the largest per-stage drain — max(), never a sum.
+        double totalDrain = result.StageMetrics.Count == 0
+            ? 0
+            : result.StageMetrics.Max(s => s.DrainMinutes);
+        TotalDrainText = multiDay
+            ? $"{totalDrain:0.#} min to clear the last patient after a session closed (slowest stage, final session)"
+            : $"{totalDrain:0.#} min to clear the last patient after the session closed (slowest stage)";
     }
 
     /// <summary>
@@ -563,6 +644,18 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Per-stage rows of the metrics widget.</summary>
     public ObservableCollection<StageMetricRow> StageRows { get; } = new();
+
+    /// <summary>
+    /// Per-stage close-of-session rows: backlog left when arrivals stopped, and how
+    /// long the stage took to clear it (D-191).
+    /// </summary>
+    public ObservableCollection<BacklogDrainRow> BacklogDrainRows { get; } = new();
+
+    /// <summary>
+    /// One-line total drain — the slowest stage's drain, because the system is only
+    /// empty once its slowest stage is empty. Empty before a run (D-191).
+    /// </summary>
+    public string TotalDrainText { get; private set; } = string.Empty;
 
     /// <summary>Per-stage stability verdicts, shown once a run exists (Phase 8Q.3, D-183).</summary>
     public ObservableCollection<StabilityRow> StabilityRows { get; } = new();

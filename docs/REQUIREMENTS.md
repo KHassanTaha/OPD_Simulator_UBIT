@@ -232,3 +232,21 @@ but no source or test.
 | 2026-09-13 | M1: FR-SIM-1/2/3/5/6, FR-VAL-1/2/3, NFR-4 marked `[x]` with Source + Test + Decision |
 | 2026-09-13 | Review fix: FR-VAL-4 promoted `[~]`→`[x]` with EventTraceTests (review note "mark it [x] with source + test filled"); coverage now 21.7% |
 | 2026-09-13 | M2: FR-DATA-1..9, FR-STAT-1/3, NFR-1/2 → `[x]`; FR-STAT-2/4 → `[~]` (CLI default met, GUI remainder M5); coverage now 50.0% (23/46) |
+
+### Phase 8R traceability (PRD v1.13.0, 2026-10-03)
+
+| Req | Status | Source | Test | Decision |
+|-----|--------|--------|------|----------|
+| FR-SIM-1 (bypass routed by index, two-stage supported) | `[x]` | `Core/Stages/NetworkTopology.cs`, `App/Services/SimulationCoordinator.cs` | `Phase8RTests.Coordinator_TwoStageNetworkRoutesTheBypassInsteadOfRefusingIt`, `Coordinator_ThreeStageFlowsAreUnchangedByTheRelabelling`, `Coordinator_SingleStageRunProceedsWithNoBypass` | D-189 |
+| FR-SIM-2 (admission cap, screening-bound only) | `[x]` | `Core/Engine/Engine.cs` (`CalendarGate.TryAdmit`), `Core/Stages/NetworkTopology.cs` | `Phase8RTests.Cap_CountsScreeningBoundAdmissionsOnly`, `CappedTopology_LeavesTheBypassStreamUnthrottled` | D-190 |
+| FR-SIM-3 (effective λ under the cap) | `[x]` | `Core/Stages/NetworkTopology.cs` | `Phase8RTests.CappedTopology_ClampsTheCappedInflowAndReducesDownstream`, `CapRateComesFromTheCalendarSessionLength_NotALiteral` | D-190 |
+| FR-VAL-1 (stability refusal explains the cap) | `[x]` | `Core/Engine/UnstableSystemException.cs` | `Phase8RTests.Refusal_ReportsBothTheFittedAndTheCapDerivedRate`, `UncappedRefusal_MessageCarriesNoCapWording` | D-190 |
+| FR-SIM-4 (backlog and drain per stage) | `[x]` | `Core/Engine/StageMetrics.cs`, `Engine.cs`, `App/ViewModels/ResultsPanelViewModel.cs` | `Phase8RTests.HorizonRun_ASystemThatKeepsUpHasNothingToClearAtTheHorizon`, `CalendarRun_ReportsOneBacklogAndDrainFigurePerSession` | D-191 |
+| FR-UI-14 (results widget: backlog and drain table) | `[x]` | `App/Views/ResultsPanel.axaml` | `Phase8RTests.PerformanceMeasures_ShowsABacklogAndDrainTableForEveryStage`, `PerformanceMeasures_TotalDrainIsTheSlowestStage_NotTheSum`, `PerformanceMeasures_MultiDayRunLabelsItsFiguresAsAnAverage` | D-191 |
+| FR-UI-14 (multi-day rows are per-stage means, not the system average) | `[x]` | `App/ViewModels/ResultsPanelViewModel.cs` | `Phase8RTests.BacklogRowShowsEachStageMeanNotTheSystemAverage`, `DrainRowShowsEachStageMeanAndBasisNamesTheSessionCount`, `TotalDrainStaysTheMaxOfTheStageMeansAndNeverTheirSum` | D-193 |
+| FR-SIM-9 (per-stage, per-session backlog and drain series) | `[x]` | `Core/Engine/StageMetrics.cs`, `Core/Engine/Engine.cs` | `Phase8RTests.EngineScalarBacklogIsTheFinalSessionsEntry`, `HorizonRunYieldsASingleEntrySeriesEqualToItsScalar` | D-193 |
+| FR-UI-14 (calculations dialog names final session vs mean, with range) | `[x]` | `App/Services/CalculationsTextBuilder.cs` | `Phase8RTests.CalculationsDialogNamesBothTheFinalSessionAndTheMean`, `CalculationsDialogShowsNoMeanOnASingleSessionRun` | D-193 |
+| FR-UI-17 (cap field validation, both calendar modes) | `[x]` | `App/ViewModels/ConfigPanelViewModel.cs`, `App/Views/ConfigPanel.axaml` | `Phase8RTests.ConfigPanel_CapFieldDefaultsToEightyFiveAndFollowsTheSessionModes`, `ConfigPanel_BlankCapIsUnlimitedAndNonPositiveValuesAreRejected` | D-190 |
+| Gate: clinic capture two-stage cap run (c=2, c=3) | `[x]` (local; capture-gated) | — | `Phase8RTests.RealCapture_TwoStageCapRunIsStableAtTwoAndThreeServers` | D-192 |
+| Owner visual inspection of the three 8R frames | `[ ]` | — | content-asserted only; no image input on this host (D-089) | — |
+

@@ -1,3 +1,166 @@
+Session Handoff — 2026-10-03 21:58
+Branch: fix/phase-8r
+Status: Clean
+
+Done
+Phase 8R.1 accepted by the owner with three rulings; all three recorded in the docs, no code change.
+
+In Progress
+Nothing.
+
+What is complete:
+Ruling 1 (hash verification): accepted as measured. The D-189 correction — that the earlier claim rested on a green suite whose FNV-1a64 literals run on a topology with no bypass, and so could not detect a moved draw — is kept verbatim at the owner's instruction, not softened.
+Ruling 2 (the corrected test): approved without second-guessing. The old assertion pinned the system-average-on-every-row behaviour, so it could not survive the fix. Recorded as the opposite case to "never change a test to make a failing implementation pass": implementation right, test wrong, test corrected.
+Ruling 3 (summary basis): the total-drain summary stays on the final-session scalars, `max()`, never a sum. It answers "when does the clinic finish on the last day", and moving it to the mean would reintroduce the confusion the per-stage series exists to remove. Logged as an amendment to D-193.
+
+What remains:
+Owner visual inspection of the three 8R frames (B-012), after which the owner merges manually.
+
+Next Session Should Start With
+Nothing on 8R or 8R.1. Await the owner's frame review and manual merge, or a new phase instruction.
+
+Blocked
+None.
+
+Git State
+Commits made this session: d39afe4 (8R.1, pushed), plus this documentation-only commit for the three rulings.
+Pushed to origin: yes — fix/phase-8r tracks origin/fix/phase-8r.
+Uncommitted changes: none after this commit.
+
+Build & Test
+dotnet build: unchanged since d39afe4 — PASS (Release and Debug, 0 errors / 0 warnings). This commit is documentation only; no rebuild was run or is warranted.
+dotnet test: unchanged since d39afe4 — PASS, 833 green. Documentation-only commit; no re-run.
+Warnings: 0
+
+Files Touched
+docs/DECISIONS.md: D-193 amendment recording the summary-basis ruling
+docs/PRD.md: v1.13.1 change-history row for the 8R.1 acceptance and three rulings
+docs/TODO.md: 8R.1 owner-acceptance row
+docs/PROGRESS.md: this entry
+
+Decisions Made
+D-193 amendment — the total-drain summary remains on the final-session scalars by owner ruling.
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+**No further work on 8R.1.** The branch is ready and the owner merges manually after reviewing the three frames. Per the owner's instruction, break the next phase at its natural checkpoint rather than running two tasks in one pass — the 8R + 8R.1 pairing overshot the 30k session budget.
+
+Session Handoff — 2026-10-03 21:40
+Branch: fix/phase-8r
+Status: Clean
+
+Done
+Phase 8R.1 implemented: per-stage, per-session `BacklogAtCloseBySession` / `DrainMinutesBySession` with the scalars' final-session meaning preserved (D-193)
+The 8Q.2 ↔ 8R bypass reformulation verified like-for-like: all four FNV-1a64 hashes, all served counts and all six doubles bit-identical
+
+In Progress
+Nothing. The only open item is owner visual inspection of the three 8R frames.
+
+What is complete:
+`CalendarGate` records `_dayStageLastServiceEnd[day][stage]`; `NoteServiceEnd` takes a stage index and is called from `HandleServiceEnd`, the first point where the completing patient's stage is known. The system-wide `_dayLastServiceEnd` is untouched because it is the counterpart of the operating time in every recorded utilisation figure.
+The results table averages each stage's own series. 8R.0 averaged the system-wide series and printed it on every row, which was accidentally correct on one day and wrong on a clinic week — the only case the feature exists for.
+The calculations dialog labels both figures (`final session`, `mean across N sessions` with a range) on multi-day runs and prints the single figure otherwise.
+`StageMetrics` scalars were NOT redefined. The pre-existing test that asserted the old system-average-on-every-row behaviour was updated, because it encoded the defect.
+
+What remains:
+Owner visual inspection of the three 8R frames (B-012). No merge until then.
+
+Next Session Should Start With
+Owner reviews `logs/screenshots/phase-8r-cap-field.png`, `phase-8r-backlog-drain.png`, `phase-8r-2stage-bypass.png`.
+
+Blocked
+None. B-012 (25 unreviewed frames) is tracked but non-blocking.
+
+Git State
+Commits made this session: see below.
+Pushed to origin: pending at time of writing; branch `fix/phase-8r` pushed after this entry.
+Uncommitted changes: the 8R.1 change set, committed as one logical commit.
+
+Build & Test
+dotnet build: PASS (Release and Debug, --no-incremental, 0 errors / 0 warnings in both)
+dotnet test: PASS — 833 passed, 0 failed (Release and Debug) — up from 825; the 8 pre-existing multi-day assertions were updated, 8 tests added
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Engine/Engine.cs: per-stage-per-day drain bookkeeping; `NoteServiceEnd` signature; call moved to `HandleServiceEnd`; per-session series populated on each `StageMetrics`
+src/OpdSimulator.Core/Engine/StageMetrics.cs: `BacklogAtCloseBySession`, `DrainMinutesBySession`
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: per-stage means from each stage's own series
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: final-session vs mean-with-range rows
+tests/OpdSimulator.App.Tests/Phase8RTests.cs: +8 tests; the old system-average assertion replaced
+
+docs/DECISIONS.md: D-193; D-189 corrected-verification paragraph with the measured hashes; D-190 8J DailyCap note
+docs/TODO.md: 8R.1 changes, tests, gates, docs
+docs/REQUIREMENTS.md: 3 rows for the per-stage mean, the series, and the dialog labels
+docs/USER_MANUAL.md: "Two different numbers for one quantity"
+docs/VIVA_ANSWERS.md: why per-stage means and what the final-session figure is
+docs/DEV_LAUNCH.md: 8R.1 verified line
+
+Decisions Made
+D-193 — per-stage, per-session series alongside an unchanged scalar; table averages each stage's own series; both figures labelled wherever they co-occur.
+
+Assumptions Added/Changed
+None. No new assumption was needed; the owner ruling settled the semantics.
+
+Notes for Next Session
+**Correction carried in the record (D-189):** the bypass hashes were NOT verified before the 8R commit. The identity was argued algebraically and then wrongly corroborated by a green suite — the only FNV-1a64 literals in the repository run on a topology with no bypass at all. The conclusion was right; the claim of having checked it was not. The comparison has now actually been run (`git worktree` at `da5511c`, same harness in both trees, differing only in skip index 0 vs 1) and every value matched: interarrival `A99F0EA406FFBDD8`, Reception `32A2B933FC2C53A2`, Screening `AB7C172BE91850F1`, Doctor `090539E170F904DE`; served 85/58/59; `avg_wait` 1.716936646060989; `avg_system` 6.0339313636760865; `avg_qlen` 0.29389326620446005; `throughput` 0.5135191217661628. The temporary harness was deleted from both trees and neither tree kept a baseline change.
+A `git worktree` may still exist at `/tmp/opencode/8q2` (detached at `da5511c`) — remove with `git worktree remove /tmp/opencode/8q2` if it is no longer wanted. It is harmless if left.
+Session token budget was exceeded (the owner asked for the hash comparison and the whole 8R.1 implementation in one pass). Flagged rather than hidden, per the standing rule.
+
+## Session Handoff — 2026-10-03 Phase 8R
+Branch: `fix/phase-8r` · Status: **Complete** (implemented, tested, documented, pushed)
+
+### Done
+- **Change 1 (D-189)** — bypass is an index: `S = n − 2`, `D = n − 1`, drawn at arrival when `S = 0`, on completion of `S − 1` otherwise. Rejection narrowed to `S > 0 && S − 1 == ExitStageIndex`; `p = 0` normalises `S = D = −1`.
+- **Change 2 (D-190)** — `DailyCap` field: default 85, both calendar modes, hidden for DiagnosticTrace, blank = unlimited, `cap ÷ session minutes`.
+- **Change 3 (D-190)** — effective λ: Screening clamped, bypass unthrottled, Doctor = bypass + capped continuation; refusal reports fitted AND cap-derived λ.
+- **Change 4 (D-189)** — coordinator derives S/D from the count; the two-stage clinic capture now runs instead of being refused.
+- **Change 5 (D-191)** — `BacklogAtClose` / `DrainMinutes` per stage, per-session series.
+- **Change 6 (D-191)** — Performance Measures "Backlog and drain" table with a Basis column and a slowest-stage summary.
+
+### In Progress
+None.
+
+### Next Session Should Start With
+- Owner visual inspection of the three 8R frames (§18 / D-089) — this host has no image input, so the frames are captured and content-asserted but **not looked at**.
+- Owner merge of `fix/phase-8r` into `main`, then B-012 closure.
+
+### Blocked
+- B-012 (25 unreviewed frames) remains open and is **not** blocking; owner closes it after merge.
+
+### Git State
+- Commits this session: one (8R, see branch). Pushed to origin: yes.
+- Uncommitted: none expected — verify with `git status` before merge.
+
+### Build & Test
+- `dotnet build -c Release`: **PASS** — 0 errors, 0 warnings.
+- `dotnet build -c Debug`: **PASS** — 0 errors, 0 warnings.
+- `dotnet test -c Release`: **PASS** — **825 green**, 0 failed (Core 134 / Data 134 / Cli 35 / App 522). Baseline was 789.
+- Warnings: 0.
+
+### Verification table (§18)
+| Requirement | How verified | Evidence |
+|---|---|---|
+| Cap field default/visibility/validation | `Phase8RTests.ConfigPanel_*` (3) | — |
+| Cap applied to screening-bound only | `Cap_CountsScreeningBoundAdmissionsOnly` | — |
+| Cap rate derived from session length | `CapRateComesFromTheCalendarSessionLength_NotALiteral` | — |
+| Effective λ under the cap | `CappedTopology_*` (2) | — |
+| Refusal explains both rates | `Refusal_ReportsBothTheFittedAndTheCapDerivedRate`, `UncappedRefusal_*` | — |
+| Two-stage bypass routing | `Coordinator_TwoStageNetworkRoutesTheBypassInsteadOfRefusingIt`, `SingleStage*`, `ThreeStageFlows*` | `phase-8r-2stage-bypass.png` |
+| Backlog and drain | `HorizonRun_*`, `CalendarRun_*`, `PerformanceMeasures_*` (4) | `phase-8r-backlog-drain.png` |
+| Cap field as the user sees it | `Phase8RScreenshots.Render_CapField_*` | `phase-8r-cap-field.png` |
+| Clinic capture end-to-end (owner reference 0.515 / 0.146, ρ 0.920 / 0.461 at c=2 / c=3) | `RealCapture_TwoStageCapRunIsStableAtTwoAndThreeServers` — **numbers re-derived from the file, not asserted as literals** | — |
+
+### Decisions Made
+- D-189 index-based bypass · D-190 screening-only admission cap · D-191 per-stage backlog/drain · D-192 verification strategy.
+
+### Notes for Next Session
+- The clinic capture is **two-stage** (Screening → Doctor, no reception column). `DataAnalyzer` reports 2; the config panel starts at the 3-stage factory default and warns, which is D-105 behaviour — press the confirm, do not "fix" the warning.
+- The Phase 8J locked baseline now runs **explicitly uncapped**; the reason is in the test. Do not let a later default rewrite it again.
+- Three of my own test assertions were wrong before the code was: a bypass stream *below* the cap, a horizon scenario that was genuinely unstable (ρ = 2.0), and an assumed auto-sync of stages on load. The engine was right in all three cases.
+- Realized bypass fraction tracks `p_bypass` but with real sampling spread (p = 0.4 gave 0.33–0.48 over four seeds) — do not assert an exact realized split on a small sample.
+
 ## Session Handoff — 2026-10-03 Phase 8Q.6
 Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.6 complete and pushed; awaiting owner merge instructions)
 
