@@ -1,3 +1,56 @@
+## Session Handoff — 2026-10-03 Phase 8R
+Branch: `fix/phase-8r` · Status: **Complete** (implemented, tested, documented, pushed)
+
+### Done
+- **Change 1 (D-189)** — bypass is an index: `S = n − 2`, `D = n − 1`, drawn at arrival when `S = 0`, on completion of `S − 1` otherwise. Rejection narrowed to `S > 0 && S − 1 == ExitStageIndex`; `p = 0` normalises `S = D = −1`.
+- **Change 2 (D-190)** — `DailyCap` field: default 85, both calendar modes, hidden for DiagnosticTrace, blank = unlimited, `cap ÷ session minutes`.
+- **Change 3 (D-190)** — effective λ: Screening clamped, bypass unthrottled, Doctor = bypass + capped continuation; refusal reports fitted AND cap-derived λ.
+- **Change 4 (D-189)** — coordinator derives S/D from the count; the two-stage clinic capture now runs instead of being refused.
+- **Change 5 (D-191)** — `BacklogAtClose` / `DrainMinutes` per stage, per-session series.
+- **Change 6 (D-191)** — Performance Measures "Backlog and drain" table with a Basis column and a slowest-stage summary.
+
+### In Progress
+None.
+
+### Next Session Should Start With
+- Owner visual inspection of the three 8R frames (§18 / D-089) — this host has no image input, so the frames are captured and content-asserted but **not looked at**.
+- Owner merge of `fix/phase-8r` into `main`, then B-012 closure.
+
+### Blocked
+- B-012 (25 unreviewed frames) remains open and is **not** blocking; owner closes it after merge.
+
+### Git State
+- Commits this session: one (8R, see branch). Pushed to origin: yes.
+- Uncommitted: none expected — verify with `git status` before merge.
+
+### Build & Test
+- `dotnet build -c Release`: **PASS** — 0 errors, 0 warnings.
+- `dotnet build -c Debug`: **PASS** — 0 errors, 0 warnings.
+- `dotnet test -c Release`: **PASS** — **825 green**, 0 failed (Core 134 / Data 134 / Cli 35 / App 522). Baseline was 789.
+- Warnings: 0.
+
+### Verification table (§18)
+| Requirement | How verified | Evidence |
+|---|---|---|
+| Cap field default/visibility/validation | `Phase8RTests.ConfigPanel_*` (3) | — |
+| Cap applied to screening-bound only | `Cap_CountsScreeningBoundAdmissionsOnly` | — |
+| Cap rate derived from session length | `CapRateComesFromTheCalendarSessionLength_NotALiteral` | — |
+| Effective λ under the cap | `CappedTopology_*` (2) | — |
+| Refusal explains both rates | `Refusal_ReportsBothTheFittedAndTheCapDerivedRate`, `UncappedRefusal_*` | — |
+| Two-stage bypass routing | `Coordinator_TwoStageNetworkRoutesTheBypassInsteadOfRefusingIt`, `SingleStage*`, `ThreeStageFlows*` | `phase-8r-2stage-bypass.png` |
+| Backlog and drain | `HorizonRun_*`, `CalendarRun_*`, `PerformanceMeasures_*` (4) | `phase-8r-backlog-drain.png` |
+| Cap field as the user sees it | `Phase8RScreenshots.Render_CapField_*` | `phase-8r-cap-field.png` |
+| Clinic capture end-to-end (owner reference 0.515 / 0.146, ρ 0.920 / 0.461 at c=2 / c=3) | `RealCapture_TwoStageCapRunIsStableAtTwoAndThreeServers` — **numbers re-derived from the file, not asserted as literals** | — |
+
+### Decisions Made
+- D-189 index-based bypass · D-190 screening-only admission cap · D-191 per-stage backlog/drain · D-192 verification strategy.
+
+### Notes for Next Session
+- The clinic capture is **two-stage** (Screening → Doctor, no reception column). `DataAnalyzer` reports 2; the config panel starts at the 3-stage factory default and warns, which is D-105 behaviour — press the confirm, do not "fix" the warning.
+- The Phase 8J locked baseline now runs **explicitly uncapped**; the reason is in the test. Do not let a later default rewrite it again.
+- Three of my own test assertions were wrong before the code was: a bypass stream *below* the cap, a horizon scenario that was genuinely unstable (ρ = 2.0), and an assumed auto-sync of stages on load. The engine was right in all three cases.
+- Realized bypass fraction tracks `p_bypass` but with real sampling spread (p = 0.4 gave 0.33–0.48 over four seeds) — do not assert an exact realized split on a small sample.
+
 ## Session Handoff — 2026-10-03 Phase 8Q.6
 Branch: `fix/phase-8q` · Status: **In-Progress** (8Q.6 complete and pushed; awaiting owner merge instructions)
 

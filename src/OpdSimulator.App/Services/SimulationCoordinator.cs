@@ -140,16 +140,23 @@ public static class SimulationCoordinator
 
         int exitStageIndex = routingExitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
 
-        // Bypass happens at Reception — the first stage — and lands on the last
-        // stage, so it needs at least three stages to skip one. With a two-stage
-        // network there is nothing in between to jump over, and a single-stage
-        // network has nothing to jump to, so both are normalised to "off" rather
-        // than refused: the user asked for something meaningless, and dropping it
-        // silently would be worse than saying so, so the effective value reported
-        // back is 0 and the calculations text says why.
-        bool bypassRouteable = parameters.StageNames.Count >= 3;
+        // Bypass (D-179, reshaped by D-189). S is the stage being SKIPPED, and the stage
+        // being skipped is the one before the destination the patient is heading
+        // for: with the terminal stage as the destination, S = count − 2 and
+        // D = count − 1. That gives S = 1 / D = 2 for the 3-stage OPD and S = 0 /
+        // D = 1 for the 2-stage clinic capture, and it keeps D = "last stage"
+        // exactly as D-179 defined it for longer chains.
+        //
+        // Derived from the stage COUNT alone, with no stage names anywhere in the
+        // routing path — the engine sees two integers. A user-facing source picker
+        // could only produce a configuration the fitted p_bypass does not describe.
+        //
+        // One stage can neither skip anything nor land anywhere, so bypass is off
+        // there. Two stages is exactly the arrival-time case: the skipped stage is
+        // the front door, so the draw happens at the arrival event.
+        bool bypassRouteable = parameters.StageNames.Count >= 2;
         double routingBypassProbability = bypassRouteable ? bypassProbability : 0.0;
-        int bypassStageIndex = routingBypassProbability > 0 ? 0 : -1;
+        int bypassStageIndex = routingBypassProbability > 0 ? parameters.StageNames.Count - 2 : -1;
         int bypassDestinationIndex = routingBypassProbability > 0 ? parameters.StageNames.Count - 1 : -1;
 
         // G4: build INSIDE the try so a topology-level refusal (the fitted
@@ -157,10 +164,34 @@ public static class SimulationCoordinator
         // unhandled exception.
         try
         {
+            // Admitted-load cap (D-190). The cap is a number of PATIENTS per
+            // session; the topology needs the equivalent RATE, and the divisor is
+            // the session length the calendar reports — never a literal, so a
+            // changed opening-hours configuration cannot silently disagree with the
+            // cap. A DiagnosticTrace run has no session and no gate, so the cap does
+            // not apply there at all (the field is hidden in that mode).
+            var calendar = parameters.RunMode == RunMode.DiagnosticTrace
+                ? null
+                : new ClinicCalendar(startDayOfWeek: parameters.StartDay);
+            double sessionMinutes = calendar?.OpenDurationMinutes ?? 0;
+            double? capRate = parameters.DailyCap is { } cap && sessionMinutes > 0
+                ? cap / sessionMinutes
+                : null;
+
+            // The cap belongs on the stage the skipped-stage chain points at: the
+            // first stage when there is no bypass, otherwise the skipped stage —
+            // the same stage the cap field's help text names. With no cap
+            // configured the index must be −1 as well, because a stage index with
+            // no rate is a contradiction the topology refuses.
+            int capStageIndex = capRate is null
+                ? -1
+                : routingBypassProbability > 0 ? bypassStageIndex : 0;
+
             var topology = new NetworkTopology(
                 arrivalRate.Value, stageResult.Specs!,
                 exitStageIndex, routingExitProbability,
-                routingBypassProbability, bypassStageIndex, bypassDestinationIndex);
+                routingBypassProbability, bypassStageIndex, bypassDestinationIndex,
+                capRate, capStageIndex);
 
             var traceLevel = TraceLevelFromName(parameters.TraceLevelName);
             var sink = new CollectionTraceSink(traceLevel);
@@ -168,7 +199,7 @@ public static class SimulationCoordinator
 
             SimulationResult result = parameters.RunMode == RunMode.DiagnosticTrace
                 ? engine.Run(topology, parameters.Seed, parameters.HorizonMinutes, sink)
-                : engine.Run(topology, new ClinicCalendar(startDayOfWeek: parameters.StartDay),
+                : engine.Run(topology, calendar!,
                     parameters.GeneratorDays, parameters.Seed, parameters.DailyCap, sink);
 
             status?.Invoke(string.Empty);

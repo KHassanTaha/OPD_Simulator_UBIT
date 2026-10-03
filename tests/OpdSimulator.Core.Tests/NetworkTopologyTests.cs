@@ -32,26 +32,58 @@ public class NetworkTopologyTests
     }
 
     /// <summary>
-    /// D-007 as amended by D-179: with a bypass at Reception the rate at a stage
-    /// is no longer a single product — it is the sum of every route that reaches
-    /// it, because a bypassed patient arrives at Doctor without passing through
-    /// Screening.
+    /// D-007 as amended by D-179: with a bypass the rate at a stage is no longer a
+    /// single product — it is the sum of every route that reaches it, because a
+    /// bypassed patient arrives at Doctor without passing through Screening.
     /// </summary>
+    /// <remarks>
+    /// D-179 expressed the bypass as "it happens at Reception"; D-189 expresses it as
+    /// "Screening is the stage being skipped", so S = 1 and the draw rides on
+    /// Reception's completion. Every number asserted here is unchanged by that
+    /// relabelling — which is the point: the flows are identical and only the
+    /// labelling moved.
+    /// </remarks>
     [Fact]
     public void EffectiveArrivalRates_SumEveryRouteWhenBypassIsConfigured()
     {
-        // λ0 = 2, p_bypass = 0.15 at Reception, p_exit = 0.25 at Screening.
+        // λ0 = 2, p_bypass = 0.15 skipping Screening, p_exit = 0.25 at Screening.
         var topology = new NetworkTopology(2.0, new[]
         {
             new StageSpec("Reception", serverCount: 1, serviceRate: 10.0),
             new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
             new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
         }, exitStageIndex: 1, exitProbability: 0.25,
-           bypassProbability: 0.15, bypassStageIndex: 0, bypassDestinationIndex: 2);
+           bypassProbability: 0.15, bypassStageIndex: 1, bypassDestinationIndex: 2);
 
         Assert.Equal(2.0, topology.EffectiveArrivalRate(0), 9);                    // λ0
         Assert.Equal(2.0 * 0.85, topology.EffectiveArrivalRate(1), 9);            // λ0 · (1 − p_bypass)
         Assert.Equal(2.0 * 0.15 + 2.0 * 0.85 * 0.75, topology.EffectiveArrivalRate(2), 9); // 0.3 + 1.275
+    }
+
+    /// <summary>
+    /// The front-door case: when the skipped stage is the first one, patients who
+    /// bypass it never enter it, so its inflow is λ₀(1 − p_bypass) and the bypass
+    /// share goes straight to the destination (D-189).
+    /// </summary>
+    /// <remarks>
+    /// The same three numbers as the test above arise here through a different
+    /// topology — two stages instead of three — so this is the case the 8Q engine
+    /// could not run at all: its coordinator refused any topology with fewer than
+    /// three stages.
+    /// </remarks>
+    [Fact]
+    public void EffectiveArrivalRates_WhenTheFirstStageIsSkipped_DivideTheFrontDoorInflow()
+    {
+        // λ0 = 2, p_bypass = 0.15 skipping Screening, p_exit = 0.25 at Screening.
+        var topology = new NetworkTopology(2.0, new[]
+        {
+            new StageSpec("Screening", serverCount: 2, serviceRate: 4.0),
+            new StageSpec("Doctor", serverCount: 3, serviceRate: 1.6),
+        }, exitStageIndex: 0, exitProbability: 0.25,
+           bypassProbability: 0.15, bypassStageIndex: 0, bypassDestinationIndex: 1);
+
+        Assert.Equal(2.0 * 0.85, topology.EffectiveArrivalRate(0), 9);            // λ0 · (1 − p_bypass)
+        Assert.Equal(2.0 * 0.15 + 2.0 * 0.85 * 0.75, topology.EffectiveArrivalRate(1), 9);
     }
 
     [Fact]

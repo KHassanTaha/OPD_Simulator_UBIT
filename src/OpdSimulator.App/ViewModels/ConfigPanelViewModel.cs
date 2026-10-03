@@ -320,11 +320,24 @@ public partial class ConfigPanelViewModel : ObservableObject
     public bool PExitVisible => TryStageCount(out var n) && n >= 2;
 
     /// <summary>
-    /// Whether the p_bypass override is shown. Three stages is the floor: bypass
-    /// routes a patient past the middle stage, so a two-stage network has nothing
-    /// to skip and the field would be a control that cannot do anything.
+    /// Whether the p_bypass override is shown. Two stages is the floor since 8R:
+    /// with two stages the skipped stage is the front door, so the draw happens at
+    /// the arrival event and a real fraction of patients reach the doctor without a
+    /// screening record (D-189). That is the shape of the clinic capture, and the
+    /// 8Q engine refused to run it at all.
     /// </summary>
-    public bool PBypassVisible => TryStageCount(out var n) && n >= 3;
+    public bool PBypassVisible => TryStageCount(out var n) && n >= 2;
+
+    /// <summary>
+    /// Whether the daily admitted-load cap is shown (D-190).
+    /// </summary>
+    /// <remarks>
+    /// Shown for both calendar run modes, because a single clinic session has a
+    /// backlog at its close just as a week of sessions does. Hidden for a diagnostic
+    /// trace, which has no session, no opening hours and therefore no cap — a field
+    /// that is visible but silently ignored would be a lie.
+    /// </remarks>
+    public bool DailyCapVisible => IsSingleDay || IsMultiDay;
 
     // ── Section 5 · Horizon ─────────────────────────────────────────────
 
@@ -446,8 +459,21 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>Number of clinic days (visible only in multi-day mode).</summary>
     public ConfigFieldViewModel Days { get; } = new();
 
-    /// <summary>Optional daily patient cap; blank = unlimited. Visible only in multi-day mode.</summary>
-    public ConfigFieldViewModel DailyCap { get; } = new();
+    /// <summary>
+    /// Default admitted-load cap, in patients per session (D-190).
+    /// </summary>
+    /// <remarks>
+    /// Not a bare literal scattered through the code: the field default, the
+    /// watermark and the tests all read it from here so they cannot disagree about
+    /// what a fresh launch shows.
+    /// </remarks>
+    public const string DefaultDailyCap = "85";
+
+    /// <summary>
+    /// Daily admitted-load cap: the most patients admitted to Screening in one
+    /// session. Shown for both calendar run modes; blank means unlimited (D-190).
+    /// </summary>
+    public ConfigFieldViewModel DailyCap { get; } = new() { Value = DefaultDailyCap };
 
     /// <summary>First day of a multi-day run (clinic week, CONTEXT §1.1).</summary>
     [ObservableProperty]
@@ -1194,7 +1220,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         Duration = DiagnosticDurationPreset.OneHour;
         CustomMinutes.Value = "10000";
         Days.Value = "1";
-        DailyCap.Value = "";
+        DailyCap.Value = DefaultDailyCap;
 
         foreach (var field in AllFieldErrors())
         {
@@ -1581,7 +1607,11 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         var blocked = StageCount.HasError
             || SignificanceLevel.HasError
-            || (IsMultiDay && (Days.HasError || DailyCap.HasError))
+            || (IsMultiDay && Days.HasError)
+            // The cap is visible in BOTH calendar modes (D-190), so an invalid cap
+            // blocks a single-day run too — previously it only blocked multi-day,
+            // which let a single-day run start with a cap the engine cannot apply.
+            || (DailyCapVisible && DailyCap.HasError)
             || (IsDiagnosticTrace && IsCustomMinutesVisible && CustomMinutes.HasError)
             || StageRows.Any(row => row.HasErrors)
             || (ParametersIsOptionalEnabled && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))

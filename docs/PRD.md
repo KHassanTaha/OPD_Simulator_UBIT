@@ -1,6 +1,6 @@
 # Product Requirements Document – OPD Clinic Queue Simulator
 
-**Version:** v1.11.1
+**Version:** v1.13.0
 **Date:** 2026-09-14
 **Author:** Taha Hassan
 **Course:** Simulation & Modelling
@@ -577,6 +577,7 @@ The data preview table SHALL remain responsive (scroll, sort, selection) with da
 
 | Version | Date | Change | Sections Impacted |
 |---|---|---|---|
+| 2026-10-03 | **Phase 8R — cap field, effective λ, index-based bypass, backlog & drain** (`fix/phase-8r`, Core + App + docs): D-189 bypass is derived from the stage COUNT (`S = n − 2`, `D = n − 1`) and drawn at arrival when `S = 0` or on completion of `S − 1` otherwise, with no stage-name comparison in the engine; a two-stage file runs instead of being refused. D-190 adds the `DailyCap` field (default 85, both calendar modes, session-length-derived rate) applied only to Screening-bound admissions, leaving the bypass stream unthrottled, with the stability refusal reporting both the fitted and the cap-derived λ. D-191 adds per-stage `BacklogAtClose`/`DrainMinutes` and a per-session series shown as a Performance Measures table. D-192 records why the capture-gated assertions return early instead of faking (D-178). Tests +35 (789 → 825). Evidence `logs/screenshots/phase-8r-{cap-field,backlog-drain,2stage-bypass}.png`. **Launch steps unchanged.** | Simulation, results, UI |
 | v1.0.0 | 2026-09-13 | Initial complete draft | All |
 | v1.0.1 | 2026-09-13 | Owner clarifications applied (2026-09-13): `departure_stage = Reception` warn + excluded from `p_exit`; run-mode/horizon semantics defined; ρ guard uses effective per-stage arrival rate; engine N-stage generic from day one; demo (2026-09-16) scoped to load→fit→chi-square→run via CLI. OQ-1..4 remain open. | §4, §5, §8, §10 |
 | v1.1.0 | 2026-09-13 | Per-stage stability model: FR-VAL-1 rewritten (ρᵢ = λᵢ/(cᵢ·μᵢ), λᵢ derived from external λ₀ and routing probabilities, refusal reports ALL unstable stages); new FR-STAT-6 (per-stage ρ display in results panel); CONTEXT §2.3 extended with per-stage ρ + routing explanation; decision D-015. | §4, §5, §8, §10 |

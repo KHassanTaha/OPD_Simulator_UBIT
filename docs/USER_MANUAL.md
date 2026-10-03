@@ -1238,3 +1238,52 @@ Shows a visual token for the next arriving patient:
 | 2026-09-13 | Added "Loading Real Data" (§7) — the M2 CLI path: `verify`, `fit`, `simulate-data`, required file format, error messages; renamed the headless command to `simulate-params` (§3) |
 | 2026-09-13 | Added "Running without a GUI" section (§3) — the M1 CLI path with the metrics explained, the ρ < 1 rule, and the event trace location |
 | 2026-09-13 | Initial draft |
+
+## Maximum patients admitted per session (Phase 8R)
+
+The calendar runs (one session, or a clinic week) have a field called **Maximum
+patients admitted per session**. It defaults to **85**, and it can be cleared to mean
+"no limit".
+
+- **What it limits.** Only patients who go to **Screening**. A patient sent straight
+  to the Doctor does not use a screening place, so a busy bypass stream does not
+  consume the cap.
+- **How it becomes a rate.** The cap is a number of people per session, so the
+  simulator divides it by the session length taken from the clinic calendar
+  (165 minutes as configured). Change the session length and the cap rate changes with
+  it — nothing is hardcoded.
+- **What you see.** If the fitted demand is higher than the cap allows, the figures
+  show the capped rate. The **offered** rate stays visible so you can see how much
+  demand the cap turned away.
+- **If a run is refused for being unstable**, the message now names both numbers: the
+  fitted rate before the cap, and the capped rate the refusal was decided on.
+- **When it is hidden.** A diagnostic trace has no session, so the field is hidden
+  rather than shown as a limit that is not applied.
+
+## Bypass in a two-stage clinic (Phase 8R)
+
+A file with only **Screening** and **Doctor** columns is a valid two-stage network.
+There is no reception to route through, so the field is described in terms of the
+**first stage**:
+
+- The bypass draw happens **at the moment the patient arrives**, and a patient sent
+  straight to the Doctor never enters Screening at all.
+- Screening's arrival rate therefore falls to `λ × (1 − bypass)`.
+- The Doctor's arrival rate is the bypass stream plus the screened patients who
+  continue.
+
+In a three-stage network nothing changes: the draw happens on completion of the stage
+**before** the skipped one, which is the same place it always happened.
+
+## Backlog and drain (Phase 8R)
+
+The Performance Measures section has a second table, **Backlog and drain**:
+
+- **Backlog at close** — patients still queued or in service when arrivals stopped
+  for the session.
+- **Drain** — minutes from that point until the stage finished with its last patient.
+  It is how long the clinic needed to clear the room.
+- **Basis** — reads `single session` for one session and `average of N sessions` for a
+  clinic week, so a multi-day figure is never passed off as a single day's.
+- The summary line is the **slowest** stage's drain, not the total, because the system
+  is empty once its slowest stage is empty.

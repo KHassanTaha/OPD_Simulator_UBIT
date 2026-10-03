@@ -3092,6 +3092,50 @@ and `ValidatedField`'s live-region announcements are still outstanding.
 - D-169 — the rendered rows are asserted only after proving the list realised
   them, so a virtualised list that realised nothing cannot pass vacuously.
 
+## D-189 — Bypass is an index, not a stage name: S = count − 2, D = count − 1
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8R.
+- **Decision:** The skipped stage `S` and the destination `D` are derived from the stage COUNT (`S = n − 2`, `D = n − 1`) and passed as indices. The engine never compares a stage NAME. The bypass draw happens **at arrival when `S = 0`** and **on completion of `S − 1` when `S > 0`**. The rejection rule is narrowed to `S > 0 && S − 1 == ExitStageIndex`; `S = 0` is never rejected on that ground, and `BypassProbability == 0` normalises `S = D = −1`.
+- **Rationale:** The clinic capture is a genuine TWO-stage network (Screening → Doctor; the file has no reception column), and 8Q refused it because it had no "middle" stage to skip. The pre-8R code also drew the bypass at the skipped stage's own arrival, which double-counts in a three-stage network: the share belongs at the node that feeds the skip. With `S = 0` the skipped stage IS the front door, so arrival is the correct node — the old special case becomes the general rule's first case rather than a separate code path.
+- **Impact:** (+) A two-stage file runs instead of being refused, and its λ_screening is `λ₀(1 − p_bypass)` rather than `λ₀`. (+) No stage-name comparisons anywhere in the routing path, so a rename cannot silently reroute a network. (+) A validation that was only correct for one topology now rejects only the genuinely impossible case. (−) `S > 0` and `S = 0` take different draw sites; the trace shows which.
+- **Alternatives considered:** inferring S from stage names (rejected — brittle, and the engine would need to know domain names); keeping the 8Q refusal for two-stage networks (rejected — it refuses the only real capture the project has); drawing at `S` and dividing the inflow afterwards (rejected — double-counts the bypass share in three-stage).
+
+---
+
+## D-190 — The daily cap is a Screening admission gate, and its rate is cap ÷ session minutes
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8R.
+- **Decision:** A new `DailyCap` field, default **85**, visible for both calendar run modes and hidden for DiagnosticTrace; blank means unlimited. `cap_rate = DailyCap / ClinicCalendar.OpenDurationMinutes` — the session length is read, never hardcoded. The cap applies **only to Screening-bound admissions**: the gate counts them separately from all admissions, and the bypass stream is never throttled. Effective λ is `min(offered routed screening λ, cap_rate)`; the Doctor's λ is `uncapped bypass inflow + capped screening continuation`. `ρ >= 1` still refuses, and the refusal now names BOTH the fitted λ (before the cap) and the cap-derived λ actually used.
+- **Rationale:** A clinic's capacity is an admitted-load limit per session, not a uniform rate limit, so modelling it as a rate cap on every stage would be wrong twice over: it would throttle the Doctor (which never queued for screening) and it would hide the fitted demand. Naming only the capped figure leaves a user staring at λ = 0.515 with no way to tell it was 0.670 except by assuming the fit is wrong.
+- **Impact:** (+) The user can reproduce a real clinic's session behaviour. (+) A refusal is now diagnosable: both numbers are on screen. (+) 165 appears once, in `ClinicCalendar`, so a session-length change moves the cap rate automatically. (−) Two admission counters instead of one. (−) The cap default changed one pre-existing locked baseline (Phase 8J), which now runs explicitly uncapped with the reason recorded in the test.
+- **Alternatives considered:** capping total arrivals (rejected — that is a different policy, and the bypass share does not consume screening places); hardcoding the 85-minute divisor (rejected — the session length is already configuration); hiding the cap when the fitted λ is under it (rejected — the cap is a session limit, not a λ override).
+
+---
+
+## D-191 — Backlog at close and drain time are measured per stage, per session
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8R.
+- **Decision:** `StageMetrics` gains `BacklogAtClose` (queue + in-service when arrivals stopped) and `DrainMinutes` (last service end minus the arrival window's close). A calendar run records both per session; `SimulationResult` exposes `BacklogPerDay` and `DrainPerDay`, and the results panel shows a per-stage table whose Basis column reads `single session` or `average of N sessions`. The summary line is the **maximum** drain across stages, never the sum.
+- **Rationale:** "Average wait" says nothing about what a patient faces at closing time, and utilisation can look healthy while a queue is left stranded. Drain is the number a clinic manager can act on. The maximum is correct because the system is empty once its slowest stage is empty; summing would double-count patients moving between stages.
+- **Impact:** (+) Performance Measures answers "how bad was the end of the session", which it previously could not. (+) Multi-day runs label their figures rather than passing one day off as the week. (−) Two more fields on `StageMetrics` and two arrays on `SimulationResult`. (−) The table duplicates the per-stage row count already shown in the metrics table.
+- **Alternatives considered:** reporting only the drain and deriving backlog from it (rejected — backlog is the state, drain is the consequence); summing stage drains (rejected — double-counts).
+
+---
+
+## D-192 — Phase 8R verification: behaviour tests on constructed data, evidence frames for the UI
+
+- **Date:** 2026-10-03
+- **Status:** Implemented and verified in Phase 8R.
+- **Decision:** Every 8R behaviour is asserted on constructed data that CI can run. The real clinic capture keeps one test and one frame each, and both **return early when the file is absent** rather than asserting against a fixture that never reaches the two-stage shape (D-178). The capture is analysed at run time and the reference figures are re-derived, not written down; literals appear only where they are the contract (85, 165).
+- **Rationale:** Hardcoding the owner's reference numbers would make the test agree with the code by construction — it would pass under a wrong fit and fail under a correct one. Re-deriving them means a change to the fitting or the routing shows up as a failure.
+- **Impact:** (+) The tests fail for the reason they were written. (+) CI needs no patient data. (−) The capture-gated assertions are not exercised in CI, which is why every one of them has a constructed twin.
+- **Alternatives considered:** committing a de-identified excerpt (rejected — not the owner's call to make); asserting only the constructed data (rejected — the real numbers are the point of the gate).
+
+---
+
 ---
 
 ## D-187 amendment — serial header unified to `#` (owner ruling, 2026-10-03)

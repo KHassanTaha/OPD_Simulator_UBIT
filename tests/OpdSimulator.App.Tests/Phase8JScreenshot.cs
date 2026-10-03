@@ -61,6 +61,14 @@ public class Phase8JScreenshot
             config.StageRows[1].Servers.Value = "2";
             config.StageRows[2].Servers.Value = "3";
 
+            // Phase 8R added a daily admitted-load cap that defaults to 85, and this
+            // configuration would otherwise be capped at exactly 85 patients — which
+            // would rewrite a baseline that was recorded before the cap existed. 8J's
+            // claim is that the per-stage service mean reaches the engine unchanged,
+            // so the scenario runs uncapped and the baseline literals stay as they
+            // were measured. The cap's own behaviour is asserted by Phase8RTests.
+            config.DailyCap.Value = string.Empty;
+
             var parameters = config.TryBuildRunParameters()
                 ?? throw new InvalidOperationException("gate configuration must build");
 

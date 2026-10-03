@@ -340,3 +340,17 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [x] AGENTS §9.1: REQUIREMENTS.md row → traceability matrix + source-of-truth rule; new §9.7 Traceability Discipline (D-024) — 2026-09-13
 - [x] Create `docs/REQUIREMENTS.md` (PRD v1.3.0 traceability matrix, 46 reqs, all `[ ]`; FR-SIM-11 placeholder dropped; traceability gate line added under TODO completion rule) — 2026-09-13
 - [x] AGENTS §9.7: add Bidirectional rule (no orphan/placeholder/speculative rows); D-025; REQUIREMENTS.md audit + Changelog row — 2026-09-13
+
+## Phase 8R — cap field, effective λ, index-based bypass, backlog & drain
+
+- [x] **Change 1 (D-189)** — index-based bypass: `S = n − 2`, `D = n − 1`, arrival-time draw when `S = 0`, completion of `S − 1` otherwise; narrowed rejection to `S > 0 && S − 1 == ExitStageIndex`; `p = 0` normalises `S = D = −1` — 2026-10-03
+- [x] **Change 2 (D-190)** — `DailyCap` field: default 85, visible for both calendar modes, hidden for DiagnosticTrace, blank = unlimited, session-length-derived cap rate — 2026-10-03
+- [x] **Change 3 (D-190)** — effective λ under the cap: Screening clamped to the cap rate, bypass stream left unthrottled, Doctor = bypass + capped continuation; stability refusal now reports fitted AND cap-derived λ — 2026-10-03
+- [x] **Change 4 (D-189)** — coordinator derives S/D from the stage count; two-stage networks run instead of being refused — 2026-10-03
+- [x] **Change 5 (D-191)** — per-stage `BacklogAtClose` and `DrainMinutes`; per-session series; results table + total-drain summary — 2026-10-03
+- [x] **Change 6** — Performance Measures shows a Backlog and drain table per stage with a Basis column — 2026-10-03
+- [x] Tests: Core +9 (bypass/cap algebra, refusal content, backlog, drain), App +26 (`Phase8RTests` 23, `Phase8RScreenshots` 3) — 2026-10-03
+- [x] Gates: Release and Debug 0 errors / 0 warnings; full suite 825 green (Core 134 / Data 134 / Cli 35 / App 522); three headless frames rendered — 2026-10-03
+- [x] Docs: D-189..D-192, PRD v1.13.0, REQUIREMENTS rows, DEV_LAUNCH verified line, USER_MANUAL cap + backlog sections, VIVA_ANSWERS entries — 2026-10-03
+- [ ] **Owner visual inspection of the three 8R frames (§18 / D-089)** — this host has no image input, so the frames are captured and content-asserted but not looked at; B-012
+

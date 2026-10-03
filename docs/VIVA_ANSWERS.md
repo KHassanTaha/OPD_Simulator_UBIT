@@ -802,3 +802,50 @@ shown the same rows twice on one panel and made the duplication look like
 richness. The cost of the rename is real and recorded in D-183: a heading
 assertion in the screenshot tests had to change, which is exactly the test that
 should notice a rename.
+
+## Phase 8R — cap, routing, and the end-of-session figures (D-189..D-192)
+
+**Q. Why is the bypass drawn at arrival in a two-stage network but on a completion in
+a three-stage one?**
+Because the skipped stage is the front door. When there is nothing in front of
+Screening, the decision "does this patient skip Screening?" can only be made when the
+patient appears — there is no earlier event to hang it on. In a three-stage network
+the same decision must wait until the patient has finished Reception, because that is
+the first moment there is a destination to send them to. Both are the same rule —
+*draw the bypass where the skip becomes possible* — and `BypassAtArrival` /
+`BypassTriggerStageIndex` are the two cases of it.
+
+**Q. Why not just draw it at the skipped stage's own arrival in both cases?**
+Because in three stages that double-counts. The share would leave the network at the
+skipped stage, while the patient's arrival at that stage had already been counted as
+demand. Effective arrival rates are computed by the same recurrence, so the numbers in
+the results table would stop agreeing with the events in the trace.
+
+**Q. The cap is 85 people. Why does λ_screening come out at 0.515?**
+Because a per-session count is not a rate. 85 ÷ 165 minutes = 0.515 admissions per
+minute. The divisor is read from the clinic calendar rather than written into the
+formula, so if the session length changes the rate follows.
+
+**Q. The Doctor's inflow is 0.146 but the screening cap is 0.515 — why is the Doctor
+so much lower?**
+Two different things are happening. The cap does not apply to the Doctor at all: the
+bypass stream reaches it untouched. But the patients who do go through Screening
+mostly leave there — `p_exit` is about 0.96 on the clinic data — so only a small
+fraction of the admitted screening load continues to the Doctor. The cap governs
+Screening; `p_exit` governs how much of Screening reaches the Doctor.
+
+**Q. How do I know the run used the cap and not the raw fit?**
+The stability refusal prints both, and the results show the offered rate beside the
+effective one. If a λ looks unexpectedly low, the cap is the first thing to check.
+
+**Q. Why is the drain the maximum across stages rather than the sum?**
+Because the stages are sequential, not parallel. A patient who finishes Screening is
+the same patient who then occupies the Doctor. Adding the drains counts that patient
+twice. The system is empty exactly when its slowest stage is empty, which is the
+maximum.
+
+**Q. What if the run is refused because ρ ≥ 1 — isn't that a bug?**
+No, it is the model refusing to produce a number that does not exist. A queue with
+arrival rate at or above its service capacity grows without bound, so any "average
+wait" computed from it would be fiction. The refusal exists so the number cannot be
+believed; the cap is the tool for making the system stable, and the message says so.
