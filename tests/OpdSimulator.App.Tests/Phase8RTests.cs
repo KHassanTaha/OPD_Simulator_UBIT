@@ -428,9 +428,18 @@ public class Phase8RTests
         vm.CompleteRun(Outcome(MultiDayResult()));
 
         Assert.All(vm.BacklogDrainRows, r => Assert.Equal("average of 3 sessions", r.Basis));
-        // Backlog (4 + 6 + 8) / 3 = 6 and drain (2 + 4 + 6) / 3 = 4.
-        Assert.All(vm.BacklogDrainRows, r => Assert.Equal("6", r.BacklogAtClose));
-        Assert.All(vm.BacklogDrainRows, r => Assert.Equal("4", r.DrainMinutes));
+
+        // Each row now averages ITS OWN sessions (D-193): Screening (4+6+2)/3 = 4,
+        // Doctor (5+7+4)/3 = 5.3. 8R.0 printed the system-wide (4+6+8)/3 = 6 on both
+        // rows, which is how the per-stage backlog came to be identical for every
+        // stage in the one case where the difference matters.
+        Assert.NotEqual(vm.BacklogDrainRows[0].BacklogAtClose, vm.BacklogDrainRows[1].BacklogAtClose);
+        Assert.Equal("4", vm.BacklogDrainRows[0].BacklogAtClose);
+        Assert.Equal("5.3", vm.BacklogDrainRows[1].BacklogAtClose);
+        Assert.Equal("3", vm.BacklogDrainRows[0].DrainMinutes);   // (2+4+3)/3
+        Assert.Equal("4.3", vm.BacklogDrainRows[1].DrainMinutes);  // (1+3+9)/3
+
+        // The summary is the slowest stage's FINAL-session figure and names itself.
         Assert.Contains("final session", vm.TotalDrainText, StringComparison.Ordinal);
     }
 
@@ -550,6 +559,178 @@ public class Phase8RTests
             screeningCapStageIndex: capRate is null ? -1 : 0);
     }
 
+    // ---------------------------------------------------------------------
+    // Phase 8R.1 — per-stage, per-session series (D-193)
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// A three-session run in which the two stages behave DIFFERENTLY session to
+    /// session. Every 8R.1 assertion needs stages that disagree: under 8R.0 the rows
+    /// were identical because they all printed one system-wide average, so a test
+    /// using matching stages cannot tell the two implementations apart.
+    /// </summary>
+    private static SimulationResult DifferingSeriesResult() => new()
+    {
+        TotalPatientsServed = 300,
+        StageMetrics =
+        [
+            new StageMetrics
+            {
+                StageName = "Screening",
+                BacklogAtClose = 4,                       // FINAL session
+                BacklogAtCloseBySession = [2, 11, 4],
+                DrainMinutes = 3,                          // FINAL session
+                DrainMinutesBySession = [10.0, 1.0, 3.0],
+            },
+            new StageMetrics
+            {
+                StageName = "Doctor",
+                BacklogAtClose = 4,                        // FINAL session
+                BacklogAtCloseBySession = [3, 4, 5],
+                DrainMinutes = 9,                          // FINAL session
+                DrainMinutesBySession = [2.0, 2.0, 9.0],
+            },
+        ],
+        BacklogPerDay = [3, 8, 5],
+        DrainPerDay = [10.0, 2.0, 9.0],
+        GeneratorDays = 3,
+    };
+
+    [Fact]
+    public void BacklogRowShowsEachStageMeanNotTheSystemAverage()
+    {
+        // 8R.0 printed the system-wide mean (3+8+5)/3 = 5.33 on BOTH rows. Screening's
+        // own mean is (2+11+4)/3 = 5.67 and Doctor's is 4.0, so the two rows must
+        // differ from each other and from the system figure.
+        var vm = new ResultsPanelViewModel();
+        vm.CompleteRun(Outcome(DifferingSeriesResult()));
+
+        Assert.Equal(2, vm.BacklogDrainRows.Count);
+        Assert.Equal("5.7", vm.BacklogDrainRows[0].BacklogAtClose);
+        Assert.Equal("4", vm.BacklogDrainRows[1].BacklogAtClose);
+        Assert.DoesNotContain("5.3", vm.BacklogDrainRows[0].BacklogAtClose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DrainRowShowsEachStageMeanAndBasisNamesTheSessionCount()
+    {
+        // Screening drain mean = (10+1+3)/3 = 4.67; Doctor = (2+2+9)/3 = 4.33.
+        var vm = new ResultsPanelViewModel();
+        vm.CompleteRun(Outcome(DifferingSeriesResult()));
+
+        Assert.Equal("4.7", vm.BacklogDrainRows[0].DrainMinutes);
+        Assert.Equal("4.3", vm.BacklogDrainRows[1].DrainMinutes);
+        Assert.Equal("average of 3 sessions", vm.BacklogDrainRows[0].Basis);
+    }
+
+    [Fact]
+    public void TotalDrainStaysTheMaxOfTheStageMeansAndNeverTheirSum()
+    {
+        // Max(4.67, 4.33) = 4.67. A sum would be 9.0 — the assertion pins max().
+        var vm = new ResultsPanelViewModel();
+        vm.CompleteRun(Outcome(DifferingSeriesResult()));
+
+        // max(3, 9) = 9 — the final-session scalars, and the summary says so.
+        Assert.Contains("9 min", vm.TotalDrainText, StringComparison.Ordinal);
+        Assert.Contains("final session", vm.TotalDrainText, StringComparison.Ordinal);
+        Assert.DoesNotContain("12", vm.TotalDrainText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SingleSessionRunKeepsTheScalarAndSaysSingleSession()
+    {
+        var vm = new ResultsPanelViewModel();
+        vm.CompleteRun(Outcome(Result()));
+
+        Assert.Equal("single session", vm.BacklogDrainRows[0].Basis);
+        Assert.Equal("3", vm.BacklogDrainRows[0].BacklogAtClose);   // scalar, not a mean
+        Assert.Equal("6.4", vm.BacklogDrainRows[0].DrainMinutes);
+    }
+
+    [Fact]
+    public void CalculationsDialogNamesBothTheFinalSessionAndTheMean()
+    {
+        // The ruling: the scalar is the final session's state, the series is the
+        // per-session detail, and where both are shown both are labelled so no
+        // reader can mistake one for the other.
+        var rows = CalculationsTextBuilder.BuildRows(
+            DifferingSeriesResult(), null, null, null, 0.25);
+        string text = string.Join("\n", rows.Select(r => $"{r.Label} {r.Value}"));
+
+        Assert.Contains("Screening — final session 4 patients", text, StringComparison.Ordinal);
+        Assert.Contains("mean across 3 sessions 5.7 patients (range 2-11)", text, StringComparison.Ordinal);
+        Assert.Contains("Doctor — final session 9.00 min", text, StringComparison.Ordinal);
+        Assert.Contains("mean across 3 sessions 4.33 min (range 2.00-9.00)", text, StringComparison.Ordinal);
+
+    }
+
+    [Fact]
+    public void CalculationsDialogShowsNoMeanOnASingleSessionRun()
+    {
+        var rows = CalculationsTextBuilder.BuildRows(Result(), null, null, null, 0.25);
+        string text = string.Join("\n", rows.Select(r => $"{r.Label} {r.Value}"));
+
+        Assert.DoesNotContain("final session", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("mean across", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EngineScalarBacklogIsTheFinalSessionsEntry()
+    {
+        // The scalar must not be a mean wearing a final-session label.
+        var result = CalendarRun(generatorDays: 3);
+
+        foreach (var stage in result.StageMetrics)
+        {
+            Assert.Equal(3, stage.BacklogAtCloseBySession.Count);
+            Assert.Equal(stage.BacklogAtCloseBySession[^1], stage.BacklogAtClose);
+            Assert.Equal(3, stage.DrainMinutesBySession.Count);
+            Assert.Equal(stage.DrainMinutesBySession[^1], stage.DrainMinutes, 9);
+            Assert.All(stage.DrainMinutesBySession, d => Assert.True(d >= 0));
+        }
+    }
+
+    [Fact]
+    public void HorizonRunYieldsASingleEntrySeriesEqualToItsScalar()
+    {
+        // A horizon run has no day blocks, so its one "session" is the whole run.
+        var topology = new NetworkTopology(
+            arrivalRate: 0.5,
+            [
+                new StageSpec("Screening", serverCount: 2, serviceRate: 1.0),
+                new StageSpec("Doctor", serverCount: 3, serviceRate: 1.0),
+            ],
+            exitStageIndex: 0, exitProbability: 0.5,
+            bypassProbability: 0.25, bypassStageIndex: 0, bypassDestinationIndex: 1);
+
+        var engine = new OpdSimulator.Core.Engine.Engine(new SeededRandomSource(), Serilog.Log.Logger);
+        var result = engine.Run(topology, seed: 42, horizonMinutes: 120);
+
+        foreach (var stage in result.StageMetrics)
+        {
+            Assert.Single(stage.BacklogAtCloseBySession);
+            Assert.Single(stage.DrainMinutesBySession);
+            Assert.Equal(stage.BacklogAtClose, stage.BacklogAtCloseBySession[0]);
+            Assert.Equal(stage.DrainMinutes, stage.DrainMinutesBySession[0], 9);
+        }
+    }
+
+    /// <summary>A real three-session clinic-day run, used where hand-built series would be circular.</summary>
+    private static SimulationResult CalendarRun(int generatorDays)
+    {
+        var topology = new NetworkTopology(
+            arrivalRate: 0.5,
+            [
+                new StageSpec("Screening", serverCount: 2, serviceRate: 0.5),
+                new StageSpec("Doctor", serverCount: 3, serviceRate: 0.25),
+            ],
+            exitStageIndex: 0, exitProbability: 0.5,
+            bypassProbability: 0.25, bypassStageIndex: 0, bypassDestinationIndex: 1);
+
+        var engine = new OpdSimulator.Core.Engine.Engine(new SeededRandomSource(), Serilog.Log.Logger);
+        return engine.Run(topology, seed: 42, calendar: new ClinicCalendar(), generatorDays: generatorDays);
+    }
+
     private static SimulationResult Result() => new()
     {
         TotalPatientsServed = 120,
@@ -586,8 +767,16 @@ public class Phase8RTests
         TotalPatientsServed = 300,
         StageMetrics =
         [
-            new StageMetrics { StageName = "Screening", BacklogAtClose = 2, DrainMinutes = 3 },
-            new StageMetrics { StageName = "Doctor", BacklogAtClose = 4, DrainMinutes = 9 },
+            new StageMetrics
+            {
+                StageName = "Screening", BacklogAtClose = 2, DrainMinutes = 3,
+                BacklogAtCloseBySession = [4, 6, 2], DrainMinutesBySession = [2.0, 4.0, 3.0],
+            },
+            new StageMetrics
+            {
+                StageName = "Doctor", BacklogAtClose = 4, DrainMinutes = 9,
+                BacklogAtCloseBySession = [5, 7, 4], DrainMinutesBySession = [1.0, 3.0, 9.0],
+            },
         ],
         BacklogPerDay = [4, 6, 8],
         DrainPerDay = [2.0, 4.0, 6.0],

@@ -74,4 +74,23 @@ public sealed record StageMetrics
     /// <see cref="SimulationResult.DrainPerDay"/>.
     /// </remarks>
     public double DrainMinutes { get; init; }
+
+    /// <summary>
+    /// Patients still queued or in service at the close of each operating session,
+    /// in session order (D-193).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BacklogAtClose"/> is the FINAL session's figure and means exactly
+    /// that. This series is the per-session detail behind a multi-day average; where
+    /// both are shown they are labelled "Final session" and "Mean across N sessions"
+    /// so neither can be mistaken for the other.
+    /// </remarks>
+    public IReadOnlyList<int> BacklogAtCloseBySession { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Minutes from each session's close to this stage's last service end, in
+    /// session order (D-193). <see cref="DrainMinutes"/> is the final session's
+    /// figure; this series is the per-session detail.
+    /// </summary>
+    public IReadOnlyList<double> DrainMinutesBySession { get; init; } = Array.Empty<double>();
 }

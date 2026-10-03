@@ -236,7 +236,6 @@ public sealed class Engine
         // never consumes draws.
         topology.Validate();
 
-        var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap);
 
         // Per-run trace target; null means no tracing for this run. Seeding the
         // wrapper resets its draw counter, so draw numbers always start at #1.
@@ -262,6 +261,8 @@ public sealed class Engine
         }
 
         // Fresh per-run runtime state: queues and servers never leak between runs.
+        var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap, topology.StageSpecs.Count);
+
         var stages = Enumerable.Range(0, topology.StageSpecs.Count)
             .Select(i => topology.CreateStage(i))
             .ToArray();
@@ -384,9 +385,8 @@ public sealed class Engine
                 case EventType.ReceptionEnd:
                 case EventType.ScreeningEnd:
                 case EventType.DoctorEnd:
-                    gate?.NoteServiceEnd(clock);
                     HandleServiceEnd(evt, clock, stages, topology, fel, inService, patientServer,
-                        stageWaitMinutes, ref totalSystemMinutes, ref completed);
+                        stageWaitMinutes, ref totalSystemMinutes, ref completed, gate);
                     break;
 
                 default:
@@ -436,10 +436,22 @@ public sealed class Engine
                 ThroughputPerMinute = operatingTime > 0 ? servedHere / operatingTime : 0,
                 WaitingTimeSamples = _stageWaitSamples![i],
                 QueueLengthSeries = _stageQueueSeries![i],
+                // The scalars keep their original meaning: the state at the FINAL
+                // close of the run (D-193). The series carries one entry per
+                // operating session, so a multi-day average can be computed from
+                // real per-stage numbers instead of one day's figure reused.
                 BacklogAtClose = gate is not null
                     ? _backlogPerDayAtClose![gate.GeneratorDays - 1][i]
                     : _backlogAtClose![i],
                 DrainMinutes = drain,
+                BacklogAtCloseBySession = gate is null
+                    ? new[] { _backlogAtClose![i] }
+                    : Enumerable.Range(0, gate.GeneratorDays)
+                        .Select(d => _backlogPerDayAtClose![d][i]).ToArray(),
+                DrainMinutesBySession = gate is null
+                    ? new[] { drain }
+                    : Enumerable.Range(0, gate.GeneratorDays)
+                        .Select(d => gate.DrainMinutesForDay(d, i)).ToArray(),
             };
         }).ToArray();
 
@@ -637,11 +649,19 @@ public sealed class Engine
         Dictionary<int, Server> patientServer,
         double[] stageWaitMinutes,
         ref double totalSystemMinutes,
-        ref int completed)
+        ref int completed,
+        CalendarGate? gate)
     {
         var patient = inService[evt.PatientId];
         var server = patientServer[evt.PatientId];
         var stage = stages[patient.StageIndex];
+
+        // The per-stage drain is recorded here, not at the event switch above,
+        // because this is the first point where the completing patient's stage is
+        // known (D-193). Recording it in the switch would have meant guessing the
+        // stage index from the event type and keeping that mapping in step with
+        // HandleServiceEnd's own.
+        gate?.NoteServiceEnd(clock, patient.StageIndex);
 
         patient.MarkServiceCompleted(clock);
         server.EndService(clock);
@@ -848,6 +868,14 @@ public sealed class Engine
         private readonly double[] _dayLastServiceEnd;
 
         /// <summary>
+        /// Per-stage last service end per day block (D-193). Separate from
+        /// <see cref="_dayLastServiceEnd"/>, which stays system-wide because the
+        /// operating-time denominator is defined on the whole system's last service
+        /// end — repurpose it and every recorded utilisation baseline moves.
+        /// </summary>
+        private readonly double[][] _dayStageLastServiceEnd;
+
+        /// <summary>
         /// Creates the gate for a run of <paramref name="generatorDays"/>
         /// calendar days.
         /// </summary>
@@ -856,7 +884,7 @@ public sealed class Engine
         /// <param name="dailyCap">Maximum <b>Screening-bound</b> admissions per day block;
         /// null = unlimited. A patient routed past Screening by the arrival-time bypass
         /// does not consume a place (D-190).</param>
-        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap)
+        public CalendarGate(ClinicCalendar calendar, int generatorDays, int? dailyCap, int stageCount)
         {
             _calendar = calendar;
             GeneratorDays = generatorDays;
@@ -870,6 +898,11 @@ public sealed class Engine
             _screeningAdmittedPerDay = new int[generatorDays];
             _dayFirstArrival = new double?[generatorDays];
             _dayLastServiceEnd = new double[generatorDays];
+            _dayStageLastServiceEnd = new double[generatorDays][];
+            for (var d = 0; d < generatorDays; d++)
+            {
+                _dayStageLastServiceEnd[d] = new double[stageCount];
+            }
 
             CurrentDayIndex = -1;
         }
@@ -996,8 +1029,23 @@ public sealed class Engine
         /// that day's last service end monotonic.
         /// </summary>
         /// <param name="clock">The completion's simulation time.</param>
-        public void NoteServiceEnd(double clock)
-            => _dayLastServiceEnd[CurrentDayIndex] = Math.Max(_dayLastServiceEnd[CurrentDayIndex], clock);
+        public void NoteServiceEnd(double clock, int stageIndex)
+        {
+            var day = CurrentDayIndex;
+            _dayLastServiceEnd[day] = Math.Max(_dayLastServiceEnd[day], clock);
+            var perStage = _dayStageLastServiceEnd[day];
+            perStage[stageIndex] = Math.Max(perStage[stageIndex], clock);
+        }
+
+        /// <summary>
+        /// Drain for ONE stage on ONE day: that stage's last service end minus that
+        /// day's close, clamped at zero (D-193). The system-wide
+        /// <see cref="DrainMinutesForDay(int)"/> is the max across stages, which is
+        /// the right figure for "how long until the clinic is empty" and the wrong
+        /// one for "how long was this stage still working".
+        /// </summary>
+        public double DrainMinutesForDay(int dayIndex, int stageIndex)
+            => Math.Max(0.0, _dayStageLastServiceEnd[dayIndex][stageIndex] - CloseTimeForDay(dayIndex));
 
         /// <summary>
         /// Operating-time denominator: summed per open day block (first admitted

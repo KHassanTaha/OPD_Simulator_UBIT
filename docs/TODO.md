@@ -347,10 +347,18 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [x] **Change 2 (D-190)** — `DailyCap` field: default 85, visible for both calendar modes, hidden for DiagnosticTrace, blank = unlimited, session-length-derived cap rate — 2026-10-03
 - [x] **Change 3 (D-190)** — effective λ under the cap: Screening clamped to the cap rate, bypass stream left unthrottled, Doctor = bypass + capped continuation; stability refusal now reports fitted AND cap-derived λ — 2026-10-03
 - [x] **Change 4 (D-189)** — coordinator derives S/D from the stage count; two-stage networks run instead of being refused — 2026-10-03
-- [x] **Change 5 (D-191)** — per-stage `BacklogAtClose` and `DrainMinutes`; per-session series; results table + total-drain summary — 2026-10-03
+- [x] **Change 5 (D-191)** — per-stage `BacklogAtClose` and `DrainMinutes`; results table + total-drain summary — 2026-10-03
 - [x] **Change 6** — Performance Measures shows a Backlog and drain table per stage with a Basis column — 2026-10-03
 - [x] Tests: Core +9 (bypass/cap algebra, refusal content, backlog, drain), App +26 (`Phase8RTests` 23, `Phase8RScreenshots` 3) — 2026-10-03
 - [x] Gates: Release and Debug 0 errors / 0 warnings; full suite 825 green (Core 134 / Data 134 / Cli 35 / App 522); three headless frames rendered — 2026-10-03
 - [x] Docs: D-189..D-192, PRD v1.13.0, REQUIREMENTS rows, DEV_LAUNCH verified line, USER_MANUAL cap + backlog sections, VIVA_ANSWERS entries — 2026-10-03
+- [x] **8R.1 Change 1 (D-193)** — `StageMetrics.BacklogAtCloseBySession` / `DrainMinutesBySession`: one entry per operating session; scalars keep their final-session meaning — 2026-10-03
+- [x] **8R.1 Change 2 (D-193)** — `CalendarGate._dayStageLastServiceEnd[day][stage]`; `NoteServiceEnd` takes a stage index and is called from `HandleServiceEnd`; system-wide drain array untouched — 2026-10-03
+- [x] **8R.1 Change 3 (D-193)** — results table averages each stage's OWN series (was: the system average repeated on every row) — 2026-10-03
+- [x] **8R.1 Change 4 (D-193)** — calculations dialog names both figures and gives a range when they differ; single-session runs show the scalar only — 2026-10-03
+- [x] **8R.1 Change 5** — bypass reformulation verified like-for-like against 8Q.2 (`da5511c`): all four FNV-1a64 hashes, all served counts and all six doubles bit-identical — 2026-10-03
+- [x] Tests: App +8 (`Phase8RTests` 34) — 2026-10-03
+- [x] Gates: Release and Debug 0 errors / 0 warnings; full suite 833 green (Core 134 / Data 134 / Cli 35 / App 530) — 2026-10-03
+- [x] Docs: D-193, D-189 corrected-verification paragraph, D-190 8J note, REQUIREMENTS rows, USER_MANUAL scalar-vs-mean section, VIVA_ANSWERS entry — 2026-10-03
 - [ ] **Owner visual inspection of the three 8R frames (§18 / D-089)** — this host has no image input, so the frames are captured and content-asserted but not looked at; B-012
 

@@ -1287,3 +1287,19 @@ The Performance Measures section has a second table, **Backlog and drain**:
   clinic week, so a multi-day figure is never passed off as a single day's.
 - The summary line is the **slowest** stage's drain, not the total, because the system
   is empty once its slowest stage is empty.
+
+### Two different numbers for one quantity (Phase 8R.1)
+
+On a clinic week, each row is **that stage's own average** across the sessions. The
+same quantity also has a single end-of-run reading, and both can be on screen at once,
+so each one names itself:
+
+| Where | What it says |
+|-------|--------------|
+| Results table, `average of N sessions` | the typical session for **that** stage |
+| Calculations dialog, `final session` | the state when the **last** session closed |
+| Calculations dialog, `mean across N sessions` | the average, with the range, e.g. `(range 2-11)` |
+
+The two are not interchangeable. A quiet final session can sit well below the average,
+which is exactly what the range is there to show. A one-session run has no range to
+show, so it prints the single figure and nothing else.

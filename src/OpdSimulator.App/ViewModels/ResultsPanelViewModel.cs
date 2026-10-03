@@ -391,18 +391,31 @@ public partial class ResultsPanelViewModel : ObservableObject
     {
         BacklogDrainRows.Clear();
 
-        bool multiDay = result.BacklogPerDay.Count > 1;
-        double averageBacklog = multiDay ? result.BacklogPerDay.Average() : 0;
-        double averageDrain = multiDay ? result.DrainPerDay.Average() : 0;
+        // Every stage is averaged over ITS OWN sessions (D-193). Averaging the
+        // system-wide series and printing it on each row — which is what 8R.0 did —
+        // made every row identical in exactly the multi-day runs where a per-stage
+        // backlog is the figure worth reading.
+        int sessionCount = result.StageMetrics.Count == 0
+            ? 0
+            : result.StageMetrics.Max(st => Math.Max(
+                st.BacklogAtCloseBySession.Count, st.DrainMinutesBySession.Count));
+
+        bool multiDay = sessionCount > 1;
         string basis = multiDay
-            ? $"average of {result.BacklogPerDay.Count} sessions"
+            ? $"average of {sessionCount} sessions"
             : "single session";
 
         var serial = 1;
         foreach (var stage in result.StageMetrics)
         {
-            string backlog = multiDay ? $"{averageBacklog:0.#}" : $"{stage.BacklogAtClose}";
-            string drain = multiDay ? $"{averageDrain:0.#}" : N0(stage.DrainMinutes);
+            // A stage with no series (an older result, or a horizon run) falls back
+            // to its scalar, which is that run's single session.
+            string backlog = multiDay
+                ? $"{stage.BacklogAtCloseBySession.DefaultIfEmpty(stage.BacklogAtClose).Average():0.#}"
+                : $"{stage.BacklogAtClose}";
+            string drain = multiDay
+                ? $"{stage.DrainMinutesBySession.DefaultIfEmpty(stage.DrainMinutes).Average():0.#}"
+                : N0(stage.DrainMinutes);
             BacklogDrainRows.Add(new BacklogDrainRow($"{serial++}", stage.StageName, backlog, drain, basis));
         }
 

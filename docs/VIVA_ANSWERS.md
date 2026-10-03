@@ -849,3 +849,31 @@ No, it is the model refusing to produce a number that does not exist. A queue wi
 arrival rate at or above its service capacity grows without bound, so any "average
 wait" computed from it would be fiction. The refusal exists so the number cannot be
 believed; the cap is the tool for making the system stable, and the message says so.
+
+## Why does each stage show its own average, and what is the "final session" figure? (D-193)
+
+Two questions, two answers. The **mean across N sessions** is the average of that
+stage's own backlog over the clinic week — each stage is averaged over its own
+sessions, because two stages can and do differ. The **final session** figure is the
+state at the close of the last session, which is a different kind of quantity: a
+point-in-time reading rather than an average.
+
+The first version of this table averaged the *system-wide* backlog series and printed
+that one number on every stage row, so a two-stage week showed the same backlog for
+both stages. On a single day that was accidentally right. It was wrong precisely where
+the feature matters, so it was replaced with per-stage averages.
+
+The scalars on `StageMetrics` were deliberately not redefined to mean the mean. A
+field's meaning should not change underneath its name, so the final-session value
+stayed put and the per-session detail went into new `BacklogAtCloseBySession` /
+`DrainMinutesBySession` properties. Where both appear they are both labelled.
+
+The total-drain summary is the **max** of the per-stage drains, never their sum: the
+system is empty once its slowest stage is empty, and summing would count the same
+patient once for each stage they pass through.
+
+Per-stage drain is recorded per stage inside `HandleServiceEnd`, where the completing
+patient's stage is known. The engine's system-wide last-service-end array is a
+separate structure and is deliberately untouched, because it is the counterpart of the
+operating time in every recorded utilisation figure.
+

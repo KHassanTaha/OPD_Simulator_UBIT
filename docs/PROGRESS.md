@@ -1,3 +1,64 @@
+Session Handoff — 2026-10-03 21:40
+Branch: fix/phase-8r
+Status: Clean
+
+Done
+Phase 8R.1 implemented: per-stage, per-session `BacklogAtCloseBySession` / `DrainMinutesBySession` with the scalars' final-session meaning preserved (D-193)
+The 8Q.2 ↔ 8R bypass reformulation verified like-for-like: all four FNV-1a64 hashes, all served counts and all six doubles bit-identical
+
+In Progress
+Nothing. The only open item is owner visual inspection of the three 8R frames.
+
+What is complete:
+`CalendarGate` records `_dayStageLastServiceEnd[day][stage]`; `NoteServiceEnd` takes a stage index and is called from `HandleServiceEnd`, the first point where the completing patient's stage is known. The system-wide `_dayLastServiceEnd` is untouched because it is the counterpart of the operating time in every recorded utilisation figure.
+The results table averages each stage's own series. 8R.0 averaged the system-wide series and printed it on every row, which was accidentally correct on one day and wrong on a clinic week — the only case the feature exists for.
+The calculations dialog labels both figures (`final session`, `mean across N sessions` with a range) on multi-day runs and prints the single figure otherwise.
+`StageMetrics` scalars were NOT redefined. The pre-existing test that asserted the old system-average-on-every-row behaviour was updated, because it encoded the defect.
+
+What remains:
+Owner visual inspection of the three 8R frames (B-012). No merge until then.
+
+Next Session Should Start With
+Owner reviews `logs/screenshots/phase-8r-cap-field.png`, `phase-8r-backlog-drain.png`, `phase-8r-2stage-bypass.png`.
+
+Blocked
+None. B-012 (25 unreviewed frames) is tracked but non-blocking.
+
+Git State
+Commits made this session: see below.
+Pushed to origin: pending at time of writing; branch `fix/phase-8r` pushed after this entry.
+Uncommitted changes: the 8R.1 change set, committed as one logical commit.
+
+Build & Test
+dotnet build: PASS (Release and Debug, --no-incremental, 0 errors / 0 warnings in both)
+dotnet test: PASS — 833 passed, 0 failed (Release and Debug) — up from 825; the 8 pre-existing multi-day assertions were updated, 8 tests added
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Core/Engine/Engine.cs: per-stage-per-day drain bookkeeping; `NoteServiceEnd` signature; call moved to `HandleServiceEnd`; per-session series populated on each `StageMetrics`
+src/OpdSimulator.Core/Engine/StageMetrics.cs: `BacklogAtCloseBySession`, `DrainMinutesBySession`
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: per-stage means from each stage's own series
+src/OpdSimulator.App/Services/CalculationsTextBuilder.cs: final-session vs mean-with-range rows
+tests/OpdSimulator.App.Tests/Phase8RTests.cs: +8 tests; the old system-average assertion replaced
+
+docs/DECISIONS.md: D-193; D-189 corrected-verification paragraph with the measured hashes; D-190 8J DailyCap note
+docs/TODO.md: 8R.1 changes, tests, gates, docs
+docs/REQUIREMENTS.md: 3 rows for the per-stage mean, the series, and the dialog labels
+docs/USER_MANUAL.md: "Two different numbers for one quantity"
+docs/VIVA_ANSWERS.md: why per-stage means and what the final-session figure is
+docs/DEV_LAUNCH.md: 8R.1 verified line
+
+Decisions Made
+D-193 — per-stage, per-session series alongside an unchanged scalar; table averages each stage's own series; both figures labelled wherever they co-occur.
+
+Assumptions Added/Changed
+None. No new assumption was needed; the owner ruling settled the semantics.
+
+Notes for Next Session
+**Correction carried in the record (D-189):** the bypass hashes were NOT verified before the 8R commit. The identity was argued algebraically and then wrongly corroborated by a green suite — the only FNV-1a64 literals in the repository run on a topology with no bypass at all. The conclusion was right; the claim of having checked it was not. The comparison has now actually been run (`git worktree` at `da5511c`, same harness in both trees, differing only in skip index 0 vs 1) and every value matched: interarrival `A99F0EA406FFBDD8`, Reception `32A2B933FC2C53A2`, Screening `AB7C172BE91850F1`, Doctor `090539E170F904DE`; served 85/58/59; `avg_wait` 1.716936646060989; `avg_system` 6.0339313636760865; `avg_qlen` 0.29389326620446005; `throughput` 0.5135191217661628. The temporary harness was deleted from both trees and neither tree kept a baseline change.
+A `git worktree` may still exist at `/tmp/opencode/8q2` (detached at `da5511c`) — remove with `git worktree remove /tmp/opencode/8q2` if it is no longer wanted. It is harmless if left.
+Session token budget was exceeded (the owner asked for the hash comparison and the whole 8R.1 implementation in one pass). Flagged rather than hidden, per the standing rule.
+
 ## Session Handoff — 2026-10-03 Phase 8R
 Branch: `fix/phase-8r` · Status: **Complete** (implemented, tested, documented, pushed)
 

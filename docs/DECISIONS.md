@@ -3099,6 +3099,8 @@ and `ValidatedField`'s live-region announcements are still outstanding.
 - **Decision:** The skipped stage `S` and the destination `D` are derived from the stage COUNT (`S = n − 2`, `D = n − 1`) and passed as indices. The engine never compares a stage NAME. The bypass draw happens **at arrival when `S = 0`** and **on completion of `S − 1` when `S > 0`**. The rejection rule is narrowed to `S > 0 && S − 1 == ExitStageIndex`; `S = 0` is never rejected on that ground, and `BypassProbability == 0` normalises `S = D = −1`.
 - **Rationale:** The clinic capture is a genuine TWO-stage network (Screening → Doctor; the file has no reception column), and 8Q refused it because it had no "middle" stage to skip. The pre-8R code also drew the bypass at the skipped stage's own arrival, which double-counts in a three-stage network: the share belongs at the node that feeds the skip. With `S = 0` the skipped stage IS the front door, so arrival is the correct node — the old special case becomes the general rule's first case rather than a separate code path.
 - **Impact:** (+) A two-stage file runs instead of being refused, and its λ_screening is `λ₀(1 − p_bypass)` rather than `λ₀`. (+) No stage-name comparisons anywhere in the routing path, so a rename cannot silently reroute a network. (+) A validation that was only correct for one topology now rejects only the genuinely impossible case. (−) `S > 0` and `S = 0` take different draw sites; the trace shows which.
+- **Verified empirically (2026-10-03, after owner challenge):** FNV-1a64 hashes on the existing test suite are unchanged before and after the index reformulation. The 3-stage routing under S=1/D=2 draws at the same node (S−1 = 0) as 8Q.2's S=0/D=2, so the RNG stream is identical. The check was run as a like-for-like baseline: a `git worktree` at 8Q.2 (`da5511c`) and the 8R tree, each given the **same** temporary harness, differing only in the skip index (0 vs 1). Every value matched exactly — interarrival hash `A99F0EA406FFBDD8`, Reception `32A2B933FC2C53A2`, Screening `AB7C172BE91850F1`, Doctor `090539E170F904DE`; served 85/58/59; `avg_wait` 1.716936646060989; `avg_system` 6.0339313636760865; `avg_qlen` 0.29389326620446005; `throughput` 0.5135191217661628. The harness was deleted from both trees afterwards and neither committed.
+- **Correction to the record:** the hashes were **not** verified before the 8R commit. The identity was argued algebraically and then wrongly corroborated by the green suite — the only FNV-1a64 literals in the repository (`StageFamilyDispatchTests.cs`) run on a topology with **no bypass at all**, so they cannot detect a moved bypass draw and were never evidence. The conclusion was right; the claim of having checked it was not. A green suite is not evidence for a property that suite never exercises.
 - **Alternatives considered:** inferring S from stage names (rejected — brittle, and the engine would need to know domain names); keeping the 8Q refusal for two-stage networks (rejected — it refuses the only real capture the project has); drawing at `S` and dividing the inflow afterwards (rejected — double-counts the bypass share in three-stage).
 
 ---
@@ -3110,6 +3112,7 @@ and `ValidatedField`'s live-region announcements are still outstanding.
 - **Decision:** A new `DailyCap` field, default **85**, visible for both calendar run modes and hidden for DiagnosticTrace; blank means unlimited. `cap_rate = DailyCap / ClinicCalendar.OpenDurationMinutes` — the session length is read, never hardcoded. The cap applies **only to Screening-bound admissions**: the gate counts them separately from all admissions, and the bypass stream is never throttled. Effective λ is `min(offered routed screening λ, cap_rate)`; the Doctor's λ is `uncapped bypass inflow + capped screening continuation`. `ρ >= 1` still refuses, and the refusal now names BOTH the fitted λ (before the cap) and the cap-derived λ actually used.
 - **Rationale:** A clinic's capacity is an admitted-load limit per session, not a uniform rate limit, so modelling it as a rate cap on every stage would be wrong twice over: it would throttle the Doctor (which never queued for screening) and it would hide the fitted demand. Naming only the capped figure leaves a user staring at λ = 0.515 with no way to tell it was 0.670 except by assuming the fit is wrong.
 - **Impact:** (+) The user can reproduce a real clinic's session behaviour. (+) A refusal is now diagnosable: both numbers are on screen. (+) 165 appears once, in `ClinicCalendar`, so a session-length change moves the cap rate automatically. (−) Two admission counters instead of one. (−) The cap default changed one pre-existing locked baseline (Phase 8J), which now runs explicitly uncapped with the reason recorded in the test.
+- **The Phase 8J locked baseline declares DailyCap = null explicitly because it records a run from before the cap existed. The new default of 85 must not silently rewrite it.**
 - **Alternatives considered:** capping total arrivals (rejected — that is a different policy, and the bypass share does not consume screening places); hardcoding the 85-minute divisor (rejected — the session length is already configuration); hiding the cap when the fitted λ is under it (rejected — the cap is a session limit, not a λ override).
 
 ---
@@ -3124,6 +3127,52 @@ and `ValidatedField`'s live-region announcements are still outstanding.
 - **Alternatives considered:** reporting only the drain and deriving backlog from it (rejected — backlog is the state, drain is the consequence); summing stage drains (rejected — double-counts).
 
 ---
+
+
+## D-193 — Per-stage, per-session series alongside the unchanged scalar (Phase 8R.1)
+
+- **Date:** 2026-10-03
+- **Status:** Accepted (owner ruling)
+- **Context:** 8R.0 gave each stage a scalar `BacklogAtClose` and `DrainMinutes` and
+  gave `SimulationResult` a system-wide `BacklogPerDay` / `DrainPerDay`. The results
+  table then averaged the SYSTEM series and printed that one number on every stage
+  row. On a single-day run this was accidentally correct. On a multi-day run it was
+  wrong in the exact case the feature exists for: two stages with genuinely different
+  backlogs were reported with identical figures.
+- **Decision:** the scalar keeps its original meaning — the state at the final close
+  of the run. Two new per-stage series, `StageMetrics.BacklogAtCloseBySession` and
+  `StageMetrics.DrainMinutesBySession`, carry one entry per operating session. The
+  results table averages each stage's OWN series. Where a scalar and a mean are shown
+  together, both are named ("final session" vs "mean across N sessions", with a range)
+  so no reader can mistake one for the other. A single-session run produces a
+  one-entry series and shows the scalar alone.
+- **Rationale:** the two figures answer different questions. The scalar is a
+  point-in-time reading at the end of the run; the mean is a typical session. Collapsing
+  them loses one of the two, and the 8R.0 table collapsed them into the *wrong* one.
+- **Implementation details:**
+  - `CalendarGate` gains `_dayStageLastServiceEnd[day][stage]` alongside the existing
+    system-wide `_dayLastServiceEnd`. The system array is deliberately untouched: it is
+    the numerator's counterpart in `OperatingTimeMinutes` and repurpose it would move
+    every recorded utilisation baseline.
+  - `NoteServiceEnd` therefore takes a stage index, and the call moved from the event
+    switch in `Run` into `HandleServiceEnd` — the first point where the completing
+    patient's stage is known. Recording it in the switch would have meant deriving the
+    stage from the event type and keeping that mapping in step with `HandleServiceEnd`.
+  - `SimulationResult.BacklogPerDay` / `DrainPerDay` are retained unchanged for
+    compatibility; the per-stage table no longer reads them.
+  - `CalculationsTextBuilder` emits both figures with their labels for multi-day runs.
+- **Impact:**
+  - *Positive:* stage rows are finally stage-specific; the total-drain summary keeps
+    `max()` (the system empties when its slowest stage empties) and is labelled
+    "final session" so it cannot be read as the mean shown beside it.
+  - *Negative:* two similarly named figures now coexist, which is a presentation
+    cost. Mitigated by labelling both at every point they appear.
+- **Alternatives considered:** (a) redefining the scalar as the mean — rejected, it
+  silently changes the meaning of an existing, already-documented field; (b) dropping
+  the scalar and showing only series — rejected, the final-session reading is the one
+  that describes the run that just finished; (c) a sum of per-stage drains — rejected,
+  it double-counts patients moving between stages.
+
 
 ## D-192 — Phase 8R verification: behaviour tests on constructed data, evidence frames for the UI
 
