@@ -1,7 +1,7 @@
 # Product Requirements Document – OPD Clinic Queue Simulator
 
-**Version:** v1.13.1
-**Date:** 2026-09-14
+**Version:** v1.14.0
+**Date:** 2026-10-04
 **Author:** Taha Hassan
 **Course:** Simulation & Modelling
 **Master document:** Yes. `REQUIREMENTS.md` is derived from this file.
@@ -82,7 +82,7 @@ estimated) or proceeds to Doctor consultation.
 - t = 0 anchored to arrival generation start (currently 8:15 AM).
 - UI displays real clock time.
 - Single-day **or** multi-day run modes (user-selectable).
-- Closed days (Fri, Sun) skipped instantly.
+- The requested number of days counts **operating sessions**: closed days (Fri, Sun) are skipped instantly and are **not** counted, so `Days = 4` from a Saturday start covers Sat, Mon, Tue, Wed. _(Owner ruling 2026-10-04, D-199.)_
 - A day ends when all patients within the cap are served.
 
 **Statistics:**
@@ -370,7 +370,7 @@ The Parameters section SHALL provide a searchable dropdown for the user to decla
 The rate-wise / mean-wise parameter-mode selector SHALL live at the top of the Parameters section, adjacent to the time-unit selector and the manual λ/μ entries, so the user declares the interpretation and the unit together.
 
 **FR-UI-24 (Horizon Duration, diagnostic mode only)** _(updated Phase 8O, D-174)_
-The former time-span preset selector is **removed**. A calendar run's length SHALL come only from the Horizon **Days** field (`RunMode.GeneratorDays`), and a diagnostic trace's arrival window SHALL come only from a new **Duration** dropdown, **visible in diagnostic-trace mode alone**. The Duration options SHALL be, in order: `1 hour` (**default**), `15 minutes`, `Custom minutes…`. A free-text field SHALL back only the `Custom minutes…` option, SHALL validate on blur, and a calendar run SHALL NOT read or be blocked by it. The earlier behaviour — one dropdown driving both the minutes horizon and a generator-day count, with `1 week` meaning 6 open days and `1 month` meaning 26 — is withdrawn; it ran a five-day clinic for six days.
+The former time-span preset selector is **removed**. A calendar run's length SHALL come only from the Horizon **Days** field (`RunMode.GeneratorDays`) — and that field counts **operating sessions**, not calendar days (FR-SIM-12): `Days = 4` from a Saturday start simulates Sat, Mon, Tue and Wed, and the intervening Sunday is skipped rather than counted as one of the four (owner ruling 2026-10-04, D-199). The field's label SHALL say so. A diagnostic trace's arrival window SHALL come only from a new **Duration** dropdown, **visible in diagnostic-trace mode alone**. The Duration options SHALL be, in order: `1 hour` (**default**), `15 minutes`, `Custom minutes…`. A free-text field SHALL back only the `Custom minutes…` option, SHALL validate on blur, and a calendar run SHALL NOT read or be blocked by it. The earlier behaviour — one dropdown driving both the minutes horizon and a generator-day count, with `1 week` meaning 6 open days and `1 month` meaning 26 — is withdrawn; it ran a five-day clinic for six days.
 
 **FR-UI-27 (Stage-Identical Chart Colour)**
 Every chart that plots a stage SHALL take that stage's colour from one shared palette keyed by **stage index**, so a stage is the same colour in the queue-length chart, the waiting-time histogram, the per-server utilisation chart and the stage legend. The palette SHALL be defined by theme resources and SHALL wrap (by hue shift) for runs with more stages than the palette defines, rather than repeating a colour. A stage index SHALL be the only input to the lookup, so a chart that reorders its series for legibility SHALL NOT change the colours.
@@ -410,8 +410,43 @@ The Results panel's per-stage performance group SHALL be headed **Performance Me
 
 A stage's stability verdict SHALL be **green** when `ρ < 0.9`, **amber** ("near capacity") when `0.9 <= ρ < 1`, and **red** ("unstable") when `ρ >= 1`. The bands SHALL be half-open on the upper side, and the decision SHALL be produced by a single pure function with no UI dependency so every surface applies the identical rule. The verdict text SHALL be the primary signal and the colour a secondary one (AGENTS §16.9: red is never the only cue). The red band is a **defensive** state: the engine refuses an unstable network and the GUI gates Start (D-128), so the GUI cannot currently produce it.
 
-**FR-UI-35 (Always-visible event trace)** _(new Phase 8Q.4, D-184)_
-The Results panel's event trace SHALL be permanently visible after a run and SHALL NOT be offered as a toggleable widget in the Customise-results selector. It SHALL be pinned below the scrolling widget body rather than placed inside it, so that scrolling to any widget can never push the trace off screen — the trace is the artefact a viva is read from, and a trace you have to scroll to find is a trace that was not read. Its body SHALL scroll internally within a fixed maximum height, so a long trace cannot consume the panel and hide the widgets. A persisted preferences file written before this requirement that lists the trace among the selectable widgets SHALL continue to load, and the stale entry SHALL be ignored: it SHALL NOT restore a hidden trace and SHALL NOT reappear as a selectable widget.
+**FR-UI-35 (Always-present event trace)** _(new Phase 8Q.4, D-184; **pinning clause withdrawn Phase 8T, D-200**)_
+The Results panel's event trace SHALL be present after a run and SHALL NOT be offered as a toggleable widget in the Customise-results selector. A persisted preferences file written before this requirement that lists the trace among the selectable widgets SHALL continue to load, and the stale entry SHALL be ignored: it SHALL NOT restore a hidden trace and SHALL NOT reappear as a selectable widget.
+
+**The trace is no longer pinned below the scrolling widget body.** D-184 placed it in its own grid row so that "scrolling to any widget can never push the trace off screen". The owner reversed that on 2026-10-04 after D-195 measured what the pinned rows cost: at a 420 px window the two pinned `Auto` rows left the scrolling middle **101 px**, so the row added to guarantee the trace's presence was the row that made the widgets unreadable. The trace now sits at the end of the single inline results sequence (FR-UI-37), and this requirement keeps only what survives the reversal: the trace is always in the flow, is never switchable off, and a stale preferences entry cannot hide it. The former maximum-height and internal-scroll clauses are withdrawn with the pinned row (a table with its own virtualisation replaces them — FR-UI-39).
+
+**FR-UI-37 (One inline results sequence — nothing pinned above or below the widgets)** _(new Phase 8T.5, D-200)_
+The Results panel SHALL present the run header, the result widgets and the event trace as **one vertical sequence inside a single scroll region**, in that order: header → widgets → trace. No results row SHALL be pinned outside it. Requirements:
+- The run header (run summary, exit/bypass provenance) and the Customise-results control become the first item of the sequence, not a fixed band above it.
+- The event trace is the **last** item of the sequence, which is what makes FR-UI-37 the precondition for FR-UI-35's de-pinning.
+- There SHALL be exactly **one** scrollbar for the whole results body; a widget, the header and the trace SHALL NOT scroll independently of each other.
+- A window too short for the sequence SHALL scroll the entire panel rather than crushing one region, and the sequence SHALL end with a bottom buffer so the trace's last row is never flush against the panel edge (FR-UI-35's `ResultsBottomBuffer` precedent, D-198).
+- The *configuration* panel's pinned action bar is **out of scope** and unchanged: FR-UI-11 pins Start Calculation for the reason FR-UI-35 no longer applies to results — the user must always be able to start a run, but has no action to reach at the bottom of a results list.
+
+**FR-UI-38 (Per-session totals, including served and wait)** _(new Phase 8T.2, D-201)_
+The Results panel SHALL carry a **Per-session totals** section that reports one row per operating session (FR-SIM-12) **per stage**, in session order and then stage order. Each row SHALL name its own session and stage — `Day 1 (Sat)`, `Stage: Screening` — so a row is self-describing when cited, and SHALL carry:
+- **arrivals served** at that stage in that session (FR-STAT-9),
+- **mean queue wait** in minutes at that stage in that session (FR-STAT-9),
+- mean queue length, backlog at close and drain minutes (existing per-session series, D-191/D-193),
+
+subject to FR-UI-36 (contiguous `#` serial, numeric columns right-aligned). The section's caption SHALL name the operating sessions simulated, the session length in minutes, and the session start weekday, so "Day 3" is never ambiguous. The section SHALL appear before the event trace in the sequence (FR-UI-37) and SHALL render nothing before a run has produced sessions. A closed day SHALL NOT produce a row.
+
+**FR-UI-39 (Event trace as a virtualised table)** _(new Phase 8T.4, D-202)_
+The Results panel's event trace SHALL render as a **virtualised table of structured trace events**, one row per event, replacing the single `SelectableTextBlock` of pre-formatted text. Requirements:
+- Each row SHALL carry, where the event has them: simulation time (minutes) **and** real clock time, event type, patient id, stage, server id, queue length, and the detail text the existing formatter already produces.
+- The rows SHALL come from the engine's structured `TraceEvent` records, NOT from parsing the formatted text back apart: the formatted string is a rendering, and a table built by splitting it would inherit every formatting change as a parsing break.
+- The table SHALL be virtualised (NFR-11) and SHALL NOT render one control per event for a long run.
+- The table SHALL be keyboard-scrollable and each row's text SHALL be selectable, so the viva behaviour (read a row, quote it) survives the change of control.
+- The **formatted text trace is retained in the model** — the CLI `trace` command, the trace file and the existing tests keep it; only the on-screen rendering changes. Providing a copy-trace-text control is **explicitly out of scope** for this phase and recorded as such rather than silently dropped.
+- Beside the table, a single **subtle side note** SHALL report the run's total not-admitted arrivals (FR-STAT-10), naming that they were generated and then rejected for being outside the opening window or over the session cap. It SHALL be one muted caption, not a metrics row: it describes the generator, not the clinic, and in a typical multi-day run it outnumbers the admitted arrivals several times over.
+
+**FR-UI-40 (Queue-length chart per operating session)** _(new Phase 8T.3, D-203)_
+The queue-length-over-time widget SHALL offer a **session selector** so a reader can look at one operating session rather than a week of lines in one plot. Requirements:
+- The selector SHALL be a `SearchableDropdown` (FR-UI-6) listing `All sessions` followed by one entry per operating session, labelled `Day n (Weekday)` from FR-SIM-12's session metadata. **A closed day SHALL NOT appear as an option.**
+- Selecting a session SHALL filter the plotted series to that session's minutes and label the horizontal axis in **minutes from the session opening (0 … 165)** rather than in absolute clock minutes, so two sessions can be compared by position instead of by shifting axis.
+- `All sessions` SHALL keep the current absolute-time axis and plot every sample, unchanged from FR-UI-4/D-122 (including the ≤ 2000-point decimation, applied per selection).
+- The selection SHALL persist across widget-visibility toggles within a session and SHALL reset to `All sessions` on a new run, since session ordinals belong to the run that produced them.
+- Before a run the widget SHALL keep its current empty state naming the action required.
 
 **FR-UI-36 (Serial numbers and column alignment)** _(new Phase 8Q.5, D-187)_
 Every **listing table** in the Results panel SHALL carry a serial-number column numbered from 1 in display order, contiguous and gap-free, so a row can be cited unambiguously in the viva ("stage 2", "verdict 3") without the reader counting rows. Numeric columns SHALL be **right-aligned** and text columns **left-aligned**, in the header as well as the body, so decimal points line up within a column and no text column inherits the numeric rule by accident.
@@ -456,11 +491,21 @@ Note: This FR affects HISTORICAL validation only. SIMULATED per-server utilisati
 **FR-SIM-5:** Arrival generation window: 8:15 AM onward (configurable), until daily cap reached or 11:00 AM, whichever first — 165 operating minutes per session. _(Clock corrected 2026-09-29, D-172; was documented as 9:00 AM.)_
 **FR-SIM-6:** Services in progress at close time continue to completion.
 **FR-SIM-7:** Day ends when all capped patients are served.
-**FR-SIM-8:** Closed days (Fri, Sun) skipped.
+**FR-SIM-8:** Closed days (Fri, Sun) skipped — and **not counted**: a requested day count is a count of operating sessions, so a closed day inside the horizon consumes clock but not a session (FR-SIM-12, D-199).
 **FR-SIM-9:** Single-day and multi-day modes user-selectable.
 **FR-SIM-10:** Internal clock in minutes (t=0 = arrival start); UI displays real clock time.
 
 **FR-SIM-11 (Direct-to-doctor routing):** The network SHALL carry a `BypassProbability` in `[0, 1)` plus a bypass source stage and destination stage, both constructor-validated; a destination that is not strictly after its source SHALL be rejected, and a bypass source equal to the exit stage SHALL be rejected because two coin tosses on one completion leave the destination dependent on which was consulted first. When `BypassProbability == 0` both indices SHALL normalise to −1, the bypass SHALL be disabled, and **no additional random draw SHALL be consumed**, so that every pre-existing run is bit-identical. On a service completion the exit decision SHALL be taken first and the bypass decision second; the bypass SHALL apply only when the patient did not exit, and the `EndService` trace row SHALL be emitted **after** both decisions so the recorded destination is the one that occurred. Each stage's effective arrival rate SHALL be the **sum of the routed probability mass reaching that stage**, so a stage receives arrivals both from patients that passed through it and from those that skipped it; with bypass disabled this reduces to the original single-exit product (D-007 amended). A network with fewer than three stages SHALL run with the bypass normalised to zero, and the reported effective bypass probability SHALL then be zero rather than the configured value (D-182). _(new Phase 8Q.2, D-179, D-182)_
+
+**FR-SIM-12 (Operating sessions as the unit of the horizon)** _(new Phase 8T.1, D-199)_
+The day count of a calendar run SHALL count **operating sessions**. `Days = 4` from a Saturday start SHALL simulate Saturday, Monday, Tuesday and Wednesday; the intervening Sunday SHALL be skipped and SHALL NOT consume one of the four. Requirements:
+- The engine SHALL enumerate the N open days from the run's start weekday and the calendar's open-day set, and SHALL generate **enough 1440-minute blocks to cover the Nth open day**. Closed days between sessions still occupy clock blocks — the internal clock is wall-clock based (FR-SIM-10) and the trace has to read in real time — so this is a change to the **gate and the projections**, not to the clock's arithmetic.
+- `StopTime` SHALL be the end of the last **open** block. A trailing closed day SHALL NOT extend the run, SHALL NOT create an empty session, and SHALL NOT dilute any average.
+- Every per-session statistic SHALL be indexed by **session ordinal** `1..N` (N = open days simulated), not by calendar-block index. A closed day SHALL produce no backlog figure, no drain figure, no served figure and no UI row. The existing per-session series — `BacklogAtCloseBySession`, `DrainMinutesBySession` (D-193) — SHALL be re-indexed onto session ordinals, keeping their current meaning (final session for the scalars, one entry per session for the series).
+- The result SHALL expose the session count and each session's ordinal, weekday and block index, so every surface can label a row `Day 1 (Sat)` from run data instead of re-deriving the calendar (FR-UI-38, FR-UI-40).
+- The daily cap SHALL reset at the start of each **operating** session, so a cap of 85 admits at most 85 per session and never 85 per calendar block. The cap-derived arrival rate SHALL continue to divide by the session length (D-190), which is unchanged.
+- The run SHALL simulate exactly N sessions whatever weekdays they fall on; a horizon that happens to end mid-week SHALL NOT be silently rounded down to fewer sessions, and the UI SHALL state the resolved session count and its weekday span.
+- Existing behaviour that is **unchanged**: `RunMode.ClinicDay` still runs one session; `RunMode.DiagnosticTrace` has no calendar and is untouched; `StartDayOfWeek` still decides which weekday the first session falls on.
 
 ### 5.4 Statistics & Validation
 
@@ -479,6 +524,21 @@ Note: This FR affects HISTORICAL validation only. SIMULATED per-server utilisati
 - The imbalance flag applies to both simulated and historical per-server utilisation.
 - **Rendering (Phase 8M, D-160).** The per-server utilisation widget draws each server's **contribution** to its stage's utilisation — `busy ÷ (server count × operating time)` — so the bars of a stage sum to exactly the stage utilisation reported alongside them. The widget SHALL draw one column series per stage (not per server), mark a deviating server with an amber marker on the same bar, draw a dashed **equal-share** reference line at `stage utilisation ÷ server count`, and fix the vertical axis at `1 ÷ (smallest server count in the run)`. Amber SHALL mean `|server utilisation − stage utilisation| > 0.15` and SHALL be accompanied by a textual cue, never colour alone.
 **FR-STAT-8 (Visual Output for Fits):** For each fitted distribution (inter-arrival, per-stage service), the simulator SHALL render a histogram of the observed data with the fitted PDF (or PMF) overlaid on the same axes. Bin count for the histogram matches the chi-square bin count (FR-STAT-3) to keep the visual and the test consistent.
+
+**FR-STAT-9 (Per-session served counts and timestamped wait samples)** _(new Phase 8T.2, D-201)_
+The engine SHALL report, **per operating session** (FR-SIM-12) and per stage, the figures FR-UI-38 needs, so the per-session table is a projection of collected data rather than a re-read of the run trace:
+- **arrivals served** at that stage in that session, as a count;
+- **mean queue wait** in minutes at that stage in that session;
+- **mean queue length** at that stage in that session.
+
+Two consequences of the existing collector have to be accepted for this, and both are stated here so they are decisions rather than surprises:
+- `StageMetrics.WaitingTimeSamples` SHALL carry the **simulation time at which each wait was observed** alongside the wait itself. It is currently `IReadOnlyList<double>`, so a session cannot be attributed to a sample today and the only correct inference — sample order — breaks the moment a session admits nobody. The consumers of that list (the waiting-time histogram FR-UI-4/D-123, the simulation-verification widget D-136, the output-side chi-square) SHALL read the wait value unchanged, so the histogram bins are **byte-identical** before and after the change.
+- `PatientsServed` is currently a **whole-run** count. It SHALL remain exactly that — the overview figure does not change — and a per-session count SHALL be added beside it rather than redefining it.
+
+Per-session means SHALL be taken over the sessions that **have** samples. A session with no arrivals at a stage SHALL report 0 served and **no** wait or queue-length mean (absent, not 0.0), because a mean over an empty set has no value and printing 0.0 would read as "patients waited no time".
+
+**FR-STAT-10 (Not-admitted arrivals)** _(new Phase 8T.4, D-202)_
+The engine SHALL count arrival events it generated and then refused, and the result SHALL carry that count. Two reasons produce it and they SHALL both be named wherever the count is shown: the arrival fell outside the session's opening window, or the session's screening cap was already met. The count SHALL be reported as one total; splitting it into two sub-counts is **out of scope** for this phase and recorded as such. It SHALL be a run-level figure, not a per-session one, because the generator rejects across the whole 1440-minute block, not per session. On a typical multi-day run this count exceeds the number of admitted arrivals by a wide margin, so a UI that shows it without its reason reads as a defect rather than as the opening-window gate working (FR-UI-39).
 **FR-VAL-1 (Per-Stage Stability Check):** Before running, compute ρᵢ = λᵢ / (cᵢ · μᵢ) for every stage i, where λᵢ is derived from the external arrival rate λ₀ and the routing probabilities. If any ρᵢ ≥ 1, refuse to run and report ALL unstable stages with their λᵢ, cᵢ, μᵢ, and ρᵢ. Display the computed values as per FR-STAT-6.
 **FR-VAL-2:** Hard assertion: 0 ≤ utilisation ≤ 1 per server. Failure crashes the run with diagnostic.
 **FR-VAL-3:** Random seed input (default 42). Logged with every run.
@@ -529,6 +589,9 @@ A preset exported from one installation SHALL load on another installation of th
 **NFR-10 (Data Preview Performance):**
 The data preview table SHALL remain responsive (scroll, sort, selection) with datasets up to 10,000 rows. Rendering must use virtualisation so only visible rows are materialised. Sorting 10,000 rows completes in under 200 ms. No UI thread block longer than 100 ms during any preview interaction.
 
+**NFR-11 (Event Trace Table Performance):**
+The event trace table (FR-UI-39) SHALL render a multi-day run's trace — tens of thousands of events — without the cost FR-UI-35's pinned text block used to impose. It SHALL use virtualisation so only visible rows are realised; first paint SHALL complete within 1 s; scrolling SHALL never block the UI thread for more than 100 ms; and no UI thread block longer than 100 ms may occur while a trace is being populated. This is the FR-UI-20/NFR-10 contract applied to the trace, and it exists because the trace is the one widget whose row count is **not** bounded by the number of patients (FR-STAT-10: rejected arrivals inflate it).
+
 ---
 
 ## 7. Success Criteria
@@ -561,6 +624,8 @@ The data preview table SHALL remain responsive (scroll, sort, selection) with da
 | 10 | Run mode = structure; time horizon = span (single-day vs multi-day semantics) | [VERIFIED] |
 | 11 | ρᵢ computed per stage (ρᵢ = λᵢ/(cᵢ·μᵢ)); λᵢ derived from external λ₀ and routing probabilities; all unstable stages reported | [VERIFIED] |
 | 12 | Engine is N-stage generic from day one; 3 stages are a configuration | [VERIFIED] |
+| 13 | The requested day count is a count of **operating sessions**; a closed day is skipped and does not consume one of the requested days | [VERIFIED] — owner ruling 2026-10-04, D-199 |
+| 14 | Results-panel content is one inline scrolling sequence; nothing is pinned above or below the widgets (the event trace included) | [VERIFIED] — owner ruling 2026-10-04, D-200 |
 
 ---
 
@@ -576,6 +641,7 @@ The data preview table SHALL remain responsive (scroll, sort, selection) with da
 ## 10. Change History
 
 | Version | Date | Change | Sections Impacted |
+| v1.14.0 | 2026-10-04 | **Phase 8T planned — six owner requests recorded before any of it is built.** (1) **FR-SIM-12 added** — the day count is a count of **operating sessions**; closed days are skipped and not counted, `StopTime` comes from the last **open** block, every per-session figure is indexed by session ordinal so a closed day produces no row, and the result carries session count + ordinal + weekday so the UI can label `Day 1 (Sat)`. FR-SIM-8 and FR-UI-24 amended to match; the clock stays block-indexed, so the change is to the gate and the projections, not the arithmetic. (2) **FR-STAT-9 added** — per-session served counts and per-session mean wait/queue length; `WaitingTimeSamples` becomes timestamped, which the histogram and output-side chi-square consumers read unchanged. (3) **FR-UI-38 added** — Per-session totals, one row per session per stage. (4) **FR-UI-40 added** — queue-length chart gains an operating-session selector with a minute-of-session axis. (5) **FR-UI-39 + FR-STAT-10 + NFR-11 added** — the trace renders as a virtualised table of the engine's structured `TraceEvent` records, with a subtle side note for not-admitted arrivals. (6) **FR-UI-35 amended, FR-UI-37 added** — the trace's **pinning is withdrawn**: the run header and the trace join the widgets in one inline sequence with one scrollbar, because D-195 measured the pinned rows costing the scrolling middle 101 px of a 420 px window. FR-UI-35 keeps only what survives — always in the flow, never toggleable, a stale preferences entry cannot hide it. FR-UI-11's pinned Start button is explicitly untouched. Decisions D-199..D-203. Recorded **before** implementation, so no requirement here describes code that does not exist. | §4.1, §5.1, §5.3, §5.4, §6, §8, §10 |
 | v1.13.1 | 2026-10-03 | **Phase 8R.1 accepted; three owner rulings recorded, no functional change.** (1) The index-based bypass reformulation is **verified empirically**, not argued: a worktree at 8Q.2 (`da5511c`) and the 8R tree given the same harness, differing only in the skip index, produced **bit-identical** FNV-1a64 hashes (interarrival `A99F0EA406FFBDD8`, Reception `32A2B933FC2C53A2`, Screening `AB7C172BE91850F1`, Doctor `090539E170F904DE`), identical served counts (85/58/59) and identical doubles. The earlier claim rested on a green suite whose FNV-1a64 literals ran on a topology with **no bypass**, so it could not detect a moved draw; the correction is recorded in D-189 and stands. (2) The results table now averages **each stage's own** per-session series — the earlier system-wide average repeated on every row made two stages with different backlogs identical on a clinic week. `StageMetrics.BacklogAtClose` and `DrainMinutes` are **unchanged in meaning** (the final session); `BacklogAtCloseBySession` / `DrainMinutesBySession` carry the per-session detail, and both figures are labelled wherever they co-occur. (3) The total-drain summary is ruled to **remain on the final-session scalars**, `max()` and never a sum. Phase 8R.1, D-193. | §5.1 |
 |---|---|---|---|
 | 2026-10-03 | **Phase 8R — cap field, effective λ, index-based bypass, backlog & drain** (`fix/phase-8r`, Core + App + docs): D-189 bypass is derived from the stage COUNT (`S = n − 2`, `D = n − 1`) and drawn at arrival when `S = 0` or on completion of `S − 1` otherwise, with no stage-name comparison in the engine; a two-stage file runs instead of being refused. D-190 adds the `DailyCap` field (default 85, both calendar modes, session-length-derived rate) applied only to Screening-bound admissions, leaving the bypass stream unthrottled, with the stability refusal reporting both the fitted and the cap-derived λ. D-191 adds per-stage `BacklogAtClose`/`DrainMinutes` and a per-session series shown as a Performance Measures table. D-192 records why the capture-gated assertions return early instead of faking (D-178). Tests +35 (789 → 825). Evidence `logs/screenshots/phase-8r-{cap-field,backlog-drain,2stage-bypass}.png`. **Launch steps unchanged.** | Simulation, results, UI |

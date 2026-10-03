@@ -574,3 +574,56 @@ leading gutter plus a matching header spacer keeps every row's columns aligned.
 **[VERIFIED] Collapsing the icon with `IsVisible` reintroduces the same shift.**
 A hidden element leaves an auto-sized slot at zero width. `IssueGlyph` returns
 `string.Empty` for a valid row and the width is forced from outside instead.
+
+## Phase 8T findings — why the third session's screening queue reached 28 (2026-10-04)
+
+The owner ran `Days = 4` from a **Saturday** start and asked why the third
+simulated day had a screening queue of 28 when the first two had 8 and 7. The
+log is `logs/app-20261004.log`, last run at line 10062.
+
+**[VERIFIED] The run.** Stages `Screening(c=2, μ=0.280) → Doctor(c=3, μ=0.106)`,
+`λ₀ = 0.794117647`, seed 42, `days = 4`, `cap = 85`, start **Saturday**, window
+08:15–11:00.
+
+**[VERIFIED] "Day 3" was the fourth calendar block.** Sat, **closed Sun**, Mon,
+Tue. The engine's `StopTime = (generatorDays − 1) × 1440 + 165` assumed the
+fourth block was open, so the run's fourth block (Wednesday) was truncated at the
+165-minute mark, and the per-session series carried an entry per **block** — so
+Sunday contributed a `0` backlog and a `0.0` drain that entered every average.
+That is FR-SIM-12 / D-199, and it is the first thing 8T fixes.
+
+**[VERIFIED] The 28 is consistent with the configured model, not evidence of an
+arithmetic defect.** Under the cap the effective screening arrival rate is
+`85 ÷ 165 = 0.515`/min against a capacity of `2 × 0.28 = 0.56`/min, so
+`ρ ≈ 0.92`. A near-critical M/M/2 has a **heavy tail**: the mean number in
+system is under 1, while `P(N > 10)` is roughly 0.4. A peak of 28 on one
+session out of three is what ρ = 0.92 predicts; the mean queue length reported in
+the metrics table (~1) and the peak queue in the trace (28) are both correct and
+measure different things. Defensible line for the viva: *"a near-capacity
+multi-server queue has a long right tail, so the peak is far above the mean —
+which is exactly why the backlog metric exists alongside the average."*
+
+**[VERIFIED] What makes the sessions differ from each other.** λ, μ and the seed
+are identical for all three, so the difference is the arrival realisation plus
+whatever backlog the previous session left behind (D-191). Expected arrivals per
+session are `0.794 × 165 ≈ 131` (sd ≈ 11 under Poisson), and the cap truncates
+screening-bound admissions at 85 — so the session that starts with residual
+backlog compounds: a stage at ρ = 0.92 recovers slowly, and a slow session hands
+the next one a head start it did not ask for.
+
+**[VERIFIED — pre-existing modelling wart, still open after 8T.1]** Arrivals are
+generated across the **whole 1440-minute block** and rejected outside the
+165-minute window: 3,201 of 3,524 arrival events (91 %) in this run were refused,
+and they are interleaved with the rows the trace is read from. 8T.1 changes which
+days are generated, not how a day's arrivals are drawn, so the wart survives it.
+The fix — draw arrivals only inside the opening window — is **not** cosmetic: it
+changes the RNG stream and therefore every published result, so it needs the same
+like-for-like hash discipline as D-189 rather than landing inside a display phase.
+Recorded as an open candidate, not scheduled.
+
+**[VERIFIED] What this rules out.** No evidence of a queue leak, a double-counted
+patient, a wrong ρ or a wrong cap: the fourth session was merely cut short, the
+per-session averages were diluted by one empty session, and the 28 is the model
+working. The fix list is therefore 8T.1 (sessions), 8T.2 (per-session figures so
+the difference between sessions is *shown* rather than inferred) and 8T.4 (the
+rejected-arrival note, so the 3,201 are accounted for).

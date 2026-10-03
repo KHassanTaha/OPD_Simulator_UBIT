@@ -380,3 +380,32 @@ Milestone 3 (multi-stage network) sub-block plan (kickoff 2026-09-13):
 - [x] Evidence: five new frames — `phase-8s-overview-alignment.png`, `phase-8s-results-layout.png`, `phase-8s-event-trace-populated.png`, `phase-8s-utilisation-benchmark.png`, `phase-8s-input-buffer.png` (D-166, new filenames) — 2026-10-03
 - [ ] **Owner visual inspection of the five 8S frames (§18 / D-089)** — this host has no image input; every frame is content-asserted but not looked at; B-012
 
+
+---
+
+## Phase 8T — six owner requests (planned 2026-10-04, PRD v1.14.0, D-199..D-203)
+
+**State:** every item below is `[ ]`. Nothing is built. The six requests were
+put in the PRD **before** implementation (AGENTS §9.3/§9.7) so they cannot be
+lost, and each carries a requirement ID, a decision and a closing gate.
+
+Owner rulings recorded 2026-10-04, in the order they were given:
+1. The day count counts **operating sessions** (Fri/Sun skipped and not counted).
+2. Per-session totals include **served counts and wait times**.
+3. The trace becomes a **virtualised event table** with a subtle side note for
+   rejected arrivals.
+4. The queue-length chart gets an **operating-session dropdown**.
+5. Session rows are labelled **`Day 1 (Sat)`**, `Day 2 (Mon)`, ….
+6. **8T.1 lands alone first** — the calendar fix on its own, reviewed before the
+   rest, because items 2–4 all read session metadata that 8T.1 produces.
+
+- [ ] **8T.1 — Operating sessions (FR-SIM-12, D-199)** — session enumeration in `ClinicCalendar`; `CalendarGate` generates enough blocks for the Nth **open** day; `StopTime` from the last open block; per-session series re-indexed onto session ordinals (no closed-day zeros); cap resets per operating session; session metadata on `SimulationResult` (`count`, ordinal, weekday, block index); Days-field label + tooltip say "operating days"; results caption names the resolved sessions and weekday span. **Gate:** a 4-day run from Saturday yields session ordinals Sat/Mon/Tue/Wed, `StopTime` = end of Wed's block, per-session series length 4, and **no Sunday entry**; plus a Friday-start run (Fri closed → Sat/Sun/Mon/Tue) and a diagnostic run unaffected — 2026-10-04
+- [ ] 8T.1 tests: `Phase8TTests` (session count/labels/stop time/cap reset) + `CalendarTests` additions (session enumeration from each start weekday, incl. a 1-session and a 12-session horizon) — 2026-10-04
+- [ ] 8T.1 gates: Release + Debug `--no-incremental` 0 errors / 0 warnings; full suite green; **every existing test that asserts a horizon or a per-session length from `Days` rewritten to assert sessions** — a test that encodes the old arithmetic is a test of the old bug (D-192 precedent) — 2026-10-04
+- [ ] **8T.2 — Per-session served and wait (FR-STAT-9 + FR-UI-38, D-201)** — timestamped `WaitingTimeSamples`; per-session/per-stage served, mean wait, mean queue length; Per-session totals table (session × stage, self-describing rows, FR-UI-36 serial + alignment, caption naming sessions/length/start weekday, em-dash for an absent mean). **Gate:** waiting-time histogram bins **byte-identical** before and after the timestamp — 2026-10-04
+- [ ] **8T.3 — Session selector on the queue chart (FR-UI-40, D-203)** — `SearchableDropdown` of open sessions, minutes-from-open axis when filtered, `All sessions` unchanged with decimation applied per selection, reset on a new run. **Gate:** selecting `Day 3 (Tue)` plots 0…165; no closed day appears as an option — 2026-10-04
+- [ ] **8T.4 — Trace table + rejected-arrival note (FR-UI-39 + FR-STAT-10 + NFR-11, D-202)** — carry `TraceEvent` through `RunOutcome` beside `TraceLines`; virtualised table (time min + clock, type, patient, stage, server, queue, detail); engine counts not-admitted arrivals; one muted side note naming both reasons. **Gate:** 10k rows stay virtualised, first paint < 1 s, scroll < 100 ms; `ResultsPanel_EventTrace_PopulatesAfterRunShownWindow` re-pointed at rows so it cannot pass over an unpopulated table — 2026-10-04
+- [ ] **8T.5 — One inline results sequence (FR-UI-37 + FR-UI-35 amendment, D-200)** — collapse `Auto,*,Auto` to a single scroll region; header + Customise first, widgets, trace last, bottom buffer kept; one scrollbar. **Gate:** the two pinned-row tests (`_HasFixedMaxHeight`, `_InternallyScrollable`) and `Phase8SLayoutTests.ResultsLayout_TracePanelCeilingLeavesTheMiddleRoomAtAShortWindow` are **replaced, not repaired** — they measure a clause this phase withdraws — 2026-10-04
+- [ ] 8T gates: every item needs §18 verification — the click sequence executed, the result observed, a screenshot under a **new** filename (D-166), and a verification table in PROGRESS.md. No 8T row may reach `[x]` on a green suite alone — 2026-10-04
+- [ ] **Out of scope, recorded so it is asked for rather than assumed:** two-way split of the not-admitted count (D-202); a copy-trace-text control (D-202); weekday shading bands on the queue chart (D-203); one small multiple per session (D-203); any pin on the Config panel's Start button (FR-UI-11 stands) — 2026-10-04
+- [ ] **Owner visual inspection of the five 8S frames (§18 / D-089)** — still open; this host has no image input; B-012 — 2026-10-03

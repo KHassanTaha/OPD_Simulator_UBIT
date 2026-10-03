@@ -1,3 +1,72 @@
+Session Handoff — 2026-10-04 — Phase 8T PLANNING (documentation only, no code written)
+Branch: fix/phase-8s
+Status: In-Progress
+
+Done
+The six owner requests of 2026-10-04 are recorded in the source-of-truth docs before any of them is built: PRD v1.14.0 (eight new requirement IDs + three amendments), the derived traceability matrix, decisions D-199..D-203, the Phase 8T TODO block, and a CONTEXT finding that explains the day-3 screening queue of 28.
+
+In Progress
+Nothing in code. Phase 8T.1 (operating sessions) is next and is specified to the point of a gate; it has not been started.
+
+What is complete:
+
+**PRD v1.14.0 — the six requests, as requirements.** `FR-SIM-12` (the day count is a count of operating sessions; `StopTime` from the last **open** block; per-session figures indexed by session ordinal, so a closed day yields no row and no zero; session metadata on the result). `FR-STAT-9` + `FR-UI-38` (per-session served counts and waits; `WaitingTimeSamples` becomes timestamped). `FR-UI-40` (session selector on the queue chart, minutes-from-open axis). `FR-UI-39` + `FR-STAT-10` + `NFR-11` (trace as a virtualised table of `TraceEvent` records + one muted not-admitted-arrivals note). `FR-UI-37` + **`FR-UI-35 amended`** (one inline results sequence; D-184's pinning withdrawn). `FR-SIM-8` and `FR-UI-24` amended to the operating-session reading.
+
+**The reversal is recorded with its reasoning, not edited away.** D-184 pinned the trace below the scrolling body so that "a trace you have to scroll to find is a trace that was not read". D-195 then measured that the two pinned `Auto` rows left the scrolling middle **101 px** of a 420 px window. So the row added to guarantee the trace's presence was the row that made the widgets unreadable, and the owner reversed it. D-200 keeps D-184's argument standing as *outranked by a later measurement* rather than wrong, names what survives (always in the flow, never toggleable, a stale preferences key still cannot hide it, trace last rather than pinned), and names the tests that encode the withdrawn clause as **to be replaced, not repaired**.
+
+**The 28-patient screening queue, explained (CONTEXT, Phase 8T findings).** ρ_screening = (85/165)/(2 x 0.28) = **0.92**; a near-critical M/M/2 has a heavy tail (mean under 1, `P(N > 10)` ~ 0.4), so 28 on one session of three is what the configured model predicts. "Day 3" was the fourth **calendar block** (Sat / closed Sun / Mon / Tue), and the Sunday contributed a `0` backlog and `0.0` drain to every average — the arithmetic that FR-SIM-12 fixes. Ruled out: queue leak, double-counted patient, wrong ρ, wrong cap.
+
+**One open modelling wart recorded rather than smuggled in:** arrivals are generated across the whole 1440-minute block, so **3,201 of 3,524** arrival events (91%) were refused as outside the window. 8T.1 changes which *days* are generated, not how a day's arrivals are drawn, so the wart survives it — and the honest fix changes the RNG stream and therefore every published result, which is why it needs D-189's like-for-like hash discipline and not a display phase.
+
+**Two documentation defects fixed on the way.** (a) The REQUIREMENTS coverage block was **two recounts stale** (it claimed 74 rows / 60 `[x]`; the matrix carried 84 / 64). Re-derived by script, not adjusted: 84 before, **92 rows / 64 `[x]` / 8 `[~]` / 20 `[ ]` / 69.6%** now. This is the third time that number has been adjusted rather than counted, which is why it has drifted twice. (b) FR-UI-35's row and FR-SIM-8's row asserted the old behaviour; both amended so the matrix cannot contradict the PRD (AGENTS §9.6).
+
+What remains:
+8T.1 alone, per the owner's sixth ruling — the calendar fix reviewed on its own before items 2-4, all of which read session metadata it produces. Full task list and per-phase gates in `docs/TODO.md` ("Phase 8T", added 2026-10-04). Owner review of the five 8S frames is still open and independent of this.
+
+Next Session Should Start With
+`docs/TODO.md` -> "Phase 8T" -> 8T.1. Enumerate operating sessions in `ClinicCalendar`, re-derive `CalendarGate.StopTime` and the per-session array sizes from the session list, re-index the per-session series onto session ordinals, expose session metadata on `SimulationResult`. Gate: a 4-day run from Saturday yields Sat/Mon/Tue/Wed, `StopTime` = end of Wed's block, series length 4, no Sunday entry; a Friday start yields Sat/Sun/Mon/Tue; a diagnostic run is untouched.
+
+Then: 8T.2 -> 8T.3 -> 8T.4 -> 8T.5, each with the gate its TODO row names. Nothing reaches `[x]` on a green suite alone (§18).
+
+Blocked
+B-012 — owner visual inspection of the five 8S frames; this host has no image input. Unchanged by this session and **not** blocking 8T.
+Open question for the owner, not blocking: whether the arrival-generation window itself (draw only inside 08:15-11:00) is wanted. It is a real improvement to the generator and a breaking change to every published number, so it is parked rather than assumed.
+
+Git State
+Commits made this session: one docs commit on the new branch (this planning session wrote no code).
+Pushed to origin: yes.
+Uncommitted changes: see the commit above; none expected after it.
+
+Build & Test
+dotnet build: PASS — `dotnet build -c Release`, 0 errors / 0 warnings (incremental; no source file changed, so this confirms the tree still builds and not a no-incremental re-verification of 8S, which was done on 2026-10-03).
+dotnet test: NOT RUN — a documentation-only commit touches no code path, so the 851-test result from 8S stands unchallenged. Run the full suite with the first 8T.1 code change, not before it.
+Warnings: 0.
+
+Files Touched
+docs/PRD.md: modified (v1.14.0; FR-SIM-12, FR-STAT-9/10, FR-UI-37..40, NFR-11 added; FR-UI-35, FR-SIM-8, FR-UI-24 amended; assumptions 13-14; change-history row)
+docs/REQUIREMENTS.md: modified (eight new `[ ]` rows with planned sources and closing gates; three amended rows; coverage recounted; Phase 8T traceability table + changelog row)
+docs/DECISIONS.md: modified (D-199, D-200, D-201, D-202, D-203)
+docs/TODO.md: modified (Phase 8T block: 8T.1..8T.5 with gates, plus the out-of-scope list recorded so it is asked for rather than assumed)
+docs/CONTEXT.md: modified (Phase 8T findings: the day-3 queue of 28, the calendar-block/session confusion, the rejected-arrival wart)
+docs/DEV_LAUNCH.md, docs/USER_MANUAL.md, docs/BLOCKERS.md: NOT touched — correct. No build step, launch command, UI element or error message changes in a documentation-only planning session; every UI row above is `[ ]` because none of it is built.
+
+Decisions Made
+D-199 operating sessions as the horizon unit; clock arithmetic untouched — PRD v1.14.0 FR-SIM-12
+D-200 one inline results sequence; D-184's pinning withdrawn with its argument preserved — FR-UI-37 + FR-UI-35 amendment
+D-201 per-session totals require timestamped wait samples; downstream histogram bins must stay byte-identical — FR-STAT-9 + FR-UI-38
+D-202 trace table from structured `TraceEvent`s (never parsed text) + one muted not-admitted-arrivals note — FR-UI-39 + FR-STAT-10 + NFR-11
+D-203 session selector on the queue chart, minutes-from-open axis, `All sessions` retained — FR-UI-40
+
+Assumptions Added/Changed
+Days counts operating sessions, closed days skipped and not counted — [VERIFIED] owner ruling 2026-10-04 (CONTEXT Phase 8T findings; PRD assumptions 13)
+Results content is one inline scrolling sequence with nothing pinned above or below — [VERIFIED] owner ruling 2026-10-04 (PRD assumptions 14)
+
+Notes for Next Session
+`fix/phase-8s` is **unmerged**. 8T branched from it so the 8S context and docs stay together; if the owner merges 8S into `main` first, rebase rather than merge, and re-check the two branch-tip docs rows.
+The three Phase 8T requirements that change public shapes are the ones to watch in review: `StageMetrics.WaitingTimeSamples` (FR-STAT-9), `RunOutcome` gaining `TraceEvent`s beside `TraceLines` (FR-UI-39), and `SimulationResult` gaining session metadata (FR-SIM-12). Each has a downstream consumer that must not move — the histogram bins, the CLI `trace` output, the existing 8S trace test.
+
+---
+
 Session Handoff — 2026-10-03 22:40
 Branch: fix/phase-8s
 Status: Clean
