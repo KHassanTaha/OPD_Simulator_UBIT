@@ -60,6 +60,30 @@ public sealed record BacklogDrainRow(
     string Basis);
 
 /// <summary>
+/// One session-and-stage cell of the per-session totals table (FR-UI-38,
+/// D-201). Every figure is pre-formatted as a string so the view binds a value
+/// with no converter, matching the other listing tables.
+/// </summary>
+/// <param name="SerialNumber">Contiguous 1-based row position (FR-UI-36).</param>
+/// <param name="Session">Self-describing session label, "Day 3 (Tue)".</param>
+/// <param name="Stage">Stage name, "Screening".</param>
+/// <param name="Served">Arrivals served at this stage in this session.</param>
+/// <param name="MeanWait">Mean queue wait in minutes, or "—" when the session
+/// admitted nobody (absent, not 0.0 — FR-STAT-9).</param>
+/// <param name="MeanQueue">Mean queue length, or "—" when absent.</param>
+/// <param name="BacklogAtClose">Patients still queued or in service at the close.</param>
+/// <param name="Drain">Minutes from the close to this stage's last completion.</param>
+public sealed record SessionTotalRow(
+    string SerialNumber,
+    string Session,
+    string Stage,
+    string Served,
+    string MeanWait,
+    string MeanQueue,
+    string BacklogAtClose,
+    string Drain);
+
+/// <summary>
 /// One stage's stability verdict (Phase 8Q.3, D-183).
 /// </summary>
 /// <param name="StageName">The stage the verdict describes.</param>
@@ -302,6 +326,9 @@ public partial class ResultsPanelViewModel : ObservableObject
         StageRows.Clear();
         BacklogDrainRows.Clear();
         TotalDrainText = string.Empty;
+        SessionTotalRows.Clear();
+        SessionTotalsCaption = string.Empty;
+        OnPropertyChanged(nameof(HasSessionTotals));
         StabilityRows.Clear();
         BottleneckText = string.Empty;
         ChiSquareRows.Clear();
@@ -323,6 +350,9 @@ public partial class ResultsPanelViewModel : ObservableObject
         StageRows.Clear();
         BacklogDrainRows.Clear();
         TotalDrainText = string.Empty;
+        SessionTotalRows.Clear();
+        SessionTotalsCaption = string.Empty;
+        OnPropertyChanged(nameof(HasSessionTotals));
         if (result is null)
         {
             return;
@@ -358,6 +388,7 @@ public partial class ResultsPanelViewModel : ObservableObject
 
         SetBacklogAndDrain(result);
         SetStability(result);
+        SetSessionTotals(result);
     }
 
     /// <summary>
@@ -411,6 +442,92 @@ public partial class ResultsPanelViewModel : ObservableObject
         TotalDrainText = multiDay
             ? $"{totalDrain:0.#} min to clear the last patient after a session closed (slowest stage, final session)"
             : $"{totalDrain:0.#} min to clear the last patient after the session closed (slowest stage)";
+    }
+
+    /// <summary>
+    /// Builds the per-session totals section: one row per operating session per
+    /// stage, in session order and then stage order (FR-UI-38, D-201).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every cell is a projection of data the engine already collected
+    /// (<c>PatientsServedBySession</c>, <c>MeanWaitMinutesBySession</c>,
+    /// <c>MeanQueueLengthBySession</c> on each <c>StageMetrics</c>, plus the
+    /// D-191/D-193 per-session backlog and drain series). Nothing here re-reads the
+    /// run trace or recomputes a mean, so the table cannot disagree with the metrics
+    /// widget above it.
+    /// </para>
+    /// <para>
+    /// A session that admitted nobody at a stage reports "—" for its means rather
+    /// than 0.0: a mean over an empty set has no value, and a printed 0.0 reads as
+    /// "patients waited no time" (FR-STAT-9). The served count for such a session is
+    /// a real 0, because zero patients completing is a fact.
+    /// </para>
+    /// <para>
+    /// Rows iterate session-major (all stages for session 1, then all for session 2)
+    /// because that is the order a reader compares days in; a stage-major table would
+    /// put Day 1 and Day 6 of different stages on one visual line.
+    /// </para>
+    /// </remarks>
+    /// <param name="result">The finished run whose sessions and stage series to project.</param>
+    private void SetSessionTotals(SimulationResult result)
+    {
+        SessionTotalRows.Clear();
+
+        // A horizon run has no operating sessions, so the section renders nothing
+        // (FR-UI-38): there is nothing for a "per-session" table to vary across.
+        if (result.Sessions.Count == 0 || result.StageMetrics.Count == 0)
+        {
+            OnPropertyChanged(nameof(HasSessionTotals));
+            return;
+        }
+
+        string Label(ClinicSession session) =>
+            $"Day {session.Ordinal} ({session.DayOfWeek.ToString()[..3]})";
+
+        string ValueAt<T>(IReadOnlyList<T> series, int index, Func<T, string> render, string fallback)
+            => index < series.Count ? render(series[index]) : fallback;
+
+        var serial = 1;
+        for (int s = 0; s < result.Sessions.Count; s++)
+        {
+            var sessionLabel = Label(result.Sessions[s]);
+            foreach (var stage in result.StageMetrics)
+            {
+                string meanWait = ValueAt(
+                    stage.MeanWaitMinutesBySession, s,
+                    v => v is null ? Unavailable : N0(v.Value),
+                    Unavailable);
+                string meanQueue = ValueAt(
+                    stage.MeanQueueLengthBySession, s,
+                    v => v is null ? Unavailable : N0(v.Value),
+                    Unavailable);
+
+                SessionTotalRows.Add(new SessionTotalRow(
+                    $"{serial++}",
+                    sessionLabel,
+                    stage.StageName,
+                    ValueAt(stage.PatientsServedBySession, s, v => $"{v}", "0"),
+                    meanWait,
+                    meanQueue,
+                    ValueAt(stage.BacklogAtCloseBySession, s, v => $"{v}", $"{stage.BacklogAtClose}"),
+                    ValueAt(stage.DrainMinutesBySession, s, N0, N0(stage.DrainMinutes))));
+            }
+        }
+
+        // The caption names what the run actually simulated, so "Day 3" is never
+        // ambiguous: how many sessions, how long each ran, and which weekday the
+        // first one was (FR-UI-38).
+        string unit = result.Sessions.Count == 1
+            ? "1 operating session"
+            : $"{result.Sessions.Count} operating sessions";
+        string start = result.SessionStartDay is { } day
+            ? $", starting {day}"
+            : string.Empty;
+        SessionTotalsCaption =
+            $"{unit} · {result.SessionLengthMinutes:0} min each{start} · served, mean wait and mean queue length per session per stage";
+
+        OnPropertyChanged(nameof(HasSessionTotals));
     }
 
     /// <summary>
@@ -681,6 +798,18 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// empty once its slowest stage is empty. Empty before a run (D-191).
     /// </summary>
     public string TotalDrainText { get; private set; } = string.Empty;
+
+    /// <summary>Per-session-per-stage rows of the per-session totals section (FR-UI-38, D-201).</summary>
+    public ObservableCollection<SessionTotalRow> SessionTotalRows { get; } = new();
+
+    /// <summary>
+    /// Caption under the per-session totals heading, naming the sessions simulated,
+    /// the session length in minutes, and the session start weekday (FR-UI-38).
+    /// </summary>
+    public string SessionTotalsCaption { get; private set; } = string.Empty;
+
+    /// <summary>True when <see cref="SessionTotalRows"/> has rows worth showing (FR-UI-38).</summary>
+    public bool HasSessionTotals => SessionTotalRows.Count > 0;
 
     /// <summary>Per-stage stability verdicts, shown once a run exists (Phase 8Q.3, D-183).</summary>
     public ObservableCollection<StabilityRow> StabilityRows { get; } = new();

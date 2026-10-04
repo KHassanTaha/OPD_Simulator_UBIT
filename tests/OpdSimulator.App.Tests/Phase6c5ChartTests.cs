@@ -103,8 +103,8 @@ public class Phase6c5ChartTests
         {
             StageMetrics = new[]
             {
-                new StageMetrics { StageName = "Reception", WaitingTimeSamples = new[] { 0.5, 1.0, 1.4, 2.0, 30.0 } },
-                new StageMetrics { StageName = "Doctor", WaitingTimeSamples = new[] { 10.0, 12.0, 14.0, 60.0 } },
+                new StageMetrics { StageName = "Reception", WaitingTimeSamples = Samples(0.5, 1.0, 1.4, 2.0, 30.0) },
+                new StageMetrics { StageName = "Doctor", WaitingTimeSamples = Samples(10.0, 12.0, 14.0, 60.0) },
             },
         };
 
@@ -135,8 +135,8 @@ public class Phase6c5ChartTests
         {
             StageMetrics = new[]
             {
-                new StageMetrics { StageName = "Screening", WaitingTimeSamples = new[] { 3.0 } },
-                new StageMetrics { StageName = "Doctor", WaitingTimeSamples = new[] { 40.0, 60.0 } },
+                new StageMetrics { StageName = "Screening", WaitingTimeSamples = Samples(3.0) },
+                new StageMetrics { StageName = "Doctor", WaitingTimeSamples = Samples(40.0, 60.0) },
             },
         };
         vm.CompleteRun(new RunOutcome(rerun, Array.Empty<FitReport>(), Array.Empty<string>(),
@@ -163,7 +163,7 @@ public class Phase6c5ChartTests
                     new StageMetrics
                     {
                         StageName = "Doctor",
-                        WaitingTimeSamples = new[] { 1.0, 2.0, 3.0, 4.0, 500.0 }, // long tail → empty bins
+                        WaitingTimeSamples = Samples(1.0, 2.0, 3.0, 4.0, 500.0), // long tail → empty bins
                     },
                 },
             };
@@ -219,4 +219,12 @@ public class Phase6c5ChartTests
         Enumerable.Range(0, count)
             .Select(i => new QueueSample(i * 30.0, (i * 37) % 500))
             .ToArray();
+
+    /// <summary>
+    /// Wait samples for a hand-built stage. The stamps are irrelevant to the
+    /// histogram by construction — it reads Minutes only (FR-STAT-9) — so they run
+    /// 1, 2, 3… to keep the fixture reading like a real run.
+    /// </summary>
+    private static WaitSample[] Samples(params double[] waits) =>
+        waits.Select((w, i) => new WaitSample(i + 1.0, w)).ToArray();
 }

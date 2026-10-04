@@ -62,8 +62,15 @@ public sealed class Engine
     // Per-run chart samples (FR-UI-4 P2): waiting-time histograms and the
     // queue-length-over-time lines. Recorded only while a run is active, then
     // handed into StageMetrics and released so a later run starts clean.
-    private List<double>[]? _stageWaitSamples;
+    private List<WaitSample>[]? _stageWaitSamples;
     private List<QueueSample>[]? _stageQueueSeries;
+
+    // Per-session serving and queue-area accumulators (FR-STAT-9, D-201). The
+    // whole-run sums of these are the figures StageMetrics already reported, so
+    // adding them cannot move the overview numbers: each interval of queue time and
+    // each completion is attributed to exactly one session.
+    private int[][]? _patientsServedBySession;
+    private double[][]? _areaUnderQueueBySession;
 
     // Close-of-session bookkeeping (D-191): patients present per stage when
     // arrivals stopped, and each stage's last service end, which together give
@@ -270,6 +277,10 @@ public sealed class Engine
         // Fresh per-run runtime state: queues and servers never leak between runs.
         var gate = calendar is null ? null : new CalendarGate(calendar, generatorDays, dailyCap, topology.StageSpecs.Count);
 
+        // Number of operating sessions the per-session series carry: the calendar's
+        // own count, or one implicit session for a horizon run (FR-STAT-9).
+        int sessionCount = gate?.SessionCount ?? 1;
+
         var stages = Enumerable.Range(0, topology.StageSpecs.Count)
             .Select(i => topology.CreateStage(i))
             .ToArray();
@@ -302,8 +313,16 @@ public sealed class Engine
         int nextPatientId = 1;
 
         // Chart-sample buffers, released into StageMetrics at the end.
-        _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<double>()).ToArray();
+        _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<WaitSample>()).ToArray();
         _stageQueueSeries = Enumerable.Range(0, stages.Length).Select(_ => new List<QueueSample>()).ToArray();
+
+        // Per-session serving and queue-area buffers (FR-STAT-9). A horizon run has a
+        // single implicit session, so the per-session series then carry the whole-run
+        // figures — the same shape the close-of-session series take in that case.
+        _patientsServedBySession = Enumerable.Range(0, sessionCount)
+            .Select(_ => new int[stages.Length]).ToArray();
+        _areaUnderQueueBySession = Enumerable.Range(0, sessionCount)
+            .Select(_ => new double[stages.Length]).ToArray();
 
         // Close-of-session buffers (D-191). The per-day arrays exist only for a
         // calendar run; a horizon run has a single close.
@@ -333,6 +352,14 @@ public sealed class Engine
         {
             Event evt = fel.Dequeue();
             clock = evt.Time;
+
+            // The session the interval that just elapsed belongs to, captured BEFORE
+            // the cursor moves: the interval that spans a session boundary — a drain
+            // running into the next block — stays on the session that produced the
+            // work, the same rule the drain figures follow. Capturing it after
+            // AdvanceTo would hand the previous session's overnight queueing to the
+            // session that has not opened yet (FR-STAT-9).
+            int intervalSession = gate?.CurrentSessionIndex ?? 0;
 
             // Calendar bookkeeping must be current before any admission or
             // service-accounting decision in this event.
@@ -370,7 +397,9 @@ public sealed class Engine
             // the interval [lastMetricTime, clock] held its previous length.
             for (int i = 0; i < stages.Length; i++)
             {
-                areaUnderQueue[i] += stages[i].Queue.Count * (clock - lastMetricTime[i]);
+                double elapsed = clock - lastMetricTime[i];
+                areaUnderQueue[i] += stages[i].Queue.Count * elapsed;
+                _areaUnderQueueBySession![intervalSession][i] += stages[i].Queue.Count * elapsed;
                 lastMetricTime[i] = clock;
 
                 // One (time, length) point per event per stage — the P2 line series.
@@ -428,6 +457,45 @@ public sealed class Engine
             // never saw a patient — has nothing to drain, hence the clamp (D-191).
             double drain = Math.Max(0.0, _stageLastServiceEnd![i] - closeTime);
 
+            // Per-session figures for the per-session totals table (FR-STAT-9). The
+            // wait samples are bucketed by the session their timestamp falls in, so a
+            // session that admitted nobody cannot inherit its neighbour's waits.
+            var waitSamples = _stageWaitSamples![i];
+            var servedBySession = new int[sessionCount];
+            var meanWaitBySession = new double?[sessionCount];
+            var meanQueueLengthBySession = new double?[sessionCount];
+
+            if (gate is not null)
+            {
+                for (int s = 0; s < sessionCount; s++)
+                {
+                    servedBySession[s] = _patientsServedBySession![s][i];
+
+                    var waits = waitSamples.Where(w => gate.SessionIndexAt(w.Time) == s).ToArray();
+                    meanWaitBySession[s] = waits.Length > 0 ? waits.Average(w => w.Minutes) : null;
+
+                    // Absent means "no value", not "zero": a session with no admitted
+                    // arrival has no operating time to divide by, and a session where
+                    // the stage neither served nor held anyone was genuinely idle.
+                    // A session where patients waited but none completed yet DOES
+                    // report a queue mean, because the queue was not empty.
+                    double sessionOperatingTime = gate.OperatingTimeMinutesForSession(s);
+                    double sessionArea = _areaUnderQueueBySession![s][i];
+                    bool idle = servedBySession[s] == 0 && sessionArea == 0;
+                    meanQueueLengthBySession[s] = !idle && sessionOperatingTime > 0
+                        ? sessionArea / sessionOperatingTime
+                        : null;
+                }
+            }
+            else
+            {
+                // Horizon run: one implicit session carrying the whole-run figures,
+                // so the per-session table is still a projection of collected data.
+                servedBySession[0] = servedHere;
+                meanWaitBySession[0] = servedHere > 0 ? stageWaitMinutes[i] / servedHere : null;
+                meanQueueLengthBySession[0] = operatingTime > 0 ? areaUnderQueue[i] / operatingTime : null;
+            }
+
             return new StageMetrics
             {
                 StageName = stage.Name,
@@ -459,6 +527,9 @@ public sealed class Engine
                     ? new[] { drain }
                     : Enumerable.Range(0, gate.SessionCount)
                         .Select(s => gate.DrainMinutesForSession(s, i)).ToArray(),
+                PatientsServedBySession = servedBySession,
+                MeanWaitMinutesBySession = meanWaitBySession,
+                MeanQueueLengthBySession = meanQueueLengthBySession,
             };
         }).ToArray();
 
@@ -486,6 +557,8 @@ public sealed class Engine
             .ToList();
         _stageWaitSamples = null;
         _stageQueueSeries = null;
+        _patientsServedBySession = null;
+        _areaUnderQueueBySession = null;
         _stageLastServiceEnd = null;
         _backlogAtClose = null;
         _backlogPerSessionAtClose = null;
@@ -514,6 +587,10 @@ public sealed class Engine
             BacklogPerSession = backlogPerSession,
             DrainPerSession = drainPerSession,
             Sessions = gate?.Sessions ?? Array.Empty<ClinicSession>(),
+            SessionLengthMinutes = calendar?.OpenDurationMinutes ?? 0,
+            SessionStartDay = gate is not null && gate.SessionCount > 0
+                ? gate.Sessions[0].DayOfWeek
+                : null,
             GeneratorDays = gate?.SessionCount ?? 0,
             DailyCap = gate?.DailyCap,
             GeneratedInterArrivalSamples = generatedInterArrivals,
@@ -583,7 +660,7 @@ public sealed class Engine
                 int drawsBefore = _random.DrawCount;
                 var server = _serverSelection.SelectIdleServer(stage.Servers, _random);
                 EmitRngDrawIfDrawn(clock, drawsBefore, $"select idle server at {stage.Name} → server {server.Id}");
-                StartService(patient, server, stage, clock, fel, inService, patientServer, stageWaitMinutes);
+                StartService(patient, server, stage, clock, fel, inService, patientServer, stageWaitMinutes, gate);
             }
             else
             {
@@ -622,7 +699,8 @@ public sealed class Engine
         FEL fel,
         Dictionary<int, Patient> inService,
         Dictionary<int, Server> patientServer,
-        double[] stageWaitMinutes)
+        double[] stageWaitMinutes,
+        CalendarGate? gate)
     {
         patient.MarkServiceStarted(clock);
         server.StartService(clock);
@@ -630,7 +708,11 @@ public sealed class Engine
         patientServer[patient.Id] = server;
 
         stageWaitMinutes[patient.StageIndex] += clock - patient.ArrivalTime; // wait = start - stage arrival
-        _stageWaitSamples![patient.StageIndex].Add(clock - patient.ArrivalTime); // P2 waiting-time histogram
+
+        // The wait is stamped with the clock so it can be attributed to an operating
+        // session later (FR-STAT-9, D-201). The value is unchanged, so the histogram
+        // bins are identical to the ones the bare-double list produced.
+        _stageWaitSamples![patient.StageIndex].Add(new WaitSample(clock, clock - patient.ArrivalTime)); // P2 waiting-time histogram
 
         // Start row: q is the stage queue after any dequeue (the caller already
         // dequeued the patient that starts here), i.e. how many are left behind.
@@ -672,6 +754,12 @@ public sealed class Engine
         // stage index from the event type and keeping that mapping in step with
         // HandleServiceEnd's own.
         gate?.NoteServiceEnd(clock, patient.StageIndex);
+
+        // The same session attribution for the per-session served count (FR-STAT-9):
+        // a completion that spills past its session's close stays on the session that
+        // produced the work, which is what NoteServiceEnd just recorded the drain under.
+        if (gate is not null)
+            _patientsServedBySession![gate.CurrentSessionIndex][patient.StageIndex]++;
 
         patient.MarkServiceCompleted(clock);
         server.EndService(clock);
@@ -752,7 +840,7 @@ public sealed class Engine
         }
         else
         {
-            RouteTo(patient, nextIndex, clock, stages, fel, inService, patientServer, stageWaitMinutes);
+            RouteTo(patient, nextIndex, clock, stages, fel, inService, patientServer, stageWaitMinutes, gate);
         }
 
         // The freed server immediately pulls the next patient (FIFO queue).
@@ -760,7 +848,7 @@ public sealed class Engine
         {
             var next = stage.Queue.Dequeue();
             _log.Debug("    -> dequeue patient={PatientId}, queueLen={QueueLen}", next.Id, stage.Queue.Count);
-            StartService(next, server, stage, clock, fel, inService, patientServer, stageWaitMinutes);
+            StartService(next, server, stage, clock, fel, inService, patientServer, stageWaitMinutes, gate);
         }
     }
 
@@ -782,6 +870,8 @@ public sealed class Engine
     /// <param name="inService">Patient id → server, for patients currently in service.</param>
     /// <param name="patientServer">Patient id → stage, for patients currently in service.</param>
     /// <param name="stageWaitMinutes">Accumulator of wait minutes per stage; credited to the destination.</param>
+    /// <param name="gate">Calendar gate, or null for a horizon run; used only to stamp
+    /// the recorded wait sample so it can be attributed to an operating session (FR-STAT-9).</param>
     private void RouteTo(
         Patient patient,
         int nextStageIndex,
@@ -790,7 +880,8 @@ public sealed class Engine
         FEL fel,
         Dictionary<int, Patient> inService,
         Dictionary<int, Server> patientServer,
-        double[] stageWaitMinutes)
+        double[] stageWaitMinutes,
+        CalendarGate? gate)
     {
         var nextStage = stages[nextStageIndex];
         patient.AdvanceToStage(nextStageIndex, clock);
@@ -802,7 +893,7 @@ public sealed class Engine
             int drawsBefore = _random.DrawCount;
             var server = _serverSelection.SelectIdleServer(nextStage.Servers, _random);
             EmitRngDrawIfDrawn(clock, drawsBefore, $"select idle server at {nextStage.Name} → server {server.Id}");
-            StartService(patient, server, nextStage, clock, fel, inService, patientServer, stageWaitMinutes);
+            StartService(patient, server, nextStage, clock, fel, inService, patientServer, stageWaitMinutes, gate);
             queueAfter = nextStage.Queue.Count;
         }
         else
@@ -1080,6 +1171,51 @@ public sealed class Engine
             => Math.Max(0.0, _sessionStageLastServiceEnd[sessionIndex][stageIndex] - CloseTimeForSession(sessionIndex));
 
         /// <summary>
+        /// The operating session a given clock time belongs to, resolved from the
+        /// session list rather than from the incremental cursor (FR-STAT-9).
+        /// </summary>
+        /// <remarks>
+        /// This is the same rule <see cref="AdvanceTo"/> applies — the last session
+        /// whose block the clock has reached — written as a pure lookup so the
+        /// projection can attribute a recorded sample to a session after the fact.
+        /// Times before the first block and after the last clamp to the first and
+        /// last session respectively, which is what keeps trailing drain on the
+        /// session that produced it.
+        /// </remarks>
+        /// <param name="time">Simulation clock minutes to attribute.</param>
+        /// <returns>Zero-based session index.</returns>
+        public int SessionIndexAt(double time)
+        {
+            double block = time / ClinicCalendar.MinutesPerDay;
+            int session = 0;
+            for (int s = 0; s < SessionCount; s++)
+            {
+                if (_sessions[s].BlockIndex <= block)
+                    session = s;
+                else
+                    break; // sessions are in increasing block order
+            }
+            return session;
+        }
+
+        /// <summary>
+        /// Operating minutes inside ONE operating session: first admitted arrival to
+        /// that session's last service end (FR-STAT-9).
+        /// </summary>
+        /// <remarks>
+        /// The per-session form of the <see cref="OperatingTimeMinutes"/> denominator,
+        /// so a per-session queue-length mean is never diluted by an overnight gap or
+        /// a closed day. 0 when the session admitted nobody — there is no interval to
+        /// measure, and the caller reports the mean as absent rather than 0.0.
+        /// </remarks>
+        /// <param name="sessionIndex">Zero-based session index.</param>
+        /// <returns>Operating minutes in that session.</returns>
+        public double OperatingTimeMinutesForSession(int sessionIndex)
+            => _sessionFirstArrival[sessionIndex] is { } firstArrival
+                ? _sessionLastServiceEnd[sessionIndex] - firstArrival
+                : 0;
+
+        /// <summary>
         /// Operating-time denominator: summed per operating session (first admitted
         /// arrival to last service end), never diluted by overnight gaps or by
         /// closed days that no session ever opened (D-018).
@@ -1090,8 +1226,7 @@ public sealed class Engine
             {
                 double sum = 0;
                 for (int s = 0; s < SessionCount; s++)
-                    if (_sessionFirstArrival[s] is { } firstArrival)
-                        sum += _sessionLastServiceEnd[s] - firstArrival;
+                    sum += OperatingTimeMinutesForSession(s);
                 return sum;
             }
         }

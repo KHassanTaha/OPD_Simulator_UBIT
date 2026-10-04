@@ -289,6 +289,56 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+
+                    <!-- Per-session totals (FR-UI-38, D-201). One row per
+                         operating session per stage, in session order then stage
+                         order, each row naming its own session and stage so it can
+                         be cited on its own ("Day 3 (Tue), Screening"). Lives in
+                         the metrics widget because every cell is a projection of the
+                         per-stage metrics the table above already shows — it is the
+                         same data sliced by session, not a second source of truth.
+                         Renders nothing before a run has produced sessions. A
+                         "—" in a mean column means absent (no arrivals that
+                         session), which is not the same claim as 0.0. -->
+                    <StackPanel Spacing="{DynamicResource SpaceS}"
+                                Margin="0,12,0,0"
+                                IsVisible="{Binding HasSessionTotals}">
+                        <TextBlock Text="Per-session totals"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="{Binding SessionTotalsCaption}"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextSecondary}"
+                                   TextWrapping="Wrap"/>
+                        <Grid ColumnDefinitions="30,92,*,56,64,64,72,60" ColumnSpacing="8">
+                            <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="1" Text="Session" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="2" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
+                            <TextBlock Grid.Column="3" Text="Served" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Text="Wait (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="5" Text="Queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="6" Text="Backlog at close" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="7" Text="Drain (min)" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding SessionTotalRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SessionTotalRow">
+                                    <Grid ColumnDefinitions="30,92,*,56,64,64,72,60" ColumnSpacing="8" Margin="0,2">
+                                        <TextBlock Text="{Binding SerialNumber}"
+                                                   Foreground="{DynamicResource BrushTextMuted}"
+                                                   TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Session}" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Stage}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextAlignment="Left"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding Served}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding MeanWait}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="5" Text="{Binding MeanQueue}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="6" Text="{Binding BacklogAtClose}" TextAlignment="Right"/>
+                                        <TextBlock Grid.Column="7" Text="{Binding Drain}" TextAlignment="Right"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

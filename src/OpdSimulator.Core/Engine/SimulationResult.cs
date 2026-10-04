@@ -12,6 +12,29 @@ namespace OpdSimulator.Core.Engine;
 public readonly record struct QueueSample(double Time, int Length);
 
 /// <summary>
+/// One observed queue wait at a stage, with the simulation time it was observed at
+/// (D-201).
+/// </summary>
+/// <remarks>
+/// The timestamp is what makes the sample attributable to an operating session.
+/// Before it existed the list was a bare <c>double</c> per wait, so the only way to
+/// split the waits across sessions was to assume sample order matches session order
+/// — which breaks the moment a session serves nobody. <see cref="Time"/> is the
+/// clock at which the service started, which is the instant the wait ends, so the
+/// wait belongs to the session the clock was in at that point (the session that
+/// produced the work, per the same convention <c>CalendarGate.CurrentSessionIndex</c>
+/// uses for drain).
+/// <para>
+/// Consumers that only need the wait read <see cref="Minutes"/> and are unaffected
+/// by the extra field: the waiting-time histogram bins are byte-identical before and
+/// after the change (FR-STAT-9).
+/// </para>
+/// </remarks>
+/// <param name="Time">Simulation clock minutes at which the wait was observed.</param>
+/// <param name="Minutes">Minutes the patient waited in this stage's queue.</param>
+public readonly record struct WaitSample(double Time, double Minutes);
+
+/// <summary>
 /// Immutable report of a completed simulation run.
 /// </summary>
 /// <remarks>
@@ -110,6 +133,24 @@ public sealed class SimulationResult
     /// read "Day 3 (Tue)" instead of guessing from a clock time.
     /// </remarks>
     public IReadOnlyList<ClinicSession> Sessions { get; init; } = Array.Empty<ClinicSession>();
+
+    /// <summary>
+    /// Length of one operating session's arrival window in minutes — the arrival
+    /// window, not the whole open day (FR-UI-38, D-201).
+    /// </summary>
+    /// <remarks>
+    /// Carried on the result because the per-session totals caption has to name the
+    /// session length, and the UI has no other route to the calendar it ran with.
+    /// 0 for a plain horizon run, which has no sessions.
+    /// </remarks>
+    public double SessionLengthMinutes { get; init; }
+
+    /// <summary>
+    /// Weekday of the run's first operating session, so the per-session totals caption
+    /// can name the start weekday (FR-UI-38). <see langword="null"/> for a plain
+    /// horizon run, which has no sessions.
+    /// </summary>
+    public DayOfWeek? SessionStartDay { get; init; }
 
     /// <summary>
     /// If this run was calendar-aware and capped, the daily admission cap;

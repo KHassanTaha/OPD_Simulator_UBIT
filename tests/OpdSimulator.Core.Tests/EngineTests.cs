@@ -114,7 +114,7 @@ public class EngineTests
         {
             Assert.NotEmpty(stage.WaitingTimeSamples);
             Assert.Equal(stage.PatientsServed, stage.WaitingTimeSamples.Count);
-            Assert.All(stage.WaitingTimeSamples, w => Assert.True(w >= 0, "Waiting times cannot be negative"));
+            Assert.All(stage.WaitingTimeSamples, w => Assert.True(w.Minutes >= 0, "Waiting times cannot be negative"));
             Assert.NotEmpty(stage.QueueLengthSeries);
             Assert.All(stage.QueueLengthSeries, p => Assert.True(p.Time >= 0 && p.Length >= 0));
         }

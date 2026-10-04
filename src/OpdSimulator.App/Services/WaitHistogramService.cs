@@ -78,7 +78,11 @@ public static class WaitHistogramService
             return new WaitHistogramData(stageName, false, Array.Empty<string>(), Array.Empty<double>());
         }
 
-        var histogram = BuildForSamples(stageName, stage.WaitingTimeSamples);
+        // The timestamp each sample carries is dropped here on purpose: the
+        // histogram is a distribution of waits, so it reads Minutes and nothing
+        // else, and the bins stay byte-identical to those the pre-timestamp
+        // (List<double>) samples produced (FR-STAT-9, D-201).
+        var histogram = BuildForSamples(stageName, stage.WaitingTimeSamples.Select(w => w.Minutes).ToArray());
         return histogram with { StageIndex = stageIndex };
     }
 
