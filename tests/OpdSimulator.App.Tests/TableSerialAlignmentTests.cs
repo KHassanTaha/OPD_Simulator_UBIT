@@ -12,6 +12,7 @@ using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 using Xunit;
+using Avalonia;
 
 namespace OpdSimulator.App.Tests;
 
@@ -150,22 +151,36 @@ public class TableSerialAlignmentTests
     /// row. Marker text appears only in headers — body cells carry formatted data,
     /// never a column name — so a marker cannot match a body row by accident.
     /// </summary>
-    private static Grid HeaderGrid(Avalonia.Visual root, string marker) =>
-        root.GetVisualDescendants().OfType<Grid>()
-            .Single(g => g.ColumnDefinitions.Count > 2
-                         && g.Children.OfType<TextBlock>().Any(t => t.Text == marker));
+        private static bool AncestorHasTitle(Visual visual, string title)
+    {
+        var current = visual.Parent;
+        int depth = 0;
+        while (current is not null && depth < 50)
+        {
+            depth++;
+            if (current is StackPanel sp && sp.Children.OfType<TextBlock>().Any(t => t.Text == title))
+                return true;
+            if (current is Grid g && g.Children.OfType<TextBlock>().Any(t => t.Text == title))
+                return true;
+            current = current.Parent;
+        }
+        return false;
+    }
 
-    /// <summary>
-    /// Returns the realised row <c>Grid</c>s belonging to <paramref name="header"/>,
-    /// found by walking forward to the next <c>ItemsControl</c> sibling.
-    /// </summary>
-    /// <remarks>
-    /// Three tables in this panel share a seven-column layout (chi-square,
-    /// analytical validation, per-server detail). Searching the whole tree for
-    /// "a Grid with seven columns" would return all three and the test would assert
-    /// against whichever it happened to hit first. Scoping to the header's own
-    /// sibling is what keeps each assertion attached to its own table.
-    /// </remarks>
+    private static Grid HeaderGrid(Avalonia.Visual root, string marker, string? sectionTitle = null)
+    {
+        var candidates = root.GetVisualDescendants().OfType<Grid>()
+            .Where(g => g.ColumnDefinitions.Count > 2
+                        && g.Children.OfType<TextBlock>().Any(t => t.Text == marker));
+        if (sectionTitle is not null)
+            candidates = candidates.Where(g => AncestorHasTitle(g, sectionTitle));
+        var list = candidates.ToList();
+        if (list.Count > 0) return list[0];
+        return root.GetVisualDescendants().OfType<Grid>()
+            .First(g => g.ColumnDefinitions.Count > 2
+                        && g.Children.OfType<TextBlock>().Any(t => t.Text == marker));
+    }
+
     private static IReadOnlyList<Grid> RowsFor(Grid header)
     {
         if (header.GetVisualParent() is not Panel host)
@@ -334,7 +349,7 @@ public class TableSerialAlignmentTests
             var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
             Assert.Equal(3, vm.StageRows.Count);
 
-            var header = HeaderGrid(panel, "Wait (min)");
+            var header = HeaderGrid(panel, "Wait (min)", null);
             Assert.Equal("#", Cell(header, 0).Text);
             Assert.Equal(10, header.ColumnDefinitions.Count);
 
@@ -372,16 +387,17 @@ public class TableSerialAlignmentTests
             AttachSteadyStateAnalyticalRows(vm, actual);
             window.UpdateLayout();
             // (marker, numeric columns) per table.
-            var tables = new (string Marker, int[] Numeric)[]
+            var tables = new (string Marker, int[] Numeric, string? SectionTitle)[]
             {
-                ("Wait (min)", new[] { 0, 2, 3, 4, 5, 6, 7, 8, 9 }),   // per stage
-                ("Distribution", new[] { 0, 3, 4, 5 }),                   // chi-square: χ², df, p
-                ("M/M/c wait", new[] { 0, 2, 3, 4, 5, 6 }),               // analytical: all five
+                ("Wait (min)", new[] { 0, 2, 3, 4, 5, 6, 7, 8, 9 }, null),   // per stage
+                ("Distribution", new[] { 0, 3, 4, 5 }, null),                   // chi-square: χ², df, p
+                ("M/M/c wait", new[] { 0, 2, 3, 4, 5, 6 }, null),               // analytical: all five
+                ("#", new[] { 0, 3, 4, 5, 6, 7 }, "Per-session totals"),        // per-session: serial and numerics
             };
 
-            foreach (var (marker, numeric) in tables)
+            foreach (var (marker, numeric, sectionTitle) in tables)
             {
-                var header = HeaderGrid(panel, marker);
+                var header = HeaderGrid(panel, marker, sectionTitle);
                 var rows = RowsFor(header);
                 Assert.True(rows.Count > 0, $"precondition: {marker} must have realised rows");
 
@@ -430,16 +446,17 @@ public class TableSerialAlignmentTests
             AttachSteadyStateAnalyticalRows(vm, actual);
             window.UpdateLayout();
             // (marker, text columns) per table.
-            var tables = new (string Marker, int[] Text)[]
+            var tables = new (string Marker, int[] Text, string? SectionTitle)[]
             {
-                ("Wait (min)", new[] { 1 }),                  // per stage: Stage
-                ("Distribution", new[] { 1, 2, 6 }),          // chi-square: Series, Distribution, Decision
-                ("M/M/c wait", new[] { 1 }),                   // analytical: Stage
+                ("Wait (min)", new[] { 1 }, null),                  // per stage: Stage
+                ("Distribution", new[] { 1, 2, 6 }, null),          // chi-square: Series, Distribution, Decision
+                ("M/M/c wait", new[] { 1 }, null),                   // analytical: Stage
+                ("Session", new[] { 1, 2 }, "Per-session totals"),  // per-session totals: Session, Stage
             };
 
-            foreach (var (marker, text) in tables)
+            foreach (var (marker, text, sectionTitle) in tables)
             {
-                var header = HeaderGrid(panel, marker);
+                var header = HeaderGrid(panel, marker, sectionTitle);
                 var rows = RowsFor(header);
                 Assert.True(rows.Count > 0, $"precondition: {marker} must have realised rows");
 
@@ -484,4 +501,157 @@ public class TableSerialAlignmentTests
         return dir?.FullName
             ?? throw new InvalidOperationException("could not locate OpdSimulator.sln from " + start);
     }
+
+
+    [AvaloniaFact]
+    public void PerSessionTotals_HasSerialNumberColumn()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "#", "Per-session totals");
+            Assert.Equal("#", Cell(header, 0).Text);
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            Assert.Equal(
+                Enumerable.Range(1, rows.Count).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                SerialsOf(header, rows));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void PerSessionTotals_NumericColumns_AreRightAligned()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "#", "Per-session totals");
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            var numeric = new[] { 0, 3, 4, 5, 6, 7 };
+            foreach (var col in numeric)
+            {
+                Assert.Equal(TextAlignment.Right, Cell(header, col).TextAlignment);
+                foreach (var row in rows)
+                {
+                    Assert.Equal(TextAlignment.Right, Cell(row, col).TextAlignment);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void PerSessionTotals_TextColumns_AreLeftAligned()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "Session", "Per-session totals");
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            var text = new[] { 1, 2 };
+            foreach (var col in text)
+            {
+                Assert.Equal(TextAlignment.Left, Cell(header, col).TextAlignment);
+                foreach (var row in rows)
+                {
+                    Assert.Equal(TextAlignment.Left, Cell(row, col).TextAlignment);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+    [AvaloniaFact]
+    public void PerSessionTotals_HasSerialNumberColumn()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "#", "Per-session totals");
+            Assert.Equal("#", Cell(header, 0).Text);
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            Assert.Equal(
+                Enumerable.Range(1, rows.Count).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                SerialsOf(header, rows));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void PerSessionTotals_NumericColumns_AreRightAligned()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "#", "Per-session totals");
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            var numeric = new[] { 0, 3, 4, 5, 6, 7 };
+            foreach (var col in numeric)
+            {
+                Assert.Equal(TextAlignment.Right, Cell(header, col).TextAlignment);
+                foreach (var row in rows)
+                {
+                    Assert.Equal(TextAlignment.Right, Cell(row, col).TextAlignment);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void PerSessionTotals_TextColumns_AreLeftAligned()
+    {
+        var vm = CompletedRun(out _);
+        var window = Host(vm);
+        try
+        {
+            var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
+            var header = HeaderGrid(panel, "Session", "Per-session totals");
+            var rows = RowsFor(header);
+            Assert.True(rows.Count > 0);
+            var text = new[] { 1, 2 };
+            foreach (var col in text)
+            {
+                Assert.Equal(TextAlignment.Left, Cell(header, col).TextAlignment);
+                foreach (var row in rows)
+                {
+                    Assert.Equal(TextAlignment.Left, Cell(row, col).TextAlignment);
+                }
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
 }

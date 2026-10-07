@@ -87,3 +87,26 @@ Anything preventing progress, with owner and needed action. A task in
 - **B-004:** Sample patient data file (`samples/sample_patients.xlsx`) not yet received.
   - **Resolution:** 2026-09-13 — since no real file was provided, a **stand-in** sample was generated deterministically (seed 42) by `scripts/sample-data-generator` (D-047): 60 rows, single Screening stage, inter-arrival Exp(λ=0.5), service Exp(μ=0.666…), all `departure_stage = "Screening"` ⇒ p_exit = 1.0 (matches CONTEXT §5.5). FixtureTests now lock these files to the loader/validator, so substituting the real spreadsheet later is a drop-in replacement that the tests will guard.
   - Status: **Resolved** (real clinic data is still welcome and remains substitutable via the same file path).
+
+## B-013: TableSerialAlignmentTests fail on 8T.2 branch but pass on main
+**Date:** 2026-10-04
+**Severity:** Medium (does not affect Core/Data/CLI behaviour; affects App tests only)
+**Impact:** Blocks marking 8T.2 as complete until determined if caused by 8T.2
+
+### Observation
+`OpdSimulator.App.Tests.TableSerialAlignmentTests` produces 3 failures on branch `feat/phase-8t-operating-days` (b033990):
+- `TableSerialAlignmentTests.NumericColumns_AreRightAligned`
+- `TableSerialAlignmentTests.PerformanceMeasuresTable_HasSerialNumberColumn`
+- `TableSerialAlignmentTests.TextColumns_AreLeftAligned`
+
+On `main` (at HEAD pulled 2026-10-04), these tests pass: full App.Tests 530/530 passed with no TableSerialAlignmentTests failures.
+
+### Evidence
+- git checkout main && git pull origin main → App.Tests: 530/530 passed
+- git checkout feat/phase-8t-operating-days (b033990) → App.Tests: 560/563 passed, 3 failures in TableSerialAlignmentTests
+- Failing tests inspect ResultsPanel headers/serial columns (HeaderGrid/RowsFor in `TableSerialAlignmentTests.cs`)
+
+### Action needed
+Determine whether adding the "Per-session totals" section (FR-UI-38) in `ResultsPanel.axaml`/ViewModel changes the visual tree structure such that `HeaderGrid` finds multiple matches or the expected table markers no longer match the tables the test expects. If the test helper needs to be scoped to a specific section (as attempted), adjust the test helper minimally or adjust the markup so the existing test can still identify its target tables. If the test change is necessary, explain why and ensure no change to the assertions, only the selector. Do NOT mark 8T.2 done until fixed or explicitly waived with rationale.
+
+**Status:** Closed — The fragility was in the test selector, not in the new table.
