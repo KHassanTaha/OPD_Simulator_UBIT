@@ -4765,3 +4765,44 @@ Surfaced conflict: validator strictly rejects departure_stage ∉ {Screening, Do
 (incl. Reception) per kickoff B1 — stricter than CONTEXT §5.4 warn-and-exclude.
 Logged as D-038 in DECISIONS.md (which behaviour the CLI must have is settled:
 strict).
+
+Session Handoff — 2026-10-04 06:40
+Branch: feat/phase-8t-operating-days
+Status: In-Progress
+
+Done
+- Scoped TableSerialAlignmentTests selector by section title; fixed calls; added scoping for existing cases.
+- Built Release and ran full suite: Data 134/134, Core 158/158, CLI 38/38, App 563/563 — all green.
+- B-013 closed (test fragility in selector, not new table). D-207 recorded (absent means as '—').
+- Marked 8T.2 [x] (done 2026-10-04 06:40).
+
+In Progress
+- None
+
+What remains
+- 8T.1 pending owner review of logs/screenshots/phase-8t1-session-caption.png
+- B-012 Phase 8S frames pending owner review
+
+Next Session
+- Owner reviews above
+
+Blocked
+- None
+
+Git State
+Commits: 9a30a25 — selector scoping + docs updates
+Pushed: Yes to origin/feat/phase-8t-operating-days
+
+Build & Test
+dotnet build -c Release: PASS
+dotnet test -c Release: PASS (893 total)
+
+Files Touched
+tests/OpdSimulator.App.Tests/TableSerialAlignmentTests.cs
+docs/BLOCKERS.md
+docs/DECISIONS.md
+docs/TODO.md
+docs/PROGRESS.md
+
+Decisions Made
+D-207 (absent means as '—'); selector scoping approach per ruling (section-based)
