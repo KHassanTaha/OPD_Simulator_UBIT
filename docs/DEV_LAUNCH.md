@@ -129,7 +129,7 @@ dotnet run --project src\OpdSimulator.Cli -- simulate-params --lambda 3 --mu 4 -
 ```
 
 Since Milestone 2 the CLI is a subcommand dispatcher: `simulate-params`,
-`verify`, `fit`, `simulate-data`, `export` (§7). `simulate-params` is the
+`verify`, `fit`, `simulate-data`, `export`, `validate` (§7). `simulate-params` is the
 Milestone-1 command (bare flags after it).
 
 Expected output (Milestone 1, verified 2026-09-13): a metrics table ending with
@@ -516,6 +516,23 @@ with exit 1. (Level tokens renamed `events|state|rng` → `standard|detailed|deb
 with `minimal` added in Phase 8D; behaviour unchanged.)
 
 ---
+
+
+### 7.x `validate` — write `validation_report.txt` (FR-VAL-6, D-210)
+
+Verified on Ubuntu 2026-11-04:
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --seed 42
+```
+
+Writes `validation_report.txt` in the current directory (override with `--out`). Options:
+`--servers`, `--horizon` (default 200,000 minutes; below 100,000 the run is refused as
+transient), `--seed`, `--cs2`, `--model M/M/c | M/G/c | G/G/c`.
+
+The same command works on Windows with the project path as
+`src\OpdSimulator.Cli`. Exit codes: 0 wrote the report, 1 refused (unstable stage or
+transient horizon), 2 bad usage.
 
 ## 8. Project Layout
 

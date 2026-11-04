@@ -1,0 +1,42 @@
+VALIDATION REPORT — simulated vs analytical closed-form queueing model
+================================================================
+
+Reproduce this report:
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --servers 1 --horizon 200000 --seed 42 --cs2 1 --model M/M/c
+
+Configuration
+-------------
+  arrival rate λ        : 0.5 per minute (inter-arrivals are exponential, Ca² = 1)
+  service rate μ        : 0.8 per minute per server
+  servers c             : 1
+  service variability   : exponential (Cs² = 1)
+  simulated horizon     : 200000 minutes
+  random seed           : 42
+  analytical model      : M/M/c — Erlang-C (exact)
+
+Steady-state check
+------------------
+  operating minutes     : 200000
+  threshold             : 100000
+  traffic intensity ρ   : 0.625
+
+Comparison
+----------
+  metric                          simulated     analytical        Δ%
+  average wait in queue Wq         2.1393         2.0833      2.69
+  average queue length  Lq         1.0696         1.0417      2.69
+
+Verdict
+-------
+  tolerance             : 5% on both Wq and Lq
+  result                : PASS
+
+Notes
+-----
+  - Closed-form values are steady-state results; they describe the long-run
+    behaviour, not one clinic day. A 165-minute session is transient.
+  - M/M/c assumes exponential service. For any other service distribution use
+    M/G/c (Allen–Cunneen; Pollaczek–Khinchine at c = 1) or G/G/c
+    (Allen–Cunneen; Kingman at c = 1).
+  - With exponential arrivals Ca² = 1, so G/G/c and M/G/c agree exactly.
+

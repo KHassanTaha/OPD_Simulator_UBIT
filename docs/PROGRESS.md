@@ -4806,3 +4806,18 @@ docs/PROGRESS.md
 
 Decisions Made
 D-207 (absent means as '—'); selector scoping approach per ruling (section-based)
+
+## 2026-10-21 — Docs: HOW_IT_WORKS.md
+- Created `docs/HOW_IT_WORKS.md` at owner request: Section 1 = simple, fast, complete explanation of the whole pipeline; Section 2 = complete technical detail with file:line references and formulas (ingestion, validation, fitting, SimulationParameters precedence, DES engine, clinic calendar/sessions, RNG, statistics, all outputs, CLI, logs, known caveats incl. 3-stage event-type limit, cap/bypass mismatch, stale comments). Companion to WORKFLOW_DIAGRAM.md and VIVA_ANSWERS.md. Sources: three parallel code explorations of Data/Core/App; no code changed.
+
+## 2026-11-04 — Analytical model battery (M/M/c, M/G/c, G/G/c) + `validation_report.txt` (Phase 8U)
+
+Owner request: "I need all of these as well" — M/G/1 (P–K), G/G/1 (Kingman), M/G/c and G/G/c (Allen–Cunneen) — plus the validation report, with every model runnable from the UI and the report matching this project's documentation.
+
+Built: `Core/Analytics/AnalyticalModels.cs` (exact Erlang-C queue; M/G/c scaled by (1+Cs²)/2; G/G/c scaled by (Ca²+Cs²)/2; c = 1 identities = P–K and Kingman, asserted by test); `AnalyticalValidationService.Compare` gained a model parameter and per-stage `DistributionSpec` input so Cs² comes from the configuration (D-157); `AnalyticalValidationViewModel.SelectedModel` re-evaluates the retained run; Results widget gained `SearchableDropdown` model selection with the two reference headers bound to it; `Cli/Commands/ValidateCommand.cs` + `validate` dispatch writes `validation_report.txt` (D-210).
+
+Verified: `AnalyticalModelsTests` 11/11; `Phase8CValidationTests` 15/15 (three new: M/G scaling, G/G≡M/G under Ca²=1, M/M/c still refusing non-exponential service); `ValidateCommandTests` 2/2; `validation_report.txt` written and read back — M/M/c seed 42: Wq 2.1393 vs 2.0833, Δ 2.69%, PASS; M/G/c with Cs² = 2: 3.125, Δ 31.5%, FAIL (correct — the run sampled exponential service).
+
+Not done, deliberately: no change to the D-137 steady-state gate, so the widget still shows nothing on a 165-minute clinic day; the demo path is a long diagnostic run or the `validate` command. The dropdown's real-display click sequence is `[~]` pending the owner (§18, D-089).
+
+**Follow-up the same day (8U.6):** the first `validate` report compared an M/G/c model with Cs² = 2 against a run that had sampled exponential service, so it could only ever FAIL and the failure read as an engine defect. The CLI has no service-family argument at all (`grep DistributionSpec src/OpdSimulator.Cli` is empty), so a genuine M/G/c validation is impossible there. Fixed: Cs² ≠ 1 now writes *sensitivity analysis — NOT a validation* and issues no verdict; `ValidateCommandTests` asserts the label. A real M/G/c check is available only from the GUI, whose engine builds each stage's sampler from its configured `StageSpec` (`Engine.cs:298`).

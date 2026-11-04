@@ -586,12 +586,18 @@
                     CornerRadius="{DynamicResource CornerRadiusM}"
                     Padding="{DynamicResource ThicknessSpaceM}">
                 <StackPanel Spacing="{DynamicResource SpaceS}">
-                    <TextBlock Text="Analytical validation (M/M/c)"
+                    <TextBlock Text="Analytical validation"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="Simulated per-stage wait and queue length against the closed-form steady-state M/M/c (Erlang-C) values; valid only for exponential arrivals and service with ρ &lt; 1 over a long run."
+                    <TextBlock Text="Simulated per-stage wait and queue length against the closed-form steady-state model you choose; valid only for ρ &lt; 1 over a long run."
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:SearchableDropdown Label="Analytical model"
+                                                 Placeholder="Choose a model…"
+                                                 Tooltip="M/M/c is exact (Erlang-C). M/G/c is Allen–Cunneen; for a single server it is exactly Pollaczek–Khinchine. G/G/c is Allen–Cunneen; for a single server it is exactly Kingman's formula."
+                                                 Items="{Binding AnalyticalValidation.ModelOptions}"
+                                                 SelectedItem="{Binding AnalyticalValidation.SelectedModel, Mode=TwoWay}"
+                                                 HelpAnchor="analytical-model"/>
                     <TextBlock Text="{Binding AnalyticalValidation.EmptyMessage}"
                                IsVisible="{Binding AnalyticalValidation.IsEmpty}"
                                FontSize="{DynamicResource FontSizeCaption}"
@@ -600,14 +606,15 @@
                                 Spacing="{DynamicResource SpaceS}">
                         <!-- Phase 8Q.5 (FR-UI-36): serial column added, all five
                              numeric columns right-aligned so the two sides of each
-                             comparison share a decimal point. -->
+                             comparison share a decimal point. Phase 8U: the two
+                             reference columns name the selected model. -->
                         <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8">
                             <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                             <TextBlock Grid.Column="2" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="3" Text="M/M/c wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="3" Text="{Binding AnalyticalValidation.SelectedModel, StringFormat={}{0} wait}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="4" Text="Sim queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
-                            <TextBlock Grid.Column="5" Text="M/M/c queue" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="5" Text="{Binding AnalyticalValidation.SelectedModel, StringFormat={}{0} queue}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="6" Text="Δ%" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                         </Grid>
                         <ItemsControl ItemsSource="{Binding AnalyticalValidation.Rows}">

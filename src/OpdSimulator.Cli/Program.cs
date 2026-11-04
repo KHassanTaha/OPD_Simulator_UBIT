@@ -101,6 +101,7 @@ public static class Program
             "simulate-network" => SimulateNetworkCommand.Run(rest, stdout, stderr, fileLogger),
             "trace" => TraceCommand.Run(rest, stdout, stderr, fileLogger),
             "export" => ExportCommand.Run(rest, stdout, stderr, fileLogger),
+            "validate" => ValidateCommand.Run(rest, stdout, stderr, fileLogger),
             _ => UnknownCommand(command, stderr),
         };
     }

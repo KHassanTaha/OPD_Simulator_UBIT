@@ -769,24 +769,29 @@ checks the implementation.
 This is a **Results** widget: it describes a run, so it lives under
 "Customise results" on the Results panel, never on the Input tab.
 
-### 6.9 Analytical Validation (M/M/c)
+### 6.9 Analytical Validation (M/M/c, M/G/c, G/G/c)
 
 This widget is the simulator's **analytical check**: it compares the
-simulated per-stage wait and queue length against the closed-form M/M/c
-(Erlang-C) values for the same arrival rate, service rate and server count.
+simulated per-stage wait and queue length against a closed-form model for
+the same arrival rate, service rate and server count. Choose the model from the
+**Analytical model** dropdown: **M/M/c** (Erlang-C, exact), **M/G/c**
+(Allen–Cunneen; for one server this is exactly Pollaczek–Khinchine) or **G/G/c**
+(Allen–Cunneen; for one server this is exactly Kingman).
 
 The closed-form formulas only apply under **all three** of these conditions:
 
-1. **Exponential** inter-arrival and service times (M/M/c).
+1. **Exponential** service times — required by M/M/c only. M/G/c and G/G/c
+   take the service variability (Cs²) from the configured stage instead.
 2. Every stage **stable**, i.e. ρ < 1 at each stage.
 3. A **steady-state run** — an operating time of at least **100,000
    simulated minutes** (about 70 operating days).
 
 If any condition fails, the widget stays on its empty state and says why:
-*"Analytical comparison requires a steady-state run — exponential service,
-ρ < 1 at every stage, and a horizon of at least 100,000 simulated minutes
-(~70 operating days). Clinic-day runs are transient and will not match M/M/c
-formulas."*
+*"Analytical comparison requires a steady-state run — ρ < 1 at every stage,
+and a horizon of at least 100,000 simulated minutes (~70 operating days).
+Clinic-day runs are transient and will not match closed-form formulas. M/M/c
+additionally requires exponential service; choose M/G/c or G/G/c for any
+other service distribution."*
 
 Why the horizon condition: M/M/c results describe long-run (steady-state)
 behaviour. A single 2-hour clinic day is a **transient**, so the simulated
@@ -809,6 +814,24 @@ A small Δ% (a few percent) means the engine agrees with queueing theory on
 that configuration — that is the validation. This widget is a **Results**
 widget: it needs a finished run, so it lives under "Customise results", never
 on the Input tab.
+
+#### The validation report file
+
+The same comparison is available as a file for the report and the viva. Run:
+
+```bash
+dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --seed 42 --model M/G/c
+```
+
+If the service distribution is exponential but you ask the model for a different
+Cs², the file labels the comparison a **sensitivity analysis** and issues no
+PASS/FAIL — it is measuring the assumption, not the engine. The CLI cannot run a
+non-exponential service distribution; use the app for a genuine M/G/c check.
+
+It writes `validation_report.txt` containing the inputs (λ, μ, c, Cs², seed,
+horizon), the model and its formula name, the simulated and analytical wait and
+queue length with their Δ%, and a PASS/FAIL against the 5% tolerance. The header
+prints the exact command that reproduces the file from the seed.
 
 ### 6.10 View Calculations
 

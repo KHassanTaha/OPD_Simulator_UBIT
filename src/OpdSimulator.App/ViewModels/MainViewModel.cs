@@ -429,6 +429,7 @@ public partial class MainViewModel : ObservableObject
             outcome.Result,
             parameters.InterArrivalDistribution,
             serviceFamilies,
-            stageInputs);
+            stageInputs,
+            parameters.ServiceFamilies);
     }
 }

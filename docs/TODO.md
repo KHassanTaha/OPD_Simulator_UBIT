@@ -409,3 +409,15 @@ Owner rulings recorded 2026-10-04, in the order they were given:
 - [ ] 8T gates: every item needs §18 verification — the click sequence executed, the result observed, a screenshot under a **new** filename (D-166), and a verification table in PROGRESS.md. No 8T row may reach `[x]` on a green suite alone — 2026-10-04
 - [ ] **Out of scope, recorded so it is asked for rather than assumed:** two-way split of the not-admitted count (D-202); a copy-trace-text control (D-202); weekday shading bands on the queue chart (D-203); one small multiple per session (D-203); any pin on the Config panel's Start button (FR-UI-11 stands) — 2026-10-04
 - [ ] **Owner visual inspection of the five 8S frames (§18 / D-089)** — still open; this host has no image input; B-012 — 2026-10-03
+
+## Docs — HOW_IT_WORKS (2026-10-21)
+- [x] `docs/HOW_IT_WORKS.md` — two-section working reference: Section 1 plain-language end-to-end walkthrough (ingest → validate → measure/fit → parameters → DES → metrics → outputs), Section 2 full technical reference with file:line citations (loaders, validator, fitting/χ², parameter precedence, engine loop/handlers, calendar & sessions, RNG, statistics formulas, results/input/CLI outputs, known caveats) — 2026-10-21
+
+## Phase 8U — analytical model battery + validation report (owner request 2026-11-04, PRD v1.15.0)
+
+- [x] **8U.1 — `AnalyticalModels`** (`Core/Analytics`): M/M/c exact, M/G/c and G/G/c by Allen–Cunneen, Cs² per family from the configured spec, ρ ≥ 1 refused — 2026-11-04 (`AnalyticalModelsTests` 11: Erlang-C c=1 and c=2, P–K, Kingman, Little's law across all three, stability refusal, Cs² for five families)
+- [x] **8U.2 — model selection through the service and widget** — `Compare` takes `AnalyticalModelFamily` + per-stage specs; `SelectedModel` re-evaluates the retained run without re-simulating; Results widget gains the dropdown and binds the two reference column headers to the selected model — 2026-11-04 (3 new App tests green; `Phase8CValidationTests` 15/15)
+- [x] **8U.3 — `validate` CLI + `validation_report.txt`** (FR-VAL-6) — 2026-11-04 (file written and read back: M/M/c 2.69% PASS at seed 42; M/G/c with Cs² = 2 → P–K 3.125, 31.5% FAIL, correctly reported; 2 CLI tests)
+- [~] **8U.4 — UI verification (§18)** — dropdown present and bound headlessly; the click sequence on a real display is pending because this host has no image input (D-089) — owner walk required before `FR-STAT-5` returns to `[x]`
+- [x] **8U.5 — docs:** PRD v1.15.0, REQUIREMENTS, DECISIONS D-208..D-210, DEV_LAUNCH (`validate`), USER_MANUAL §6.9 — 2026-11-04
+- [x] **8U.6 — CLI sensitivity/validation split:** `--cs2` ≠ 1 is labelled *sensitivity analysis* with no PASS/FAIL, because the CLI run always samples exponential service (no service-family argument exists). Test asserts the label — 2026-11-04

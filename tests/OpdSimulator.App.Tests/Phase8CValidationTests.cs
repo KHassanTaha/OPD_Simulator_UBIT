@@ -264,7 +264,7 @@ public class Phase8CValidationTests
             window.UpdateLayout();
             var panel = window.GetVisualDescendants().OfType<ResultsPanel>().Single();
             var text = panel.GetVisualDescendants().OfType<TextBlock>().ToList();
-            Assert.Contains(text, t => t.Text == "Analytical validation (M/M/c)");
+            Assert.Contains(text, t => t.Text == "Analytical validation");
             Assert.Contains(text, t => t.Text == "Reception");
             var empty = text.SingleOrDefault(t => t.Text == main.AnalyticalValidation.EmptyMessage);
             Assert.NotNull(empty);
@@ -383,5 +383,73 @@ public class Phase8CValidationTests
 
             await Task.Delay(50);
         }
+    }
+
+    // ── 8U model selection (D-208) ────────────────────────────────────────
+
+    /// <summary>
+    /// Choosing M/G/c must actually change the reference numbers. With a Normal
+    /// service spec of Cs² = 0.25 the Allen–Cunneen factor is (1 + 0.25)/2 = 0.625,
+    /// so a stage whose M/M/c wait is 1.000 must report 0.625. A selector that only
+    /// relabelled the header would leave the number at 1.000 and fail here.
+    /// </summary>
+    [Fact]
+    public void SelectingMgc_ScalesTheReferenceByCsSquared()
+    {
+        var result = ResultWith(Stage("Reception", 0.5, 1.0, 1, 1.0, 0.5));
+        var specs = new[] { new OpdSimulator.Core.Distributions.DistributionSpec(
+            OpdSimulator.Core.Distributions.DistributionFamily.Normal, 1.0, StdDev: 0.5) };
+        var vm = new AnalyticalValidationViewModel();
+
+        vm.Apply(result, "Exponential", new[] { "Normal" }, new (double, double, int)[] { (0.5, 1.0, 1) }, specs);
+        vm.SelectedModel = "M/G/c";
+
+        Assert.True(vm.HasRows, "M/G/c must be available for a non-exponential service family");
+        Assert.Single(vm.Rows);
+        Assert.Equal(0.625, vm.Rows[0].AnalyticalAvgWait, 6);
+        Assert.Equal(0.3125, vm.Rows[0].AnalyticalQueueLength, 6);
+    }
+
+    /// <summary>
+    /// The identity the report documents: with exponential arrivals Ca² = 1, so
+    /// G/G/c and M/G/c agree exactly. If this ever stops holding, the model
+    /// implementation and the documentation have diverged (D-208).
+    /// </summary>
+    [Fact]
+    public void Ggc_EqualsMgc_WhenArrivalsAreExponential()
+    {
+        var result = ResultWith(Stage("Reception", 0.5, 1.0, 1, 1.0, 0.5));
+        var specs = new[] { new OpdSimulator.Core.Distributions.DistributionSpec(
+            OpdSimulator.Core.Distributions.DistributionFamily.Gamma, 1.0, Shape: 2.0, Scale: 0.5) };
+        var vm = new AnalyticalValidationViewModel();
+
+        vm.Apply(result, "Exponential", new[] { "Gamma" }, new (double, double, int)[] { (0.5, 1.0, 1) }, specs);
+        vm.SelectedModel = "M/G/c";
+        double mgc = vm.Rows[0].AnalyticalAvgWait;
+
+        vm.SelectedModel = "G/G/c";
+        double ggc = vm.Rows[0].AnalyticalAvgWait;
+
+        Assert.Equal(mgc, ggc, 9);
+    }
+
+    /// <summary>
+    /// M/M/c keeps its exponential-service assumption: a Normal stage must leave it
+    /// empty (D-157) while M/G/c answers for the same run. This is the difference
+    /// between "the model does not apply" and "the model cannot compute".
+    /// </summary>
+    [Fact]
+    public void Mmc_StillRefusesNonExponentialService_WhileMgcComputesIt()
+    {
+        var result = ResultWith(Stage("Reception", 0.5, 1.0, 1, 1.0, 0.5));
+        var specs = new[] { new OpdSimulator.Core.Distributions.DistributionSpec(
+            OpdSimulator.Core.Distributions.DistributionFamily.Normal, 1.0, StdDev: 2.0) };
+        var vm = new AnalyticalValidationViewModel();
+
+        vm.Apply(result, "Exponential", new[] { "Normal" }, new (double, double, int)[] { (0.5, 1.0, 1) }, specs);
+        Assert.True(vm.IsEmpty, "M/M/c must not certify a Normal-service run");
+
+        vm.SelectedModel = "M/G/c";
+        Assert.True(vm.HasRows, "M/G/c must certify the same run");
     }
 }

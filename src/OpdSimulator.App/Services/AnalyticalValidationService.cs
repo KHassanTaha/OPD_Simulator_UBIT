@@ -1,5 +1,7 @@
 namespace OpdSimulator.App.Services;
 
+using OpdSimulator.Core.Analytics;
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 
 /// <summary>
@@ -162,15 +164,20 @@ public static class AnalyticalValidationService
         SimulationResult result,
         string arrivalFamily,
         IReadOnlyList<string> serviceFamilies,
-        IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs)
+        IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
+        AnalyticalModelFamily model = AnalyticalModelFamily.Mmc,
+        IReadOnlyList<DistributionSpec>? serviceSpecs = null)
     {
-        // M/M/c is a steady-state result: a short/transient run (e.g. one
-        // 165-minute clinic day) is not comparable, regardless of families.
+        // Every model here is a steady-state result: a short/transient run (e.g. one
+        // 165-minute clinic day) is not comparable, regardless of model or families.
         if (result.OperatingTimeMinutes < MinimumSteadyStateMinutes)
         {
             return Array.Empty<ComparisonRow>();
         }
 
+        // The engine samples exponential inter-arrivals only (D-209), so Ca² is 1 for
+        // every run it can produce. A non-exponential arrival family would make Ca²
+        // unknown here, and guessing it would be the D-157 mistake in another form.
         if (!IsExponential(arrivalFamily)
             || stageInputs.Count == 0
             || stageInputs.Count < result.StageMetrics.Count)
@@ -178,12 +185,18 @@ public static class AnalyticalValidationService
             return Array.Empty<ComparisonRow>();
         }
 
-        for (int i = 0; i < result.StageMetrics.Count; i++)
+        // M/M/c states an exponential-service assumption. M/G/c and G/G/c do not:
+        // they take the configured Cs² (and Ca²) as inputs, so a Normal or Gamma
+        // stage is comparable instead of refused.
+        if (model == AnalyticalModelFamily.Mmc)
         {
-            string family = i < serviceFamilies.Count ? serviceFamilies[i] : string.Empty;
-            if (!IsExponential(family))
+            for (int i = 0; i < result.StageMetrics.Count; i++)
             {
-                return Array.Empty<ComparisonRow>();
+                string family = i < serviceFamilies.Count ? serviceFamilies[i] : string.Empty;
+                if (!IsExponential(family))
+                {
+                    return Array.Empty<ComparisonRow>();
+                }
             }
         }
 
@@ -192,15 +205,20 @@ public static class AnalyticalValidationService
         {
             StageMetrics sim = result.StageMetrics[i];
             (double lambda, double mu, int servers) = stageInputs[i];
-            AnalyticalStageMetrics? analytical = ComputeForStage(sim.StageName, lambda, mu, servers);
-            if (analytical is null)
+
+            DistributionSpec? serviceSpec = serviceSpecs is not null && i < serviceSpecs.Count
+                ? serviceSpecs[i]
+                : null;
+            AnalyticalModelInputs modelInputs = AnalyticalModels.InputsFor(lambda, mu, servers, serviceSpec);
+
+            if (!AnalyticalModels.TryCompute(model, modelInputs, out AnalyticalModelResult? analytical, out _))
             {
                 // A single unstable / invalid stage makes the whole comparison
                 // invalid — do not show rows for the stages that happened to pass.
                 return Array.Empty<ComparisonRow>();
             }
 
-            double delta = Math.Abs(sim.AverageWaitMinutes - analytical.Wq)
+            double delta = Math.Abs(sim.AverageWaitMinutes - analytical!.Wq)
                 / Math.Max(analytical.Wq, 1e-6)
                 * 100.0;
             rows.Add(new ComparisonRow(
