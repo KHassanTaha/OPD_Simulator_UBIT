@@ -1,3 +1,93 @@
+Session Handoff — 2026-11-07 11:24 — Phase 8V IMPLEMENTED (true general arrivals, per-model applicability, widget steady-state run; green)
+Branch: feat/general-arrivals
+Status: Clean
+
+Done
+8V.1 — Core arrival process: `NetworkTopology.ArrivalDistribution` + `EffectiveArrivalDistribution`; a null spec keeps the legacy exponential sampler bit-identical; `DistributionSpecOperations.WithMean` relocates a spec onto the resolved λ while preserving Ca²; `NextPositiveArrival` rejects non-positive draws.
+
+8V.2 — App form: the **Inter-arrival distribution** dropdown now lists all six fitted families (Poisson maps to Exponential); a family-appropriate **Arrival spread** field carries its label, visibility, blur validation and Start-gate contribution; `BuildParameters` builds the spec and `SimulationCoordinator` relocates it onto the λ the run resolved.
+
+8V.3 — Analytical layer: `AnalyticalValidationService.TryCompare` decides applicability before arithmetic — M/M/c needs exponential arrivals and service, M/G/c needs exponential arrivals, G/G/c accepts any — with Ca² from the run's arrival spec and Cs² from the per-stage service spec. A refusal names the input and an applicable model; `AnalyticalValidationViewModel.EmptyMessage` is now that refusal channel.
+
+8V.4 — Widget steady-state run (D-137 closed): **Run steady-state validation (100,000 min)** runs a DiagnosticTrace copy of the current parameters on a background thread and feeds only the analytical widget; the Results panel keeps the clinic-day run. Button visible while empty, disabled with progress text while running.
+
+8V.5 — CLI: `--ca2`/`--cs2` now sample the distributions they name — null for C² = 1, Deterministic for 0, Gamma shape `1/C²` otherwise. M/M/c and M/G/c refuse a non-Poisson arrival Ca² with exit 2 and write no file. `validation_report.txt` regenerated from three invocations: M/M/c 2.69 % PASS, M/G/c 1.70 % PASS, G/G/c 0.66 % PASS at seed 42.
+
+8V.6 — Docs: PRD v1.16.0 (FR-SIM-3, FR-STAT-5, FR-VAL-6), REQUIREMENTS rows and last-synced date, DECISIONS D-211..D-214 (D-209 marked superseded), CONTEXT §2.2 amendment + §5.8, USER_MANUAL (arrival spread, §6.9, report, changelog), DEV_LAUNCH (`--ca2`, last verified), TODO Phase 8V.
+
+In Progress
+None.
+
+What is complete:
+
+**The engine samples what the dropdown says.** `NetworkTopology` carries an optional `DistributionSpec`; `Engine.Run` selects the sampler per run because the seed is set inside the run. The null path is load-bearing: it keeps every pre-8V run, including the pinned D-054 seed-42 regression, numerically identical, and the Core tests assert that rather than assume it. `WithMean` is used instead of constructing a second spec so the configured Ca² survives the change of λ — the form knows λ, but the coordinator may resolve a different effective rate from data.
+
+**Applicability is stated, not guessed.** The previous layer hard-coded Ca² = 1 and refused every non-exponential service family for every model, which made the G/G/c and M/G/c selector entries unreachable in practice. `TryCompare` now checks the model's own assumptions and refuses with a sentence the user can act on: it names the model, the offending input with its C², and a model that would accept the run. Ca² is computed from the spec (`SquaredCoefficientOfVariation`), never defaulted, and a non-exponential family arriving without a spec is refused as *unknown* rather than read as 1 — the D-157 class of defect one level up.
+
+**The widget is usable from the default workflow.** D-137's steady-state gate is correct but made the widget permanently empty on a clinic day unless the user read the manual and switched run modes. The dedicated run keeps both truths: the displayed results are the clinic day, the comparison is steady state, and the configuration and seed are the ones on screen.
+
+**Verification (§18).** Executed headless walkthrough on a clinic-day configuration: Start clicked, widget empty with the named 154-minute refusal, selector and button on screen (`phase-8v-steady-state-button.png`), button clicked, three rows with Δ% (`phase-8v-steady-state.png`). The first capture framed the welcome card because `IsEffectivelyVisible` is not a bounds check (D-169); the test now scrolls the widget into view and asserts its translated position before capturing. Both frames were opened and reviewed in-session.
+
+**Two test lessons, recorded because each would have passed over a defect.** The start-gate test failed because `ArrivalSpread.ValueChanged` was not wired to `RecomputeBlockingState` — the field validated on blur but the gate did not re-evaluate on edit. And the button test initially invoked the command directly while the widget was still behind the welcome card; it now starts the clinic day first, then finds and clicks the real `Button`, asserting its position in the window.
+
+**Numbers.** Core 169 -> 181 (`ArrivalDistributionTests`, 12), App 569 -> 579 (`Phase8VGeneralArrivalTests`, 10), Cli 40 -> 42 (`ValidateCommandTests`, rewritten to 4). Full suite 912 -> **936**.
+
+**A drift fixed while documenting:** `CONTEXT.md` §2.2 still said the inter-arrival code `A` remains `M` throughout. It now carries an `[IMPLEMENTED — Phase 8V]` note saying the arrival process is configurable, with the null-spec compatibility guarantee and the per-model applicability rule.
+
+Next Session Should Start With
+Owner review and merge of `feat/general-arrivals`; then **8T.3** (`docs/TODO.md`) — the session selector on the queue chart, replacing the 8T-only no-op with a filter that resets on every run.
+
+8T.4 (virtualised trace table + rejected-arrival note) and 8T.5 (one inline results scroll region) follow, each with the gate its TODO row names.
+
+Blocked
+B-012 — owner visual inspection of the screenshot backlog. This session's two frames are new and the agent reviewed them, but the owner's sign-off is still outstanding; it does not block the code.
+
+Git State
+Commits made this session: `7375953` feat: sample general arrival distributions and make the analytical widget usable; the documentation commit containing this handoff follows it.
+Pushed to origin: No — `feat/general-arrivals` is based on `e7d6727` (`feat/phase-8t-operating-days`), and both branches are ahead of `origin/main`. Awaiting owner review.
+Uncommitted changes: None after the docs commit.
+
+Build & Test
+dotnet build: PASS — Release and Debug, `--no-incremental`, 0 errors / 0 warnings in both.
+dotnet test: PASS — 936 passed, 0 failed, in Release **and** Debug (Core 181 / Data 134 / Cli 42 / App 579).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.Core/Distributions/DistributionSpecOperations.cs: added
+src/OpdSimulator.Core/Stages/NetworkTopology.cs: optional arrival spec, rate/mean guard
+src/OpdSimulator.Core/Engine/Engine.cs: dual arrival sampler, `NextPositiveArrival`
+src/OpdSimulator.Core/Analytics/AnalyticalModels.cs: Ca² parameter documented as configured, not assumed
+src/OpdSimulator.App/Models/SimulationParameters.cs: `ArrivalDistribution`
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: arrival family, spread field, validation, gate, `EffectiveLambda`, spec construction
+src/OpdSimulator.App/Views/ConfigPanel.axaml(.cs): field and blur route
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: `WithMean` + topology argument
+src/OpdSimulator.App/Services/AnalyticalValidationService.cs: `TryCompare`, applicability, Ca²/Cs² from specs
+src/OpdSimulator.App/ViewModels/AnalyticalValidationViewModel.cs: refusal channel, steady-state command, arrival-spec retention
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: `RunSteadyStateValidationAsync`, arrival spec wiring
+src/OpdSimulator.App/Views/ResultsPanel.axaml: model dropdown, steady-state button, wrapped text, `AnalyticalValidationWidget`, table widths
+src/OpdSimulator.Cli/Commands/ValidateCommand.cs: `--ca2`, `BuildSpec`, applicability refusals, report
+tests/OpdSimulator.Core.Tests/ArrivalDistributionTests.cs: added (12)
+tests/OpdSimulator.App.Tests/Phase8VGeneralArrivalTests.cs: added (10)
+tests/OpdSimulator.Cli.Tests/ValidateCommandTests.cs: rewritten (4)
+validation_report.txt: regenerated, three PASS sections
+docs/PRD.md, REQUIREMENTS.md, DECISIONS.md, CONTEXT.md, USER_MANUAL.md, DEV_LAUNCH.md, TODO.md, PROGRESS.md: updated
+logs/screenshots/phase-8v-steady-state-button.png, phase-8v-steady-state.png: added (gitignored, local evidence)
+
+Decisions Made
+D-211 — The arrival process is configurable, and the null spec keeps the legacy Poisson path bit-identical.
+D-212 — Each analytical model states its own applicability, and Ca² comes from the configured arrival spec.
+D-213 — `validate` samples the requested Ca² and Cs² instead of labelling them assumptions.
+D-214 — The analytical widget can run its own 100,000-minute validation instead of refusing the clinic day forever.
+D-209 marked superseded by D-211/D-212.
+
+Assumptions Added/Changed
+CONTEXT §5.8 `[VERIFIED — implemented 2026-11-07]` — Ca² is a property of the run's spec, not an assumption; the exponential path remains the default and is bit-identical to pre-8V runs.
+CONTEXT §2.2 `[IMPLEMENTED — Phase 8V]` — the arrival code `A` is no longer fixed to `M`.
+D-211 notes the one approximation: a Normal arrival process is truncated at zero by rejection, so its realised Ca² is slightly below the configured value; nothing refits the sample.
+
+Notes for Next Session
+`validation_report.txt` is tracked and was regenerated in place; the report is deterministic for a given seed and prints its own reproduce commands. The two 8V screenshots are under `logs/`, which is gitignored — the doc references them as local evidence, as every prior phase does. `ArrivalDistribution = null` means exponential; any other family without a spec is now an explicit refusal rather than a default. The `Poisson` label in the dropdown is the same process as `Exponential` and is deliberately not given a spec.
+
 Session Handoff — 2026-10-04 04:42 — Phase 8T.1 IMPLEMENTED (semantics + caption + a CLI defect; green, awaiting owner eyes)
 Branch: feat/phase-8t-operating-days
 Status: In-Progress

@@ -100,6 +100,17 @@ Examples:
 > remains `M` (exponential) throughout: the arrival process is M/M/c by definition, and
 > 8I changed the service side only.
 >
+> **[IMPLEMENTED — Phase 8V, 2026-11-07, D-211]** The paragraph above is history. The
+> arrival code is now configurable too: `NetworkTopology.ArrivalDistribution` carries an
+> optional `DistributionSpec`, and the engine samples that family for inter-arrival times.
+> A null spec keeps the legacy exponential sampler, so every pre-8V run is bit-identical.
+> The form offers Exponential (and its synonym Poisson), Deterministic, Normal,
+> Lognormal, Gamma and Uniform, with the family's spread parameter validated and the spec
+> relocated onto the resolved λ by `WithMean` so Ca² is preserved. A topology is
+> therefore something like G/D/2 + M/M/3, and the analytical model must be chosen to
+> match: M/M/c needs exponential arrivals and service, M/G/c needs exponential arrivals,
+> G/G/c accepts any (D-212).
+>
 > **Reachable from Core and App as of Phase 8J, but not yet from the UI.** The Engine
 > can do this, and 8J wired the App to supply a family per stage: `SimulationParameters`
 > now carries `ServiceFamilies` + `ServiceRates` and `SimulationCoordinator` builds each
@@ -342,6 +353,29 @@ DECISIONS.md entry for rationale.
 its **last service end**, identical for historical and simulated values. A
 fixed 8:15–11:00 window would let close-time overtime push utilisation
 toward (and past) 1, so it is rejected (Decision D-018).
+
+### 5.8 Arrival Variability Is a Property of the Run, Not an Assumption
+
+From Phase 8V (D-211) the inter-arrival distribution is configurable and the
+engine samples it. Ca² is therefore read from the run's own
+`DistributionSpec`, never assumed: Gamma shape k gives `1/k`, Lognormal σ
+gives `e^{σ²} − 1`, Uniform half-width a around mean m gives `a²/(3m²)`,
+Deterministic gives 0, and Exponential (or its synonym Poisson) gives 1.
+
+Two consequences the reader must hold together:
+
+- A configured family is what the engine sampled, not a label attached to a
+  fit. If the form says Gamma, the run drew Gamma gaps, and the analytical
+  model must be one whose assumptions accept that (M/G/c and G/G/c do; M/M/c
+  does not).
+- A Normal arrival process is truncated at zero by rejection
+  (`NextPositiveArrival`), so its realised Ca² is slightly below the
+  configured value. The analytical inputs use the configured value and the
+  report names the family; nothing refits the sample.
+
+> **[VERIFIED — implemented 2026-11-07, Phase 8V, D-211/D-212]** The
+> exponential path is still the default and is bit-identical to every
+> pre-8V run, including the D-054 seed-42 baseline.
 
 **Imbalance flag (simulated source — implemented 6c.4):** flag a server when
 |util_server − stage mean| > 0.15. Shown as an amber bar in the Results

@@ -204,6 +204,37 @@ uploaded file (or used to generate arrivals when no file is loaded).
 **Exponential** was the default in every recorded clinic dataset; the Fitted
 histogram tab shows how well it describes your data.
 
+The selection **drives the simulation**, not just the fit: choosing **Gamma**,
+**Lognormal**, **Normal**, **Uniform** or **Deterministic** makes the engine
+sample that family for the inter-arrival times. `Exponential` and `Poisson`
+are the same process and keep the legacy sampler, so a run configured that way
+is numerically identical to one from before this field was connected.
+
+The list is the family set the fitter supports, so a family you can fit is a
+family you can simulate. Whether the analytical widget can compare the run
+depends on the model you choose there — see §6.9.
+
+### Arrival spread
+
+The shape parameter for the selected inter-arrival family. It appears only
+when the family needs one, and its label names the parameter:
+
+| Arrival family | Field label | Meaning |
+|---|---|---|
+| Gamma | arrival shape k (Ca² = 1/k) | Smaller k means more variable arrivals; k = 1 is exponential |
+| Lognormal | arrival σ (log scale) | Spread of the log of the inter-arrival time |
+| Normal | arrival standard deviation (minutes) | Arrival-time variability around the mean |
+| Uniform | arrival half-width (minutes) | The inter-arrival time is uniform on mean ± half-width |
+| Deterministic | _(hidden)_ | Every inter-arrival time equals the mean, Ca² = 0 |
+| Exponential / Poisson | _(hidden)_ | The mean alone defines the process, Ca² = 1 |
+
+The mean is always the rate you configured (1/λ), so changing the family
+changes the **variability** of the arrivals, never the average rate. The field
+is validated when you leave it: a Gamma shape must be greater than zero, a
+Normal or Uniform spread must be smaller than the mean (otherwise an
+inter-arrival time could be zero or negative), and the Start button stays
+disabled with a banner naming the field until the value is usable.
+
 ### Service distribution
 
 The distribution family fitted to each stage's service times from the
@@ -778,36 +809,47 @@ the same arrival rate, service rate and server count. Choose the model from the
 (Allen–Cunneen; for one server this is exactly Pollaczek–Khinchine) or **G/G/c**
 (Allen–Cunneen; for one server this is exactly Kingman).
 
-The closed-form formulas only apply under **all three** of these conditions:
+Which model applies depends on the arrival and service distributions you
+configured — the widget checks this before it computes anything (D-212):
 
-1. **Exponential** service times — required by M/M/c only. M/G/c and G/G/c
-   take the service variability (Cs²) from the configured stage instead.
-2. Every stage **stable**, i.e. ρ < 1 at each stage.
-3. A **steady-state run** — an operating time of at least **100,000
-   simulated minutes** (about 70 operating days).
+| Model | Requires | Use it when |
+|-------|----------|-------------|
+| **M/M/c** | exponential (Poisson) arrivals **and** exponential service | the classic case: every part of the run is exponential |
+| **M/G/c** | exponential arrivals; any service variability | service is Gamma/Lognormal/Normal/Uniform/Deterministic, arrivals are Poisson |
+| **G/G/c** | no distributional requirement | arrivals and/or service are non-exponential |
 
-If any condition fails, the widget stays on its empty state and says why:
-*"Analytical comparison requires a steady-state run — ρ < 1 at every stage,
-and a horizon of at least 100,000 simulated minutes (~70 operating days).
-Clinic-day runs are transient and will not match closed-form formulas. M/M/c
-additionally requires exponential service; choose M/G/c or G/G/c for any
-other service distribution."*
+All three also require every stage to be **stable** (ρ < 1) and a
+**steady-state run** of at least **100,000 simulated minutes** (about 70
+operating days).
 
-Why the horizon condition: M/M/c results describe long-run (steady-state)
-behaviour. A single 2-hour clinic day is a **transient**, so the simulated
-averages would differ from the formula for statistical reasons even when the
-engine is perfectly correct. To use the widget, run a **Diagnostic trace**
-(§5 step 7) with the **horizon** set to at least `100000` minutes, then start
-the calculation.
+If a condition fails, the table stays empty and the widget prints the reason
+that run produced, naming the offending input and a model that would accept
+it — for example *"M/M/c requires exponential service times, but stage
+'Doctor' uses Gamma (Cs² = 2). Choose M/G/c or G/G/c."* or *"The run lasted
+165 simulated minutes, but M/M/c values are steady-state results and need at
+least 100000 minutes (~70 operating days)."* A blank table is never left
+unexplained.
+
+**You do not have to leave the clinic-day workflow to get a comparable run.**
+The widget offers **Run steady-state validation (100,000 min)**: it re-runs
+the current configuration for 100,000 simulated minutes and fills the table,
+while the Results panel keeps showing the clinic day you actually asked for.
+The button is disabled while that run is in flight (a progress line says so),
+and it stays visible whenever the table is empty, including after a refusal —
+fix the fields, then click it again.
+
+If you prefer to run the long horizon yourself: switch the run mode to
+**Diagnostic trace** (§5 step 7), set the horizon to at least `100000`
+minutes, and start the calculation.
 
 How to read the table — one row per stage:
 
 | Column | Meaning |
 |--------|---------|
 | Sim wait | Simulated average wait in queue (minutes) |
-| M/M/c wait | Closed-form average wait, Wq (minutes) |
+| Model wait | Closed-form average wait, Wq (minutes) — the header names the model you chose |
 | Sim queue | Simulated average queue length |
-| M/M/c queue | Closed-form average queue length, Lq |
+| Model queue | Closed-form average queue length, Lq |
 | Δ% | \|simulated − analytical\| as a percentage of the analytical value |
 
 A small Δ% (a few percent) means the engine agrees with queueing theory on
@@ -817,21 +859,33 @@ on the Input tab.
 
 #### The validation report file
 
-The same comparison is available as a file for the report and the viva. Run:
+The same comparison is available as a file for the report and the viva. One
+command per model family:
 
 ```bash
-dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --seed 42 --model M/G/c
+dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --seed 42 --model M/M/c
+dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --seed 42 --cs2 2 --model M/G/c
+dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.7 --mu 0.8 --seed 42 --ca2 0.25 --cs2 2 --model G/G/c
 ```
 
-If the service distribution is exponential but you ask the model for a different
-Cs², the file labels the comparison a **sensitivity analysis** and issues no
-PASS/FAIL — it is measuring the assumption, not the engine. The CLI cannot run a
-non-exponential service distribution; use the app for a genuine M/G/c check.
+`--ca2` and `--cs2` are the squared coefficients of variation of the arrival
+and service processes. The command **samples what you ask for**: C² = 1 keeps
+the exponential process, C² = 0 samples a Deterministic distribution, and any
+other value samples a Gamma with shape `1/C²` at the requested mean. The
+report names the family that was actually run, so a G/G/c row compares the
+simulation against the model instead of describing an assumption the
+simulation never implemented.
 
-It writes `validation_report.txt` containing the inputs (λ, μ, c, Cs², seed,
-horizon), the model and its formula name, the simulated and analytical wait and
-queue length with their Δ%, and a PASS/FAIL against the 5% tolerance. The header
-prints the exact command that reproduces the file from the seed.
+M/M/c refuses a `--ca2` or `--cs2` other than 1, and M/G/c refuses a `--ca2`
+other than 1; both name the model that accepts the request. That is
+deliberate: a run labelled M/M/c must have sampled exponential arrivals and
+service, or the label is false.
+
+It writes `validation_report.txt` containing the inputs (λ, μ, c, Ca², Cs²,
+the family each was sampled from, seed, horizon), the model and its formula
+name, the simulated and analytical wait and queue length with their Δ%, and a
+PASS/FAIL against the 5% tolerance. The header prints the exact command that
+reproduces the file from the seed.
 
 ### 6.10 View Calculations
 
@@ -1264,6 +1318,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-11-07 | Phase 8V: **the arrival distribution now drives the simulation.** Choosing Gamma, Lognormal, Normal, Uniform or Deterministic for **Inter-arrival distribution** makes the engine sample that family instead of always drawing exponential gaps; a new **Arrival spread** field appears with the family-appropriate parameter and is validated (a Uniform or Normal spread at or above the mean is refused, because an inter-arrival time could be zero). The analytical widget now checks each model's assumptions separately — **M/M/c** needs exponential arrivals *and* service, **M/G/c** needs exponential arrivals, **G/G/c** accepts anything — and prints the specific reason plus the model that would work when a run does not qualify, instead of one fixed paragraph. It also gained **Run steady-state validation (100,000 min)**, which produces a comparable run without replacing the clinic-day results on screen (§6.9). The `validate` CLI takes `--ca2`/`--cs2` and **samples** those distributions (Gamma with shape 1/C², Deterministic at 0), so every row of `validation_report.txt` is a real validation rather than a sensitivity note (§6.9, §3). |
 | 2026-10-04 | Phase 8T.1: **Days now means operating days.** The run length field reads **Operating days** and counts the clinic's open days, so 4 from a Saturday start is Sat/Mon/Tue/Wed — the Sunday in between no longer counts as a day and no longer adds an empty day of zeros to any average. The results panel names the sessions a run covered, e.g. *4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …* (§6.0). A **daily patient cap** resets at the start of each operating session rather than each calendar day. Single-day and diagnostic-trace runs are unchanged. |
 | 2026-10-03 | Phase 8S — six fixes from a review of the app's own screenshots. **(1)** In the results panel's **System totals**, each value now sits **beside its label** instead of at the far right of the panel. **(2)** The pinned event-trace box no longer squeezes the widgets above it: on a short window you get a readable strip of results rather than a sliver. **(3) The event trace now fills in.** If your event box said *"No trace was recorded for this run."* after a run that clearly recorded one, that was a real fault — the trace was recorded and the panel was never told. It now updates after every run, in every run mode. **(4)** The **Per-server detail** table under the utilisation chart has been **removed**; hover a bar for that server's numbers instead (§6.4). **(5)** The equal-share **dashed benchmark line** now sits exactly where it is drawn relative to the bars. **(6)** The **Input** tab's last section can now scroll clear of the window edge. |
 | 2026-10-03 | Phase 8Q.4: the **event trace** is now **always visible**, pinned in a box below the results widgets instead of scrolling away with them, so it can never be pushed off screen. It has been **removed from the "Customise results" list** — there is nothing to switch on. The box keeps a fixed maximum height and a long trace scrolls inside it. The widgets above now have a little breathing room at the bottom, so the last card is never hidden behind the trace box. If you had an older saved view that included the event trace, it is simply ignored — the trace stays visible and the setting is cleaned up the next time you change a widget. |
