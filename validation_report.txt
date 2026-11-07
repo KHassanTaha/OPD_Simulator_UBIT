@@ -1,12 +1,21 @@
+VALIDATION REPORT — three model families, all run by the same engine
+====================================================================
+
+Each section below is written by one command:
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --model M/M/c --horizon 200000 --out /tmp/mmc.txt
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --ca2 1 --cs2 2 --model M/G/c --horizon 200000 --out /tmp/mgc.txt
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.7 --mu 0.8 --ca2 0.25 --cs2 2 --model G/G/c --horizon 200000 --out /tmp/ggc.txt
+
 VALIDATION REPORT — simulated vs analytical closed-form queueing model
 ================================================================
 
 Reproduce this report:
-  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --servers 1 --horizon 200000 --seed 42 --cs2 1 --model M/M/c
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --servers 1 --horizon 200000 --seed 42 --ca2 1 --cs2 1 --model M/M/c
 
 Configuration
 -------------
-  arrival rate λ        : 0.5 per minute (inter-arrivals are exponential, Ca² = 1)
+  arrival rate λ        : 0.5 per minute
+  arrival variability   : exponential (Poisson) (Ca² = 1)
   service rate μ        : 0.8 per minute per server
   servers c             : 1
   service variability   : exponential (Cs² = 1)
@@ -28,6 +37,8 @@ Comparison
 
 Verdict
 -------
+  mode                  : validation — the run sampled the distributions the
+                          analytical model describes (Ca² and Cs² above)
   tolerance             : 5% on both Wq and Lq
   result                : PASS
 
@@ -35,8 +46,119 @@ Notes
 -----
   - Closed-form values are steady-state results; they describe the long-run
     behaviour, not one clinic day. A 165-minute session is transient.
-  - M/M/c assumes exponential service. For any other service distribution use
-    M/G/c (Allen–Cunneen; Pollaczek–Khinchine at c = 1) or G/G/c
-    (Allen–Cunneen; Kingman at c = 1).
-  - With exponential arrivals Ca² = 1, so G/G/c and M/G/c agree exactly.
+  - M/M/c is exact (Erlang-C). M/G/c uses Allen–Cunneen (exact
+    Pollaczek–Khinchine at c = 1). G/G/c uses Allen–Cunneen (exact
+    Kingman at c = 1). The two compound models are approximations for
+    c > 1, so their 5% gate checks the simulator against the approximation,
+    not against an exact answer.
+  - A non-unit Ca² or Cs² is sampled from a Gamma distribution with shape
+    1/C²; Ca² = 0 is sampled as Deterministic. The report names the family
+    that was actually run.
+
+
+------------------------------------------------------------------------
+
+VALIDATION REPORT — simulated vs analytical closed-form queueing model
+================================================================
+
+Reproduce this report:
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.5 --mu 0.8 --servers 1 --horizon 200000 --seed 42 --ca2 1 --cs2 2 --model M/G/c
+
+Configuration
+-------------
+  arrival rate λ        : 0.5 per minute
+  arrival variability   : exponential (Poisson) (Ca² = 1)
+  service rate μ        : 0.8 per minute per server
+  servers c             : 1
+  service variability   : Gamma (shape k = 0.5) (Cs² = 2)
+  simulated horizon     : 200000 minutes
+  random seed           : 42
+  analytical model      : M/G/c — Pollaczek–Khinchine (exact for c = 1)
+
+Steady-state check
+------------------
+  operating minutes     : 200000
+  threshold             : 100000
+  traffic intensity ρ   : 0.625
+
+Comparison
+----------
+  metric                          simulated     analytical        Δ%
+  average wait in queue Wq         3.1782          3.125       1.7
+  average queue length  Lq         1.5907         1.5625      1.81
+
+Verdict
+-------
+  mode                  : validation — the run sampled the distributions the
+                          analytical model describes (Ca² and Cs² above)
+  tolerance             : 5% on both Wq and Lq
+  result                : PASS
+
+Notes
+-----
+  - Closed-form values are steady-state results; they describe the long-run
+    behaviour, not one clinic day. A 165-minute session is transient.
+  - M/M/c is exact (Erlang-C). M/G/c uses Allen–Cunneen (exact
+    Pollaczek–Khinchine at c = 1). G/G/c uses Allen–Cunneen (exact
+    Kingman at c = 1). The two compound models are approximations for
+    c > 1, so their 5% gate checks the simulator against the approximation,
+    not against an exact answer.
+  - A non-unit Ca² or Cs² is sampled from a Gamma distribution with shape
+    1/C²; Ca² = 0 is sampled as Deterministic. The report names the family
+    that was actually run.
+
+
+------------------------------------------------------------------------
+
+VALIDATION REPORT — simulated vs analytical closed-form queueing model
+================================================================
+
+Reproduce this report:
+  dotnet run --project src/OpdSimulator.Cli -- validate --lambda 0.7 --mu 0.8 --servers 1 --horizon 200000 --seed 42 --ca2 0.25 --cs2 2 --model G/G/c
+
+Configuration
+-------------
+  arrival rate λ        : 0.7 per minute
+  arrival variability   : Gamma (shape k = 4) (Ca² = 0.25)
+  service rate μ        : 0.8 per minute per server
+  servers c             : 1
+  service variability   : Gamma (shape k = 0.5) (Cs² = 2)
+  simulated horizon     : 200000 minutes
+  random seed           : 42
+  analytical model      : G/G/c — Kingman's formula (exact for c = 1)
+
+Steady-state check
+------------------
+  operating minutes     : 200000
+  threshold             : 100000
+  traffic intensity ρ   : 0.875
+
+Comparison
+----------
+  metric                          simulated     analytical        Δ%
+  average wait in queue Wq         9.7785         9.8437      0.66
+  average queue length  Lq         6.8415         6.8906      0.71
+
+Verdict
+-------
+  mode                  : validation — the run sampled the distributions the
+                          analytical model describes (Ca² and Cs² above)
+  tolerance             : 5% on both Wq and Lq
+  result                : PASS
+
+Notes
+-----
+  - Closed-form values are steady-state results; they describe the long-run
+    behaviour, not one clinic day. A 165-minute session is transient.
+  - M/M/c is exact (Erlang-C). M/G/c uses Allen–Cunneen (exact
+    Pollaczek–Khinchine at c = 1). G/G/c uses Allen–Cunneen (exact
+    Kingman at c = 1). The two compound models are approximations for
+    c > 1, so their 5% gate checks the simulator against the approximation,
+    not against an exact answer.
+  - A non-unit Ca² or Cs² is sampled from a Gamma distribution with shape
+    1/C²; Ca² = 0 is sampled as Deterministic. The report names the family
+    that was actually run.
+
+
+------------------------------------------------------------------------
 

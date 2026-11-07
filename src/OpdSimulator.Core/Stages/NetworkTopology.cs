@@ -1,5 +1,6 @@
 namespace OpdSimulator.Core.Stages;
 
+using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 
 /// <summary>
@@ -60,7 +61,8 @@ public sealed class NetworkTopology
         int bypassStageIndex = -1,
         int bypassDestinationIndex = -1,
         double? screeningArrivalCap = null,
-        int screeningCapStageIndex = -1)
+        int screeningCapStageIndex = -1,
+        DistributionSpec? arrivalDistribution = null)
     {
         if (arrivalRate <= 0)
             throw new ArgumentOutOfRangeException(nameof(arrivalRate), arrivalRate, "Arrival rate λ must be strictly positive.");
@@ -137,10 +139,66 @@ public sealed class NetworkTopology
 
         ScreeningArrivalCap = screeningArrivalCap;
         ScreeningCapStageIndex = screeningArrivalCap is not null ? screeningCapStageIndex : -1;
+
+        // Arrival process (D-211). Null keeps the classic Poisson process, which is
+        // what every pre-8V caller means and what the M/M/c model assumes.
+        //
+        // A supplied spec must describe the SAME rate the topology was built with.
+        // The engine samples from the spec while the stability check, the reported
+        // λ and the analytical models all read ArrivalRate; a mismatch would let the
+        // run validate one model while simulating another (the failure mode D-147
+        // guards on the service side). DistributionSpecOperations.WithMean is the
+        // supported way to reconcile a fitted shape with a resolved rate.
+        if (arrivalDistribution is not null)
+        {
+            if (!(arrivalDistribution.Mean > 0))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(arrivalDistribution),
+                    arrivalDistribution.Mean,
+                    "Arrival distribution mean must be strictly positive.");
+            }
+
+            double impliedRate = 1.0 / arrivalDistribution.Mean;
+            double tolerance = 1e-9 * Math.Abs(arrivalRate);
+            if (Math.Abs(impliedRate - arrivalRate) > tolerance)
+            {
+                throw new ArgumentException(
+                    $"Arrival distribution mean ({arrivalDistribution.Mean:0.######} min) implies a rate of " +
+                    $"{impliedRate:0.######} per minute, but the topology arrival rate is {arrivalRate:0.######}. " +
+                    "Use DistributionSpecOperations.WithMean to reconcile them before constructing the topology.",
+                    nameof(arrivalDistribution));
+            }
+        }
+
+        ArrivalDistribution = arrivalDistribution;
     }
 
     /// <summary>External arrival rate λ₀ at the first stage (patients per minute).</summary>
     public double ArrivalRate { get; }
+
+    /// <summary>
+    /// The configured inter-arrival distribution, or null for the classic
+    /// exponential (Poisson) arrival process (D-211).
+    /// </summary>
+    /// <remarks>
+    /// Null is not "unknown": it is the M/M/c arrival assumption, and the engine
+    /// then uses the legacy <c>ExponentialSampler</c> path so every pre-8V run
+    /// keeps its exact draw sequence (D-054).
+    /// </remarks>
+    public DistributionSpec? ArrivalDistribution { get; }
+
+    /// <summary>
+    /// The distribution the engine actually samples inter-arrival times from.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to Exponential with mean <c>1/λ₀</c>, so a caller that never
+    /// configured an arrival process still gets a concrete spec for the analytical
+    /// layer and for the widgets that describe the run.
+    /// </remarks>
+    public DistributionSpec EffectiveArrivalDistribution =>
+        ArrivalDistribution
+        ?? new DistributionSpec(DistributionFamily.Exponential, 1.0 / ArrivalRate);
 
     /// <summary>Ordered stage descriptions, first stage first.</summary>
     public IReadOnlyList<StageSpec> StageSpecs => _stageSpecs;
@@ -412,7 +470,16 @@ public sealed class NetworkTopology
     /// <param name="serviceRate">Service rate per server μ (patients per minute).</param>
     /// <param name="serverCount">Number of parallel servers c at the stage.</param>
     /// <param name="stageName">Human-readable stage name.</param>
+    /// <param name="arrivalDistribution">Inter-arrival distribution, or null for exponential with mean 1/λ.</param>
     /// <returns>A single-stage topology with the given parameters.</returns>
-    public static NetworkTopology CreateSingleStage(double arrivalRate, double serviceRate, int serverCount, string stageName)
-        => new(arrivalRate, new[] { new StageSpec(stageName, serverCount, serviceRate) });
+    public static NetworkTopology CreateSingleStage(
+        double arrivalRate,
+        double serviceRate,
+        int serverCount,
+        string stageName,
+        DistributionSpec? arrivalDistribution = null)
+        => new(
+            arrivalRate,
+            new[] { new StageSpec(stageName, serverCount, serviceRate) },
+            arrivalDistribution: arrivalDistribution);
 }

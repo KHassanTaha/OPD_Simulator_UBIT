@@ -190,27 +190,7 @@ public static class AnalyticalModels
     /// <returns>Var(X) / E[X]², which is 1 for Exponential and 0 for Deterministic.</returns>
     /// <exception cref="ArgumentException">If the spec's mean is not positive.</exception>
     public static double SquaredCoefficientOfVariation(DistributionSpec spec)
-    {
-        ArgumentNullException.ThrowIfNull(spec);
-
-        if (spec.Mean <= 0)
-        {
-            throw new ArgumentException($"Distribution mean must be positive (was {spec.Mean:0.####}).", nameof(spec));
-        }
-
-        double variance = spec.Family switch
-        {
-            DistributionFamily.Exponential => spec.Mean * spec.Mean,
-            DistributionFamily.Deterministic => 0.0,
-            DistributionFamily.Normal => Square(spec.StdDev ?? 0.0),
-            DistributionFamily.Lognormal => Square(spec.StdDev ?? 0.0),
-            DistributionFamily.Gamma => spec.Shape is > 0 ? spec.Mean * spec.Mean / spec.Shape.Value : spec.Mean * spec.Mean,
-            DistributionFamily.Uniform => Square((spec.Max ?? spec.Mean) - (spec.Min ?? spec.Mean)) / 12.0,
-            _ => spec.Mean * spec.Mean
-        };
-
-        return variance / (spec.Mean * spec.Mean);
-    }
+        => DistributionSpecOperations.SquaredCoefficientOfVariation(spec);
 
     /// <summary>
     /// Builds the inputs for one stage from its rates and the configured distributions.
@@ -219,7 +199,10 @@ public static class AnalyticalModels
     /// <param name="mu">Service rate per server (patients per minute).</param>
     /// <param name="servers">Number of parallel servers.</param>
     /// <param name="serviceSpec">The stage's configured service distribution; null falls back to exponential (Cs² = 1).</param>
-    /// <param name="arrivalCa2">Ca² for the arrivals. The engine samples exponential inter-arrivals (D-209), so this is 1.</param>
+    /// <param name="arrivalCa2">
+    /// Ca² for the arrivals. Defaults to 1 (exponential) for callers that mean the
+    /// Poisson process; a configured G arrival supplies its own value (D-211).
+    /// </param>
     /// <returns>The model inputs for this stage.</returns>
     public static AnalyticalModelInputs InputsFor(
         double lambda,
@@ -263,5 +246,4 @@ public static class AnalyticalModels
         return Math.Pow(a, servers) / (factorial * (1.0 - rho)) * p0;
     }
 
-    private static double Square(double value) => value * value;
 }

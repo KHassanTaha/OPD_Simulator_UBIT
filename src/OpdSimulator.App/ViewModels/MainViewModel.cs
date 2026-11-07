@@ -115,6 +115,7 @@ public partial class MainViewModel : ObservableObject
         Results.AnalyticalValidation = AnalyticalValidation;
 
         Config.RunRequested += OnRunRequested;
+        AnalyticalValidation.SteadyStateValidationRequested += OnSteadyStateValidationRequested;
         Config.PropertyChanged += OnConfigPropertyChanged;
         Config.DataBindingChanged += OnConfigDataBindingChanged;
         Config.SignificanceLevel.PropertyChanged += OnSignificanceLevelChanged;
@@ -414,11 +415,12 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Analytical comparison is M/M/c only, and AnalyticalValidationService refuses a
-        // run outright if ANY stage is not Exponential. It therefore takes family NAMES,
-        // not specs: handing it the real per-stage names is what makes that refusal
-        // actually fire for a mixed-configuration run, which the old
-        // Repeat(ServiceDistribution) shim could never do.
+        // The service refuses the models whose assumptions the run violates and
+        // names the reason. It is handed BOTH the family names and the specs: the
+        // specs are authoritative for Cs² and for the family the engine actually
+        // sampled, and the names keep a spec-less caller (the CLI) working. The
+        // arrival spec carries Ca²; passing the name alone was what forced Ca² = 1
+        // for every run before D-211.
         var serviceFamilies = parameters.ServiceFamilies
             .Select(spec => spec.Family.ToString())
             .ToList();
@@ -430,6 +432,81 @@ public partial class MainViewModel : ObservableObject
             parameters.InterArrivalDistribution,
             serviceFamilies,
             stageInputs,
-            parameters.ServiceFamilies);
+            parameters.ServiceFamilies,
+            parameters.ArrivalDistribution);
+    }
+
+    /// <summary>
+    /// Runs the widget's dedicated steady-state validation (D-137).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The run is a COPY of the current parameters with the mode forced to
+    /// DiagnosticTrace and the horizon to the steady-state threshold. That keeps
+    /// the clinic-day results the user asked for on screen while still giving the
+    /// closed forms a run long enough to be compared — the alternative, refusing
+    /// forever on a 165-minute session, is what made the widget unusable in the
+    /// demo (B-014).
+    /// </para>
+    /// <para>
+    /// The copy keeps the same seed and every distribution, so the comparison
+    /// describes the configuration on screen, not a different model.
+    /// </para>
+    /// </remarks>
+    private async Task RunSteadyStateValidationAsync()
+    {
+        if (Config.TryBuildRunParameters() is not { } parameters)
+        {
+            return;
+        }
+
+        var validationParameters = parameters with
+        {
+            RunMode = RunMode.DiagnosticTrace,
+            HorizonMinutes = AnalyticalValidationService.MinimumSteadyStateMinutes,
+            GeneratorDays = 1,
+            DailyCap = null,
+        };
+
+        AnalyticalValidation.IsSteadyStateRunning = true;
+        try
+        {
+            RunOutcome outcome = await Task.Run(() => SimulationCoordinator.Run(
+                validationParameters,
+                Config.Binding,
+                _ => { },
+                Config.SignificanceLevelForRun));
+
+            ApplyAnalyticalValidation(outcome, validationParameters);
+        }
+        finally
+        {
+            AnalyticalValidation.IsSteadyStateRunning = false;
+        }
+    }
+
+    /// <summary>
+    /// Event-handler wrapper for <see cref="RunSteadyStateValidationAsync"/>.
+    /// </summary>
+    /// <remarks>
+    /// An <c>async void</c> handler is the one place the pattern is correct: the
+    /// framework gives an event no task to await. The try/catch is the price —
+    /// without it an exception from the background run would reach the unhandled
+    /// exception handler and crash the app (AGENTS §12.3).
+    /// </remarks>
+    private async void OnSteadyStateValidationRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await RunSteadyStateValidationAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Steady-state validation run failed");
+            AnalyticalValidation.IsSteadyStateRunning = false;
+            AnalyticalValidation.ApplyRows(
+                Array.Empty<ComparisonRow>(),
+                "The steady-state validation run failed unexpectedly. See logs/errors-*.log for details.");
+        }
     }
 }

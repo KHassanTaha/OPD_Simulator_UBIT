@@ -83,10 +83,23 @@
                     <StackPanel Spacing="{DynamicResource SpaceM}">
                         <controls:SearchableDropdown Label="Inter-arrival distribution"
                                                      Placeholder="Choose a distribution…"
-                                                     Tooltip="Theoretical distribution for the time between patient arrivals"
+                                                     Tooltip="Distribution the simulation samples inter-arrival times from. Exponential is the Poisson process (Ca² = 1); Gamma, Lognormal and Uniform give a genuine G/G process."
                                                      Items="{Binding Distributions}"
                                                      SelectedItem="{Binding InterArrivalDistribution, Mode=TwoWay}"
                                                      HelpAnchor="inter-arrival-distribution"/>
+                        <!-- Phase 8V (D-211): the family's shape. The arrival MEAN is
+                             λ, never typed twice, so this field carries spread only.
+                             Hidden for Exponential/Deterministic, which have none. -->
+                        <controls:ValidatedField x:Name="ArrivalSpreadField"
+                                                 Label="{Binding ArrivalSpreadLabel}"
+                                                 Watermark="{Binding ArrivalSpreadWatermark}"
+                                                 Tooltip="{Binding ArrivalSpreadTooltip}"
+                                                 Value="{Binding ArrivalSpread.Value, Mode=TwoWay}"
+                                                 HasError="{Binding ArrivalSpread.HasError}"
+                                                 ErrorMessage="{Binding ArrivalSpread.ErrorMessage}"
+                                                 HelpAnchor="arrival-spread"
+                                                 IsVisible="{Binding ArrivalSpreadVisible}"
+                                                 views:ConfigPanelValidation.ValidationKey="arrival-spread"/>
                         <controls:ValidatedField x:Name="SignificanceLevelField"
                                                  Label="Significance level (α)"
                                                  Watermark="e.g., 0.05"

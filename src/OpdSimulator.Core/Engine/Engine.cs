@@ -47,13 +47,20 @@ public sealed class Engine
 {
     private readonly EngineConfig? _config;
     private readonly TraceRandomSource _random;
-    private readonly ExponentialSampler _interarrivalSampler;
+
+    // Two arrival paths (D-211). With no configured arrival distribution the
+    // engine keeps the legacy ExponentialSampler, which draws -ln(U)/λ exactly as
+    // the Milestone-1 loop did, so the D-054 regression cannot move. With a
+    // configured distribution it uses the same IDistributionSampler the service
+    // stages use. The sampler is per-run because it is built after the seed is set.
+    private ExponentialSampler? _legacyInterarrivalSampler;
+    private IDistributionSampler? _arrivalSampler;
 
     // One service-time sampler per stage, rebuilt at the start of every run from
     // each StageSpec's EffectiveServiceDistribution (Phase 8I). Before 8I a single
     // shared exponential sampler served every stage, so a stage could not be
-    // anything but M/M/c. Inter-arrivals deliberately stay exponential: the arrival
-    // process is M/M/c by definition and 8I changes only the service side.
+    // anything but M/M/c. Arrivals are configured on the topology since 8V: null
+    // there keeps the Poisson process the M/M/c model defines (D-211).
     private IDistributionSampler[]? _serviceSamplers;
     private readonly IServerSelectionPolicy _serverSelection;
     private readonly ILogger _log;
@@ -107,7 +114,6 @@ public sealed class Engine
         // the engine can report what the RNG supplied without altering the
         // draw sequence that the Milestone-1 regression is pinned to.
         _random = new TraceRandomSource(random);
-        _interarrivalSampler = new ExponentialSampler(_random);
     }
 
     /// <summary>
@@ -298,6 +304,18 @@ public sealed class Engine
         _serviceSamplers = topology.StageSpecs
             .Select(spec => DistributionSamplerFactory.Create(spec.EffectiveServiceDistribution, _random))
             .ToArray();
+
+        // Arrival process (D-211). Null keeps the classic Poisson process through the
+        // legacy sampler, so the draw sequence — and the D-054 regression — is
+        // bit-identical to every earlier release. A configured spec goes through the
+        // same factory as service times, so M/D/1, M/E2/1, G/LN/c and the rest are
+        // one code path rather than a family switch in the event loop.
+        _legacyInterarrivalSampler = topology.ArrivalDistribution is null
+            ? new ExponentialSampler(_random)
+            : null;
+        _arrivalSampler = topology.ArrivalDistribution is null
+            ? null
+            : DistributionSamplerFactory.Create(topology.EffectiveArrivalDistribution, _random);
 
         var fel = new FEL();
 
@@ -566,6 +584,8 @@ public sealed class Engine
         _generatedInterArrivals = null;
         _generatedServiceSamples = null;
         _serviceSamplers = null;
+        _legacyInterarrivalSampler = null;
+        _arrivalSampler = null;
 
         double[] perServerUtilisation = stageMetrics
             .SelectMany(m => m.PerServerUtilisation)
@@ -673,7 +693,9 @@ public sealed class Engine
         // mode stops at [0, horizon) (FR-SIM-5), calendar mode stops at the
         // end of the last generated day's window. The inter-arrival draw is
         // logged (FR-VAL-4).
-        double interArrival = _interarrivalSampler.Sample(arrivalRate);
+        double interArrival = _legacyInterarrivalSampler is not null
+            ? _legacyInterarrivalSampler.Sample(arrivalRate)
+            : NextPositiveArrival(_arrivalSampler!);
         double nextArrivalTime = clock + interArrival;
         _log.Debug("    -> inter-arrival draw={Draw:0.####} min, next arrival t={Time:0.###}",
             interArrival, nextArrivalTime);
@@ -920,6 +942,38 @@ public sealed class Engine
     /// </summary>
     private void EmitTrace(TraceEventType type, double time, int? patientId, string? stageName, int? serverId, int? queueLength, string? details)
         => _traceSink?.Write(new TraceEvent(time, type, patientId, stageName, serverId, queueLength, details));
+
+    /// <summary>
+    /// Draws one inter-arrival time from a configured arrival distribution,
+    /// rejecting non-positive samples.
+    /// </summary>
+    /// <remarks>
+    /// A Normal arrival distribution can produce a negative draw, and a negative
+    /// inter-arrival time would move the simulation clock backwards. Rejecting and
+    /// redrawing truncates the distribution at zero, which is the only physically
+    /// meaningful reading; clamping to zero instead would pile up simultaneous
+    /// arrivals at a mass point the model never declared. The loop bound guards
+    /// against a misparameterised distribution whose mass sits almost entirely at
+    /// or below zero; it throws rather than spinning.
+    /// </remarks>
+    /// <param name="sampler">The configured arrival sampler.</param>
+    /// <returns>A strictly positive inter-arrival time in minutes.</returns>
+    /// <exception cref="InvalidOperationException">If 1,000 consecutive draws were non-positive or non-finite.</exception>
+    private static double NextPositiveArrival(IDistributionSampler sampler)
+    {
+        for (int attempt = 0; attempt < 1000; attempt++)
+        {
+            double sample = sampler.NextSample();
+            if (sample > 0 && double.IsFinite(sample))
+            {
+                return sample;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "The arrival distribution produced 1,000 consecutive non-positive samples. " +
+            "Its parameters place too much mass at or below zero for a time process.");
+    }
 
     /// <summary>
     /// Appends an RNG row naming the uniform deviate just drawn and what the

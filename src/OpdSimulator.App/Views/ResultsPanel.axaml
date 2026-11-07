@@ -579,7 +579,8 @@
                  simulated per-stage wait and queue length against the closed-form
                  M/M/c (Erlang-C) values. Empty (with an explanation) when the
                  M/M/c assumptions do not hold. -->
-            <Border IsVisible="{Binding ShowAnalyticalValidation}"
+            <Border x:Name="AnalyticalValidationWidget"
+                    IsVisible="{Binding ShowAnalyticalValidation}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1"
@@ -590,6 +591,7 @@
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
                     <TextBlock Text="Simulated per-stage wait and queue length against the closed-form steady-state model you choose; valid only for ρ &lt; 1 over a long run."
+                               TextWrapping="Wrap"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
                     <controls:SearchableDropdown Label="Analytical model"
@@ -598,8 +600,22 @@
                                                  Items="{Binding AnalyticalValidation.ModelOptions}"
                                                  SelectedItem="{Binding AnalyticalValidation.SelectedModel, Mode=TwoWay}"
                                                  HelpAnchor="analytical-model"/>
+                    <!-- D-137: the closed forms are steady-state results, so a
+                         clinic-day run can never satisfy them. This runs the SAME
+                         configuration for 100,000 simulated minutes without
+                         replacing the clinic-day results on screen. -->
+                    <Button Content="Run steady-state validation (100,000 min)"
+                            Command="{Binding AnalyticalValidation.RunSteadyStateValidationCommand}"
+                            IsVisible="{Binding AnalyticalValidation.IsEmpty}"
+                            HorizontalAlignment="Left"
+                            ToolTip.Tip="Runs the current configuration for 100,000 simulated minutes so the closed-form comparison is valid. The Results panel keeps the run you asked for."/>
+                    <TextBlock Text="Running 100,000 simulated minutes…"
+                               IsVisible="{Binding AnalyticalValidation.IsSteadyStateRunning}"
+                               FontSize="{DynamicResource FontSizeCaption}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
                     <TextBlock Text="{Binding AnalyticalValidation.EmptyMessage}"
                                IsVisible="{Binding AnalyticalValidation.IsEmpty}"
+                               TextWrapping="Wrap"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <StackPanel IsVisible="{Binding AnalyticalValidation.HasRows}"
@@ -608,7 +624,7 @@
                              numeric columns right-aligned so the two sides of each
                              comparison share a decimal point. Phase 8U: the two
                              reference columns name the selected model. -->
-                        <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8">
+                        <Grid ColumnDefinitions="30,100,80,80,80,80,50" ColumnSpacing="8">
                             <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             <TextBlock Grid.Column="1" Text="Stage" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Left"/>
                             <TextBlock Grid.Column="2" Text="Sim wait" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
@@ -620,7 +636,7 @@
                         <ItemsControl ItemsSource="{Binding AnalyticalValidation.Rows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="services:ComparisonRow">
-                                    <Grid ColumnDefinitions="30,120,95,95,90,90,60" ColumnSpacing="8" Margin="0,2">
+                                    <Grid ColumnDefinitions="30,100,80,80,80,80,50" ColumnSpacing="8" Margin="0,2">
                                         <TextBlock Text="{Binding SerialNumber}"
                                                    Foreground="{DynamicResource BrushTextMuted}"
                                                    TextAlignment="Right"/>

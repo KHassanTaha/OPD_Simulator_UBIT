@@ -91,6 +91,21 @@ public sealed record SimulationParameters(
         Array.Empty<double?>();
 
     /// <summary>
+    /// The configured inter-arrival distribution, or null for the classic
+    /// exponential (Poisson) process (Phase 8V, D-211).
+    /// </summary>
+    /// <remarks>
+    /// The mean in the spec is a placeholder: the coordinator relocates the spec onto
+    /// the λ it finally resolves with
+    /// <see cref="DistributionSpecOperations.WithMean"/>, which preserves Ca². The
+    /// shape, not the location, is what this record carries from the form — a bare
+    /// family name could not tell the analytical widget what Ca² the run sampled.
+    /// Null is load-bearing: it is what keeps the engine on its legacy sampler for
+    /// the M/M/c path (D-054).
+    /// </remarks>
+    public DistributionSpec? ArrivalDistribution { get; init; }
+
+    /// <summary>
     /// Which arrival-rate estimate drives the run when no manual λ overrides it
     /// (D-173).
     /// </summary>

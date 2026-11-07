@@ -121,6 +121,9 @@ public partial class ConfigPanel : UserControl
             case "significance-level":
                 _vm.ValidateSignificanceLevel();
                 break;
+            case "arrival-spread":
+                _vm.ValidateArrivalSpread();
+                break;
             case "stage-count":
                 _vm.ValidateStageCount();
                 break;

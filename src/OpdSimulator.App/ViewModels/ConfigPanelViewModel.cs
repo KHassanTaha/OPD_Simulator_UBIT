@@ -28,8 +28,17 @@ public partial class ConfigPanelViewModel : ObservableObject
     private static readonly string[] DefaultStageNames = { "Reception", "Screening", "Doctor" };
 
     /// <summary>Distribution options offered by both model dropdowns.</summary>
+    /// <remarks>
+    /// "Poisson" is the historical label for the exponential inter-arrival
+    /// process and maps to <see cref="DistributionFamily.Exponential"/>; it is
+    /// kept so existing presets still load. Every other entry names an enum
+    /// member. Phase 8V added the families that were missing from this list but
+    /// already supported by the fitter and the service-stage dropdown, so the
+    /// arrival process can be configured as a genuine G (Gamma, Lognormal, ...)
+    /// rather than only as a Poisson process.
+    /// </remarks>
     public IReadOnlyList<string> Distributions { get; } =
-        new[] { "Exponential", "Poisson", "Normal", "Uniform" };
+        new[] { "Exponential", "Poisson", "Deterministic", "Normal", "Lognormal", "Gamma", "Uniform" };
 
     /// <summary>
     /// The six families offered by the per-stage and default-family dropdowns
@@ -82,6 +91,9 @@ public partial class ConfigPanelViewModel : ObservableObject
             RefreshStageSourceLabels();
         };
         StageCount.ValueChanged += (_, _) => OnStageCountEdited();
+        // The arrival spread participates in the Start gate, so an edit must
+        // re-evaluate it immediately — the same reason λ and the comma-list μ do.
+        ArrivalSpread.ValueChanged += (_, _) => RecomputeBlockingState();
         EnsureStageCount(DefaultStages);
     }
 
@@ -202,6 +214,194 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>Selected inter-arrival distribution (label; value maps in the VM).</summary>
     [ObservableProperty]
     private string? _interArrivalDistribution = "Exponential";
+
+    /// <summary>
+    /// Spread parameter for the configured arrival family (Phase 8V, D-211).
+    /// </summary>
+    /// <remarks>
+    /// The arrival MEAN is fixed by λ and is never typed twice; this field carries
+    /// only the shape. Its meaning follows the family, which is why the label and
+    /// the watermark are bound rather than hard-coded: Gamma takes shape k
+    /// (<c>Ca² = 1/k</c>), Normal and Lognormal take a standard deviation in
+    /// minutes, and Uniform takes a half-width in minutes. Exponential and
+    /// Deterministic have no free spread parameter, so the field is hidden.
+    /// </remarks>
+    public ConfigFieldViewModel ArrivalSpread { get; } = new();
+
+    /// <summary>The family the arrival dropdown currently names.</summary>
+    public DistributionFamily ArrivalFamily => ParseArrivalFamily(InterArrivalDistribution);
+
+    /// <summary>True when the selected arrival family has a spread parameter to enter.</summary>
+    public bool ArrivalSpreadVisible =>
+        ArrivalFamily is DistributionFamily.Gamma
+            or DistributionFamily.Normal
+            or DistributionFamily.Lognormal
+            or DistributionFamily.Uniform;
+
+    /// <summary>Label for <see cref="ArrivalSpread"/>, naming the units the family expects.</summary>
+    public string ArrivalSpreadLabel => ArrivalFamily switch
+    {
+        DistributionFamily.Gamma => "Arrival shape k (Ca² = 1/k)",
+        DistributionFamily.Normal => "Arrival std dev (minutes)",
+        DistributionFamily.Lognormal => "Arrival std dev (minutes)",
+        DistributionFamily.Uniform => "Arrival half-width (minutes)",
+        _ => "Arrival spread"
+    };
+
+    /// <summary>Format-demonstrating placeholder for <see cref="ArrivalSpread"/>.</summary>
+    public string ArrivalSpreadWatermark => ArrivalFamily switch
+    {
+        DistributionFamily.Gamma => "e.g., 4",
+        DistributionFamily.Normal => "e.g., 1.5",
+        DistributionFamily.Lognormal => "e.g., 3",
+        DistributionFamily.Uniform => "e.g., 1",
+        _ => ""
+    };
+
+    /// <summary>Tooltip for <see cref="ArrivalSpread"/>, explaining what the number does.</summary>
+    public string ArrivalSpreadTooltip => ArrivalFamily switch
+    {
+        DistributionFamily.Gamma =>
+            "Gamma shape k. The arrival rate λ fixes the mean; k fixes the shape. Ca² = 1/k, so k = 4 gives Ca² = 0.25.",
+        DistributionFamily.Normal =>
+            "Standard deviation of the inter-arrival time in minutes. Draws at or below zero are redrawn, truncating the distribution at zero.",
+        DistributionFamily.Lognormal =>
+            "Standard deviation of the inter-arrival time in minutes (the lognormal is parameterised by the mean and standard deviation of X).",
+        DistributionFamily.Uniform =>
+            "Half-width in minutes. The distribution runs from (mean − half-width) to (mean + half-width) and must keep the lower bound above zero.",
+        _ => "This family has no spread parameter."
+    };
+
+    /// <summary>Maps a dropdown label to a family, treating the legacy "Poisson" label as Exponential.</summary>
+    /// <param name="name">The label shown in the arrival dropdown, or null.</param>
+    /// <returns>The matching family; Exponential for a blank or unrecognised label.</returns>
+    public static DistributionFamily ParseArrivalFamily(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name == "Poisson")
+        {
+            return DistributionFamily.Exponential;
+        }
+
+        return Enum.TryParse<DistributionFamily>(name, ignoreCase: true, out var family)
+            ? family
+            : DistributionFamily.Exponential;
+    }
+
+    /// <summary>
+    /// Re-announces the arrival-spread label, watermark and tooltip when the family
+    /// changes, and clears a stale error the old family's rules produced.
+    /// </summary>
+    /// <param name="value">The newly selected arrival family label.</param>
+    partial void OnInterArrivalDistributionChanged(string? value)
+    {
+        OnPropertyChanged(nameof(ArrivalFamily));
+        OnPropertyChanged(nameof(ArrivalSpreadVisible));
+        OnPropertyChanged(nameof(ArrivalSpreadLabel));
+        OnPropertyChanged(nameof(ArrivalSpreadWatermark));
+        OnPropertyChanged(nameof(ArrivalSpreadTooltip));
+
+        if (!ArrivalSpreadVisible)
+        {
+            ArrivalSpread.ClearError();
+        }
+
+        RecomputeBlockingState();
+    }
+
+    /// <summary>
+    /// Validates the arrival spread on blur and leaves a cause-and-remedy message
+    /// in the field's inline error channel.
+    /// </summary>
+    /// <remarks>
+    /// The gate uses <see cref="IsArrivalSpreadValid"/> rather than this method so
+    /// that Start cannot depend on whether the user happened to blur the field, and
+    /// so that typing is not validated on every keystroke (FR-UI-17).
+    /// </remarks>
+    public void ValidateArrivalSpread()
+    {
+        if (!ArrivalSpreadVisible)
+        {
+            ArrivalSpread.ClearError();
+            return;
+        }
+
+        if (!double.TryParse(ArrivalSpread.Value, out var spread) || spread <= 0)
+        {
+            ArrivalSpread.SetError(
+                $"{ArrivalFamily} arrivals need a {ArrivalSpreadLabel.ToLowerInvariant()} greater than 0. " +
+                $"You entered \"{ArrivalSpread.Value}\".");
+            return;
+        }
+
+        if (ArrivalFamily == DistributionFamily.Uniform)
+        {
+            double mean = ResolveArrivalMean();
+            if (spread >= mean)
+            {
+                ArrivalSpread.SetError(
+                    $"The half-width must be less than the mean inter-arrival time of {mean:0.###} min, " +
+                    $"or the distribution would include zero or negative times. You entered {spread:0.###}.");
+                return;
+            }
+        }
+
+        ArrivalSpread.ClearError();
+    }
+
+    /// <summary>True when the arrival spread is usable; used by the Start gate.</summary>
+    private bool IsArrivalSpreadValid()
+    {
+        if (!ArrivalSpreadVisible)
+        {
+            return true;
+        }
+
+        if (!double.TryParse(ArrivalSpread.Value, out var spread) || spread <= 0)
+        {
+            return false;
+        }
+
+        return ArrivalFamily != DistributionFamily.Uniform || spread < ResolveArrivalMean();
+    }
+
+    /// <summary>
+    /// The mean inter-arrival time the run will use, for spread validation only.
+    /// </summary>
+    /// <remarks>
+    /// This mirrors the λ precedence the coordinator applies (manual override in
+    /// either mode, then the fitted rate). It is used to reject a Uniform
+    /// half-width that would put the lower bound at or below zero; the coordinator
+    /// still rescales the finished spec onto the λ it actually resolved, so a
+    /// disagreement here cannot silently change the simulated distribution's
+    /// shape — only this early warning.
+    /// </remarks>
+    private double ResolveArrivalMean()
+    {
+        double? lambda = EffectiveLambda();
+        return lambda is > 0 ? 1.0 / lambda.Value : 1.0;
+    }
+
+    /// <summary>
+    /// Resolves λ exactly as the run does: a manual override (mandatory in manual
+    /// mode, optional in fit mode) wins, then the fitted rate.
+    /// </summary>
+    /// <returns>The rate in per-minute units, or null when no source is usable.</returns>
+    private double? EffectiveLambda()
+    {
+        if (SourceMode == DataSourceMode.EnterManually)
+        {
+            return double.TryParse(ManualLambda.Value, out var manual) && manual > 0
+                ? ToPerMinute(ParameterMode == ParameterMode.MeanWise ? 1.0 / manual : manual, TimeUnit)
+                : null;
+        }
+
+        if (ParametersIsOptionalEnabled && double.TryParse(ManualLambda.Value, out var overrideValue) && overrideValue > 0)
+        {
+            return ToPerMinute(ParameterMode == ParameterMode.MeanWise ? 1.0 / overrideValue : overrideValue, TimeUnit);
+        }
+
+        return Binding?.FittedArrivalRate is { } fitted && fitted > 0 ? fitted : null;
+    }
 
     /// <summary>Significance level α for every chi-square verdict (strictly between 0 and 1; default 0.05, D-113).</summary>
     public ConfigFieldViewModel SignificanceLevel { get; } = new() { Value = "0.05" };
@@ -1242,6 +1442,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return ManualMuPerStage;
         yield return PExit;
         yield return SignificanceLevel;
+        yield return ArrivalSpread;
         yield return StageCount;
         yield return Days;
         yield return DailyCap;
@@ -1336,23 +1537,7 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private void RecomputeRho()
     {
-        double lambda = double.NaN;
-        if (SourceMode == DataSourceMode.EnterManually)
-        {
-            if (double.TryParse(ManualLambda.Value, out var manualLambda) && manualLambda > 0)
-            {
-                lambda = manualLambda;
-            }
-        }
-        else if (ParametersIsOptionalEnabled && double.TryParse(ManualLambda.Value, out var manual) && manual > 0)
-        {
-            lambda = manual;
-        }
-        else if (Binding?.FittedArrivalRate is { } fitted && fitted > 0)
-        {
-            lambda = fitted;
-        }
-
+        double lambda = EffectiveLambda() ?? double.NaN;
         bool lambdaKnown = lambda > 0;
         var manualParts = ManualMuParts();
         var parts = StageRows.Select((row, i) =>
@@ -1605,7 +1790,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     {
         var advancedInUse = AdvancedIsOptionalEnabled;
 
-        var blocked = StageCount.HasError
+        // Evaluate the arrival spread from the current text rather than from
+        // HasError: the error flag is only raised on blur (FR-UI-17), and Start
+        // must not depend on whether the user happened to leave the field.
+        bool arrivalSpreadInvalid = !IsArrivalSpreadValid();
+
+        var blocked = arrivalSpreadInvalid
+            || StageCount.HasError
             || SignificanceLevel.HasError
             || (IsMultiDay && Days.HasError)
             // The cap is visible in BOTH calendar modes (D-190), so an invalid cap
@@ -1618,6 +1809,13 @@ public partial class ConfigPanelViewModel : ObservableObject
             || (advancedInUse && Seed.HasError);
 
         var missing = new List<string>();
+        if (arrivalSpreadInvalid)
+        {
+            missing.Add(
+                $"the arrival spread ({ArrivalSpreadLabel.ToLowerInvariant()}) is missing, " +
+                "zero, or too large for the mean inter-arrival time");
+        }
+
         if (!blocked)
         {
             CollectServerGaps(missing);
@@ -1919,11 +2117,44 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var startDay);
 
-        // Phase 8K (D-150, Ruling 3): arrivals are NOT per stage. Core samples
-        // inter-arrivals from one engine-wide exponential process, so the Model
-        // section's dropdown stays authoritative and each row's ArrivalFamily is
-        // informational only. Previously this read StageRows[0].ArrivalFamily, which
-        // made the first stage silently govern every other stage.
+        // Arrival process (Phase 8V, D-211). Arrivals are still one engine-wide
+        // stream, never per stage (D-150 ruling 3): the Model section's dropdown is
+        // the only authority. The dropdown names the family and ArrivalSpread
+        // carries the shape; λ fixes the mean, so the spec is built with the λ this
+        // view model can see and the coordinator relocates it onto the λ it finally
+        // resolves (WithMean preserves Ca²). Exponential keeps a null spec so the
+        // engine takes its legacy sampler and the D-054 regression cannot move.
+        DistributionSpec? arrivalSpec = null;
+        var arrivalFamily = ArrivalFamily;
+        if (arrivalFamily != DistributionFamily.Exponential)
+        {
+            double? spread = arrivalFamily == DistributionFamily.Deterministic
+                ? null
+                : double.TryParse(ArrivalSpread.Value, out var parsedSpread) && parsedSpread > 0
+                    ? parsedSpread
+                    : null;
+
+            if (arrivalFamily != DistributionFamily.Deterministic && spread is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                arrivalSpec = DistributionSpecOperations.Create(
+                    arrivalFamily,
+                    mean: ResolveArrivalMean(),
+                    spread: spread);
+            }
+            catch (ArgumentException)
+            {
+                // The Start gate already refuses an unusable spread; this is the
+                // defence-in-depth path, and returning null keeps the failure at the
+                // form instead of throwing from inside BuildParameters.
+                return null;
+            }
+        }
+
         return new SimulationParameters(
             mode,
             InterArrivalDistribution ?? "Exponential",
@@ -1941,6 +2172,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             EffectiveTraceLevel)
         {
             PBypassOverride = pBypassOverride,
+            ArrivalDistribution = arrivalSpec,
             ServiceFamilies = serviceFamilies,
             ServiceRates = serviceRates,
             LambdaSource = SelectedLambdaSource(),

@@ -60,11 +60,13 @@ public sealed record ComparisonRow(
 /// FR-STAT-11).
 /// </summary>
 /// <remarks>
-/// The comparison is only valid where its assumptions hold: exponential
-/// arrivals, exponential service and a stable stage (ρ &lt; 1). Both
-/// <see cref="ComputeForStage"/> and <see cref="Compare"/> return no result
-/// when those conditions fail rather than report a mathematically meaningless
-/// number.
+/// Each model states its own assumptions (D-212): M/M/c needs exponential
+/// arrivals and exponential service, M/G/c needs exponential arrivals, and
+/// G/G/c accepts any arrival and service variability through Ca² and Cs². All
+/// three are steady-state results, so a transient run or an unstable stage
+/// (ρ ≥ 1) is refused. <see cref="TryCompare"/> returns the named reason;
+/// <see cref="Compare"/> returns an empty table, because a comparison made
+/// under violated assumptions is worse than no comparison.
 /// </remarks>
 public static class AnalyticalValidationService
 {
@@ -141,13 +143,17 @@ public static class AnalyticalValidationService
     /// with <see cref="SimulationResult.StageMetrics"/>; a short or empty list
     /// yields no rows rather than a partial, misleading table.
     /// </param>
+    /// <param name="model">The closed-form model to compare against.</param>
+    /// <param name="serviceSpecs">Per-stage configured service specs, used for Cs²; null means exponential.</param>
+    /// <param name="arrivalSpec">
+    /// The configured arrival distribution, used for Ca². Null is the classic
+    /// exponential process when <paramref name="arrivalFamily"/> names it, and an
+    /// unknown Ca² otherwise — never silently read as 1 (D-211).
+    /// </param>
     /// <returns>
-    /// One row per stage when every assumption holds (exponential arrivals,
-    /// exponential service, ρ &lt; 1, and a steady-state run of at least
-    /// <see cref="MinimumSteadyStateMinutes"/> operating minutes); an empty list
-    /// otherwise. Returning empty rather than a partial comparison is deliberate
-    /// — a comparison made under violated assumptions is worse than no
-    /// comparison.
+    /// One row per stage when every assumption holds; an empty list otherwise.
+    /// Returning empty rather than a partial comparison is deliberate — a
+    /// comparison made under violated assumptions is worse than no comparison.
     /// </returns>
     /// <remarks>
     /// λ and μ come from the caller's <paramref name="stageInputs"/> (built by
@@ -166,62 +172,159 @@ public static class AnalyticalValidationService
         IReadOnlyList<string> serviceFamilies,
         IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
         AnalyticalModelFamily model = AnalyticalModelFamily.Mmc,
-        IReadOnlyList<DistributionSpec>? serviceSpecs = null)
+        IReadOnlyList<DistributionSpec>? serviceSpecs = null,
+        DistributionSpec? arrivalSpec = null)
+        => TryCompare(
+            result,
+            arrivalFamily,
+            serviceFamilies,
+            stageInputs,
+            model,
+            serviceSpecs,
+            arrivalSpec,
+            out IReadOnlyList<ComparisonRow> rows,
+            out _)
+                ? rows
+                : Array.Empty<ComparisonRow>();
+
+    /// <summary>
+    /// Builds the comparison table or explains, in one named sentence, why no
+    /// comparison exists.
+    /// </summary>
+    /// <param name="result">The finished simulation result.</param>
+    /// <param name="arrivalFamily">The configured inter-arrival distribution family.</param>
+    /// <param name="serviceFamilies">The configured service distribution family, one per stage.</param>
+    /// <param name="stageInputs">Per-stage analytical inputs (λ, μ, c), in stage order.</param>
+    /// <param name="model">The closed-form model to compare against.</param>
+    /// <param name="serviceSpecs">Per-stage configured service specs, used for Cs².</param>
+    /// <param name="arrivalSpec">The configured arrival distribution, used for Ca².</param>
+    /// <param name="rows">The table when this method returns <c>true</c>; otherwise empty.</param>
+    /// <param name="refusal">The reason when this method returns <c>false</c>; otherwise null.</param>
+    /// <returns><c>true</c> when a comparison was produced.</returns>
+    /// <remarks>
+    /// <para>
+    /// Applicability is decided before any arithmetic, and each refusal names the
+    /// model, the offending input and the model that would accept it. That is the
+    /// difference between a widget that is empty and a widget that explains itself
+    /// (FR-UI-9): "M/M/c requires exponential service" is actionable; a blank
+    /// table is not.
+    /// </para>
+    /// <para>
+    /// The service families are read from the SPECS when they are available,
+    /// because a spec carries both the family and the parameters the engine
+    /// sampled; the string list is the fallback for callers that have no specs.
+    /// Reading the family from a name while the engine sampled from a spec would
+    /// let the two disagree, which is the D-147 class of defect.
+    /// </para>
+    /// </remarks>
+    public static bool TryCompare(
+        SimulationResult result,
+        string arrivalFamily,
+        IReadOnlyList<string> serviceFamilies,
+        IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
+        AnalyticalModelFamily model,
+        IReadOnlyList<DistributionSpec>? serviceSpecs,
+        DistributionSpec? arrivalSpec,
+        out IReadOnlyList<ComparisonRow> rows,
+        out string? refusal)
     {
+        rows = Array.Empty<ComparisonRow>();
+        refusal = null;
+
         // Every model here is a steady-state result: a short/transient run (e.g. one
         // 165-minute clinic day) is not comparable, regardless of model or families.
         if (result.OperatingTimeMinutes < MinimumSteadyStateMinutes)
         {
-            return Array.Empty<ComparisonRow>();
+            refusal =
+                $"The run lasted {result.OperatingTimeMinutes:0} simulated minutes, but " +
+                $"{DisplayName(model)} values are steady-state results and need at least " +
+                $"{MinimumSteadyStateMinutes:0} minutes (~70 operating days). Run a " +
+                "steady-state validation from the Results panel.";
+            return false;
         }
 
-        // The engine samples exponential inter-arrivals only (D-209), so Ca² is 1 for
-        // every run it can produce. A non-exponential arrival family would make Ca²
-        // unknown here, and guessing it would be the D-157 mistake in another form.
-        if (!IsExponential(arrivalFamily)
-            || stageInputs.Count == 0
-            || stageInputs.Count < result.StageMetrics.Count)
+        if (stageInputs.Count == 0 || stageInputs.Count < result.StageMetrics.Count)
         {
-            return Array.Empty<ComparisonRow>();
+            refusal =
+                $"The comparison needs λ, μ and c for all {result.StageMetrics.Count} " +
+                $"stage(s), but only {stageInputs.Count} were supplied.";
+            return false;
         }
 
-        // M/M/c states an exponential-service assumption. M/G/c and G/G/c do not:
-        // they take the configured Cs² (and Ca²) as inputs, so a Normal or Gamma
-        // stage is comparable instead of refused.
-        if (model == AnalyticalModelFamily.Mmc)
+        // Ca² comes from the configured arrival distribution, never from an
+        // assumption. A null spec is the classic exponential process ONLY when the
+        // family says so; any other family without a spec has an unknown Ca², and
+        // guessing 1 would make a G/G run look like an M/M run.
+        bool arrivalIsExponential = arrivalSpec is not null
+            ? arrivalSpec.Family == DistributionFamily.Exponential
+            : IsExponential(arrivalFamily);
+
+        if (arrivalSpec is null && !arrivalIsExponential)
         {
-            for (int i = 0; i < result.StageMetrics.Count; i++)
+            refusal =
+                $"The {arrivalFamily} arrival process was configured, but its distribution " +
+                "was not carried into the comparison, so Ca² is unknown. Re-run from the " +
+                "form so the arrival shape travels with the run.";
+            return false;
+        }
+
+        double ca2 = arrivalSpec is not null
+            ? AnalyticalModels.SquaredCoefficientOfVariation(arrivalSpec)
+            : 1.0;
+
+        // Model applicability. M/M/c assumes exponential arrivals AND service.
+        // M/G/c assumes exponential arrivals only. G/G/c assumes neither, so its
+        // Ca² and Cs² are the inputs rather than preconditions.
+        if (model is AnalyticalModelFamily.Mmc or AnalyticalModelFamily.Mgc && !arrivalIsExponential)
+        {
+            refusal =
+                $"{DisplayName(model)} requires exponential (Poisson) inter-arrival times, " +
+                $"but this run used {arrivalFamily} (Ca² = {ca2:0.###}). Choose G/G/c, " +
+                "which takes any arrival variability as an input.";
+            return false;
+        }
+
+        for (int i = 0; i < result.StageMetrics.Count; i++)
+        {
+            if (model != AnalyticalModelFamily.Mmc || ServiceIsExponential(i, serviceFamilies, serviceSpecs))
             {
-                string family = i < serviceFamilies.Count ? serviceFamilies[i] : string.Empty;
-                if (!IsExponential(family))
-                {
-                    return Array.Empty<ComparisonRow>();
-                }
+                continue;
             }
+
+            DistributionSpec? spec = ServiceSpecAt(i, serviceSpecs);
+            string family = spec?.Family.ToString()
+                ?? (i < serviceFamilies.Count ? serviceFamilies[i] : "unknown");
+            double cs2 = spec is null ? 1.0 : AnalyticalModels.SquaredCoefficientOfVariation(spec);
+
+            refusal =
+                $"M/M/c requires exponential service times, but stage " +
+                $"'{result.StageMetrics[i].StageName}' uses {family} (Cs² = {cs2:0.###}). " +
+                "Choose M/G/c or G/G/c.";
+            return false;
         }
 
-        var rows = new List<ComparisonRow>(result.StageMetrics.Count);
+        var built = new List<ComparisonRow>(result.StageMetrics.Count);
         for (int i = 0; i < result.StageMetrics.Count; i++)
         {
             StageMetrics sim = result.StageMetrics[i];
             (double lambda, double mu, int servers) = stageInputs[i];
 
-            DistributionSpec? serviceSpec = serviceSpecs is not null && i < serviceSpecs.Count
-                ? serviceSpecs[i]
-                : null;
-            AnalyticalModelInputs modelInputs = AnalyticalModels.InputsFor(lambda, mu, servers, serviceSpec);
+            DistributionSpec? serviceSpec = ServiceSpecAt(i, serviceSpecs);
+            AnalyticalModelInputs modelInputs = AnalyticalModels.InputsFor(
+                lambda, mu, servers, serviceSpec, arrivalCa2: ca2);
 
-            if (!AnalyticalModels.TryCompute(model, modelInputs, out AnalyticalModelResult? analytical, out _))
+            if (!AnalyticalModels.TryCompute(model, modelInputs, out AnalyticalModelResult? analytical, out string? why))
             {
                 // A single unstable / invalid stage makes the whole comparison
                 // invalid — do not show rows for the stages that happened to pass.
-                return Array.Empty<ComparisonRow>();
+                refusal = $"Stage '{sim.StageName}': {why}";
+                return false;
             }
 
             double delta = Math.Abs(sim.AverageWaitMinutes - analytical!.Wq)
                 / Math.Max(analytical.Wq, 1e-6)
                 * 100.0;
-            rows.Add(new ComparisonRow(
+            built.Add(new ComparisonRow(
                 (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 sim.StageName,
                 sim.AverageWaitMinutes,
@@ -231,9 +334,43 @@ public static class AnalyticalValidationService
                 delta));
         }
 
-        return rows;
+        rows = built;
+        return true;
+    }
+
+    /// <summary>The user-facing name of a model family.</summary>
+    /// <param name="model">The family.</param>
+    /// <returns>The notation shown in the widget.</returns>
+    private static string DisplayName(AnalyticalModelFamily model) => model switch
+    {
+        AnalyticalModelFamily.Mmc => "M/M/c",
+        AnalyticalModelFamily.Mgc => "M/G/c",
+        AnalyticalModelFamily.Ggc => "G/G/c",
+        _ => model.ToString()
+    };
+
+    private static DistributionSpec? ServiceSpecAt(int index, IReadOnlyList<DistributionSpec>? serviceSpecs)
+        => serviceSpecs is not null && index < serviceSpecs.Count ? serviceSpecs[index] : null;
+
+    /// <summary>
+    /// True when the stage's service distribution is exponential, reading the
+    /// spec's family when a spec exists and the name list otherwise.
+    /// </summary>
+    private static bool ServiceIsExponential(
+        int index,
+        IReadOnlyList<string> serviceFamilies,
+        IReadOnlyList<DistributionSpec>? serviceSpecs)
+    {
+        DistributionSpec? spec = ServiceSpecAt(index, serviceSpecs);
+        if (spec is not null)
+        {
+            return spec.Family == DistributionFamily.Exponential;
+        }
+
+        return index < serviceFamilies.Count && IsExponential(serviceFamilies[index]);
     }
 
     private static bool IsExponential(string? family)
-        => string.Equals(family, "Exponential", StringComparison.OrdinalIgnoreCase);
+        => string.Equals(family, "Exponential", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(family, "Poisson", StringComparison.OrdinalIgnoreCase);
 }

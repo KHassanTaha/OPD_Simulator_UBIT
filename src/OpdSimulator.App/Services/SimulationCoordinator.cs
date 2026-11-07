@@ -187,11 +187,22 @@ public static class SimulationCoordinator
                 ? -1
                 : routingBypassProbability > 0 ? bypassStageIndex : 0;
 
+            // Relocate the configured arrival process onto the λ this run actually
+            // resolved (Phase 8V, D-211). WithMean preserves Ca², so a shape typed
+            // or fitted against one rate still describes the same distribution at
+            // another. Passing the spec through unchanged would make NetworkTopology
+            // refuse a mean/rate mismatch that is not a user error — the form cannot
+            // know the fitted λ before the file is analysed.
+            DistributionSpec? arrivalSpec = parameters.ArrivalDistribution is { } configuredArrival
+                ? DistributionSpecOperations.WithMean(configuredArrival, 1.0 / arrivalRate.Value)
+                : null;
+
             var topology = new NetworkTopology(
                 arrivalRate.Value, stageResult.Specs!,
                 exitStageIndex, routingExitProbability,
                 routingBypassProbability, bypassStageIndex, bypassDestinationIndex,
-                capRate, capStageIndex);
+                capRate, capStageIndex,
+                arrivalSpec);
 
             var traceLevel = TraceLevelFromName(parameters.TraceLevelName);
             var sink = new CollectionTraceSink(traceLevel);

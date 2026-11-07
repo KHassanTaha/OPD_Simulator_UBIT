@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Analytics;
 using OpdSimulator.Core.Distributions;
@@ -29,16 +30,24 @@ namespace OpdSimulator.App.ViewModels;
 public partial class AnalyticalValidationViewModel : ObservableObject
 {
     /// <summary>
-    /// The exact wording of the widget's empty state (shown until a run yields a
-    /// valid steady-state comparison). It names every condition so the user
-    /// understands why the widget is empty.
+    /// The exact wording of the widget's empty state before a run has been
+    /// applied. It names every condition so the user understands what the
+    /// widget needs.
     /// </summary>
-    public string EmptyMessage { get; } =
+    public const string DefaultEmptyMessage =
         "Analytical comparison requires a steady-state run — ρ < 1 at every stage, "
         + "and a horizon of at least 100,000 simulated minutes (~70 operating days). "
         + "Clinic-day runs are transient and will not match closed-form formulas. "
-        + "M/M/c additionally requires exponential service; choose M/G/c or G/G/c "
-        + "for any other service distribution.";
+        + "M/M/c requires exponential arrivals and service; M/G/c requires "
+        + "exponential arrivals; G/G/c accepts any arrival and service variability.";
+
+    /// <summary>
+    /// The empty-state text currently shown. It is the default message until a
+    /// run is applied, then the refusal that run produced — so the widget says
+    /// WHY it is empty (FR-UI-9) instead of always printing the same paragraph.
+    /// </summary>
+    [ObservableProperty]
+    private string _emptyMessage = DefaultEmptyMessage;
 
     /// <summary>The models the widget can compare against, in display order.</summary>
     public IReadOnlyList<string> ModelOptions { get; } = new[] { "M/M/c", "M/G/c", "G/G/c" };
@@ -57,6 +66,42 @@ public partial class AnalyticalValidationViewModel : ObservableObject
     /// <summary>Inverse of <see cref="IsEmpty"/>, so the view can bind without a negating converter.</summary>
     public bool HasRows => !IsEmpty;
 
+    /// <summary>
+    /// Raised when the user asks for a dedicated steady-state run (D-137).
+    /// </summary>
+    /// <remarks>
+    /// The widget cannot run the engine itself: the configuration and the engine
+    /// belong to <see cref="MainViewModel"/>. The event keeps the dependency one
+    /// way — the widget says WHAT it needs, the shell decides how to produce it.
+    /// </remarks>
+    public event EventHandler? SteadyStateValidationRequested;
+
+    /// <summary>True while a steady-state validation run is in flight.</summary>
+    [ObservableProperty]
+    private bool _isSteadyStateRunning;
+
+    /// <summary>Keeps the button disabled during a validation run.</summary>
+    /// <returns><c>true</c> unless a run is already in flight.</returns>
+    private bool CanRunSteadyStateValidation() => !IsSteadyStateRunning;
+
+    partial void OnIsSteadyStateRunningChanged(bool value)
+        => RunSteadyStateValidationCommand.NotifyCanExecuteChanged();
+
+    /// <summary>
+    /// Asks the shell to run the current configuration for 100,000 minutes and
+    /// feed the result to this widget.
+    /// </summary>
+    /// <remarks>
+    /// A dedicated run rather than a longer clinic day: the closed forms describe
+    /// steady state, and stretching one 165-minute session would change the
+    /// question the run answers. The shell builds a DiagnosticTrace copy of the
+    /// current parameters, so the results panel keeps showing the run the user
+    /// actually asked for.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanRunSteadyStateValidation))]
+    private void RunSteadyStateValidation()
+        => SteadyStateValidationRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>The simulated-vs-analytical rows, one per stage, in stage order.</summary>
     public ObservableCollection<ComparisonRow> Rows { get; } = new();
 
@@ -68,6 +113,12 @@ public partial class AnalyticalValidationViewModel : ObservableObject
     private IReadOnlyList<(double Lambda, double Mu, int Servers)> _lastStageInputs =
         Array.Empty<(double, double, int)>();
     private IReadOnlyList<DistributionSpec>? _lastServiceSpecs;
+    private DistributionSpec? _lastArrivalSpec;
+
+    /// <summary>One comparison attempt carried off the UI thread.</summary>
+    /// <param name="Rows">The rows, empty when the model does not apply.</param>
+    /// <param name="Refusal">Why the table is empty, or null when it is not.</param>
+    private sealed record ComparisonOutcome(IReadOnlyList<ComparisonRow> Rows, string? Refusal);
 
     /// <summary>The <see cref="AnalyticalModelFamily"/> matching <see cref="SelectedModel"/>.</summary>
     public AnalyticalModelFamily SelectedModelFamily => SelectedModel switch
@@ -84,7 +135,13 @@ public partial class AnalyticalValidationViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedModelFamily));
         if (_lastResult is not null)
         {
-            Apply(_lastResult, _lastArrivalFamily, _lastServiceFamilies, _lastStageInputs, _lastServiceSpecs);
+            Apply(
+                _lastResult,
+                _lastArrivalFamily,
+                _lastServiceFamilies,
+                _lastStageInputs,
+                _lastServiceSpecs,
+                _lastArrivalSpec);
         }
     }
 
@@ -98,12 +155,14 @@ public partial class AnalyticalValidationViewModel : ObservableObject
     /// <param name="serviceFamilies">Configured service family per stage.</param>
     /// <param name="stageInputs">Per-stage analytical inputs (λ, μ, c), in stage order.</param>
     /// <param name="serviceSpecs">Per-stage configured service specs, used for Cs² (D-157); null means exponential.</param>
+    /// <param name="arrivalSpec">The configured arrival distribution, used for Ca² (D-211); null means Poisson when the family says so.</param>
     public void ApplyAsync(
         SimulationResult? result,
         string arrivalFamily,
         IReadOnlyList<string> serviceFamilies,
         IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
-        IReadOnlyList<DistributionSpec>? serviceSpecs = null)
+        IReadOnlyList<DistributionSpec>? serviceSpecs = null,
+        DistributionSpec? arrivalSpec = null)
     {
         if (result is null)
         {
@@ -111,17 +170,17 @@ public partial class AnalyticalValidationViewModel : ObservableObject
             return;
         }
 
-        Retain(result, arrivalFamily, serviceFamilies, stageInputs, serviceSpecs);
+        Retain(result, arrivalFamily, serviceFamilies, stageInputs, serviceSpecs, arrivalSpec);
 
         int generation = ++_generation;
         Task.Run(() =>
         {
-            var rows = Compare(result);
+            ComparisonOutcome outcome = Compare(result);
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _generation)
                 {
-                    ApplyRows(rows);
+                    ApplyRows(outcome.Rows, outcome.Refusal);
                 }
                 else
                 {
@@ -140,12 +199,14 @@ public partial class AnalyticalValidationViewModel : ObservableObject
     /// <param name="serviceFamilies">Configured service family per stage.</param>
     /// <param name="stageInputs">Per-stage analytical inputs (λ, μ, c), in stage order.</param>
     /// <param name="serviceSpecs">Per-stage configured service specs, used for Cs² (D-157); null means exponential.</param>
+    /// <param name="arrivalSpec">The configured arrival distribution, used for Ca² (D-211); null means Poisson when the family says so.</param>
     public void Apply(
         SimulationResult? result,
         string arrivalFamily,
         IReadOnlyList<string> serviceFamilies,
         IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
-        IReadOnlyList<DistributionSpec>? serviceSpecs = null)
+        IReadOnlyList<DistributionSpec>? serviceSpecs = null,
+        DistributionSpec? arrivalSpec = null)
     {
         if (result is null)
         {
@@ -153,13 +214,16 @@ public partial class AnalyticalValidationViewModel : ObservableObject
             return;
         }
 
-        Retain(result, arrivalFamily, serviceFamilies, stageInputs, serviceSpecs);
+        Retain(result, arrivalFamily, serviceFamilies, stageInputs, serviceSpecs, arrivalSpec);
         ++_generation;
-        ApplyRows(Compare(result));
+        ComparisonOutcome outcome = Compare(result);
+        ApplyRows(outcome.Rows, outcome.Refusal);
     }
 
     /// <summary>Replaces the rows with <paramref name="rows"/> (UI thread).</summary>
-    public void ApplyRows(IReadOnlyList<ComparisonRow> rows)
+    /// <param name="rows">The comparison rows; empty means the model did not apply.</param>
+    /// <param name="refusal">Why the table is empty; null restores the default empty-state message.</param>
+    public void ApplyRows(IReadOnlyList<ComparisonRow> rows, string? refusal = null)
     {
         ++_generation;
         Rows.Clear();
@@ -169,6 +233,9 @@ public partial class AnalyticalValidationViewModel : ObservableObject
         }
 
         IsEmpty = Rows.Count == 0;
+        EmptyMessage = IsEmpty && !string.IsNullOrWhiteSpace(refusal)
+            ? refusal!
+            : DefaultEmptyMessage;
     }
 
     /// <summary>Returns the widget to its empty state (Clear All, or a refused run).</summary>
@@ -177,29 +244,39 @@ public partial class AnalyticalValidationViewModel : ObservableObject
         ++_generation;
         _lastResult = null;
         Rows.Clear();
+        EmptyMessage = DefaultEmptyMessage;
         IsEmpty = true;
     }
 
-    private IReadOnlyList<ComparisonRow> Compare(SimulationResult result) =>
-        AnalyticalValidationService.Compare(
+    private ComparisonOutcome Compare(SimulationResult result)
+    {
+        AnalyticalValidationService.TryCompare(
             result,
             _lastArrivalFamily,
             _lastServiceFamilies,
             _lastStageInputs,
             SelectedModelFamily,
-            _lastServiceSpecs);
+            _lastServiceSpecs,
+            _lastArrivalSpec,
+            out IReadOnlyList<ComparisonRow> rows,
+            out string? refusal);
+
+        return new ComparisonOutcome(rows, refusal);
+    }
 
     private void Retain(
         SimulationResult result,
         string arrivalFamily,
         IReadOnlyList<string> serviceFamilies,
         IReadOnlyList<(double Lambda, double Mu, int Servers)> stageInputs,
-        IReadOnlyList<DistributionSpec>? serviceSpecs)
+        IReadOnlyList<DistributionSpec>? serviceSpecs,
+        DistributionSpec? arrivalSpec)
     {
         _lastResult = result;
         _lastArrivalFamily = arrivalFamily;
         _lastServiceFamilies = serviceFamilies;
         _lastStageInputs = stageInputs;
         _lastServiceSpecs = serviceSpecs;
+        _lastArrivalSpec = arrivalSpec;
     }
 }
