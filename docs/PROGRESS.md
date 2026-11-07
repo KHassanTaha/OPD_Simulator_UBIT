@@ -44,7 +44,7 @@ B-012 — owner visual inspection of the screenshot backlog. This session's two 
 
 Git State
 Commits made this session: `7375953` feat: sample general arrival distributions and make the analytical widget usable; the documentation commit containing this handoff follows it.
-Pushed to origin: No — `feat/general-arrivals` is based on `e7d6727` (`feat/phase-8t-operating-days`), and both branches are ahead of `origin/main`. Awaiting owner review.
+Pushed to origin: Yes — `feat/general-arrivals` pushed and tracking `origin/feat/general-arrivals` (11 commits ahead of `origin/main`, including the Phase 8T parent branch). Awaiting owner review; no PR opened.
 Uncommitted changes: None after the docs commit.
 
 Build & Test
