@@ -57,7 +57,7 @@ public class Phase5cFixesTests
     }
 
     [AvaloniaFact]
-    public void ResultsPanel_ScrollViewer_ContainsAllWidgets()
+    public void ResultsPanel_ScrollViewer_ContainsTheWholeSequence()
     {
         var window = new MainWindow();
         window.Show();
@@ -72,13 +72,12 @@ public class Phase5cFixesTests
                 new[] { "t=0 ARRIVAL patient=1 queueLen=1" }, SimulationCoordinator.DefaultExitProbability, 0.0, null));
             window.UpdateLayout();
 
-// The widget ScrollViewer is named in the XAML. Picking it by "which one has
-            // the most descendants" or "which one contains both headings" stopped
-            // working in 8Q.4: the trace moved out to a pinned sibling row, so
-            // those descriptions now either match the wrong element or match
-            // nothing at all.
+            // FR-UI-37 (D-200): the results body is ONE scroll region, named in
+            // the XAML. The header and the trace are items of it now, not pinned
+            // siblings — the Phase 8Q.4 distinction this test was written for is
+            // withdrawn, so the assertions are inverted deliberately.
             var outer = panel.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Name == "WidgetScroller");
+                .Single(s => s.Name == "ResultsScroller");
 
             // Every toggleable widget lives inside the scrolling area.
             var headers = outer.GetVisualDescendants().OfType<TextBlock>()
@@ -88,17 +87,13 @@ public class Phase5cFixesTests
             Assert.Contains(headers, t => t == "System totals");
             Assert.Contains(headers, t => t!.StartsWith("Chi-square goodness-of-fit"));
 
-            // The trace is deliberately NOT in here (FR-UI-35, D-184): it is a
-            // pinned sibling of the scroller so it can never be scrolled away.
-            // Asserted, not assumed — the whole point of the change is that this
-            // stays true.
-            Assert.DoesNotContain("Event trace",
-                outer.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+            // The trace is the last item of the same sequence.
+            Assert.Contains(headers, t => t == "Event Trace");
 
-            // The customise toggle is pinned above the ScrollViewer, not inside it.
+            // The customise toggle is the first item of the sequence too.
             var toggle = panel.GetVisualDescendants().OfType<ToggleButton>()
                 .Single(t => t.Content?.ToString() == "Customise results");
-            Assert.False(outer.IsVisualAncestorOf(toggle));
+            Assert.True(outer.IsVisualAncestorOf(toggle));
         }
         finally
         {

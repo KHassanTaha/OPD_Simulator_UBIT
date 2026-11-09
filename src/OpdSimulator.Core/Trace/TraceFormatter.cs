@@ -40,6 +40,13 @@ public static class TraceFormatter
         };
 
     /// <summary>
+    /// The short type label used by both the text trace and the on-screen
+    /// table (<c>ARRIVAL</c>, <c>START_SVC</c>, …).
+    /// </summary>
+    /// <param name="type">The event type to name.</param>
+    public static string TypeName(TraceEventType type) => TypeNames[type];
+
+    /// <summary>
     /// Formats one event as a line, or returns <see langword="null"/> when the
     /// row is suppressed at the given level.
     /// </summary>
@@ -57,7 +64,7 @@ public static class TraceFormatter
 
         string t = evt.Time.ToString("0.000", CultureInfo.InvariantCulture);
         string wall = TraceClock.Format(evt.Time, realStartMinutes);
-        string type = TypeNames[evt.Type];
+        string type = TypeName(evt.Type);
 
         if (evt.Type == TraceEventType.Rng)
             return $"T={t}  {wall}  {type,-12}  {evt.Details ?? string.Empty}";

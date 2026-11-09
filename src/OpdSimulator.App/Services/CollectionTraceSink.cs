@@ -13,6 +13,7 @@ public sealed class CollectionTraceSink : ITraceSink
     private readonly int _capacity;
     private readonly TraceLevel _level;
     private readonly List<string> _lines = new(1024);
+    private readonly List<TraceEvent> _events = new(1024);
 
     /// <summary>Default maximum number of rendered lines.</summary>
     public const int Capacity = 50_000;
@@ -35,6 +36,14 @@ public sealed class CollectionTraceSink : ITraceSink
     /// <summary>Gets the rendered lines in simulation order, oldest first.</summary>
     public IReadOnlyList<string> Lines => _lines;
 
+    /// <summary>
+    /// Gets the structured events behind <see cref="Lines"/>, in the same order
+    /// (FR-UI-39). The two lists are kept in lock-step, so an event suppressed at
+    /// the requested trace level — or aged out by the capacity cap — appears in
+    /// neither.
+    /// </summary>
+    public IReadOnlyList<TraceEvent> Events => _events;
+
     /// <inheritdoc/>
     public void Write(TraceEvent evt)
     {
@@ -52,9 +61,11 @@ public sealed class CollectionTraceSink : ITraceSink
         if (_lines.Count >= _capacity)
         {
             _lines.RemoveAt(0);
+            _events.RemoveAt(0);
         }
 
         _lines.Add(line);
+        _events.Add(evt);
     }
 
     /// <inheritdoc/>

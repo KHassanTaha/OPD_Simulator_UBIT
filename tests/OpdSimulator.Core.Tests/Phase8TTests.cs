@@ -240,6 +240,39 @@ public sealed class Phase8TTests
     }
 
     [Fact]
+    public void Run_CountsEveryArrivalTheCalendarRefused()
+    {
+        // FR-STAT-10: the generator keeps drawing across closed hours and closed
+        // days, so most arrival events are refused. The count is the whole run's
+        // total, and it must reconcile exactly with the events it describes.
+        var calendar = new ClinicCalendar(startDayOfWeek: DayOfWeek.Saturday);
+
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), calendar, generatorDays: 4, seed: 42);
+
+        int totalArrivals = 1 + result.GeneratedInterArrivalSamples.Count;
+        int admitted = result.AdmittedPerSession.Sum();
+
+        Assert.True(result.NotAdmittedArrivals > 0, "a 24-hour generator must reject overnight arrivals");
+        Assert.Equal(totalArrivals - admitted, result.NotAdmittedArrivals);
+        Assert.True(
+            result.NotAdmittedArrivals > admitted,
+            "on a multi-session run the rejected arrivals outnumber the admitted ones");
+    }
+
+    [Fact]
+    public void Run_HorizonMode_ReportsNoRefusedArrivals()
+    {
+        // A diagnostic run has no opening window and no session cap, so nothing
+        // is generated-and-refused. Reporting a count there would invent a gate.
+        var result = new Engine(new SeededRandomSource(), Log)
+            .Run(ClinicNetwork(), horizonMinutes: 60, seed: 42);
+
+        Assert.Equal(0, result.NotAdmittedArrivals);
+        Assert.Empty(result.AdmittedPerSession);
+    }
+
+    [Fact]
     public void Run_HorizonMode_HasNoSessionsAndKeepsSingleSessionSeries()
     {
         // The diagnostic trace is a minutes horizon, not a calendar run: it must

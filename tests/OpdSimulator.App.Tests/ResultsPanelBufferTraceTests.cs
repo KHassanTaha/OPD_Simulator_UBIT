@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
@@ -108,18 +109,35 @@ public class ResultsPanelBufferTraceTests
     }
 
     /// <summary>
-    /// The trace body as the user sees it: the rendered TextBlock inside the pinned
-    /// panel. Reading <c>vm.TraceBody</c> instead would pass under the D-194 defect,
-    /// because the property is correct while the binding is stale.
+    /// The trace rows as the user sees them: the realised rows of the virtualised
+    /// table, with the single results region scrolled to the trace first. Reading
+    /// <c>vm.TraceRows</c> instead would pass under the D-194 defect, because the
+    /// property is correct while the binding is stale.
     /// </summary>
-    private static string RenderedTraceText(Window window) =>
-        window.GetVisualDescendants()
-            .OfType<SelectableTextBlock>()
-            .Single(t => t.Name == "TraceBodyText")
-            .Text ?? string.Empty;
+    private static string[] RenderedTraceRows(Window window)
+    {
+        var table = window.GetVisualDescendants().OfType<ItemsControl>()
+            .Single(c => c.Name == "TraceRowList");
+        var scroller = ResultsScroller(window);
+        var trace = TracePanel(window);
+
+        scroller.Offset = new Vector(
+            0,
+            trace.TranslatePoint(new Point(0, 0), scroller)!.Value.Y + scroller.Offset.Y);
+        window.UpdateLayout();
+
+        return table.GetVisualDescendants()
+            .OfType<ContentPresenter>()
+            .Where(p => p.Content is TraceRow)
+            .Select(p => string.Join(
+                " ",
+                p.GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Select(t => t.Text ?? string.Empty)))
+            .ToArray();
+    }
 
     [AvaloniaFact]
-    public void ResultsPanel_BottomBuffer_LastWidgetFullyVisible()
+    public void ResultsPanel_BottomBuffer_ClearsTheTracesLastRow()
     {
         var vm = CompletedRun();
         var window = Host(vm);
@@ -130,15 +148,16 @@ public class ResultsPanelBufferTraceTests
             var buffer = panel.GetVisualDescendants().OfType<Border>()
                 .Single(b => b.Name == "ResultsBottomBuffer");
 
-            // The buffer is a trailing element of the scrollable content, so the
-            // extent it reports must include it. If this fails, the buffer is being
-            // expressed as padding or a margin and the last widget cannot clear.
-            var scroller = WidgetScroller(window);
+            // The buffer is a trailing element of the single sequence, so the
+            // extent it reports must include it. If this fails, the buffer is
+            // being expressed as padding or a margin and the trace cannot clear
+            // (D-142, D-198).
+            var scroller = ResultsScroller(window);
             Assert.True(
                 scroller.Extent.Height > scroller.Viewport.Height,
-                "precondition: the widget area must overflow for the buffer to mean anything");
+                "precondition: the results body must overflow for the buffer to mean anything");
 
-            // It must be the LAST child of the content, or widgets render below it.
+            // It must be the LAST child of the content, or an item renders below it.
             var content = buffer.GetVisualParent() as Panel;
             Assert.NotNull(content);
             Assert.Same(buffer, content!.Children[^1]);
@@ -159,18 +178,24 @@ public class ResultsPanelBufferTraceTests
                 scroller.Offset.Y > 0,
                 $"the body did not scroll: offset stayed at {scroller.Offset.Y}");
 
-            // The real claim: the widget immediately above the buffer is FULLY inside
-            // the viewport once scrolled to the end. Measured, not inferred from a
-            // visibility flag.
-            var lastWidget = (Control)content.Children[^2];
-            var top = lastWidget.TranslatePoint(new Point(0, 0), scroller)!.Value.Y;
-            var bottom = lastWidget.TranslatePoint(
-                new Point(0, lastWidget.Bounds.Height), scroller)!.Value.Y;
+            // FR-UI-37's buffer claim, measured rather than inferred: at the end
+            // of the sequence the buffer is fully inside the viewport, and the
+            // trace's last row ends above it instead of sitting on the panel edge.
+            var trace = TracePanel(window);
+            double bufferTop = buffer.TranslatePoint(new Point(0, 0), scroller)!.Value.Y;
+            double bufferBottom = buffer.TranslatePoint(
+                new Point(0, buffer.Bounds.Height), scroller)!.Value.Y;
+            double traceBottom = trace.TranslatePoint(
+                new Point(0, trace.Bounds.Height), scroller)!.Value.Y;
 
             Assert.True(
-                top >= 0 && bottom <= scroller.Viewport.Height + 0.5,
-                $"the last widget spans {top:F1}..{bottom:F1} in a viewport of "
-                    + $"{scroller.Viewport.Height:F1} — the buffer is too small to clear it");
+                bufferTop >= 0 && bufferBottom <= scroller.Viewport.Height + 0.5,
+                $"the buffer spans {bufferTop:F1}..{bufferBottom:F1} in a viewport of "
+                    + $"{scroller.Viewport.Height:F1} — the end of the sequence cannot be reached");
+            Assert.True(
+                traceBottom <= bufferTop + 0.5,
+                $"the trace ends at {traceBottom:F1} but the buffer starts at {bufferTop:F1} — "
+                    + "the last row is flush against the panel edge");
         }
         finally
         {
@@ -205,34 +230,34 @@ public class ResultsPanelBufferTraceTests
             vm.CompleteRun(CompletedOutcome());
             window.UpdateLayout();
 
-            // "Always visible" has to mean ON SCREEN, not merely bound. A pinned
-            // panel can be laid out below the window's bottom edge while every
-            // IsVisible flag reads True — the D-169 failure, verbatim.
+            // FR-UI-37: the trace is the last item of the single sequence, so it
+            // is legitimately below the fold until the body is scrolled. What must
+            // be true is that it is IN that sequence and reachable by its one
+            // scrollbar — not pinned on screen at the cost of the widgets (D-200).
             var trace = TracePanel(window);
             Assert.True(trace.IsEffectivelyVisible, "the trace panel must be visible after a run");
 
-            var host = window.Bounds.Height;
-            var top = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
-            var bottom = trace.TranslatePoint(
-                new Point(0, trace.Bounds.Height), window)!.Value.Y;
+            var scroller = ResultsScroller(window);
+            Assert.Contains(
+                scroller,
+                trace.GetVisualAncestors().OfType<ScrollViewer>());
 
-            Assert.True(top >= 0, $"the trace panel starts at y={top:F1}, above the window top");
+            double before = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            window.UpdateLayout();
+            double after = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
             Assert.True(
-                bottom <= host + 0.5,
-                $"the trace panel ends at y={bottom:F1} in a {host:F1}px window — it is laid out off-screen");
+                after < before,
+                $"scrolling the body did not move the trace: {before:F1} -> {after:F1}");
 
-            // And it is not inside the scrolling body: a trace that scrolls away is
-            // not a trace you can read while reading anything else (D-170).
-            var scroller = WidgetScroller(window);
-            Assert.False(
-                trace.GetVisualAncestors().OfType<ScrollViewer>().Contains(scroller),
-                "the trace must be a sibling of the widget ScrollViewer, not a child of it");
-
-            // Its RENDERED content is the run's own trace. Asserted on the TextBlock
-            // because that is what the user reads: the view-model property can be
+            // Its RENDERED content is the run's own trace. Asserted on the realised
+            // rows because that is what the user reads: the view-model property can be
             // correct while the binding never re-evaluates, which is exactly the bug
             // this test now exists to catch (D-194).
-            Assert.Contains("ARRIVAL", RenderedTraceText(window));
+            Assert.Contains(
+                "ARRIVAL",
+                string.Join(" ", RenderedTraceRows(window)),
+                StringComparison.Ordinal);
         }
         finally
         {
@@ -280,26 +305,24 @@ public class ResultsPanelBufferTraceTests
             vm.CompleteRun(CompletedOutcome());
             window.UpdateLayout();
 
-            var rows = RenderedTraceRows(window);
+            // A virtualised table only realises the rows near the top, so the END
+            // of a multi-thousand-row trace is asserted on the projection that the
+            // table is bound to. Rendering is proven separately by the first-row
+            // test above and by Phase8T4TraceTableTests; what this test owns is
+            // ordering — that the run's story finishes on its last completion.
+            var rows = vm.TraceRows;
             Assert.NotEmpty(rows);
 
-            // The final non-blank row carries a completion marker for the stage that
-            // finished last.
-            var last = rows.Last(r => r.Trim().Length > 0);
+            var last = rows[^1];
             Assert.True(
-                last.Contains("END") || last.Contains("EXIT"),
-                $"the trace's last row should be a service completion or exit, but was: {last}");
+                last.Type is "END_SVC" or "EXIT",
+                $"the trace's last row should be a service completion or exit, but was: {last.Type}");
         }
         finally
         {
             window.Close();
         }
     }
-
-    /// <summary>The trace body split into its rendered rows, in order.</summary>
-    private static string[] RenderedTraceRows(Window window) =>
-        RenderedTraceText(window).Split(
-            new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>The patient id column of a rendered trace row ("P12"), or null.</summary>
     private static string? PatientId(string row)
@@ -350,34 +373,37 @@ public class ResultsPanelBufferTraceTests
     }
 
     [AvaloniaFact]
-    public void ResultsPanel_EventTrace_HasFixedMaxHeight()
+    public void ResultsPanel_EventTrace_HasNoPinnedHeight_AndEndsTheSequence()
     {
         var vm = CompletedRun();
         var window = Host(vm);
         try
         {
-
-            // Phase 8S (D-195): the ceiling was 240 px, and at 240 the pinned box
-            // left the scrolling middle only 101 px in a 420 px window, which the
-            // owner reported as the header and trace crowding the content. Phase 8T.1
-            // lowered it to 200 px when the session-caption line made the three rows
-            // 6 px too tall at 420 px; the pinned box gives up space under pressure,
-            // the middle row does not. Asserted as a real bound: a MaxHeight that
-            // never bites leaves the panel growing unbounded and pushing the widgets
-            // off. Phase 8T.5 replaces this row, and with it this clause.
             var trace = TracePanel(window);
-            Assert.Equal(200d, trace.MaxHeight);
+            var scroller = ResultsScroller(window);
 
-            // With a long trace the panel must clamp to it, not exceed it.
-            var host = window.Bounds.Height;
-            var bottom = trace.TranslatePoint(
-                new Point(0, trace.Bounds.Height), window)!.Value.Y;
+            // FR-UI-37 withdraws the 200 px ceiling along with the pinned row.
+            // The trace is as tall as its rows; the body scrolls through it.
             Assert.True(
-                trace.Bounds.Height <= 200.5,
-                $"the trace panel rendered at {trace.Bounds.Height:F1}px, above its 200px ceiling");
+                double.IsPositiveInfinity(trace.MaxHeight),
+                $"the trace still declares MaxHeight={trace.MaxHeight} — the withdrawn ceiling is back");
             Assert.True(
-                bottom <= host + 0.5,
-                $"the trace panel ends at y={bottom:F1} in a {host:F1}px window");
+                trace.Bounds.Height > 208.5,
+                $"the trace rendered at {trace.Bounds.Height:F1}px — it is still clamped to a pinned height");
+
+            // It is inside the one scroller, and it is the last content item,
+            // immediately before the bottom buffer.
+            Assert.Contains(
+                scroller,
+                trace.GetVisualAncestors().OfType<ScrollViewer>());
+
+            var content = trace.GetVisualParent() as Panel;
+            Assert.NotNull(content);
+            int index = content!.Children.IndexOf(trace);
+            Assert.True(index >= 0, "the trace is not a child of the results sequence");
+            Assert.IsType<Border>(content.Children[index + 1]);
+            Assert.Equal("ResultsBottomBuffer", ((Border)content.Children[index + 1]).Name);
+            Assert.Equal(content.Children.Count - 2, index);
         }
         finally
         {
@@ -386,28 +412,33 @@ public class ResultsPanelBufferTraceTests
     }
 
     [AvaloniaFact]
-    public void ResultsPanel_EventTrace_InternallyScrollable()
+    public void ResultsPanel_EventTrace_ScrollsWithTheBody_NotIndependently()
     {
         var vm = CompletedRun();
         var window = Host(vm);
         try
         {
-
             var trace = TracePanel(window);
-            var inner = trace.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            var scroller = ResultsScroller(window);
 
-            // The trace must be able to scroll INSIDE its own box. Without this the
-            // outer panel is the only scroller and a long trace pushes the widgets
-            // away instead of scrolling in place.
+            // FR-UI-37: exactly one scroll region. The table owns no ScrollViewer,
+            // so the wheel over the trace scrolls the whole panel — it cannot sit
+            // still while the widgets above it move.
+            Assert.Empty(trace.GetVisualDescendants().OfType<ScrollViewer>());
+
             Assert.True(
-                inner.Extent.Height > inner.Viewport.Height,
-                $"the trace does not scroll in place: extent {inner.Extent.Height:F1} "
-                    + $"vs viewport {inner.Viewport.Height:F1}");
+                scroller.Extent.Height > scroller.Viewport.Height,
+                $"the results body does not overflow: extent {scroller.Extent.Height:F1} "
+                    + $"vs viewport {scroller.Viewport.Height:F1}");
 
-            // Vertical scrolling is offered; the mono lines are long and need
-            // horizontal too.
-            Assert.Equal(ScrollBarVisibility.Auto, inner.VerticalScrollBarVisibility);
-            Assert.Equal(ScrollBarVisibility.Auto, inner.HorizontalScrollBarVisibility);
+            double before = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            window.UpdateLayout();
+            double after = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+
+            Assert.True(
+                after < before,
+                $"the trace did not move with the body: {before:F1} -> {after:F1}");
         }
         finally
         {
@@ -504,34 +535,19 @@ public class ResultsPanelBufferTraceTests
     }
 
     /// <summary>
-    /// The panel's own scrolling body (grid row 1). Named in the XAML rather than
-    /// guessed from the visual tree: there are now two ScrollViewers in this panel,
-    /// and "the one containing the widgets" is a description that silently picks the
-    /// wrong one the day the trace is restyled.
+    /// The panel's single scrolling body (FR-UI-37). Named in the XAML rather
+    /// than guessed from the visual tree: a text box or a dropdown in the panel
+    /// brings its own ScrollViewer, so "the one with the most children" is a
+    /// description that silently picks the wrong element.
     /// </summary>
-    private static ScrollViewer WidgetScroller(Window window) =>
+    private static ScrollViewer ResultsScroller(Window window) =>
         window.GetVisualDescendants().OfType<ScrollViewer>()
-            .Single(s => s.Name == "WidgetScroller");
+            .Single(s => s.Name == "ResultsScroller");
 
-    /// <summary>The pinned trace panel: the bordered container in grid row 2.</summary>
-    private static Border TracePanel(Window window)
-    {
-        var panel = window.GetVisualDescendants().OfType<ResultsPanel>().First();
-        var scroller = WidgetScroller(window);
-
-        // The sibling that sits AFTER the widget ScrollViewer is the trace panel.
-        var host = scroller.GetVisualParent() as Panel;
-        Assert.NotNull(host);
-        var index = host!.Children.IndexOf(scroller);
-        Assert.True(
-            index >= 0 && index + 1 < host.Children.Count,
-            "the trace panel must follow the widget ScrollViewer in grid row 2");
-
-        var trace = host.Children[index + 1] as Border;
-        Assert.NotNull(trace);
-        Assert.NotNull(panel);
-        return trace!;
-    }
+    /// <summary>The event-trace card: the last item of the single sequence.</summary>
+    private static Border TracePanel(Window window) =>
+        window.GetVisualDescendants().OfType<Border>()
+            .First(b => b.Classes.Contains("results-trace-panel"));
 
     private static string FindRepoRoot(string start)
     {

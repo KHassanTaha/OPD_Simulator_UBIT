@@ -34,9 +34,21 @@
             </ContentControl.ContentTemplate>
         </ContentControl>
 
-        <!-- Results once a run starts. Header + widget picker stay pinned; the
-             widgets themselves scroll (5c.1). -->
-        <Grid IsVisible="{Binding HasRun}" RowDefinitions="Auto,*,Auto">
+        <!-- Results once a run starts. Phase 8T.5 (FR-UI-37, D-200): ONE scroll
+             region for the whole body. The run header, the widget picker, every
+             widget and the event trace are items of one sequence, in that order.
+             Nothing is pinned, so a short window scrolls the whole panel instead
+             of crushing one row. -->
+        <ScrollViewer x:Name="ResultsScroller"
+                      IsHitTestVisible="{Binding HasRun}"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <!-- HasRun stays on the content, not on the ScrollViewer: a collapsed
+                 ScrollViewer never applies its template, so the header and the
+                 Customise picker would not exist in the visual tree before the
+                 first run — and FR-UI-21's startup tests read them there. -->
+            <StackPanel Spacing="{DynamicResource SpaceM}"
+                        IsVisible="{Binding HasRun}">
             <StackPanel Margin="16,16,16,0" Spacing="{DynamicResource SpaceM}">
 
             <!-- Run header + customise toggle. -->
@@ -94,24 +106,11 @@
             </Border>
             </StackPanel>
 
-            <!-- Scrollable widget area (5c.1): metrics, utilisation, chi-square
-                 scroll here; the selector row above and the event trace below
-                 stay pinned. The data preview moved to the Input tab in Phase 7D.
-                 8Q.4 (D-184): the trace left this ScrollViewer for grid row 2, so
-                 "scroll here" no longer includes it. -->
-            <!-- Phase 8S (D-195): the 120 px floor is what the owner review asked
-                 for. Row 1 is a * row between two Auto rows, so on a short window it
-                 absorbs every pixel the pinned rows do not want — measured at 101 px
-                 at a 420 px window, which is a strip of widgets rather than a
-                 readable area. The floor guarantees a usable middle, and because the
-                 two pinned rows are Auto and capped, the window scrolls rather than
-                 crushing this row further. -->
-            <ScrollViewer x:Name="WidgetScroller"
-                          Grid.Row="1"
-                          MinHeight="120"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
+            <!-- The widget area. Phase 8T.5: this used to be the `*` row of an
+                 Auto,*,Auto grid with its own ScrollViewer. It is now a plain
+                 block in the single results sequence — the outer ResultsScroller
+                 owns the only scrollbar (FR-UI-37). -->
+            <StackPanel Margin="16" Spacing="{DynamicResource SpaceM}">
 
             <!-- Running progress. -->
             <StackPanel Spacing="4" IsVisible="{Binding IsBusy}">
@@ -425,6 +424,13 @@
                     <TextBlock Text="{Binding QueueLengthCaption}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
+                    <controls:SearchableDropdown Label="Operating session"
+                                                 Placeholder="Choose a session…"
+                                                 Tooltip="Plot one operating session on a 0–165 minute axis, or every session on the absolute clock"
+                                                 Items="{Binding QueueSessionNames}"
+                                                 SelectedItem="{Binding SelectedQueueSession, Mode=TwoWay}"
+                                                 IsVisible="{Binding ShowQueueSessionSelector}"
+                                                 HelpAnchor="queue-length-chart"/>
                     <TextBlock Text="Run a simulation to see queue length over time."
                                IsVisible="{Binding ShowQueueLengthEmptyState}"
                                FontSize="{DynamicResource FontSizeCaption}"
@@ -654,82 +660,136 @@
                 </StackPanel>
             </Border>
 
-        <!-- The bottom buffer (8Q.4, D-184). The last widget must be able to
-                 travel clear of the panel's bottom edge, so the scrollable
-                 content ends in a real element the extent accounts for. Height is
-                 the SpaceXl token, so it restyles with the theme (§16.3).
+            </StackPanel>
 
-                 NOT ScrollViewer.Padding: padding on a ScrollViewer sits OUTSIDE
-                 the scroll extent, so it would shrink the viewport instead of
-                 extending the content, and the last row would still be unable to
-                 reach the top. That is the D-142 trap. -->
-            <Border x:Name="ResultsBottomBuffer"
-                    Height="{DynamicResource SpaceXl}"/>
-
-        </StackPanel>
-            </ScrollViewer>
-
-            <!-- Row 2: the event trace (8Q.4, D-184, FR-UI-35). A SIBLING of the
-                 ScrollViewer, never its child, for the same reason D-170 gave for
-                 the calculations dialog's footer: a trace that scrolls away is not
-                 a trace the user can read while reading anything else, and
-                 scrolling the body can never take it out of reach. The ceiling is what
-                 keeps it pinned without stealing the widgets' space — below it
-                 the inner ScrollViewer scrolls.
-
-                 Phase 8S (D-195): the ceiling was 240 px, and at a 420 px window
-                 that starved the scrolling middle down to 101 px, which read to the
-                 owner as the header and the trace overlapping the content. Measured:
-                 the rows tiled exactly and never overlapped; the middle was simply
-                 squeezed. The ceiling is now 200 px, still above the inner
-                 ScrollViewer's own 176 px, so the box gives up only the heading
-                 chrome it cannot scroll away and no more. The 120 px MinHeight
-                 keeps the trace readable at its smallest.
-
-                 Phase 8T.1: 208 -> 200. The run header gained a fourth line naming
-                 the resolved operating sessions (FR-SIM-12), which pushed the three
-                 rows to 426 px in a 420 px window, and Avalonia's Grid then shrank
-                 the Auto header row by 3 px so the header and the scrolling middle
-                 overlapped. The pinned trace box is the row that is meant to give up
-                 space under pressure, so it gives up 8 px; the middle row keeps its
-                 120 px floor. Phase 8T.5 deletes this row, and with it this ceiling. -->
-            <Border Grid.Row="2"
-                    Classes="results-trace-panel"
+            <!-- The event trace (FR-UI-35 + FR-UI-39). Phase 8T.5: it is the LAST
+                 item of the single results sequence, not a pinned grid row. Last is
+                 the one placement no widget added later can push out, which is
+                 D-184's worry answered without spending viewport (D-200). The old
+                 200 px ceiling and its inner ScrollViewer are withdrawn; the table
+                 is virtualised against the outer ResultsScroller instead, so the
+                 whole body still has exactly one scrollbar. -->
+            <Border Classes="results-trace-panel"
                     Margin="16,0"
                     Padding="{DynamicResource ThicknessSpaceM}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
                     BorderThickness="1,1,1,0"
-                    CornerRadius="{DynamicResource CornerRadiusM}"
-                    MinHeight="120"
-                    MaxHeight="200">
-                <Grid RowDefinitions="Auto,Auto,*">
+                    CornerRadius="{DynamicResource CornerRadiusM}">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto">
                     <!-- One heading, and one caption. 8D.1 shipped a group heading
                          here and M4 shipped an inner label, so the trace carried
                          two labels saying the same thing (D-184). -->
-                    <TextBlock Text="Event Trace"
-                               FontSize="{DynamicResource FontSizeTitle}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource BrushTextPrimary}"
-                               Margin="0,0,0,4"/>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Text="Event Trace"
+                                   FontSize="{DynamicResource FontSizeTitle}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
+                                   Margin="0,0,0,4"/>
+                        <!-- FR-STAT-10: one muted side note, naming both reasons
+                             arrivals were refused. A bare count would read as a
+                             defect, because on a multi-day run it is larger than
+                             the admitted count. -->
+                        <TextBlock Grid.Column="1"
+                                   x:Name="NotAdmittedNoteText"
+                                   Text="{Binding NotAdmittedNote}"
+                                   IsVisible="{Binding HasNotAdmittedNote}"
+                                   Margin="12,0,0,4"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextMuted}"/>
+                    </Grid>
                     <TextBlock Grid.Row="1"
                                Text="{x:Static vm:ResultsPanelViewModel.TracePanelCaption}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextMuted}"
                                Margin="0,0,0,8"/>
-                    <ScrollViewer Grid.Row="2"
-                                  HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Auto"
-                                  MaxHeight="176">
-                        <SelectableTextBlock x:Name="TraceBodyText"
-                                             Text="{Binding TraceBody}"
-                                             FontFamily="{DynamicResource FontFamilyMono}"
-                                             FontSize="{DynamicResource FontSizeCaption}"
-                                             Foreground="{DynamicResource BrushTextPrimary}"
-                                             TextWrapping="Wrap"/>
-                    </ScrollViewer>
+
+                    <!-- The table header. Its column definitions must stay in
+                         lock-step with the row template below; a test asserts the
+                         two grids declare the same number of columns. -->
+                    <Border Grid.Row="2"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="0,1,0,1"
+                            Padding="0,3">
+                        <Grid x:Name="TraceHeaderGrid" ColumnDefinitions="44,76,80,94,64,100,54,54,*">
+                            <TextBlock Grid.Column="0" Text="#" Classes="TraceHeader" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="1" Text="Time (min)" Classes="TraceHeader" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="2" Text="Clock" Classes="TraceHeader"/>
+                            <TextBlock Grid.Column="3" Text="Type" Classes="TraceHeader"/>
+                            <TextBlock Grid.Column="4" Text="Patient" Classes="TraceHeader"/>
+                            <TextBlock Grid.Column="5" Text="Stage" Classes="TraceHeader"/>
+                            <TextBlock Grid.Column="6" Text="Server" Classes="TraceHeader" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="7" Text="Queue" Classes="TraceHeader" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="8" Text="Detail" Classes="TraceHeader"/>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="3">
+                        <TextBlock Text="No trace was recorded for this run."
+                                   IsVisible="{Binding !HasTraceRows}"
+                                   FontSize="{DynamicResource FontSizeCaption}"
+                                   Foreground="{DynamicResource BrushTextMuted}"/>
+                        <!-- FR-UI-39/NFR-11: every row is a structured TraceRow,
+                             and the virtualising panel realises only the rows in
+                             the viewport — never one control per event. This is
+                             the same pattern as the 10k-row data preview, but the
+                             scroller is the panel's outer ResultsScroller: the
+                             table must not scroll independently of the body
+                             (FR-UI-37), so it has no ScrollViewer of its own. -->
+                        <ItemsControl x:Name="TraceRowList"
+                                      ItemsSource="{Binding TraceRows}"
+                                      IsVisible="{Binding HasTraceRows}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TraceRow">
+                                    <Border Classes="trace-row"
+                                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="0,2">
+                                        <Grid ColumnDefinitions="44,76,80,94,64,100,54,54,*">
+                                            <SelectableTextBlock Grid.Column="0" Text="{Binding SerialNumber}"
+                                                                 Classes="TraceCell" TextAlignment="Right"/>
+                                            <SelectableTextBlock Grid.Column="1" Text="{Binding Time}"
+                                                                 Classes="TraceCell" TextAlignment="Right"/>
+                                            <SelectableTextBlock Grid.Column="2" Text="{Binding Clock}"
+                                                                 Classes="TraceCell"/>
+                                            <SelectableTextBlock Grid.Column="3" Text="{Binding Type}"
+                                                                 Classes="TraceCell"/>
+                                            <SelectableTextBlock Grid.Column="4" Text="{Binding Patient}"
+                                                                 Classes="TraceCell"/>
+                                            <SelectableTextBlock Grid.Column="5" Text="{Binding Stage}"
+                                                                 Classes="TraceCell" TextTrimming="CharacterEllipsis"/>
+                                            <SelectableTextBlock Grid.Column="6" Text="{Binding Server}"
+                                                                 Classes="TraceCell" TextAlignment="Right"/>
+                                            <SelectableTextBlock Grid.Column="7" Text="{Binding Queue}"
+                                                                 Classes="TraceCell" TextAlignment="Right"/>
+                                            <SelectableTextBlock Grid.Column="8" Text="{Binding Detail}"
+                                                                 Classes="TraceCell" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
                 </Grid>
             </Border>
-        </Grid>
+
+            <!-- The bottom buffer (FR-UI-37, D-198/D-200). The sequence ends in a
+                 real element so the trace's last row can travel clear of the
+                 panel's bottom edge. NOT ScrollViewer.Padding: padding sits
+                 outside the scroll extent and shrinks the viewport instead
+                 (D-142). Height is the SpaceXl token, so it restyles with the
+                 theme (§16.3). -->
+            <Border x:Name="ResultsBottomBuffer"
+                    Height="{DynamicResource SpaceXl}"/>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -153,13 +154,24 @@ public class Phase5RunFlowTests
             vm.CompleteRun(outcome);
             window.UpdateLayout();
 
-            var rendered = window.GetVisualDescendants()
-                .OfType<SelectableTextBlock>()
-                .Single(t => t.Name == "TraceBodyText")
-                .Text ?? string.Empty;
+            var table = window.GetVisualDescendants().OfType<ItemsControl>()
+                .Single(c => c.Name == "TraceRowList");
+            var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+                .Single(s => s.Name == "ResultsScroller");
+            var trace = window.GetVisualDescendants().OfType<Border>()
+                .First(b => b.Classes.Contains("results-trace-panel"));
+            scroller.Offset = new Vector(
+                0,
+                trace.TranslatePoint(new Point(0, 0), scroller)!.Value.Y + scroller.Offset.Y);
+            window.UpdateLayout();
 
-            Assert.Contains("ARRIVAL", rendered, StringComparison.Ordinal);
-            Assert.NotEqual("No trace was recorded for this run.", rendered);
+            var realisedText = string.Join(
+                " ",
+                table.GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Select(t => t.Text ?? string.Empty));
+
+            Assert.Contains("ARRIVAL", realisedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("No trace was recorded for this run.", realisedText, StringComparison.Ordinal);
         }
         finally
         {

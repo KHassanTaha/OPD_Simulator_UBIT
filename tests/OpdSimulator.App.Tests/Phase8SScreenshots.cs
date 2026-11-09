@@ -5,8 +5,13 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.VisualTree;
+using LiveChartsCore.SkiaSharpView.Avalonia;
+using OpdSimulator.App.Controls;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
@@ -54,35 +59,161 @@ public sealed class Phase8SScreenshots
         });
     }
 
-    // ------------------------------------------------------------- issue 2
+    // ------------------------------------------------------------- issue 2 (8T.5)
 
     [AvaloniaFact]
-    public void Render_ShortWindowLayout_SavePhase8sResultsLayoutPng()
+    public void Render_ShortWindowOneSequence_SavePhase8T5ResultsSequencePng()
     {
-        // The size the owner reported: short enough that the pinned rows used to
-        // squeeze the scrolling middle down to 101 px.
-        Capture("phase-8s-results-layout.png", 420, main =>
+        // The size the owner reported. Phase 8T.5 withdraws the pinned rows: at
+        // 420 px there is no "scrolling middle" left to starve — the whole panel
+        // scrolls as one sequence, header first and trace last (FR-UI-37, D-200).
+        // New filename: the phase-8s frame remains evidence of the layout it
+        // recorded (D-166).
+        Capture("phase-8t5-results-one-sequence.png", 420, main =>
         {
             var window = WindowOf(main);
             var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Name == "WidgetScroller");
+                .Single(s => s.Name == "ResultsScroller");
             var trace = window.GetVisualDescendants().OfType<Border>()
                 .First(b => b.Classes.Contains("results-trace-panel"));
 
-            Assert.True(scroller.Bounds.Height >= 120,
-                $"middle row was {scroller.Bounds.Height:F0}px at a 420px window");
-            Assert.True(trace.Bounds.Height <= 208.5,
-                $"trace panel was {trace.Bounds.Height:F0}px, over its 208px ceiling");
+            Assert.True(
+                scroller.Extent.Height > scroller.Viewport.Height,
+                $"the sequence must overflow a 420px window: extent {scroller.Extent.Height:F0}, "
+                    + $"viewport {scroller.Viewport.Height:F0}");
+
+            // The header is the first item of the sequence, not a band above it.
+            double headerTop = mainHeaderTop(main, window);
+            Assert.InRange(headerTop, 0, scroller.Viewport.Height);
+
+            // The trace is last: below the fold at offset 0, reachable by the one
+            // scrollbar, and not owned by a scroller of its own.
+            double traceTop = trace.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            Assert.True(
+                traceTop > scroller.Viewport.Height,
+                $"the trace starts at y={traceTop:F0} — it should be the last item, below the fold");
+            Assert.Empty(trace.GetVisualDescendants().OfType<ScrollViewer>());
+
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            window.UpdateLayout();
+            double traceBottom = trace.TranslatePoint(
+                new Point(0, trace.Bounds.Height), window)!.Value.Y;
+            Assert.True(
+                traceBottom <= window.Bounds.Height + 0.5,
+                $"after scrolling to the end the trace ends at y={traceBottom:F0} in a "
+                    + $"{window.Bounds.Height:F0}px window");
+
+            // Back to the top for the frame: it records the header-first sequence.
+            scroller.Offset = new Vector(0, 0);
+            window.UpdateLayout();
         });
+    }
+
+    /// <summary>The run summary's top edge, in window coordinates.</summary>
+    private static double mainHeaderTop(MainViewModel main, Window window)
+    {
+        var text = window.GetVisualDescendants().OfType<TextBlock>()
+            .First(t => t.Text == main.Results.RunSummary);
+        return text.TranslatePoint(new Point(0, 0), window)!.Value.Y;
     }
 
     // ------------------------------------------------------------- issue 3
 
     [AvaloniaFact]
-    public void Render_TraceAfterRun_SavePhase8sEventTracePopulatedPng()
+    public void Render_QueueSessionSelected_SavePhase8T3QueueSessionPng()
+    {
+        // FR-UI-40 / D-203 verification: a 3-session run, then the user opens the
+        // "Operating session" dropdown with the keyboard, types the session name
+        // and presses Enter. The commit path is the production one; the chart is
+        // asserted to be rebased to 0…165 and the frame records the selector in
+        // its selected state.
+        var window = new MainWindow();
+        window.Width = 1200;
+        window.Height = 900;
+        window.Show();
+        try
+        {
+            var main = Assert.IsType<MainViewModel>(window.DataContext);
+            RunThreeStageMultiDay(main, new[] { 2, 4, 5 }, "0.8, 0.5, 0.4");
+            window.UpdateLayout();
+
+            var dropdown = window.GetVisualDescendants().OfType<SearchableDropdown>()
+                .Single(d => d.Label == "Operating session");
+            Assert.True(dropdown.IsEffectivelyVisible, "the session selector must be offered after a multi-session run");
+
+            // The results body is one sequence now, so the selector is below the
+            // fold at offset 0. Put it on screen BEFORE focusing it: a control
+            // outside the viewport cannot take focus, and the popup opens from
+            // the filter box's GotFocus handler.
+            var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+                .Single(s => s.Name == "ResultsScroller");
+            scroller.Offset = new Vector(
+                0,
+                dropdown.TranslatePoint(new Point(0, 0), scroller)!.Value.Y
+                    + scroller.Offset.Y - 40);
+            window.UpdateLayout();
+
+            var filter = dropdown.GetVisualDescendants().OfType<TextBox>()
+                .Single(t => t.Name == "FilterBox");
+            Assert.True(filter.Focus(), "the session dropdown's filter box must take focus");
+
+            // Open the popup through the same handler the keyboard uses. The real
+            // GotFocus may already have fired during Show(), so raise it
+            // explicitly rather than depend on headless focus order.
+            filter.RaiseEvent(new GotFocusEventArgs());
+            window.UpdateLayout();
+
+            // The popup opens from the filter box's GotFocus handler, which moves
+            // focus to the item list. The list lives inside the popup's child, not
+            // in the dropdown's own visual subtree — read it the way the control
+            // does (ControlsSmokeTests uses the same route).
+            var popup = dropdown.GetVisualDescendants().OfType<Popup>().Single();
+            Assert.True(popup.IsOpen, "the session dropdown's popup must open");
+            var list = ((Border)popup.Child!).FindDescendantOfType<ListBox>()!;
+            Assert.True(list.ItemCount > 0, "the session selector must offer its options");
+
+            filter.Text = "Day 3 (Tue)";
+            // Headless: setting Text does not raise TextChanged, so raise it the
+            // way ControlsSmokeTests does — otherwise the filter never runs.
+            filter.RaiseEvent(new TextChangedEventArgs(TextBox.TextChangedEvent));
+            window.UpdateLayout();
+            Assert.True(
+                list.SelectedItem is "Day 3 (Tue)",
+                $"filter left {list.ItemCount} item(s) with selection '{list.SelectedItem}'. "
+                    + $"Options: [{string.Join(" | ", dropdown.Items ?? Array.Empty<string>())}]");
+
+            list.RaiseEvent(new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = Key.Enter,
+            });
+            window.UpdateLayout();
+
+            Assert.Equal("Day 3 (Tue)", dropdown.SelectedItem);
+            Assert.Equal("Day 3 (Tue)", main.Results.SelectedQueueSession);
+
+            var chart = Assert.IsType<CartesianChart>(main.Results.QueueLengthChart);
+            var axis = chart.XAxes.Single();
+            Assert.Equal(0d, axis.MinLimit);
+            Assert.Equal(165d, axis.MaxLimit);
+
+            Save(window, "phase-8t3-queue-session-selected.png");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // ------------------------------------------------------------- issue 3 (cont.)
+
+    [AvaloniaFact]
+    public void Render_TraceAfterRun_SavePhase8T4EventTraceTablePng()
     {
         // The window is on screen BEFORE the run, which is the order the app is in and
-        // the order the old test got wrong.
+        // the order the old test got wrong. Phase 8T.4 replaces the single text block
+        // with a virtualised table, so this frame is written under a NEW name: the
+        // old phase-8s frame is evidence that the pre-table defect existed (D-166).
         var window = new MainWindow();
         window.Width = 1200;
         window.Height = 900;
@@ -97,16 +228,36 @@ public sealed class Phase8SScreenshots
             RunThreeStage(main, new[] { 2, 4, 5 }, "0.8, 0.5, 0.4");
             window.UpdateLayout();
 
-            var rendered = window.GetVisualDescendants().OfType<SelectableTextBlock>()
-                .Single(t => t.Name == "TraceBodyText")
-                .Text ?? string.Empty;
+            var table = window.GetVisualDescendants().OfType<ItemsControl>()
+                .Single(c => c.Name == "TraceRowList");
+            var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+                .Single(s => s.Name == "ResultsScroller");
+            var trace = window.GetVisualDescendants().OfType<Border>()
+                .First(b => b.Classes.Contains("results-trace-panel"));
 
+            // FR-UI-37: the trace is last in the one sequence, so the frame must
+            // scroll the single region to it before the table realises any rows.
+            scroller.Offset = new Vector(
+                0,
+                trace.TranslatePoint(new Point(0, 0), scroller)!.Value.Y + scroller.Offset.Y);
+            window.UpdateLayout();
+
+            var realised = table.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Presenters.ContentPresenter>()
+                .Where(p => p.Content is TraceRow)
+                .ToList();
+            Assert.NotEmpty(realised);
+            Assert.Empty(table.GetVisualDescendants().OfType<ScrollViewer>());
+
+            var rendered = string.Join(
+                " ",
+                realised[0].GetVisualDescendants().OfType<SelectableTextBlock>()
+                    .Select(t => t.Text ?? string.Empty));
             Assert.Contains("ARRIVAL", rendered, StringComparison.Ordinal);
-            Assert.NotEqual("No trace was recorded for this run.", rendered);
-            Assert.True(rendered.Length > 1000,
-                $"the rendered trace is only {rendered.Length} characters — it is not the run's trace");
+            Assert.True(main.Results.TraceRows.Count > 100,
+                $"the trace table holds only {main.Results.TraceRows.Count} rows — it is not the run's trace");
 
-            Save(window, "phase-8s-event-trace-populated.png");
+            Save(window, "phase-8t4-event-trace-table.png");
         }
         finally
         {
@@ -195,6 +346,42 @@ public sealed class Phase8SScreenshots
         var outcome = SimulationCoordinator.Run(parameters, binding);
         Assert.Null(outcome.Error);
         Assert.NotNull(outcome.Result);
+
+        main.Results.StartRun();
+        main.Results.CompleteRun(outcome, parameters, "fitted from sample_3stage_clinic.csv");
+    }
+
+    /// <summary>
+    /// A three-session run from Saturday, so the queue widget offers one entry
+    /// per open session (FR-UI-40, D-203).
+    /// </summary>
+    private static void RunThreeStageMultiDay(MainViewModel main, int[] servers, string mu)
+    {
+        var binding = DataAnalyzer.Analyze(SamplePath("sample_3stage_clinic.csv"));
+        Assert.True(binding.IsUsable, "the multi-stage sample must analyse cleanly");
+
+        var config = new ConfigPanelViewModel
+        {
+            IsSingleDay = false,
+            IsMultiDay = true,
+            StartDay = "Saturday",
+        };
+        config.ParametersIsOptionalEnabled = true;
+        config.ManualLambda.Value = "0.1";
+        config.ManualMuPerStage.Value = mu;
+        config.Days.Value = "3";
+        for (int i = 0; i < servers.Length && i < config.StageRows.Count; i++)
+        {
+            config.StageRows[i].Servers.Value = servers[i].ToString();
+        }
+
+        var parameters = config.TryBuildRunParameters()!;
+        Assert.Equal(RunMode.MultiDay, parameters.RunMode);
+        var outcome = SimulationCoordinator.Run(parameters, binding);
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Result);
+        Assert.True(outcome.Result!.Sessions.Count >= 3,
+            $"the frame needs at least three open sessions, got {outcome.Result.Sessions.Count}");
 
         main.Results.StartRun();
         main.Results.CompleteRun(outcome, parameters, "fitted from sample_3stage_clinic.csv");

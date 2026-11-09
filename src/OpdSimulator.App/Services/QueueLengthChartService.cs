@@ -1,5 +1,6 @@
 namespace OpdSimulator.App.Services;
 
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Engine;
 
 /// <summary>
@@ -40,6 +41,14 @@ public sealed record QueueLengthChartData(
     /// <summary>An empty card shown before the first run.</summary>
     public static QueueLengthChartData Empty { get; } =
         new(false, Array.Empty<QueueStageSeries>());
+
+    /// <summary>
+    /// When one operating session is selected, the length of that session in
+    /// minutes; the X axis is then pinned to <c>0 … XAxisMaximum</c>. Null for
+    /// "All sessions", whose axis spans the whole run's absolute clock
+    /// (FR-UI-40).
+    /// </summary>
+    public double? XAxisMaximum { get; init; }
 }
 
 /// <summary>
@@ -71,9 +80,45 @@ public static class QueueLengthChartService
     /// <summary>Hard cap on rendered points per stage (FR-UI-4 P2, NFR-6).</summary>
     public const int MaxPoints = 2000;
 
+    /// <summary>Selector entry that plots every sample on the absolute clock.</summary>
+    public const string AllSessionsLabel = "All sessions";
+
     /// <summary>Fixed caption under the widget title.</summary>
     public const string Caption =
         "Queue length sampled once per processed event; each stage's series is downsampled to at most 2000 points.";
+
+    /// <summary>
+    /// Selector entries for the queue chart: <see cref="AllSessionsLabel"/>
+    /// followed by one <c>Day n (Weekday)</c> entry per operating session
+    /// (FR-UI-40). A closed day never appears because the list is read from
+    /// <see cref="SimulationResult.Sessions"/>, which already excludes it.
+    /// Returns an empty list for a plain horizon run (no sessions) and for a
+    /// null result, so the view hides the selector.
+    /// </summary>
+    /// <param name="result">The finished run, or null when the run was refused.</param>
+    public static IReadOnlyList<string> SessionOptions(SimulationResult? result)
+    {
+        if (result is null || result.Sessions.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var options = new List<string>(result.Sessions.Count + 1) { AllSessionsLabel };
+        foreach (var session in result.Sessions)
+        {
+            options.Add(SessionLabel(session));
+        }
+
+        return options;
+    }
+
+    /// <summary>
+    /// Formats a session the way the selector and the per-session tables label
+    /// it: <c>Day 3 (Tue)</c> (owner ruling 2026-10-04, FR-SIM-12/FR-UI-40).
+    /// </summary>
+    /// <param name="session">The session to label.</param>
+    public static string SessionLabel(ClinicSession session) =>
+        $"Day {session.Ordinal} ({WeekdayAbbreviation(session.DayOfWeek)})";
 
     /// <summary>
     /// Builds the chart data from a finished run. A null result (refused run,
@@ -81,7 +126,13 @@ public static class QueueLengthChartService
     /// simulation" empty state.
     /// </summary>
     /// <param name="result">The completed simulation result, or null when the run was refused.</param>
-    public static QueueLengthChartData Build(SimulationResult? result)
+    /// <param name="sessionLabel">
+    /// A label from <see cref="SessionOptions"/>. Null or
+    /// <see cref="AllSessionsLabel"/> plots every sample on the absolute clock;
+    /// any session label filters each stage's series to that session and
+    /// rebases time to minutes from the session opening (FR-UI-40).
+    /// </param>
+    public static QueueLengthChartData Build(SimulationResult? result, string? sessionLabel = null)
     {
         var series = new List<QueueStageSeries>();
         if (result is null)
@@ -89,20 +140,78 @@ public static class QueueLengthChartService
             return new QueueLengthChartData(false, series);
         }
 
+        ClinicSession? selected = FindSession(result, sessionLabel);
+        double sessionStart = selected is { } session
+            ? session.BlockIndex * ClinicCalendar.MinutesPerDay
+            : 0;
+        double sessionLength = result.SessionLengthMinutes > 0 ? result.SessionLengthMinutes : 0;
+        double sessionEnd = sessionStart + sessionLength;
+
         int pointCount = 0;
         int stageIndex = 0;
         foreach (var stage in result.StageMetrics)
         {
-            var points = Decimate(stage.QueueLengthSeries, MaxPoints)
-                .Select(sample => new QueueChartPoint(sample.Time, sample.Length))
+            IEnumerable<QueueSample> samples = stage.QueueLengthSeries;
+            if (selected is not null)
+            {
+                samples = samples.Where(s => s.Time >= sessionStart && s.Time <= sessionEnd);
+            }
+
+            // Decimation is applied per selection (FR-UI-40), so a filtered
+            // session never inherits the thinning chosen for the whole run.
+            var points = Decimate(samples.ToList(), MaxPoints)
+                .Select(sample => new QueueChartPoint(
+                    selected is null ? sample.Time : sample.Time - sessionStart,
+                    sample.Length))
                 .ToList();
             series.Add(new QueueStageSeries(stage.StageName, points) { StageIndex = stageIndex });
             pointCount += points.Count;
             stageIndex++;
         }
 
-        return new QueueLengthChartData(pointCount > 0, series);
+        // A filtered session with no samples still gets an axis: showing the
+        // empty 0…165 frame is truthful, while the "run a simulation" empty
+        // state would claim no run exists.
+        bool hasSeries = pointCount > 0 || (selected is not null && series.Count > 0);
+        return new QueueLengthChartData(hasSeries, series)
+        {
+            XAxisMaximum = selected is null ? null : sessionLength,
+        };
     }
+
+    /// <summary>
+    /// Resolves a selector label back to the session it names. An unknown label
+    /// falls back to "all sessions" rather than throwing: the selection is UI
+    /// state, and a stale label must not blank the widget.
+    /// </summary>
+    private static ClinicSession? FindSession(SimulationResult result, string? sessionLabel)
+    {
+        if (string.IsNullOrEmpty(sessionLabel) || sessionLabel == AllSessionsLabel)
+        {
+            return null;
+        }
+
+        foreach (var session in result.Sessions)
+        {
+            if (SessionLabel(session) == sessionLabel)
+            {
+                return session;
+            }
+        }
+
+        return null;
+    }
+
+    private static string WeekdayAbbreviation(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Mon",
+        DayOfWeek.Tuesday => "Tue",
+        DayOfWeek.Wednesday => "Wed",
+        DayOfWeek.Thursday => "Thu",
+        DayOfWeek.Friday => "Fri",
+        DayOfWeek.Saturday => "Sat",
+        _ => "Sun",
+    };
 
     /// <summary>
     /// Dollar-bucket min-max decimation (D-122): keeps the first and last

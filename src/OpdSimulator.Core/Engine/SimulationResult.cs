@@ -84,6 +84,20 @@ public sealed class SimulationResult
     public IReadOnlyList<int> AdmittedPerSession { get; init; } = Array.Empty<int>();
 
     /// <summary>
+    /// Arrival events the calendar gate generated and then refused (FR-STAT-10).
+    /// </summary>
+    /// <remarks>
+    /// Both rejection reasons are counted in this one total, and neither is
+    /// distinguished here: the arrival fell outside an operating session's
+    /// opening window, or that session's Screening cap was already met. The
+    /// split is deliberately out of scope (D-202). This is a run-level figure,
+    /// not a per-session one, because the generator rejects across whole
+    /// 1440-minute blocks. Always 0 for a plain horizon/diagnostic run, which
+    /// has no calendar gate.
+    /// </remarks>
+    public int NotAdmittedArrivals { get; init; }
+
+    /// <summary>
     /// Screening-bound admissions per operating session — the subset the daily cap
     /// actually constrains. A session can hold more entries here than
     /// <see cref="AdmittedPerSession"/> minus nothing: bypass arrivals land in

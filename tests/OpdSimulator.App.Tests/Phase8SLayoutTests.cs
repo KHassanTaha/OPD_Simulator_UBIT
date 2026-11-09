@@ -9,37 +9,40 @@ using Avalonia.VisualTree;
 using OpdSimulator.App.ViewModels;
 using Xunit;
 
-/// <summary>Phase 8S issue 2 — the pinned rows must not starve the scrolling middle.</summary>
+/// <summary>
+/// Phase 8T.5 — the results panel is one inline sequence (FR-UI-37, D-200).
+/// </summary>
+/// <remarks>
+/// The Phase 8S tests in this file measured the withdrawn <c>Auto,*,Auto</c>
+/// rows: a 120 px floor on the scrolling middle, exact tiling between three
+/// pinned rows, and a 200 px ceiling on the trace. FR-UI-37 withdraws all
+/// three, so these tests are replaced rather than repaired — a test that
+/// measured the ceiling would now pass against the very layout the phase
+/// removes.
+/// </remarks>
 public sealed class Phase8SLayoutTests
 {
-    private static (ScrollViewer Scroller, Border Trace, Control Header) Parts(Window w)
-    {
-        var scroller = w.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "WidgetScroller");
-        var host = (Panel)scroller.GetVisualParent()!;
-        var trace = host.Children.OfType<Border>()
+    private static ScrollViewer Scroller(Window w) =>
+        w.GetVisualDescendants().OfType<ScrollViewer>()
+            .Single(s => s.Name == "ResultsScroller");
+
+    private static Border Trace(Window w) =>
+        w.GetVisualDescendants().OfType<Border>()
             .First(b => b.Classes.Contains("results-trace-panel"));
 
-        // Row 0 is whatever else the pinned grid holds. Named by position rather than
-        // by type, because the header's internal layout is not this test's business.
-        var header = host.Children
-            .First(c => !ReferenceEquals(c, scroller) && !ReferenceEquals(c, trace));
+    private static TextBlock Header(Window w, ResultsPanelViewModel vm) =>
+        w.GetVisualDescendants().OfType<TextBlock>()
+            .First(t => t.Text == vm.RunSummary);
 
-        return (scroller, trace, header);
-    }
-
-    /// <summary>A control's top edge in window coordinates — what the user actually sees.</summary>
-    private static double TopInWindow(Control c, Window w) =>
-        c.TranslatePoint(new Point(0, 0), w)!.Value.Y;
-
-    /// <summary>A control's bottom edge in window coordinates.</summary>
-    private static double BottomInWindow(Control c, Window w) =>
-        c.TranslatePoint(new Point(0, c.Bounds.Height), w)!.Value.Y;
+    /// <summary>A control's top edge in the scroller's content coordinates.</summary>
+    private static double TopInContent(Control c, ScrollViewer s) =>
+        c.TranslatePoint(new Point(0, 0), s)!.Value.Y + s.Offset.Y;
 
     [AvaloniaTheory]
     [InlineData(760)]
     [InlineData(560)]
     [InlineData(420)]
-    public void ResultsLayout_MiddleRowKeepsAUsableHeightAtEveryWindowSize(int height)
+    public void ResultsSequence_IsOrderedHeaderThenWidgetsThenTrace(int height)
     {
         var vm = ResultsPanelBufferTraceTests.CompletedRun();
         var window = new Window { Width = 1200, Height = height, Content = new Views.ResultsPanel { DataContext = vm } };
@@ -47,29 +50,57 @@ public sealed class Phase8SLayoutTests
         window.UpdateLayout();
         try
         {
-            var (scroller, trace, header) = Parts(window);
+            var scroller = Scroller(window);
+            var trace = Trace(window);
+            var header = Header(window, vm);
+
+            // One scroll region: the trace owns no ScrollViewer of its own, so it
+            // cannot scroll independently of the widgets above it (FR-UI-37).
+            Assert.Empty(trace.GetVisualDescendants().OfType<ScrollViewer>());
+
+            // Measured in the scroller's content coordinates: the claim is about
+            // how the sequence is built, not about where the current scroll
+            // offset happens to put each item on screen.
+            double headerTop = TopInContent(header, scroller);
+            double traceTop = TopInContent(trace, scroller);
+            var metrics = window.GetVisualDescendants().OfType<TextBlock>()
+                .First(t => t.Text == "Performance Measures");
+            double metricsTop = TopInContent(metrics, scroller);
 
             Assert.True(
-                scroller.Bounds.Height >= 120,
-                $"at {height}px the scrolling middle was {scroller.Bounds.Height:F0}px — under the 120px floor");
-
-            // The owner's report was that the header and the trace overlay the middle.
-            // Measured in window coordinates, the three pinned rows tile instead: each
-            // one begins where the previous ended, and the trace stays inside the
-            // window. Position, not visibility flags — a row laid out off-screen still
-            // reports IsVisible=True (D-169).
-            Assert.Equal(BottomInWindow(header, window), TopInWindow(scroller, window), 1);
-            Assert.Equal(BottomInWindow(scroller, window), TopInWindow(trace, window), 1);
+                headerTop < metricsTop,
+                $"at {height}px the header sits at {headerTop:F0} and the widgets at {metricsTop:F0} — the header is not first");
             Assert.True(
-                BottomInWindow(trace, window) <= window.Bounds.Height + 0.5,
-                $"at {height}px the trace ends at y={BottomInWindow(trace, window):F1} in a " +
-                $"{window.Bounds.Height:F1}px window — it is laid out off-screen");
+                metricsTop < traceTop,
+                $"at {height}px the widgets sit at {metricsTop:F0} and the trace at {traceTop:F0} — the trace is not last");
 
-            // And the middle still scrolls rather than hiding its overflow.
+            // A short window scrolls the whole sequence rather than crushing one
+            // region: there is no region left to crush.
             Assert.True(
                 scroller.Extent.Height > scroller.Viewport.Height,
-                $"at {height}px the content ({scroller.Extent.Height:F0}px) fits the viewport " +
-                $"({scroller.Viewport.Height:F0}px) — nothing to scroll");
+                $"at {height}px the content ({scroller.Extent.Height:F0}px) fits the viewport "
+                    + $"({scroller.Viewport.Height:F0}px) — nothing to scroll");
+
+            // The trace is its content, not a fixed-height window into it. At
+            // 420 px the old pinned box could only show 200 px; the inline table
+            // is hundreds of pixels tall and the body scrolls through it.
+            Assert.True(
+                trace.Bounds.Height > 208.5,
+                $"at {height}px the trace is {trace.Bounds.Height:F0}px tall — it is still clamped to the withdrawn ceiling");
+
+            // The sequence ends with the real bottom buffer, and the end of the
+            // content can travel clear of the panel's bottom edge (D-198).
+            var buffer = window.GetVisualDescendants().OfType<Border>()
+                .Single(b => b.Name == "ResultsBottomBuffer");
+            scroller.Offset = new Vector(0, scroller.Extent.Height);
+            window.UpdateLayout();
+
+            double bufferBottom = buffer
+                .TranslatePoint(new Point(0, buffer.Bounds.Height), window)!.Value.Y;
+            Assert.True(
+                bufferBottom <= window.Bounds.Height + 0.5,
+                $"at {height}px the bottom buffer ends at y={bufferBottom:F0} in a "
+                    + $"{window.Bounds.Height:F0}px window");
         }
         finally
         {
@@ -78,21 +109,27 @@ public sealed class Phase8SLayoutTests
     }
 
     [AvaloniaFact]
-    public void ResultsLayout_TracePanelCeilingLeavesTheMiddleRoomAtAShortWindow()
+    public void ResultsSequence_TraceIsNotClampedToTheOldCeilingAtAShortWindow()
     {
-        // The specific starvation the owner saw: a 240 px ceiling left 101 px of
-        // middle at 420 px. 208 px is the new ceiling.
+        // The specific starvation the owner saw: the pinned trace had a 200 px
+        // ceiling at 420 px. Phase 8T.5 deletes the ceiling along with the row;
+        // this asserts the deletion, and that the table is still inside the one
+        // scroller rather than outside it.
         var vm = ResultsPanelBufferTraceTests.CompletedRun();
         var window = new Window { Width = 1200, Height = 420, Content = new Views.ResultsPanel { DataContext = vm } };
         window.Show();
         window.UpdateLayout();
         try
         {
-            var (_, trace, _) = Parts(window);
+            var scroller = Scroller(window);
+            var trace = Trace(window);
 
             Assert.True(
-                trace.Bounds.Height <= 208.5,
-                $"the trace panel is {trace.Bounds.Height:F0}px tall, over its 208px ceiling");
+                trace.Bounds.Height > 208.5,
+                $"the trace panel is {trace.Bounds.Height:F0}px tall — the withdrawn ceiling is still in force");
+            Assert.Contains(
+                scroller,
+                trace.GetVisualAncestors().OfType<ScrollViewer>());
         }
         finally
         {

@@ -604,6 +604,7 @@ public sealed class Engine
             StageMetrics = stageMetrics,
             AdmittedPerSession = gate?.AdmittedPerSession ?? Array.Empty<int>(),
             ScreeningAdmittedPerSession = gate?.ScreeningAdmittedPerSession ?? Array.Empty<int>(),
+            NotAdmittedArrivals = gate?.NotAdmittedArrivals ?? 0,
             BacklogPerSession = backlogPerSession,
             DrainPerSession = drainPerSession,
             Sessions = gate?.Sessions ?? Array.Empty<ClinicSession>(),
@@ -665,6 +666,10 @@ public sealed class Engine
         // Only a Screening-bound arrival consumes a place under the daily cap.
         if (!inWindow || !(gate is null || gate.TryAdmit(clock, screeningBound: destinationIndex == 0)))
         {
+            // FR-STAT-10: the generator produced this arrival and the calendar
+            // gate refused it. One total covers both reasons (outside the
+            // window / over the Screening cap); D-202 keeps the split out.
+            gate?.NoteNotAdmitted();
             _log.Debug("    -> arrival not admitted (outside the window, or over the daily screening cap): patient={PatientId}", evt.PatientId);
         }
         else
@@ -1020,6 +1025,7 @@ public sealed class Engine
 
         private readonly int[] _admittedPerSession;
         private readonly int[] _screeningAdmittedPerSession;
+        private int _notAdmittedArrivals;
         private readonly double?[] _sessionFirstArrival;
         private readonly double[] _sessionLastServiceEnd;
 
@@ -1131,6 +1137,16 @@ public sealed class Engine
 
         /// <summary>Screening-bound admissions per operating session over the whole run.</summary>
         public int[] ScreeningAdmittedPerSession => _screeningAdmittedPerSession;
+
+        /// <summary>
+        /// Arrivals generated and refused over the whole run (FR-STAT-10): the
+        /// arrival was outside an opening window, or the session's Screening cap
+        /// was already met. One total by design; the split is out of scope (D-202).
+        /// </summary>
+        public int NotAdmittedArrivals => _notAdmittedArrivals;
+
+        /// <summary>Records one generated arrival that the calendar gate refused.</summary>
+        public void NoteNotAdmitted() => _notAdmittedArrivals++;
 
         /// <summary>
         /// Switches the session bookkeeping to the last session whose block the

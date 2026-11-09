@@ -293,10 +293,19 @@ public static class ChartControlBuilder
             .DefaultIfEmpty(0)
             .Max() + 1;
 
+        // When one operating session is selected the service has rebased time
+        // to minutes from the opening and reports the window length, so pin the
+        // X axis to 0…165 (FR-UI-40). "All sessions" keeps the automatic
+        // absolute-clock range.
+        var xAxis = data.XAxisMaximum is { } sessionMinutes
+            ? new Axis { MinLimit = 0, MaxLimit = sessionMinutes }
+            : null;
+
         return CreateChart(
             series,
             xLabeler: value => value.ToString("0.##", CultureInfo.InvariantCulture),
-            yAxisOverride: new Axis { MinLimit = 0, MaxLimit = yMax });
+            yAxisOverride: new Axis { MinLimit = 0, MaxLimit = yMax },
+            xAxisOverride: xAxis);
     }
 
     /// <summary>
@@ -351,7 +360,8 @@ public static class ChartControlBuilder
         Func<double, string>? yLabeler = null,
         double? xLabelsRotation = null,
         bool showLegend = true,
-        Axis? yAxisOverride = null)
+        Axis? yAxisOverride = null,
+        Axis? xAxisOverride = null)
     {
         var gridColor = BrushColor("BrushChartGrid", new SKColor(0xC9, 0xD1, 0xCC));
         var axisTextColor = BrushColor("BrushChartAxisText", new SKColor(0x44, 0x50, 0x4A));
@@ -367,27 +377,37 @@ public static class ChartControlBuilder
         yAxis.TicksPaint ??= new SolidColorPaint(tickColor);
         yAxis.SeparatorsPaint ??= new SolidColorPaint(gridColor);
 
+        var xAxis = xAxisOverride ?? new Axis();
+        if (xCategories is not null)
+        {
+            xAxis.Labels = xCategories.ToArray();
+        }
+
+        // 30 degrees on a dense categorical axis: 11 "Stage S3" labels collide
+        // vertically at 0 degrees and get dropped.
+        xAxis.LabelsRotation = xLabelsRotation ?? xAxis.LabelsRotation;
+
+        // N1 (Phase 8M): a non-null Labeler takes precedence over Labels in
+        // LiveCharts2, so a categorical axis must be TAUGHT to return its
+        // category text. `??=` is wrong here: Axis ships a non-null default
+        // labeler (it prints the bare index), so `??=` kept it and dropped every
+        // string label — the 8T.3 queue-axis change introduced that regression
+        // and Phase8MChartControlTests caught it.
+        if (xLabeler is not null)
+        {
+            xAxis.Labeler = xLabeler;
+        }
+        else if (xCategories is { Count: > 0 })
+        {
+            xAxis.Labeler = CategoricalXLabeler(xCategories);
+        }
+        xAxis.LabelsPaint ??= new SolidColorPaint(axisTextColor);
+        xAxis.TicksPaint ??= new SolidColorPaint(tickColor);
+
         return new CartesianChart
         {
             Series = new ObservableCollection<ISeries>(series),
-            XAxes = new ObservableCollection<Axis>
-            {
-                new()
-                {
-                    Labels = xCategories?.ToArray(),
-                    // 30 degrees on a dense categorical axis: 11 "Stage S3"
-                    // labels collide vertically at 0 degrees and get dropped.
-                    LabelsRotation = xLabelsRotation ?? 0,
-                    // N1 (Phase 8M): only install a numeric labeler when the
-                    // axis has no string categories. A non-null Labeler takes
-                    // precedence over Labels in LiveCharts2, so the numeric
-                    // default below was computing "{Stage} S{n}" and then
-                    // throwing it away, printing bare indices instead.
-                    Labeler = xLabeler ?? CategoricalXLabeler(xCategories),
-                    LabelsPaint = new SolidColorPaint(axisTextColor),
-                    TicksPaint = new SolidColorPaint(tickColor),
-                },
-            },
+            XAxes = new ObservableCollection<Axis> { xAxis },
             YAxes = new ObservableCollection<Axis> { yAxis },
             Height = ChartHeight,
             LegendPosition = showLegend ? LegendPosition.Top : LegendPosition.Hidden,

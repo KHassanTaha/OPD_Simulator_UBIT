@@ -45,6 +45,20 @@
         <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}"/>
     </Style>
 
+    <!-- Event trace table (FR-UI-39): one shared header/cell treatment so the
+         header and the virtualised rows stay visually aligned. -->
+    <Style Selector="TextBlock.TraceHeader">
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}"/>
+    </Style>
+    <Style Selector="SelectableTextBlock.TraceCell">
+        <Setter Property="FontFamily" Value="{DynamicResource FontFamilyMono}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+        <Setter Property="Padding" Value="0,1"/>
+    </Style>
+
     <!-- Phase-2 demo card wrapping a live control on the showroom page. -->
     <Style Selector="Border.DemoCard">
         <Setter Property="Background" Value="{DynamicResource BrushBackgroundPanel}"/>

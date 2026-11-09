@@ -330,26 +330,27 @@ if (window.DataContext is not MainViewModel main)
     /// <summary>
     /// The widget stack scrolls (5c.1), so a tall window alone does not prove the
     /// capture shows everything — a widget below the results viewport would be
-    /// clipped. The event trace is the last thing in grid order, so if its card
-    /// bottom fits inside the window, every widget above it does too. Since 8Q.4 it
-    /// is a pinned sibling of the scroller rather than the last card inside it
-    /// (FR-UI-35), which makes this check stricter: the trace can never be clipped
-    /// at all now, so a failure here means the WIDGET stack overflowed.
+    /// clipped. The last toggleable widget is Analytical Validation, so if its card
+    /// bottom fits inside the window, every widget above it does too.
     /// </summary>
+    /// <remarks>
+    /// Phase 8T.5 moved the event trace into the same sequence, AFTER the widgets.
+    /// The trace is not a toggleable widget and is thousands of pixels tall, so
+    /// measuring its bottom would fail every capture for a reason this frame is not
+    /// about. The card that must fit the frame is the last WIDGET, and the trace is
+    /// covered by its own frame (<c>phase-8t4-event-trace-table.png</c>).
+    /// </remarks>
     private static void AssertAllWidgetsInsideOneFrame(Window window)
     {
         var panel = window.GetVisualDescendants().OfType<ResultsPanel>().Single();
-        var headers = panel.GetVisualDescendants().OfType<TextBlock>()
-            .Select(t => t.Text)
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .ToArray();
-        var traceHeader = panel.GetVisualDescendants().OfType<TextBlock>()
-            .FirstOrDefault(t => t.Text == "Event Trace");
-        Assert.True(traceHeader is not null,
-            $"event-trace header not realised; headers found were: [{string.Join(", ", headers)}]");
-        var traceCard = traceHeader.GetVisualAncestors().OfType<Border>().First();
-        Point? bottom = traceCard.TranslatePoint(new Point(0, traceCard.Bounds.Height), window);
-        Point mapped = bottom ?? throw new InvalidOperationException("the trace card must map into the window coordinate space");
+        var lastWidget = panel.GetVisualDescendants().OfType<Border>()
+            .Single(b => b.Name == "AnalyticalValidationWidget");
+        Assert.True(
+            lastWidget.IsEffectivelyVisible,
+            "precondition: every widget must be visible for this frame");
+
+        Point? bottom = lastWidget.TranslatePoint(new Point(0, lastWidget.Bounds.Height), window);
+        Point mapped = bottom ?? throw new InvalidOperationException("the last widget must map into the window coordinate space");
         double cardBottom = mapped.Y;
         Assert.True(cardBottom <= window.ClientSize.Height + 1,
             $"the last widget ends at y={cardBottom:0} but the window client is only {window.ClientSize.Height:0} tall — the frame would clip it");

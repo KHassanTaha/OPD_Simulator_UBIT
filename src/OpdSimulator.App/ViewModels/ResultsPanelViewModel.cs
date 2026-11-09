@@ -84,6 +84,31 @@ public sealed record SessionTotalRow(
     string Drain);
 
 /// <summary>
+/// One row of the virtualised event trace table (FR-UI-39, D-202), projected
+/// from the engine's structured <see cref="OpdSimulator.Core.Trace.TraceEvent"/>
+/// — never from splitting the formatted text back apart.
+/// </summary>
+/// <param name="SerialNumber">Contiguous 1-based row position (FR-UI-36).</param>
+/// <param name="Time">Simulation clock in minutes, three decimals.</param>
+/// <param name="Clock">Real wall clock at the event, <c>HH:mm:ss</c>.</param>
+/// <param name="Type">Short event type, e.g. <c>ARRIVAL</c> or <c>END_SVC</c>.</param>
+/// <param name="Patient">Patient id, or "—" for an RNG row.</param>
+/// <param name="Stage">Stage name, or "—" when the event has none.</param>
+/// <param name="Server">Zero-based server id, or "—" when the event has none.</param>
+/// <param name="Queue">Queue length, or "—" when the event has none.</param>
+/// <param name="Detail">The event's detail text, empty when it has none.</param>
+public sealed record TraceRow(
+    string SerialNumber,
+    string Time,
+    string Clock,
+    string Type,
+    string Patient,
+    string Stage,
+    string Server,
+    string Queue,
+    string Detail);
+
+/// <summary>
 /// One stage's stability verdict (Phase 8Q.3, D-183).
 /// </summary>
 /// <param name="StageName">The stage the verdict describes.</param>
@@ -291,6 +316,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         TraceText = outcome.TraceLines.Count > 0
             ? string.Join(Environment.NewLine, outcome.TraceLines)
             : string.Empty;
+        TraceRows = BuildTraceRows(outcome.TraceEvents);
+        NotAdmittedArrivals = outcome.Result?.NotAdmittedArrivals ?? 0;
 
         SetMetrics(outcome.Result);
         SetUtilisation(outcome.Result);
@@ -321,6 +348,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         OnPropertyChanged(nameof(EffectiveBypassText));
         RunError = null;
         TraceText = string.Empty;
+        TraceRows = Array.Empty<TraceRow>();
+        NotAdmittedArrivals = 0;
         ChiSquareCaption = DefaultChiSquareCaption;
         SystemMetrics.Clear();
         StageRows.Clear();
@@ -333,6 +362,9 @@ public partial class ResultsPanelViewModel : ObservableObject
         BottleneckText = string.Empty;
         ChiSquareRows.Clear();
         UtilisationChart = null;
+        _queueResult = null;
+        QueueSessionNames = null;
+        SelectedQueueSession = null;
         QueueLengthChart = null;
         WaitHistogram = null;
         WaitHistogramChart = null;
@@ -620,16 +652,46 @@ public partial class ResultsPanelViewModel : ObservableObject
     /// and the widget shows its "run a simulation to see queue length" empty
     /// state instead.
     /// </summary>
+    /// <remarks>
+    /// The session selection resets to <see cref="QueueLengthChartService.AllSessionsLabel"/>
+    /// on every new run (FR-UI-40): session ordinals belong to the run that
+    /// produced them, so carrying one into the next run could silently show a
+    /// different day under the same label.
+    /// </remarks>
     /// <param name="result">The completed simulation result, or null when the run was refused.</param>
     private void SetQueueLength(OpdSimulator.Core.Engine.SimulationResult? result)
     {
-        if (result is null)
+        bool isNewRun = !ReferenceEquals(_queueResult, result);
+        _queueResult = result;
+
+        var options = QueueLengthChartService.SessionOptions(result);
+        QueueSessionNames = options.Count > 0 ? options : null;
+        OnPropertyChanged(nameof(ShowQueueSessionSelector));
+
+        string? selection = options.Count > 0 ? QueueLengthChartService.AllSessionsLabel : null;
+        if (isNewRun || (SelectedQueueSession is not null && !options.Contains(SelectedQueueSession)))
+        {
+            SelectedQueueSession = selection;
+        }
+
+        RebuildQueueLength();
+    }
+
+    /// <summary>
+    /// Rebuilds the queue-length chart for the selected session. Triggered by a
+    /// new run and by the session selector; "All sessions" keeps the absolute
+    /// clock, while one session is rebased to minutes from its opening and
+    /// pinned to 0…165 (FR-UI-40).
+    /// </summary>
+    private void RebuildQueueLength()
+    {
+        if (_queueResult is null)
         {
             QueueLengthChart = null;
             return;
         }
 
-        var data = QueueLengthChartService.Build(result);
+        var data = QueueLengthChartService.Build(_queueResult, SelectedQueueSession);
         try
         {
             QueueLengthChart = ChartControlBuilder.BuildQueueChart(data);
@@ -864,6 +926,75 @@ public partial class ResultsPanelViewModel : ObservableObject
     partial void OnTraceTextChanged(string value) =>
         OnPropertyChanged(nameof(TraceBody));
 
+    /// <summary>
+    /// Rows of the on-screen event trace table (FR-UI-39), projected from
+    /// <see cref="RunOutcome.TraceEvents"/>. The formatted
+    /// <see cref="TraceText"/> remains in the model for the CLI, the trace file
+    /// and existing tests; this is the rendering source.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<TraceRow> _traceRows = Array.Empty<TraceRow>();
+
+    /// <summary>True when the trace table has at least one row.</summary>
+    public bool HasTraceRows => TraceRows.Count > 0;
+
+    partial void OnTraceRowsChanged(IReadOnlyList<TraceRow> value) =>
+        OnPropertyChanged(nameof(HasTraceRows));
+
+    /// <summary>Run-level count of arrivals the calendar gate refused (FR-STAT-10).</summary>
+    [ObservableProperty]
+    private int _notAdmittedArrivals;
+
+    /// <summary>
+    /// The one muted side note beside the trace table (FR-UI-39/FR-STAT-10).
+    /// It names both rejection reasons because a bare count reads as a defect.
+    /// </summary>
+    public string NotAdmittedNote =>
+        $"{NotAdmittedArrivals:N0} arrivals were generated but not admitted — they fell outside the opening window, or their session's screening cap was already met.";
+
+    /// <summary>True when there is a not-admitted figure to report.</summary>
+    public bool HasNotAdmittedNote => NotAdmittedArrivals > 0;
+
+    partial void OnNotAdmittedArrivalsChanged(int value)
+    {
+        OnPropertyChanged(nameof(NotAdmittedNote));
+        OnPropertyChanged(nameof(HasNotAdmittedNote));
+    }
+
+    /// <summary>
+    /// Projects structured trace events onto display rows. Nothing here parses
+    /// the formatted trace: <see cref="OpdSimulator.Core.Trace.TraceFormatter"/>
+    /// supplies the type label and <see cref="OpdSimulator.Core.Trace.TraceClock"/>
+    /// the wall clock, so both renderings read the same values.
+    /// </summary>
+    private static IReadOnlyList<TraceRow> BuildTraceRows(
+        IReadOnlyList<OpdSimulator.Core.Trace.TraceEvent> events)
+    {
+        var rows = new List<TraceRow>(events.Count);
+        for (int i = 0; i < events.Count; i++)
+        {
+            var evt = events[i];
+            rows.Add(new TraceRow(
+                (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                evt.Time.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture),
+                OpdSimulator.Core.Trace.TraceClock.Format(evt.Time),
+                OpdSimulator.Core.Trace.TraceFormatter.TypeName(evt.Type),
+                evt.PatientId is { } patient
+                    ? "P" + patient.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : Unavailable,
+                evt.StageName ?? Unavailable,
+                evt.ServerId is { } server
+                    ? server.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : Unavailable,
+                evt.QueueLength is { } queue
+                    ? queue.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : Unavailable,
+                evt.Details ?? string.Empty));
+        }
+
+        return rows;
+    }
+
     /// <summary>Body of the pinned trace panel, or the reason it is empty.</summary>
     /// <remarks>
     /// A permanently visible box that says nothing reads as a broken panel, and a
@@ -1008,6 +1139,28 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     /// <summary>Widget caption: names the sampling and downsampling policy.</summary>
     public string QueueLengthCaption => QueueLengthChartService.Caption;
+
+    /// <summary>The last finished run the queue chart rebuilds from (selector changes).</summary>
+    private OpdSimulator.Core.Engine.SimulationResult? _queueResult;
+
+    /// <summary>
+    /// Operating-session entries for the queue chart, or null when the run has
+    /// no sessions (a plain horizon run) — the selector is hidden then.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<string>? _queueSessionNames;
+
+    /// <summary>
+    /// The session the queue chart plots; <see cref="QueueLengthChartService.AllSessionsLabel"/>
+    /// plots the whole run. Resets on every new run (FR-UI-40).
+    /// </summary>
+    [ObservableProperty]
+    private string? _selectedQueueSession;
+
+    partial void OnSelectedQueueSessionChanged(string? value) => RebuildQueueLength();
+
+    /// <summary>True when the run produced operating sessions, so the selector is shown.</summary>
+    public bool ShowQueueSessionSelector => QueueSessionNames is { Count: > 0 };
 
     // ── Waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5) ────────────
 

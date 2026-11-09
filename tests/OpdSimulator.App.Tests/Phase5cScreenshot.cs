@@ -56,7 +56,7 @@ public class Phase5cScreenshot
             // "the one whose content carries both metrics and the trace" — matched
             // nothing once 8Q.4 moved the trace out to a pinned row (FR-UI-35).
             var outer = host.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Name == "WidgetScroller");
+                .Single(s => s.Name == "ResultsScroller");
 
             Assert.True(outer.Extent.Height > outer.Viewport.Height + 1,
                 $"widget content must overflow the viewport (extent {outer.Extent.Height:0} > viewport {outer.Viewport.Height:0})");

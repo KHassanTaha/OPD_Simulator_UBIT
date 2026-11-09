@@ -25,7 +25,16 @@ public sealed record RunOutcome(
     IReadOnlyList<string> TraceLines,
     double EffectiveExitProbability,
     double EffectiveBypassProbability,
-    string? Error);
+    string? Error)
+{
+    /// <summary>
+    /// The structured events behind <see cref="TraceLines"/>, in the same order
+    /// (FR-UI-39). The table renders these directly instead of splitting the
+    /// formatted text back apart; the text remains for the CLI and trace file.
+    /// Empty for a refused run or a trace level that recorded nothing.
+    /// </summary>
+    public IReadOnlyList<TraceEvent> TraceEvents { get; init; } = Array.Empty<TraceEvent>();
+}
 
 /// <summary>
 /// Runs one simulation configuration with the fitted/manual parameters and
@@ -214,7 +223,10 @@ public static class SimulationCoordinator
                     parameters.GeneratorDays, parameters.Seed, parameters.DailyCap, sink);
 
             status?.Invoke(string.Empty);
-            return new RunOutcome(result, fits, sink.Lines, exitProbability, routingBypassProbability, null);
+            return new RunOutcome(result, fits, sink.Lines, exitProbability, routingBypassProbability, null)
+            {
+                TraceEvents = sink.Events,
+            };
         }
         catch (UnstableSystemException ex)
         {
