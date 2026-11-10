@@ -1,4 +1,4 @@
-Session Handoff — 2026-11-11 20:05 — Phase 8W IMPLEMENTED (selectable fitting unit; green)
+Session Handoff — 2026-11-11 02:07 — Phase 8W IMPLEMENTED (selectable fitting unit; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)
 
