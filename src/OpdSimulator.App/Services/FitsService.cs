@@ -19,29 +19,34 @@ public static class FitsService
     /// Fits <paramref name="familyName"/> to <paramref name="samples"/> and
     /// tests the result at the given significance level (5d.2, D-113).
     /// </summary>
-    public static FitReport Fit(string label, IReadOnlyList<double> samples, string familyName, double alpha = DefaultAlpha)
+    public static FitReport Fit(
+        string label,
+        IReadOnlyList<double> samples,
+        string familyName,
+        double alpha = DefaultAlpha,
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
     {
         if (samples.Count == 0)
         {
-            return new FitReport(label, samples, null, null);
+            return new FitReport(label, samples, null, null, unit);
         }
 
         if (!DistributionFitterFactory.TryCreate(familyName, out var fitter))
         {
-            return new FitReport(label, samples, null, null);
+            return new FitReport(label, samples, null, null, unit);
         }
 
         try
         {
             var fitted = fitter!.Fit(samples);
             var chiSquare = ChiSquareTest.Run(samples, fitted, alpha);
-            return new FitReport(label, samples, fitted, chiSquare);
+            return new FitReport(label, samples, fitted, chiSquare, unit);
         }
         catch (Exception)
         {
             // Degenerate samples (e.g. all-zero service times) are legitimate
             // GUI input; surface a null report rather than an exception.
-            return new FitReport(label, samples, null, null);
+            return new FitReport(label, samples, null, null, unit);
         }
     }
 }

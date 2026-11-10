@@ -9,8 +9,10 @@ namespace OpdSimulator.App.Models;
 /// <param name="Samples">The observed series the distribution was fit to.</param>
 /// <param name="Fitted">The fitted distribution (null when fitting failed).</param>
 /// <param name="ChiSquare">The chi-square verdict, or null when no fit ran.</param>
+/// <param name="Unit">The unit <paramref name="Samples"/> are expressed in (Phase 8W).</param>
 public sealed record FitReport(
     string Label,
     IReadOnlyList<double> Samples,
     OpdSimulator.Data.Fitting.FittedDistribution? Fitted,
-    OpdSimulator.Data.Fitting.ChiSquareResult? ChiSquare);
+    OpdSimulator.Data.Fitting.ChiSquareResult? ChiSquare,
+    OpdSimulator.Data.Fitting.FittingTimeUnit Unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes);

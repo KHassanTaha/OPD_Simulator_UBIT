@@ -116,11 +116,13 @@ public static class InputAnalysisService
     /// matching <c>SimulationCoordinator</c>.
     /// </param>
     /// <param name="alpha">Significance level for every goodness-of-fit verdict.</param>
+    /// <param name="unit">Unit the samples are fitted and reported in (Phase 8W).</param>
     public static IReadOnlyList<FitReport> FitAll(
         DataBindingResult? binding,
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
-        double alpha)
+        double alpha,
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
     {
         if (binding is null || !binding.IsUsable || binding.FittedArrivalRate is null)
         {
@@ -129,7 +131,12 @@ public static class InputAnalysisService
 
         var reports = new List<FitReport>
         {
-            FitsService.Fit(InterArrivalSeriesLabel, binding.InterArrivalMinutes, interArrivalFamily, alpha),
+            FitsService.Fit(
+                InterArrivalSeriesLabel,
+                OpdSimulator.Data.Fitting.FittingTimeUnits.Scale(binding.InterArrivalMinutes, unit),
+                interArrivalFamily,
+                alpha,
+                unit),
         };
         foreach (var stage in binding.StageNames)
         {
@@ -144,9 +151,10 @@ public static class InputAnalysisService
                 // test.
                 reports.Add(FitsService.Fit(
                     $"{stage} service",
-                    times,
+                    OpdSimulator.Data.Fitting.FittingTimeUnits.Scale(times, unit),
                     FamilyFor(serviceFamilies, stage).ToString(),
-                    alpha));
+                    alpha,
+                    unit));
             }
         }
 
@@ -182,7 +190,7 @@ public static class InputAnalysisService
     /// </summary>
     public static HistogramChartData BuildHistogram(FitReport fit)
     {
-        string title = TitleFor(fit.Label);
+        string title = TitleFor(fit.Label, fit.Unit);
 
         if (fit.Fitted is not { } fitted || fit.ChiSquare is not { } chi)
         {
@@ -208,7 +216,8 @@ public static class InputAnalysisService
 
         string caption =
             $"{fitted.Name} ({fitted.ParametersText()}) — χ²({chi.DegreesOfFreedom}) = {chi.Statistic.ToString("0.###", CultureInfo.InvariantCulture)}, " +
-            $"p = {chi.PValue.ToString("0.###", CultureInfo.InvariantCulture)} — {chi.Decision}";
+            $"p = {chi.PValue.ToString("0.###", CultureInfo.InvariantCulture)} — {chi.Decision}"
+            + OpdSimulator.Data.Fitting.FittingTimeUnits.DefinitionNote(fit.Unit);
 
         return new HistogramChartData(title, caption, true, categories, observed, pdf);
     }
@@ -249,6 +258,11 @@ public static class InputAnalysisService
         return new ChiSquareChartData(title, caption, true, categories, observed, expected);
     }
 
-    private static string TitleFor(string label)
-        => label == InterArrivalSeriesLabel ? "Inter-arrival time (minutes)" : $"{label} time (minutes)";
+    private static string TitleFor(string label, OpdSimulator.Data.Fitting.FittingTimeUnit unit)
+    {
+        string unitLabel = OpdSimulator.Data.Fitting.FittingTimeUnits.Label(unit);
+        return label == InterArrivalSeriesLabel
+            ? $"Inter-arrival time ({unitLabel})"
+            : $"{label} time ({unitLabel})";
+    }
 }

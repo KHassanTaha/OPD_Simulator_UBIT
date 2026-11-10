@@ -21,12 +21,14 @@ using Serilog;
 internal static class FitCommand
 {
     private static readonly string Usage =
-        "Usage: dotnet run --project src/OpdSimulator.Cli -- fit --file <path> [--distribution <family>] [--stage all|screening|doctor] [--alpha 0.05] [--mode rate|mean]\n" +
+        "Usage: dotnet run --project src/OpdSimulator.Cli -- fit --file <path> [--distribution <family>] [--stage all|screening|doctor] [--alpha 0.05] [--mode rate|mean] [--fit-unit minutes|seconds|hours|days|sessions]\n" +
         "  --file          .xlsx or .csv data file (required, must pass validation)\n" +
         "  --distribution  " + DistributionFitterFactory.SupportedNamesText() + " (default exponential)\n" +
         "  --stage         stage to fit, or 'all' (default screening)\n" +
         "  --alpha         chi-square significance level (default 0.05)\n" +
         "  --mode          display rate or mean on screen (default rate)\n" +
+        "  --fit-unit      unit the fit is reported in (default minutes); days = 24 h,\n" +
+        "                  sessions = 165 operating minutes. Scaling does not change the verdict\n" +
         "Writes logs/fit-YYYYMMDD-HHMMSS.json with parameters + chi-square for SPSS.";
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr, ILogger fileLogger)
@@ -72,6 +74,15 @@ internal static class FitCommand
             return 2;
         }
 
+        string? unitText = GetOption(args, "--fit-unit");
+        if (unitText is not null && !FittingTimeUnits.TryParse(unitText, out _))
+        {
+            stderr.WriteLine($"--fit-unit must be one of {string.Join(", ", FittingTimeUnits.Options)}, got '{unitText}'.");
+            return 2;
+        }
+
+        FittingTimeUnits.TryParse(unitText, out var fitUnit);
+
         if (!CliShared.TryLoadValidated(file, out var dataSet, out string errorLine))
         {
             stderr.WriteLine(errorLine);
@@ -86,11 +97,12 @@ internal static class FitCommand
                     $"Need at least two arrivals to compute inter-arrival times; file has {arrivals.Count}.");
 
             double[] interArrival = InterArrivalCalculator.Compute(arrivals);
-            FittedDistribution iaFit = fitter!.Fit(interArrival);
-            var iaChi = ChiSquareTest.Run(interArrival, iaFit, alpha);
+            var iaSamples = FittingTimeUnits.Scale(interArrival, fitUnit);
+            FittedDistribution iaFit = fitter!.Fit(iaSamples);
+            var iaChi = ChiSquareTest.Run(iaSamples, iaFit, alpha);
 
-            stdout.WriteLine($"Fitting distribution: {fitter.Name}  (α = {alpha.ToString("0.##", CultureInfo.InvariantCulture)})");
-            PrintFit(stdout, "Inter-arrival time", interArrival, iaFit, iaChi, mode);
+            stdout.WriteLine($"Fitting distribution: {fitter.Name}  (α = {alpha.ToString("0.##", CultureInfo.InvariantCulture)}, unit = {FittingTimeUnits.Label(fitUnit)})");
+            PrintFit(stdout, "Inter-arrival time", iaSamples, interArrival.Average(), iaFit, iaChi, mode, fitUnit);
 
             var serviceSets = ServiceTimeCalculator.Compute(dataSet!);
             var serviceJson = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -103,10 +115,11 @@ internal static class FitCommand
                     continue;
                 }
 
-                FittedDistribution svcFit = fitter.Fit(samples);
-                var svcChi = ChiSquareTest.Run(samples, svcFit, alpha);
-                PrintFit(stdout, $"Service stage '{pair.Stage}'", samples, svcFit, svcChi, mode);
-                serviceJson[pair.Stage] = ToJson(samples, svcFit, svcChi);
+                var svcSamples = FittingTimeUnits.Scale(samples, fitUnit);
+                FittedDistribution svcFit = fitter.Fit(svcSamples);
+                var svcChi = ChiSquareTest.Run(svcSamples, svcFit, alpha);
+                PrintFit(stdout, $"Service stage '{pair.Stage}'", svcSamples, samples.Average(), svcFit, svcChi, mode, fitUnit);
+                serviceJson[pair.Stage] = ToJson(svcSamples, samples.Average(), svcFit, svcChi, fitUnit);
             }
 
             var pExit = PExitCalculator.Compute(dataSet!);
@@ -114,7 +127,7 @@ internal static class FitCommand
             stdout.WriteLine($"p_exit = {pExit.ExitProbability:0.###}  (Screening exits {pExit.ScreeningExits}, screened patients {pExit.ScreenedPatients}; Reception excluded {pExit.ReceptionExited})\n"
                              + $"p_bypass = {PExitCalculator.ComputeBypassProbability(dataSet!, pExit):0.###}  (direct-to-doctor {pExit.BypassExits} of {dataSet!.Rows.Count} arrivals)");
 
-            string jsonPath = WriteJson(file!, interArrival, iaFit, iaChi, serviceJson, pExit, distribution, alpha, mode);
+            string jsonPath = WriteJson(file!, iaSamples, interArrival.Average(), iaFit, iaChi, serviceJson, pExit, distribution, alpha, mode, fitUnit);
             stdout.WriteLine($"Wrote fit report to {jsonPath}");
             return 0;
         }
@@ -126,25 +139,42 @@ internal static class FitCommand
         }
     }
 
-    private static void PrintFit(TextWriter stdout, string label, double[] samples, FittedDistribution fit, ChiSquareResult chi, string mode)
+    private static void PrintFit(
+        TextWriter stdout,
+        string label,
+        IReadOnlyList<double> samples,
+        double meanMinutes,
+        FittedDistribution fit,
+        ChiSquareResult chi,
+        string mode,
+        FittingTimeUnit unit)
     {
+        string unitLabel = FittingTimeUnits.Label(unit);
+        string nativeMean = unit == FittingTimeUnit.Minutes ? "" : $" (native: {meanMinutes:0.###} min)";
         stdout.WriteLine($"─────────────────────────────────────────────────────");
-        stdout.WriteLine($"{label}   (n = {samples.Length})");
-        stdout.WriteLine($"  fitted: {fit.Name}  {fit.ParametersText()}");
-        stdout.WriteLine($"  sample mean = {samples.Average():0.###} min"
+        stdout.WriteLine($"{label}   (n = {samples.Count}, unit = {unitLabel})");
+        stdout.WriteLine($"  fitted: {fit.Name}  {fit.ParametersText()}  [{unitLabel}]");
+        stdout.WriteLine($"  sample mean = {samples.Average():0.###} {unitLabel}{nativeMean}"
                          + (mode == "mean"
                              ? $"  (implied mean-mode view)"
-                             : $"  → implied rate 1/mean = {1.0 / samples.Average():0.###}/min"));
+                             : $"  → implied rate 1/mean = {1.0 / samples.Average():0.###}/{FittingTimeUnits.RateUnit(unit)}"));
         stdout.WriteLine($"  log-likelihood = {fit.LogLikelihood:0.###}   AIC = {fit.AIC:0.###}");
         stdout.WriteLine($"  χ² = {chi.Statistic:0.###}, df = {chi.DegreesOfFreedom}, p = {chi.PValue:0.####}"
                          + $" → {chi.Decision} at α = {chi.Alpha:0.##}");
     }
 
-    private static Dictionary<string, object?> ToJson(double[] samples, FittedDistribution fit, ChiSquareResult chi)
+    private static Dictionary<string, object?> ToJson(
+        IReadOnlyList<double> samples,
+        double meanMinutes,
+        FittedDistribution fit,
+        ChiSquareResult chi,
+        FittingTimeUnit unit)
         => new()
         {
-            ["sampleSize"] = samples.Length,
-            ["sampleMeanMinutes"] = samples.Average(),
+            ["sampleSize"] = samples.Count,
+            ["sampleMean"] = samples.Average(),
+            ["sampleMeanMinutes"] = meanMinutes,
+            ["fitUnit"] = FittingTimeUnits.Label(unit),
             ["distribution"] = fit.Name,
             ["parameters"] = fit.Parameters,
             ["logLikelihood"] = fit.LogLikelihood,
@@ -192,14 +222,16 @@ internal static class FitCommand
 
     private static string WriteJson(
         string sourceFile,
-        double[] interArrival,
+        IReadOnlyList<double> interArrival,
+        double interArrivalMeanMinutes,
         FittedDistribution iaFit,
         ChiSquareResult iaChi,
         IReadOnlyDictionary<string, object?> stages,
         PExitResult pExit,
         string distribution,
         double alpha,
-        string mode)
+        string mode,
+        FittingTimeUnit unit)
     {
         Directory.CreateDirectory("logs");
         string path = Path.Combine("logs", $"fit-{DateTime.Now:yyyyMMdd-HHmmss}.json");
@@ -212,7 +244,8 @@ internal static class FitCommand
             ["distribution"] = distribution,
             ["alpha"] = alpha,
             ["mode"] = mode,
-            ["interArrival"] = ToJson(interArrival, iaFit, iaChi),
+            ["fitUnit"] = FittingTimeUnits.Label(unit),
+            ["interArrival"] = ToJson(interArrival, interArrivalMeanMinutes, iaFit, iaChi, unit),
             ["stages"] = stages,
             ["pExit"] = new Dictionary<string, object?>
             {

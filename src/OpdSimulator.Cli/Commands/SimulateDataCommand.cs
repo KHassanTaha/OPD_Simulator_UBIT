@@ -4,6 +4,7 @@ using System.Globalization;
 using OpdSimulator.Core.Distributions;
 using OpdSimulator.Core.Engine;
 using OpdSimulator.Core.Stages;
+using OpdSimulator.Data.Fitting;
 using OpdSimulator.Data.Loaders;
 using OpdSimulator.Data.Preprocess;
 using Serilog;
@@ -40,13 +41,15 @@ using Serilog;
 internal static class SimulateDataCommand
 {
     private const string Usage =
-        "Usage: dotnet run --project src/OpdSimulator.Cli -- simulate-data --file <path> --servers 1,2,3 [--horizon <minutes>] [--seed <int>] [--distribution exponential]\n" +
+        "Usage: dotnet run --project src/OpdSimulator.Cli -- simulate-data --file <path> --servers 1,2,3 [--horizon <minutes>] [--seed <int>] [--distribution exponential] [--fit-unit minutes|seconds|hours|days|sessions]\n" +
         "  --file          .xlsx or .csv data file (required)\n" +
         "  --servers       single stage: comma-separated counts to sweep (e.g. 1,2,3);\n" +
         "                  stage-aware data: one count per detected stage in flow order (Reception, Screening, Doctor)\n" +
         "  --horizon       arrival-generation window in minutes (default 10000)\n" +
         "  --seed          random seed, default 42 (FR-VAL-3)\n" +
-        "  --distribution  only 'exponential' is supported in M2 (default exponential)";
+        "  --distribution  only 'exponential' is supported in M2 (default exponential)\n" +
+        "  --fit-unit      unit the fitted λ/μ are PRINTED in (default minutes); the engine\n" +
+        "                  still runs per minute. days = 24 h, sessions = 165 operating minutes";
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr, ILogger fileLogger)
     {
@@ -101,6 +104,15 @@ internal static class SimulateDataCommand
             stderr.WriteLine($"Invalid --seed value '{seedText}'.");
             return 2;
         }
+
+        string? unitText = GetOption(args, "--fit-unit");
+        if (unitText is not null && !FittingTimeUnits.TryParse(unitText, out _))
+        {
+            stderr.WriteLine($"--fit-unit must be one of {string.Join(", ", FittingTimeUnits.Options)}, got '{unitText}'.");
+            return 2;
+        }
+
+        FittingTimeUnits.TryParse(unitText, out var fitUnit);
 
         if (!CliShared.TryLoadValidated(file, out var dataSet, out string errorLine))
         {
@@ -161,16 +173,16 @@ internal static class SimulateDataCommand
             var pExit = PExitCalculator.Compute(dataSet);
             exitStageIndex = screeningIndex;
             exitProbability = pExit.ExitProbability;
-            stdout.WriteLine($"Fitted from data: λ = {lambda:0.###}/min (mean inter-arrival {1 / lambda:0.###} min); "
+            stdout.WriteLine($"Fitted from data: λ = {RateText(lambda, fitUnit)} (mean inter-arrival {DurationText(1 / lambda, fitUnit)}); "
                              + $"p_exit = {pExit.ExitProbability:0.###} (screened {pExit.ScreenedPatients}, Screening exits {pExit.ScreeningExits}; Reception excluded {pExit.ReceptionExited}), "
                              + $"p_bypass = {PExitCalculator.ComputeBypassProbability(dataSet, pExit):0.###} (direct-to-doctor {pExit.BypassExits} of {dataSet.Rows.Count})");
             foreach (int i in Enumerable.Range(0, orderedNames.Count))
-                stdout.WriteLine($"  Stage '{orderedNames[i]}': μ = {mu[i]:0.###}/min (mean service {1 / mu[i]:0.###} min)");
+                stdout.WriteLine($"  Stage '{orderedNames[i]}': μ = {RateText(mu[i], fitUnit)} (mean service {DurationText(1 / mu[i], fitUnit)})");
         }
         else
         {
-            stdout.WriteLine($"Fitted from data: λ = {lambda:0.###}/min (mean inter-arrival {1 / lambda:0.###} min), "
-                             + $"μ = {mu[0]:0.###}/min (mean service {1 / mu[0]:0.###} min, stage '{orderedNames[0]}').");
+            stdout.WriteLine($"Fitted from data: λ = {RateText(lambda, fitUnit)} (mean inter-arrival {DurationText(1 / lambda, fitUnit)}), "
+                             + $"μ = {RateText(mu[0], fitUnit)} (mean service {DurationText(1 / mu[0], fitUnit)}, stage '{orderedNames[0]}').");
         }
 
         if (orderedNames.Count == 1)
@@ -224,6 +236,21 @@ internal static class SimulateDataCommand
             return 1;
         }
     }
+
+    /// <summary>Formats a per-minute rate in the requested unit, with the native value when converted.</summary>
+    private static string RateText(double perMinute, FittingTimeUnit unit)
+    {
+        double converted = FittingTimeUnits.RateFromPerMinute(perMinute, unit);
+        return unit == FittingTimeUnit.Minutes
+            ? $"{converted:0.###}/min"
+            : $"{converted:0.###}/{FittingTimeUnits.RateUnit(unit)} ({perMinute:0.###}/min)";
+    }
+
+    /// <summary>Formats a duration in minutes in the requested unit.</summary>
+    private static string DurationText(double minutes, FittingTimeUnit unit)
+        => unit == FittingTimeUnit.Minutes
+            ? $"{minutes:0.###} min"
+            : $"{FittingTimeUnits.FromMinutes(minutes, unit):0.###} {FittingTimeUnits.Label(unit)}";
 
     private static int[] ParseServerCounts(string text)
         => text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

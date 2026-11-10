@@ -429,6 +429,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     private TimeUnit timeUnit = TimeUnit.Minutes;
 
     /// <summary>
+    /// The fitted-rate labels are unit-dependent (Phase 8W): a change of the
+    /// manual Time unit must restate the fitted "from data" figure in the new
+    /// manual unit without waiting for the next unrelated refresh.
+    /// </summary>
+    partial void OnTimeUnitChanged(TimeUnit value) => RefreshStageSourceLabels();
+
+    /// <summary>
     /// Canonical rate-vs-mean flag (Phase 7A): the radio-backed booleans stay in
     /// sync with it so the single source of truth is the enum, not a pair of
     /// flags that could disagree.
@@ -1653,6 +1660,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Restates every fitted-rate label after the Input tab's fitting unit changes
+    /// (Phase 8W). The labels are the Parameters section's view of the same fit,
+    /// so they cannot be left quoting the previous unit.
+    /// </summary>
+    public void RefreshFittedUnitLabels() => RefreshStageSourceLabels();
+
+    /// <summary>
     /// "μ = 0.25 (from data)" for a fitted stage, "μ = 0.80 (manual)" for a
     /// comma-list entry, "μ = 0.60 (per-stage)" for a fallback field, or
     /// "μ = — (no source)". In fit mode a fitted rate wins over the comma-list
@@ -1679,7 +1693,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         if (FittedRateFor(row.StageName) is { } fitted && fitted > 0)
         {
-            return $"μ = {fitted:0.##} (from data)";
+            return $"μ = {DescribeFittedRate(fitted)} (from data)";
         }
 
         if (index < manualParts.Count && manualParts[index] is { } manual)
@@ -1694,6 +1708,46 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         return "μ = — (no source)";
+    }
+
+    /// <summary>
+    /// Formats a fitted per-minute rate for a stage row (Phase 8W), stating the
+    /// fit unit the Input tab shows and the manual-unit equivalent the Parameters
+    /// section works in.
+    /// </summary>
+    /// <remarks>
+    /// Minutes-in, minutes-out keeps the historic "μ = 0.25" form byte-identical,
+    /// so every existing label and test is untouched. Any other combination
+    /// prints both figures — e.g. "20/hour = 0.33/min" — because the Input tab and
+    /// this row would otherwise appear to describe different data.
+    /// </remarks>
+    /// <param name="perMinute">The fitted rate in events per minute.</param>
+    /// <returns>The rate text without the surrounding "μ = … (from data)".</returns>
+    private string DescribeFittedRate(double perMinute)
+    {
+        FittingTimeUnit fitUnit = FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes;
+        if (fitUnit == FittingTimeUnit.Minutes && TimeUnit == TimeUnit.Minutes)
+        {
+            return $"{perMinute:0.##}";
+        }
+
+        string fitText =
+            $"{FittingTimeUnits.RateFromPerMinute(perMinute, fitUnit):0.##}/{FittingTimeUnits.RateUnit(fitUnit)}";
+
+        double manualRate = TimeUnit switch
+        {
+            TimeUnit.Seconds => perMinute * 60.0,
+            TimeUnit.Hours => perMinute / 60.0,
+            _ => perMinute,
+        };
+        string manualUnit = TimeUnit switch
+        {
+            TimeUnit.Seconds => "s",
+            TimeUnit.Hours => "hour",
+            _ => "min",
+        };
+
+        return $"{fitText} = {manualRate:0.##}/{manualUnit}";
     }
 
     /// <summary>
@@ -2222,6 +2276,18 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// file's own observed window.
     /// </remarks>
     public Func<ObservationWindow?>? SelectedWindowAccessor { get; set; }
+
+    /// <summary>
+    /// Reads the Input tab's fitting unit (Phase 8W) so a fitted μ shown here can
+    /// state the same unit the fit is reported in. Unset yields minutes.
+    /// </summary>
+    /// <remarks>
+    /// A delegate for the same reason as <see cref="WindowLambdaAccessor"/>: the
+    /// Input tab owns the selector, and a stored copy here would go stale the
+    /// moment the user picks a different unit. The shell calls
+    /// <see cref="RefreshFittedUnitLabels"/> when it changes.
+    /// </remarks>
+    public Func<FittingTimeUnit>? FittingUnitAccessor { get; set; }
 
     /// <summary>
     /// Builds the <see cref="DistributionSpec"/> for one stage from its row's family

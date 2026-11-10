@@ -62,12 +62,13 @@ public partial class InputAnalysisViewModel : ObservableObject
         DataBindingResult? binding,
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
-        double alpha)
+        double alpha,
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
     {
         int generation = ++_generation;
         Task.Run(() =>
         {
-            var prepared = Prepare(binding, interArrivalFamily, serviceFamilies, alpha);
+            var prepared = Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit);
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _generation)
@@ -91,10 +92,11 @@ public partial class InputAnalysisViewModel : ObservableObject
         DataBindingResult? binding,
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
-        double alpha)
+        double alpha,
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
     {
         ++_generation;
-        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamilies, alpha));
+        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit));
     }
 
     /// <summary>
@@ -131,10 +133,11 @@ public partial class InputAnalysisViewModel : ObservableObject
         DataBindingResult? binding,
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
-        double alpha)
+        double alpha,
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit)
     {
         var charts = new List<IInputChartData>();
-        foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamilies, alpha))
+        foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamilies, alpha, unit))
         {
             charts.Add(InputAnalysisService.BuildHistogram(fit));
             if (fit.ChiSquare is not null)

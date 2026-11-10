@@ -96,6 +96,14 @@ public partial class MainViewModel : ObservableObject
     {
         InputTab = new InputTabViewModel(InputAnalysis);
 
+        // Phase 8W: the fitting unit changes what the Input-tab charts fit, so the
+        // shell refits when it moves. The tab refreshes its own λ readouts.
+        InputTab.FittingUnitChanged += (_, _) =>
+        {
+            SyncInputAnalysis();
+            Config.RefreshFittedUnitLabels();
+        };
+
         // Ruling 7: the choice lives here; both panels read and write it through
         // delegates so no second copy is kept (D-173).
         Config.LambdaSourceAccessor = () => SelectedLambdaSource;
@@ -107,6 +115,10 @@ public partial class MainViewModel : ObservableObject
         // uses the figure on screen (D-172).
         Config.WindowLambdaAccessor = () => InputTab.SelectedWindowLambda;
         Config.SelectedWindowAccessor = () => InputTab.SelectedWindow;
+
+        // Phase 8W: a fitted μ shown in the Parameters section states the same
+        // fitting unit the Input tab reports, plus the manual-unit equivalent.
+        Config.FittingUnitAccessor = () => InputTab.SelectedFittingUnit;
 
         // The verification widget lives in the Results panel, whose DataContext
         // is the ResultsPanelViewModel; share the single instance so its XAML
@@ -215,7 +227,8 @@ public partial class MainViewModel : ObservableObject
             Config.Binding,
             Config.InterArrivalDistribution ?? "Exponential",
             Config.StageServiceFamilies,
-            Config.SignificanceLevelForRun);
+            Config.SignificanceLevelForRun,
+            InputTab.SelectedFittingUnit);
 
     /// <summary>
     /// A stage's family changed, so the tab's per-stage verdicts are stale.

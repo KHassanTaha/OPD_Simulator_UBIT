@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Data.Fitting;
 
 /// <summary>
 /// Phase 7D: drives the merged Input tab — the single home for the uploaded
@@ -221,6 +222,40 @@ public partial class InputTabViewModel : ObservableObject
     /// <summary>Whether a window λ exists to offer (rulings 4).</summary>
     [ObservableProperty]
     private bool hasWindowLambda;
+
+    /// <summary>
+    /// The unit the Input tab fits and reports in (Phase 8W). Reset to minutes
+    /// on every launch: it is never read from or written to disk (FR-UI-21).
+    /// </summary>
+    [ObservableProperty]
+    private FittingTimeUnit selectedFittingUnit = FittingTimeUnit.Minutes;
+
+    /// <summary>Dropdown entries for <see cref="SelectedFittingUnit"/>.</summary>
+    public IReadOnlyList<string> FittingUnitOptions => FittingTimeUnits.Options;
+
+    /// <summary>
+    /// The selected unit as a dropdown label. Parsed back through
+    /// <see cref="FittingTimeUnits.ParseLabel"/> so the label strings live in one place.
+    /// </summary>
+    public string SelectedFittingUnitLabel
+    {
+        get => FittingTimeUnits.Label(SelectedFittingUnit);
+        set => SelectedFittingUnit = FittingTimeUnits.ParseLabel(value);
+    }
+
+    /// <summary>
+    /// Raised when the fitting unit changes, so the shell can refit and rebuild
+    /// the charts. The λ readouts refresh here; the charts are the shell's job
+    /// because it owns the configured families and α.
+    /// </summary>
+    public event EventHandler? FittingUnitChanged;
+
+    partial void OnSelectedFittingUnitChanged(FittingTimeUnit value)
+    {
+        OnPropertyChanged(nameof(SelectedFittingUnitLabel));
+        ApplyBindingLambda(_lastBinding);
+        FittingUnitChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>λ from the inter-arrival fit, or the reason there is none (ruling 2).</summary>
     [ObservableProperty]
@@ -445,7 +480,7 @@ public partial class InputTabViewModel : ObservableObject
 
         HasMleLambda = binding?.FittedArrivalRate is > 0;
         MleLambdaText = HasMleLambda
-            ? $"\u03bb = {binding!.FittedArrivalRate:F4} patients/min  (1 \u00f7 mean of within-session inter-arrival gaps)"
+            ? $"\u03bb = {FormatRate(binding!.FittedArrivalRate!.Value)}  (1 \u00f7 mean of within-session inter-arrival gaps{ConversionNote()})"
             : "MLE \u03bb unavailable \u2014 the file has no usable inter-arrival gaps.";
 
         ApplyWindowLambda(binding);
@@ -510,9 +545,9 @@ public partial class InputTabViewModel : ObservableObject
         SelectedWindowLambda = windowLambda;
         SelectedWindow = window;
         WindowLambdaText =
-            $"λ = {windowLambda:F4} patients/min  ({arrivals} arrivals ÷ "
+            $"λ = {FormatRate(windowLambda.Value)}  ({arrivals} arrivals ÷ "
             + $"{window.OperatingMinutes:F0} operating minutes across "
-            + $"{ObservationWindowService.Describe(window)})";
+            + $"{ObservationWindowService.Describe(window)}{ConversionNote()})";
 
         LambdaDivergenceText = DescribeDivergence(binding!.FittedArrivalRate, windowLambda.Value);
     }
@@ -548,6 +583,15 @@ public partial class InputTabViewModel : ObservableObject
             SelectedObservationWindow,
             customHours);
     }
+
+    /// <summary>Formats a per-minute rate in the selected fitting unit, with its label.</summary>
+    private string FormatRate(double perMinute)
+        => $"{FittingTimeUnits.RateFromPerMinute(perMinute, SelectedFittingUnit):F4} "
+            + FittingTimeUnits.RateLabel(SelectedFittingUnit);
+
+    /// <summary>States the conversion when the readout is not in the native unit.</summary>
+    private string ConversionNote()
+        => SelectedFittingUnit == FittingTimeUnit.Minutes ? "" : ", converted from minutes";
 
     /// <summary>
     /// States the gap between the estimates in the units the user chose, or
