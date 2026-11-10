@@ -1226,6 +1226,40 @@ service times, then prints:
 
 A machine-readable copy is written to `logs/fit-YYYYMMDD-HHMMSS.json`.
 
+### 7.3a Choose the unit a fit is reported in
+
+The Input tab's **Distribution fit** section has a **Fitting unit** dropdown:
+**minutes** (the default), **seconds**, **hours**, **days** (1 day = 24 hours)
+or **sessions** (1 session = the clinic's 165 operating minutes). One dropdown
+governs the inter-arrival fit and every stage's service fit, and the cards
+underneath redraw in that unit — the histogram's bin labels, the fitted
+parameters and the card titles all move together.
+
+**What changes and what does not.** The same loaded samples are divided by the
+unit's length before fitting, so the numbers you read change:
+`lambda = 15 per hour` instead of `lambda = 0.25 per minute`, and a service time
+of 3 minutes appears as `0.05 hours`. What does **not** change is the fit
+quality: the chi-square statistic, its degrees of freedom, the p-value and the
+**Reject / Fail to reject** verdict are identical in every unit, because
+changing units rescales the data without changing its shape. If you switch to
+hours and the verdict moves, that is a bug — report it.
+
+**Reading the numbers on screen.** A converted arrival rate says
+*"converted from minutes"* so you can see it was rescaled. The **Parameters**
+section keeps its own **Time unit** for typed lambda/mu; when a fitted mu is
+shown there and either unit is not minutes, the row states both, for example
+`mu = 20/hour = 0.33/min (from data)`.
+
+**What stays in minutes.** The simulation itself, every waiting time, queue
+length, backlog and drain figure, and the event trace's clock remain in
+minutes. The dropdown changes how a **fit** is reported, not how a run is
+measured.
+
+**It is not saved.** Every launch starts at **minutes**, and the choice is not
+written into a preset — so a preset you share cannot silently change the unit
+on someone else's machine. A headless run can choose the same unit with
+`--fit-unit` (see `docs/DEV_LAUNCH.md` §7.3).
+
 ### 7.4 Simulate a whole day from your data
 
 ```bash
@@ -1336,6 +1370,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |
 | 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |
 | 2026-11-07 | Phase 8V: **the arrival distribution now drives the simulation.** Choosing Gamma, Lognormal, Normal, Uniform or Deterministic for **Inter-arrival distribution** makes the engine sample that family instead of always drawing exponential gaps; a new **Arrival spread** field appears with the family-appropriate parameter and is validated (a Uniform or Normal spread at or above the mean is refused, because an inter-arrival time could be zero). The analytical widget now checks each model's assumptions separately — **M/M/c** needs exponential arrivals *and* service, **M/G/c** needs exponential arrivals, **G/G/c** accepts anything — and prints the specific reason plus the model that would work when a run does not qualify, instead of one fixed paragraph. It also gained **Run steady-state validation (100,000 min)**, which produces a comparable run without replacing the clinic-day results on screen (§6.9). The `validate` CLI takes `--ca2`/`--cs2` and **samples** those distributions (Gamma with shape 1/C², Deterministic at 0), so every row of `validation_report.txt` is a real validation rather than a sensitivity note (§6.9, §3). |
 | 2026-10-04 | Phase 8T.1: **Days now means operating days.** The run length field reads **Operating days** and counts the clinic's open days, so 4 from a Saturday start is Sat/Mon/Tue/Wed — the Sunday in between no longer counts as a day and no longer adds an empty day of zeros to any average. The results panel names the sessions a run covered, e.g. *4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …* (§6.0). A **daily patient cap** resets at the start of each operating session rather than each calendar day. Single-day and diagnostic-trace runs are unchanged. |

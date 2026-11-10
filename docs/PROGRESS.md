@@ -1,3 +1,84 @@
+Session Handoff — 2026-11-11 20:05 — Phase 8W IMPLEMENTED (selectable fitting unit; green)
+Branch: feat/general-arrivals
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+8W.1–8W.4 — Selectable fitting unit (FR-STAT-11, D-217): `FittingTimeUnit`/`FittingTimeUnits` own the minutes-per-unit divisors (1, 1/60, 60, 1440, 165), scaling, rate conversion, labels and parsing; `FitsService.Fit` and `InputAnalysisService.FitAll` rescale the samples before fitting; the Input tab has one **Fitting unit** `SearchableDropdown`; `InputTabViewModel.SelectedFittingUnit` restates both lambda readouts and keeps `SelectedWindowLambda` per minute; `MainViewModel` refits through the existing generation guard. A fitted mu in the Parameters section states the fit unit and the manual-unit equivalent (`20/hour = 0.33/min (from data)`), while minutes/minutes keeps the old label byte-identical. CLI `fit` adds `--fit-unit`, `fitUnit`/`sampleMean` JSON fields and a native mean; `simulate-data` prints converted λ/μ with the per-minute figures in parentheses. Default minutes preserves every existing fit and output.
+
+8W.5 — §18 walkthrough and evidence: `Phase8WScreenshots.Render_FittingUnitHours_SavePhase8wFittingUnitHoursPng` loads `samples/sample_patients.csv` through the production `Config.ApplyLoadedFile` path, drives the real dropdown with the keyboard (`filter.Focus()` → `GotFocus` opens the popup → type `hours` → `TextChanged` filters → Enter commits), waits for the production background refit, and asserts `SelectedFittingUnit == Hours`, `patients/hour` + "converted from minutes" in the readout, and the `Inter-arrival time (hours)` card. The selector's right edge is asserted inside the window (D-169). Observed frame `logs/screenshots/phase-8w-fitting-unit-hours.png` (188,996 B) shows hours selected, hourly λ readouts, and hourly histogram bins.
+
+8W.6 — gates: Release and Debug `--no-incremental` **0 errors / 0 warnings**; full suite **965/965 green in both** (Core 183 / Data 139 / Cli 45 / App 598).
+
+Verification table
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-STAT-11 — shared selector, rescale-before-fit | `Phase8WFittingUnitTests.FitAll_InHours_ScalesParametersAndLeavesTheVerdictIdentical`; `FittingTimeUnitTests` | 4-min gaps → 15/hour, 3-min service → 20/hour; χ² statistic and p-value identical to minutes |
+| FR-STAT-11 — charts carry the unit | `Phase8WFittingUnitTests.HistogramTitlesAndCaptions_StateTheChosenUnit`, `...StateTheDayAndSessionDefinitions` | Titles say `(hours)`; captions append `(1 day = 24 h)` / `(1 session = 165 operating minutes)`; bin labels are rescaled |
+| FR-STAT-11 — readout states unit, run value per minute | `Phase8WFittingUnitTests.InputTab_ShowsTheChosenUnit_WhileTheRunValueStaysPerMinute` | `15.0000 patients/hour` shown; `SelectedWindowLambda` still 40/165 per minute |
+| FR-STAT-11 — Parameters mu states both units | `Phase8WFittingUnitTests.Parameters_FittedMuLabel_StatesTheFitUnitAndTheManualUnit` | `.../hour = .../min (from data)` after switching; minutes/minutes label unchanged |
+| FR-STAT-11 — CLI parity | `Phase8WCliFitUnitTests` (3) | Fit mean divided by 60 in hours with native mean retained; unknown unit exit 2; `simulate-data` prints `12/hour (0.2/min)` |
+| FR-STAT-11 — §18 UI walkthrough | `Phase8WScreenshots` frame opened in-session | hours selected through the production dropdown; hourly cards rendered; selector inside the window |
+
+In Progress
+None — 8W is complete and committed.
+
+What is complete:
+The feature, its App/Data/CLI tests, the §18 screenshot, the docs (PRD v1.16.2, D-217, REQUIREMENTS, TODO, USER_MANUAL §7.3a, DEV_LAUNCH), and both configuration gates.
+
+What remains:
+Owner review and merge. Owner visual inspection of `phase-8w-fitting-unit-hours.png` and the outstanding frames is B-012.
+
+Next Session Should Start With
+Owner review of `feat/general-arrivals`, then merge to `main` (the launch guide currently tells readers to switch to this branch until it is merged).
+
+Fix any finding from the frame review in a new commit, never by rewriting the pushed branch.
+
+Blocked
+B-012 — owner visual inspection of the headless screenshot backlog (does not block code or this phase).
+
+Git State
+Commits made this session: f24bd6e `feat: fit and report distributions in a selectable time unit` (code + tests); this handoff commit follows.
+
+Pushed to origin: Yes — `feat/general-arrivals` (see the push that accompanies this entry).
+
+Uncommitted changes: None after the handoff commit.
+
+Build & Test
+dotnet build: PASS (Release and Debug, `--no-incremental`, 0 warnings / 0 errors)
+
+dotnet test: PASS — 965 passed, 0 failed (Core 183 / Data 139 / Cli 45 / App 598) in both Debug and Release
+
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.Data/Fitting/FittingTimeUnit.cs: added
+src/OpdSimulator.App/Models/FitReport.cs: modified
+src/OpdSimulator.App/Services/FitsService.cs: modified
+src/OpdSimulator.App/Services/InputAnalysisService.cs: modified
+src/OpdSimulator.App/ViewModels/InputAnalysisViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/InputTabViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+src/OpdSimulator.App/Views/InputTab.axaml: modified
+src/OpdSimulator.Cli/Commands/FitCommand.cs: modified
+src/OpdSimulator.Cli/Commands/SimulateDataCommand.cs: modified
+tests/OpdSimulator.Data.Tests/FittingTimeUnitTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8WFittingUnitTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8WScreenshots.cs: added
+tests/OpdSimulator.Cli.Tests/Phase8WCliFitUnitTests.cs: added
+docs/PRD.md, docs/DECISIONS.md, docs/REQUIREMENTS.md, docs/TODO.md, docs/PROGRESS.md, docs/USER_MANUAL.md, docs/DEV_LAUNCH.md: modified
+
+Decisions Made
+D-217 — the fitting unit is a scale conversion applied before every fit, shared by arrivals and service, and never persisted — docs/DECISIONS.md#d-217
+
+Assumptions Added/Changed
+None — the day/session lengths (1440/165 minutes) are confirmed constants already recorded in CONTEXT; the unit's non-persistence follows FR-UI-21.
+
+Notes for Next Session
+The unit is a reporting scale; if a future change makes the chi-square verdict move with the unit, the scale-equivariance test is the guard that should fail. `FittingTimeUnits.Scale` returns the same list instance for minutes, so the default path allocates nothing and stays byte-identical. The Parameters label keeps its historical minutes/minutes form on purpose; changing that string would churn existing tests for no user-visible gain.
+
+---
+
 Session Handoff — 2026-11-09 19:00 — Phase 8T.3–8T.5 IMPLEMENTED (queue session selector, trace table, one results sequence; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)
