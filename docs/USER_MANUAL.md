@@ -478,9 +478,9 @@ engine actually did.
      (1 hour — the default — / 15 minutes / Custom minutes…, which reveals a
      whole-minutes field) and the **Trace level** dropdown
      (Minimal / Standard / Detailed / Debug).
-     Clinic-day and multi-day runs also record an event trace — it appears in
-     the **Event Trace** box pinned below the right panel, most detailed in
-     diagnostic mode. That box is always shown (§6.3); you do not switch it on.
+     Clinic-day and multi-day runs also record an event trace — it appears as
+     the last section of the right panel, most detailed in diagnostic mode.
+     That section is always shown (§6.3); you do not switch it on.
 
 10. **(Diagnostic trace only) Set the trace level.**
     "Minimal" records nothing; "Standard" records arrivals, service start/end,
@@ -614,16 +614,26 @@ Chronological trace of every event, from a **Diagnostic trace** run (§5 step 7)
 or from any run that recorded a trace. Choose the trace level in the Horizon
 section to include queue-state snapshots and (at `Debug`) random-number draws.
 
-The box is **pinned below the widgets** rather than sitting inside the scrolling
-list, so scrolling to a metric never pushes the trace off screen, and it **is
-not** in the "Customise results" list — there is no switch to turn it off. Its
-height is capped, and a long trace scrolls **inside** the box so it cannot
-squash the widgets above it. Before you run anything the box says
-*"No trace was recorded for this run."*; it fills in as soon as a run finishes,
-in **every** run mode. A run that genuinely recorded no trace says so rather
-than leaving it blank. The box gives up its height to the widgets above only
-down to a floor, so on a short window you still get a readable strip of
-results above it.
+The trace is a **table**, one row per event: row number, simulation minutes,
+wall clock, event type, patient, stage, server, queue length, and the detail
+text. Each cell's text can be selected and copied. Very long traces stay
+responsive because only the rows on screen are built — scrolling moves the
+whole results panel, not a separate box inside it.
+
+The trace is the **last section of the results panel**, after every widget.
+The panel is **one continuous scroll**: the run header and the "Customise
+results" toggle are at the top, then the widgets, then the trace. Nothing is
+pinned above or below that sequence, so a short window scrolls the whole panel
+rather than squeezing one area. The trace **is not** in the "Customise results"
+list — there is no switch to turn it off. Before you run anything the section
+says *"No trace was recorded for this run."*; it fills in as soon as a run
+finishes, in **every** run mode. A run that genuinely recorded no trace says so
+rather than leaving it blank.
+
+If the generator produced arrivals that never entered the clinic, one muted
+note beside the table reports the total and names both reasons: outside the
+opening window, or over the session cap. Those rows are not in the table, so
+the note is how the trace reconciles with the arrival rate you configured.
 
 ### 6.4 Per-Server Utilisation Chart
 Shows what the engine's own servers actually did during a run (one bar per
@@ -688,6 +698,14 @@ shows *"Run a simulation to see queue length over time."*
 
 How to read it:
 
+- The **Operating session** dropdown offers `All sessions` plus one entry per
+  operating session (`Day 1 (Sat)`, `Day 2 (Mon)`, …). Closed days never
+  appear. Choosing one plots only that session and changes the X axis to
+  **minutes from the session opening, 0…165**, so two sessions sit on the same
+  scale and can be compared by position. `All sessions` keeps the absolute
+  clock and plots the whole run.
+- The selection resets to `All sessions` whenever you start a new run, because
+  session numbers belong to the run that produced them.
 - Each line is a **step**, not a slope. The engine only changes a queue
   length at an event — a patient arrives or leaves — so the line stays flat
   and jumps. A smooth diagonal between two points would draw a queue length
@@ -706,7 +724,7 @@ How to read it:
   tallest queue peaks, so you can still see how bad the worst moment was.
 - The legend above the charts lists the stages with their colours, so a line
   can be traced back to its stage without hovering. The X axis is minutes
-  since the sim's start time.
+  since the sim's start time, or minutes from the selected session's opening.
 
 ### 6.6 Waiting-Time Distribution
 Shows how long patients actually **waited in each stage's queue** during a
@@ -1318,6 +1336,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |
 | 2026-11-07 | Phase 8V: **the arrival distribution now drives the simulation.** Choosing Gamma, Lognormal, Normal, Uniform or Deterministic for **Inter-arrival distribution** makes the engine sample that family instead of always drawing exponential gaps; a new **Arrival spread** field appears with the family-appropriate parameter and is validated (a Uniform or Normal spread at or above the mean is refused, because an inter-arrival time could be zero). The analytical widget now checks each model's assumptions separately — **M/M/c** needs exponential arrivals *and* service, **M/G/c** needs exponential arrivals, **G/G/c** accepts anything — and prints the specific reason plus the model that would work when a run does not qualify, instead of one fixed paragraph. It also gained **Run steady-state validation (100,000 min)**, which produces a comparable run without replacing the clinic-day results on screen (§6.9). The `validate` CLI takes `--ca2`/`--cs2` and **samples** those distributions (Gamma with shape 1/C², Deterministic at 0), so every row of `validation_report.txt` is a real validation rather than a sensitivity note (§6.9, §3). |
 | 2026-10-04 | Phase 8T.1: **Days now means operating days.** The run length field reads **Operating days** and counts the clinic's open days, so 4 from a Saturday start is Sat/Mon/Tue/Wed — the Sunday in between no longer counts as a day and no longer adds an empty day of zeros to any average. The results panel names the sessions a run covered, e.g. *4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …* (§6.0). A **daily patient cap** resets at the start of each operating session rather than each calendar day. Single-day and diagnostic-trace runs are unchanged. |
 | 2026-10-03 | Phase 8S — six fixes from a review of the app's own screenshots. **(1)** In the results panel's **System totals**, each value now sits **beside its label** instead of at the far right of the panel. **(2)** The pinned event-trace box no longer squeezes the widgets above it: on a short window you get a readable strip of results rather than a sliver. **(3) The event trace now fills in.** If your event box said *"No trace was recorded for this run."* after a run that clearly recorded one, that was a real fault — the trace was recorded and the panel was never told. It now updates after every run, in every run mode. **(4)** The **Per-server detail** table under the utilisation chart has been **removed**; hover a bar for that server's numbers instead (§6.4). **(5)** The equal-share **dashed benchmark line** now sits exactly where it is drawn relative to the bars. **(6)** The **Input** tab's last section can now scroll clear of the window edge. |

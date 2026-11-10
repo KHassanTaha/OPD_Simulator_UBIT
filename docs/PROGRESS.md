@@ -1,3 +1,108 @@
+Session Handoff — 2026-11-09 19:00 — Phase 8T.3–8T.5 IMPLEMENTED (queue session selector, trace table, one results sequence; green)
+Branch: feat/general-arrivals
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+8T.3 — Queue chart selects an operating session (FR-UI-40, D-203): `QueueLengthChartService.SessionOptions`/`SessionLabel`/`Build` filter the samples and rebase the X axis to minutes from the session's open (`0…165`), apply decimation per selection, and pin `XAxisMaximum`; `ResultsPanelViewModel` carries `QueueSessionNames`/`SelectedQueueSession`/`ShowQueueSessionSelector` and resets the selection to `All sessions` on every new run. §18 evidence `logs/screenshots/phase-8t3-queue-session-selected.png` (101,127 B).
+
+8T.4 — Trace becomes a table and refused arrivals are counted (FR-UI-39, FR-STAT-10, NFR-11, D-202): `TraceEvent` records travel through `RunOutcome.TraceEvents` beside the text lines; `ResultsPanelViewModel.BuildTraceRows` projects them once into `TraceRows` (serial, minutes, clock, type, patient, stage, server, queue, detail) and `NotAdmittedNote` states the run total and both reasons; `Engine` increments `SimulationResult.RefusedArrivals` on every calendar rejection. The table is an `ItemsControl` + `VirtualizingStackPanel` inside the single results scroller (D-215). §18 evidence `logs/screenshots/phase-8t4-event-trace-table.png` (187,009 B).
+
+8T.5 — One inline results sequence (FR-UI-37, FR-UI-35 amendment, D-200): `ResultsPanel.axaml` is one `ResultsScroller` holding header + Customise, widgets, trace and the bottom buffer; `WidgetScroller`, the trace `MaxHeight`/`MinHeight` and its nested `ScrollViewer` are gone, so there is one scrollbar. The pinned-row tests were replaced, not repaired: `Phase8SLayoutTests` now asserts ordering at 420/560/760 and a no-ceiling test, and `ResultsPanelBufferTraceTests` was rewritten for the single region. §18 evidence `logs/screenshots/phase-8t5-results-one-sequence.png` (101,181 B).
+
+8T.3–8T.5 gates — Release and Debug `--no-incremental` 0 errors / 0 warnings; full suite **951/951 green in both** (Core 183 / Data 134 / Cli 42 / App 592); new tests `Phase8T3QueueSessionTests` (7), `Phase8T4TraceTableTests` (6), Core `Phase8TTests` (18, including the refused-arrival reconciliation). The retired `Phase8Q4Screenshot` test was deleted; its frame `phase-8q-results-buffer-trace.png` is retained unchanged as evidence of the withdrawn pinned layout (D-166).
+
+### Phase 8T.3–8T.5 requirement verification (AGENTS §18)
+
+| Requirement | Click sequence executed | Observed result | Evidence |
+|---|---|---|---|
+| FR-UI-40 — session selector on the queue chart | Three-session run (`2,4,5` servers) → focus the `Operating session` dropdown → popup opens on `GotFocus` → type `Day 3 (Tue)` → `TextChanged` filters → Enter on the item list | `dropdown.SelectedItem` and `Results.SelectedQueueSession` are `Day 3 (Tue)`; the built chart's X axis is `MinLimit = 0`, `MaxLimit = 165`; options were `All sessions, Day 1 (Sat), Day 2 (Mon), Day 3 (Tue)` — no closed day | `phase-8t3-queue-session-selected.png`; `Phase8T3QueueSessionTests` 7/7; `Phase8SScreenshots.Render_QueueSessionSelected_SavePhase8T3QueueSessionPng`. **Visual inspection owner-required (B-012)** |
+| FR-UI-39 / FR-STAT-10 / NFR-11 — trace table and refused-arrival note | Run a multi-day clinic-day configuration → scroll the single results region to the trace | Realised `ARRIVAL` rows render with the nine columns; the table realises fewer than 200 containers from 10,000 rows; the note names **outside the opening window** and **over the session cap** with the run total; the trace owns no `ScrollViewer` | `phase-8t4-event-trace-table.png`; `Phase8T4TraceTableTests` 6/6; `Phase8TTests.Run_CountsEveryArrivalTheCalendarRefused`, `Run_HorizonMode_ReportsNoRefusedArrivals`. **Visual inspection owner-required (B-012)** |
+| FR-UI-37 / FR-UI-35 (amended) — one results sequence | Open the app at a 420 px results width → scroll from offset 0 to the end | Header + `Customise results` first, widgets, trace last, bottom buffer trailing; `ResultsScroller.Extent.Height > Viewport.Height`; the trace moves with the body and has no scroller of its own; order holds at 420/560/760 | `phase-8t5-results-one-sequence.png`; `Phase8SLayoutTests` (ordering theory + no-ceiling); `ResultsPanelBufferTraceTests` (single region, buffer clears the trace). **Visual inspection owner-required (B-012)** |
+
+In Progress
+8T gates (`docs/TODO.md`, `[~]`) — only 8T.1 and 8T.2 remain open, and only for owner visual inspection of `phase-8t1-session-caption.png` and the 8S/8T frames (B-012). 8T.3–8T.5 are `[x]` with the table above.
+
+What is complete:
+
+**The queue chart answers a question you can name.** Before this phase the chart plotted a whole clinic week on one absolute clock, so the only thing a single session could be read from was its position relative to midnight. The selector lists the run's **open** sessions only — closed days were never admitted and are not offered — and choosing one rebases the axis to `0…165`, which is the same scale every session shares. The decimator runs per selection rather than once on the whole run, so a filtered session is not thinned against samples it does not contain. The reset on a new run is deliberate: ordinals are properties of the run that produced them.
+
+**The trace is data before it is text.** `TraceEvent` already existed for the formatter; it now crosses into the App beside `TraceLines`, and the rows are projected from records rather than parsed out of the formatted strings. That is what makes a nine-column table honest — a parsed table would show the columns the formatter happened to print, and would break silently the first time a line format changed. Refused arrivals are counted in `Engine` where the calendar rejects them, so the note's total is the engine's own number, not an inference from the log.
+
+**One scroller, and the virtualisation is inside it.** The obvious implementation of a 10,000-row table is a nested `ListBox`, and that is exactly the pinned layout D-200 withdraws. `ItemsRepeater` is not in base Avalonia 11.3.3, so the table is an `ItemsControl` whose items panel is a `VirtualizingStackPanel`; it virtualises against the outer scroller's viewport, which keeps one scrollbar and bounds the realised rows (D-215). The tests scroll the trace into view before asserting, because that is what the user does and it is what makes the outer viewport real.
+
+**A regression the new work introduced, found by an old test.** The categorical axis change landed as `xAxis.Labeler ??= …`; LiveCharts2's `Labeler` is non-null by default and prints bare indices, so every categorical chart silently lost its labels while the data-level assertions stayed green. `Phase8MChartControlTests.UtilisationChart_EveryCategoryHasAVisibleLabel` invokes the labeler and caught it; the assignment is unconditional again (D-216). This is the D-186 family: the value in memory was right and the rendered output was wrong.
+
+**Numbers.** Core 181 -> 183 (`Phase8TTests` +2), App 579 -> 592 (`Phase8T3QueueSessionTests` 7, `Phase8T4TraceTableTests` 6, plus the rewritten layout/buffer tests netting the rest), Cli 42 and Data 134 unchanged. Full suite 936 -> **951**.
+
+**A drift fixed while documenting:** `DECISIONS.md` D-200/D-202/D-203 still said "recorded before implementation"; each now records what landed. `REQUIREMENTS.md` moved FR-UI-35, FR-UI-37, FR-UI-39, FR-UI-40, FR-STAT-10 and NFR-11 to `[x]` with sources and tests.
+
+What remains:
+
+Owner review and merge of `feat/general-arrivals`; owner visual inspection of the three new frames plus the 8S/8T backlog (B-012). Out-of-scope items recorded in `docs/TODO.md` (two-way split of the refused count, copy-trace control, weekday bands, per-session small multiples) are unchanged and unstarted.
+
+Next Session Should Start With
+Owner review of `feat/general-arrivals`; the branch is ready and no PR has been opened (AGENTS §11.4).
+
+If the review asks for the separate refused-arrival reasons, that is the first listed out-of-scope item in `docs/TODO.md` §Phase 8T.
+
+Blocked
+B-012 — owner visual inspection of the headless frames is still open (D-089). It does not block code.
+
+Git State
+Commits made this session: `159d655` feat: select a queue session, tabulate the trace, and unify the results panel; the documentation commit containing this handoff follows it.
+Pushed to origin: pending — `feat/general-arrivals` is pushed after this docs commit; no PR opened.
+Uncommitted changes: none after the docs commit.
+
+Build & Test
+dotnet build: PASS — Release and Debug, `--no-incremental`, 0 errors / 0 warnings in both.
+dotnet test: PASS — 951 passed, 0 failed, in Release **and** Debug (Core 183 / Data 134 / Cli 42 / App 592).
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App/Views/ResultsPanel.axaml: modified — one `ResultsScroller`, trace table, no pinned rows
+src/OpdSimulator.App/ViewModels/ResultsPanelViewModel.cs: modified — queue session state, `TraceRow`, `TraceRows`, `NotAdmittedNote`
+src/OpdSimulator.App/Services/QueueLengthChartService.cs: modified — session options/filter/rebase/axis maximum
+src/OpdSimulator.App/Services/ChartControlBuilder.cs: modified — `xAxisOverride`, unconditional categorical labeler (D-216)
+src/OpdSimulator.App/Services/CollectionTraceSink.cs: modified — structured event carriage
+src/OpdSimulator.App/Services/SimulationCoordinator.cs: modified — `RunOutcome.TraceEvents`, refused-arrival count
+src/OpdSimulator.App/Assets/ControlStyles.axaml: modified — trace table cell styles
+src/OpdSimulator.Core/Engine/Engine.cs: modified — refused-arrival counter
+src/OpdSimulator.Core/Engine/SimulationResult.cs: modified — `RefusedArrivals`
+src/OpdSimulator.Core/Trace/TraceFormatter.cs: modified — formatter reuse by the row projection
+tests/OpdSimulator.App.Tests/Phase8T3QueueSessionTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8T4TraceTableTests.cs: added
+tests/OpdSimulator.App.Tests/Phase8SLayoutTests.cs: modified — replaced pinned-ceiling tests with ordering + no-ceiling
+tests/OpdSimulator.App.Tests/ResultsPanelBufferTraceTests.cs: modified — rewritten for the single region
+tests/OpdSimulator.App.Tests/Phase8SScreenshots.cs: modified — 8T.3/8T.4/8T.5 frames
+tests/OpdSimulator.App.Tests/Phase8Q4Screenshot.cs: deleted (retired; its frame is retained)
+tests/OpdSimulator.App.Tests/Phase5RunFlowTests.cs, Phase5cFixesTests.cs, Phase5cScreenshot.cs, Phase6c6Screenshots.cs: modified — repointed at the single scroller
+tests/OpdSimulator.Core.Tests/Phase8TTests.cs: modified — refused-arrival reconciliation
+docs/DECISIONS.md: modified — D-200/D-202/D-203 marked implemented; D-215, D-216 added
+docs/PRD.md: modified — v1.16.1 changelog row
+docs/REQUIREMENTS.md: modified — FR-UI-35/37/39/40, FR-STAT-10, NFR-11 `[x]`
+docs/TODO.md: modified — 8T.3–8T.5 `[x]`, state paragraph, gates `[~]`
+docs/USER_MANUAL.md: modified — §5 step 9, §6.3, §6.5, changelog
+docs/DEV_LAUNCH.md: modified — last-verified line for 2026-11-09
+
+Decisions Made
+D-200 — the results panel becomes one inline sequence (implemented) — `docs/DECISIONS.md` §D-200
+D-202 — the trace becomes a virtualised table and rejected arrivals get one muted line (implemented) — §D-202
+D-203 — the queue-length chart selects an operating session (implemented) — §D-203
+D-215 — the trace virtualises inside the one scroller via `ItemsControl` + `VirtualizingStackPanel` — §D-215
+D-216 — a categorical axis labeler is assigned, never `??=` — §D-216
+
+Assumptions Added/Changed
+None. The Avalonia 11.3.3 `ItemsRepeater` availability was checked against the installed package, not assumed, and is recorded in D-215.
+
+Notes for Next Session
+The headless `SearchableDropdown` path needs the popup's `ListBox` read from `popup.Child`, an explicit `GotFocusEventArgs` to open the popup, an explicit `TextChangedEventArgs` after setting `Text`, and Enter on the item list — setting `Text` and calling `UpdateLayout()` alone leaves the filter unrun and the old selection in place. `Phase8SScreenshots.Render_QueueSessionSelected_SavePhase8T3QueueSessionPng` is the worked example.
+
+`ResultsScroller` is always present; `IsVisible` sits on the inner `StackPanel` and `IsHitTestVisible` binds to `HasRun`, because a collapsed `ScrollViewer` never applies its template and the pre-run widget picker would vanish.
+
+The trace must own no `ScrollViewer`; `ResultsPanelBufferTraceTests` asserts `Assert.Empty(trace.GetVisualDescendants().OfType<ScrollViewer>())`. Any future change that wraps it re-creates the second scrollbar D-200 withdraws.
+
+---
+
 Session Handoff — 2026-11-07 11:24 — Phase 8V IMPLEMENTED (true general arrivals, per-model applicability, widget steady-state run; green)
 Branch: feat/general-arrivals
 Status: Clean
