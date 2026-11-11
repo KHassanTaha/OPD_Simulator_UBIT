@@ -1,4 +1,4 @@
-Session Handoff — 2026-11-11 12:40 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
+Session Handoff — 2026-11-11 06:15 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)
 
@@ -43,7 +43,7 @@ Blocked
 B-012 — owner visual inspection of the headless screenshot backlog (does not block code or this phase).
 
 Git State
-Commits made this session: `feat: rebuild dropdowns, quiet the launch banner, move the fitting unit` (code + tests) and `docs: record Phase 8X` (living state + manuals); this handoff accompanies the docs commit.
+Commits made this session: `bff8eb8` `feat: rebuild dropdowns, quiet the launch banner, move the fitting unit` (code + tests); `0157b30` `docs: record Phase 8X and add the full step-by-step manual` (living state + manuals); a follow-up `docs:` commit corrects this handoff's timestamp and evidence sizes (no amend of pushed history).
 
 Pushed to origin: Yes — `feat/general-arrivals`.
 
@@ -82,7 +82,7 @@ Assumptions Added/Changed
 None new. FR-UI-21's "startup starts clean" is unchanged and still honoured; the fitting unit still does not persist.
 
 Notes for Next Session
-The owner asked for **FluentAvalonia's** ComboBox; the delivered control is Avalonia's built-in ComboBox, because FluentAvalonia 2.5.1+ requires Avalonia 11.3.12 (the solution pins 11.3.3) and replaces the app-wide theme. This must be stated plainly in the next report. If the owner wants the Fluent look, that is a separate theming decision: bump Avalonia, adopt FluentAvalonia, re-verify every frame. New evidence files are append-only: `phase-8x-dropdown-open.png` (18,639 B), `phase-8x-fitting-unit-selector.png` (180,479 B), `phase-8x-fitting-unit-hours.png` (183,119 B); `phase-8w-fitting-unit-hours.png` is preserved untouched.
+The owner asked for **FluentAvalonia's** ComboBox; the delivered control is Avalonia's built-in ComboBox, because FluentAvalonia 2.5.1+ requires Avalonia 11.3.12 (the solution pins 11.3.3) and replaces the app-wide theme. This must be stated plainly in the next report. If the owner wants the Fluent look, that is a separate theming decision: bump Avalonia, adopt FluentAvalonia, re-verify every frame. New evidence files are append-only: `phase-8x-dropdown-open.png` (18,639 B), `phase-8x-fitting-unit-selector.png` (180,479 B), `phase-8x-fitting-unit-hours.png` (191,314 B); `phase-8w-fitting-unit-hours.png` is preserved untouched.
 
 ---
 
