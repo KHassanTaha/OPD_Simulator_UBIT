@@ -53,12 +53,12 @@ refuse the build. That is intentional — install the pinned SDK.
 ```bash
 git clone https://github.com/KHassanTaha/OPD_Simulator_UBIT.git opd-simulator
 cd opd-simulator
-git switch feat/general-arrivals
 ```
 
-`git switch` selects the branch carrying the latest verified work (Phase 8T.3–8T.5,
-2026-11-09). **Once that branch is merged into `main`, omit the `git switch` line** —
-a plain clone of `main` will then be current.
+A plain clone of `main` is current — `main` carries every phase through
+**Phase 8X (2026-11-11)** since the merge of `feat/general-arrivals`
+(fast-forward, verified 2026-11-11: Release build 0 errors / 0 warnings,
+full suite 966/966 green on `main`).
 
 You should see `OpdSimulator.sln`, `global.json`, `src/`, `tests/`, `docs/`.
 There must be **no** `bin/` or `obj/` folders yet. If there are, delete them:
