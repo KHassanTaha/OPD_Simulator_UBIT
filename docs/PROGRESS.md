@@ -1,3 +1,91 @@
+Session Handoff — 2026-11-11 12:40 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
+Branch: feat/general-arrivals
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+8X.1 — No startup error message (FR-UI-9 `[UPDATED]`, D-220): `ConfigPanelViewModel.HasInteracted` plus a computed `StartBlockedBannerMessage` keep the Start-blocked banner empty until the user's first click or keystroke **inside the configuration panel**; `ConfigPanel.axaml.cs` marks interaction from tunnelled `PointerPressedEvent`/`KeyDownEvent`, so a window that focuses its first control on activation still launches clean. The Start gate itself is untouched — the same `StartIsEnabled` logic and the same reason text.
+
+8X.2 — Dropdowns rebuilt on a prebuilt control (FR-UI-6 `[UPDATED]`, D-218): `Controls/DropdownField.axaml` (+ code-behind) now wraps Avalonia's platform-standard `ComboBox` and keeps the shared label/`InfoIcon`/tooltip chrome; the custom `SearchableDropdown` was renamed and rewritten around it. All 14 usages, `TimeUnitSelector`, `CollapsibleSection` and `ControlsDemo` were updated; type-to-filter, "×" clear and "no matches" are removed. **Deviation from the owner's pick:** FluentAvalonia 2.5.1+ needs Avalonia 11.3.12 (solution pins 11.3.3) and supplies an app-wide theme, so the built-in ComboBox it restyles was used instead — D-218 records the reason and the alternative.
+
+8X.3 — Fitting unit moved into the Simulation panel (D-219): the **Distribution fitting unit** dropdown now sits in **2 · Model** after Significance level (`HelpAnchor="fitting-unit"`). `InputTabViewModel.SelectedFittingUnit` remains the single owner; `ConfigPanelViewModel` exposes `SelectedFittingUnitLabel`/`FittingUnitOptions`/`FittingUnitSetter` and `MainViewModel` wires it. The Input tab's selector and its orphan `FittingUnitOptions` were removed.
+
+8X.4 — Token Generator tab removed (D-221): the shell is now **Simulation | Input | Help**, with Help at `TabIndex=2`; `MainWindow.axaml.cs`, `PlaceholderContent` and the shell tests were updated. FR-TOKEN stays planned work — only the empty placeholder is gone.
+
+8X.5 — Histogram redraw re-verified: `Phase8WScreenshots` now drives the real `ComboBox` (not the removed filter box), waits for the production background refit, and asserts the `Inter-arrival time (hours)` card plus the hourly λ readout.
+
+8X.6 — Comprehensive manual (D-222): `docs/USER_MANUAL_FULL.md` covers workflows A–G, control-by-control tables for the Simulation panel, the results panel and the Input tab, the keyboard map, file locations, troubleshooting and a glossary. `docs/USER_MANUAL.md` stays the compact reference and now points to it.
+
+Verification table
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-UI-6 — prebuilt, labelled dropdown | `Phase8EFixTests` (3 ComboBox tests), `ControlsSmokeTests`, `Phase8EScreenshots` | The real ComboBox opens (`IsDropDownOpen`), lists every option, commits a selection; label/tooltip from `DropdownField` |
+| FR-UI-9 — banner silent until interaction | `Phase8XTests.ConfigPanel_StartBlockedBanner_IsSilentUntilTheUserInteracts`, `MainWindow_FreshLaunch_HidesTheBlockedBanner` | Fresh window hides the banner; a **real pointer press** inside `ConfigPanel` flips `HasInteracted` and reveals it |
+| FR-STAT-11 — selector in the Simulation panel, same owner | `Phase8XTests.ConfigPanel_FittingUnitSelector_WritesThroughToTheInputTab`, `Phase8WScreenshots` | Choosing `hours` in the config panel reaches `InputTab.SelectedFittingUnit`; the Input tab refits in hours |
+| FR-UI-40 — session dropdown after the control swap | `Phase8T3QueueSessionTests`, `Phase8SScreenshots` | Selector still lists open sessions only; selection rebases to 0…165 |
+| FR-TOKEN-3 — placeholder tab removed, requirement active | `Phase3ShellTests`, `Phase7DTests` | Exactly three tabs, in order Simulation \| Input \| Help |
+| NFR / manual | `docs/USER_MANUAL_FULL.md` written; compact manual updated | 12 sections, every control described |
+
+In Progress
+None — 8X is complete and committed with this handoff.
+
+What is complete:
+All six owner requests, their App tests, both manuals, PRD v1.16.3, DECISIONS D-218..D-222, REQUIREMENTS rows + change history, TODO, DEV_LAUNCH, and both configuration gates.
+
+What remains:
+Owner review and merge. Owner visual inspection of the three new frames is B-012 — **this model has no image input**, so the frames were asserted structurally (open state, item count, in-window bounds, refit output) but not seen.
+
+Next Session Should Start With
+Owner review of `feat/general-arrivals`, then merge to `main`.
+
+Fix any finding from the frame review in a new commit, never by rewriting the pushed branch.
+
+Blocked
+B-012 — owner visual inspection of the headless screenshot backlog (does not block code or this phase).
+
+Git State
+Commits made this session: `feat: rebuild dropdowns, quiet the launch banner, move the fitting unit` (code + tests) and `docs: record Phase 8X` (living state + manuals); this handoff accompanies the docs commit.
+
+Pushed to origin: Yes — `feat/general-arrivals`.
+
+Uncommitted changes: None after the handoff commit.
+
+Build & Test
+dotnet build: PASS — Debug and Release `--no-incremental`, 0 errors / 0 warnings.
+
+dotnet test: PASS — **966/966 in both Debug and Release** (Core 183 / Data 139 / Cli 45 / App 599).
+
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App/Controls: `SearchableDropdown.axaml(.cs)` renamed to `DropdownField.axaml(.cs)`; `TimeUnitSelector`, `CollapsibleSection`, `PlaceholderContent`, `StageRowControl` updated.
+
+src/OpdSimulator.App/Views: `ConfigPanel.axaml(.cs)` (fitting-unit dropdown, banner binding, interaction handlers, vertical defaults row), `InputTab.axaml` (selector removed), `MainWindow.axaml(.cs)` (three tabs), `ResultsPanel.axaml`, `ControlsDemo.axaml`.
+
+src/OpdSimulator.App/ViewModels: `ConfigPanelViewModel` (fitting-unit bridge, `HasInteracted`/`StartBlockedBannerMessage`), `InputTabViewModel`, `MainViewModel`, `ControlsDemoViewModel`.
+
+tests/OpdSimulator.App.Tests: new `Phase8XTests.cs`; `Phase8WScreenshots`, `Phase8EScreenshots`, `Phase8SScreenshots`, `Phase8EFixTests`, `ControlsSmokeTests`, `Phase3ShellTests`, `Phase7DTests` (+ related control tests) updated.
+
+docs: `PRD.md` (v1.16.3), `DECISIONS.md` (D-218..D-222), `REQUIREMENTS.md`, `TODO.md`, `DEV_LAUNCH.md`, `USER_MANUAL.md`, new `USER_MANUAL_FULL.md`, this `PROGRESS.md`.
+
+Decisions Made
+D-218 — Dropdowns are the platform-standard ComboBox wrapped in `DropdownField` (includes the FluentAvalonia deviation).
+
+D-219 — The fitting-unit selector moves to the Simulation tab's Model section; `InputTabViewModel` keeps ownership.
+
+D-220 — The Start-blocked banner is silent until the first real interaction with the configuration panel.
+
+D-221 — The placeholder Token Generator tab is removed; FR-TOKEN stays planned work.
+
+D-222 — A new comprehensive `docs/USER_MANUAL_FULL.md`; the compact manual points to it.
+
+Assumptions Added/Changed
+None new. FR-UI-21's "startup starts clean" is unchanged and still honoured; the fitting unit still does not persist.
+
+Notes for Next Session
+The owner asked for **FluentAvalonia's** ComboBox; the delivered control is Avalonia's built-in ComboBox, because FluentAvalonia 2.5.1+ requires Avalonia 11.3.12 (the solution pins 11.3.3) and replaces the app-wide theme. This must be stated plainly in the next report. If the owner wants the Fluent look, that is a separate theming decision: bump Avalonia, adopt FluentAvalonia, re-verify every frame. New evidence files are append-only: `phase-8x-dropdown-open.png` (18,639 B), `phase-8x-fitting-unit-selector.png` (180,479 B), `phase-8x-fitting-unit-hours.png` (183,119 B); `phase-8w-fitting-unit-hours.png` is preserved untouched.
+
+---
+
 Session Handoff — 2026-11-11 02:07 — Phase 8W IMPLEMENTED (selectable fitting unit; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)

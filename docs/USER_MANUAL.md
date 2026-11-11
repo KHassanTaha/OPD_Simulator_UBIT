@@ -4,6 +4,11 @@
 **Audience:** Non-technical users (clinic staff, students, evaluators)
 
 > This file lives in `docs/` (owner decision 2026-09-13).
+>
+> **Looking for the complete step-by-step guide?** A fuller manual with a
+> walkthrough of every control and workflow lives in
+> [`docs/USER_MANUAL_FULL.md`](USER_MANUAL_FULL.md). This file remains the
+> compact reference; the full manual is the one to read first.
 
 ---
 
@@ -88,8 +93,8 @@ useful if you want to see exactly what happened.
 
 ## 4. The Main Screen
 
-The window has a header and four tabs — **Simulation | Input | Token
-Generator | Help**. The **Simulation** tab is split into two panels:
+The window has a header and three tabs — **Simulation | Input | Help**. The
+**Simulation** tab is split into two panels:
 
 ```
 +----------------------------+--------------------------------+
@@ -1228,12 +1233,13 @@ A machine-readable copy is written to `logs/fit-YYYYMMDD-HHMMSS.json`.
 
 ### 7.3a Choose the unit a fit is reported in
 
-The Input tab's **Distribution fit** section has a **Fitting unit** dropdown:
-**minutes** (the default), **seconds**, **hours**, **days** (1 day = 24 hours)
+The **Distribution fitting unit** dropdown lives in the **Simulation** tab's
+**Model** section (Phase 8X; it moved there from the Input tab): **minutes**
+(the default), **seconds**, **hours**, **days** (1 day = 24 hours)
 or **sessions** (1 session = the clinic's 165 operating minutes). One dropdown
-governs the inter-arrival fit and every stage's service fit, and the cards
-underneath redraw in that unit — the histogram's bin labels, the fitted
-parameters and the card titles all move together.
+governs the inter-arrival fit and every stage's service fit, and the cards on
+the Input tab underneath redraw in that unit — the histogram's bin labels, the
+fitted parameters and the card titles all move together.
 
 **What changes and what does not.** The same loaded samples are divided by the
 unit's length before fitting, so the numbers you read change:
@@ -1321,14 +1327,14 @@ them and the validation fixture: `bash scripts/make-sample-data.sh`.
 
 ---
 
-## 8. The Token Generator Tab
+## 8. The Token Generator Tab (removed)
 
-Shows a visual token for the next arriving patient:
-
-- **Token number** — sequential.
-- **Estimated wait** — based on current queue length and service rate.
-
-*(This feature is being finalised and may appear as a preview in this version.)*
+This tab was a placeholder and has been **removed from the window** (Phase 8X,
+2026-11-11). The token feature — issuing a numbered token per arriving patient
+with an estimated wait — is still planned work (see `FR-TOKEN` in
+`docs/PRD.md`); only the empty placeholder tab is gone, so the window now shows
+**Simulation | Input | Help**. When the feature is built it will return as a
+real panel rather than a placeholder.
 
 ---
 
@@ -1370,6 +1376,7 @@ Shows a visual token for the next arriving patient:
 
 | Date | Change |
 |------|--------|
+| 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |
 | 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |
 | 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |
 | 2026-11-07 | Phase 8V: **the arrival distribution now drives the simulation.** Choosing Gamma, Lognormal, Normal, Uniform or Deterministic for **Inter-arrival distribution** makes the engine sample that family instead of always drawing exponential gaps; a new **Arrival spread** field appears with the family-appropriate parameter and is validated (a Uniform or Normal spread at or above the mean is refused, because an inter-arrival time could be zero). The analytical widget now checks each model's assumptions separately — **M/M/c** needs exponential arrivals *and* service, **M/G/c** needs exponential arrivals, **G/G/c** accepts anything — and prints the specific reason plus the model that would work when a run does not qualify, instead of one fixed paragraph. It also gained **Run steady-state validation (100,000 min)**, which produces a comparable run without replacing the clinic-day results on screen (§6.9). The `validate` CLI takes `--ca2`/`--cs2` and **samples** those distributions (Gamma with shape 1/C², Deterministic at 0), so every row of `validation_report.txt` is a real validation rather than a sensitivity note (§6.9, §3). |
