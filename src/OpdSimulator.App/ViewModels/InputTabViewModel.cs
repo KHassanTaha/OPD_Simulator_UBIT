@@ -226,15 +226,14 @@ public partial class InputTabViewModel : ObservableObject
     /// <summary>
     /// The unit the Input tab fits and reports in (Phase 8W). Reset to minutes
     /// on every launch: it is never read from or written to disk (FR-UI-21).
+    /// The dropdown that sets it lives in the Simulation panel (Phase 8X);
+    /// this view model remains the single owner of the value.
     /// </summary>
     [ObservableProperty]
     private FittingTimeUnit selectedFittingUnit = FittingTimeUnit.Minutes;
 
-    /// <summary>Dropdown entries for <see cref="SelectedFittingUnit"/>.</summary>
-    public IReadOnlyList<string> FittingUnitOptions => FittingTimeUnits.Options;
-
     /// <summary>
-    /// The selected unit as a dropdown label. Parsed back through
+    /// The selected unit as a label. Parsed back through
     /// <see cref="FittingTimeUnits.ParseLabel"/> so the label strings live in one place.
     /// </summary>
     public string SelectedFittingUnitLabel

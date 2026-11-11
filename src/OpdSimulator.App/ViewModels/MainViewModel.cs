@@ -116,9 +116,12 @@ public partial class MainViewModel : ObservableObject
         Config.WindowLambdaAccessor = () => InputTab.SelectedWindowLambda;
         Config.SelectedWindowAccessor = () => InputTab.SelectedWindow;
 
-        // Phase 8W: a fitted μ shown in the Parameters section states the same
-        // fitting unit the Input tab reports, plus the manual-unit equivalent.
+        // Phase 8W/8X: a fitted μ shown in the Parameters section states the same
+        // fitting unit the Input tab reports. The selector now sits in the
+        // Simulation panel, so the panel writes through this setter and the
+        // InputTab's change event still drives the refit.
         Config.FittingUnitAccessor = () => InputTab.SelectedFittingUnit;
+        Config.FittingUnitSetter = unit => InputTab.SelectedFittingUnit = unit;
 
         // The verification widget lives in the Results panel, whose DataContext
         // is the ResultsPanelViewModel; share the single instance so its XAML

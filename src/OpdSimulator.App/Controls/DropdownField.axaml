@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             x:Class="OpdSimulator.App.Controls.DropdownField"
+             x:DataType="controls:DropdownField">
+
+    <!-- DropdownField — persistent label + the platform's standard ComboBox.
+         Phase 8X replaced the custom filter-box popup with Avalonia's prebuilt
+         ComboBox (the control the Fluent theme already styles) because the
+         type-to-filter interaction read as a text box rather than a dropdown.
+         Click, Space, Down, arrows, Enter and Escape are the ComboBox's own
+         behaviour, so keyboard handling is not reimplemented here. -->
+    <StackPanel Spacing="{DynamicResource SpaceXxs}">
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding $parent[controls:DropdownField].Label}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       VerticalAlignment="Center"/>
+            <controls:InfoIcon Grid.Column="1"
+                               Margin="6,0,0,0"
+                               HelpText="{Binding $parent[controls:DropdownField].Tooltip}"
+                               HelpAnchor="{Binding $parent[controls:DropdownField].HelpAnchor}"/>
+        </Grid>
+
+        <ComboBox x:Name="Combo"
+                  HorizontalAlignment="Stretch"
+                  MinHeight="32"
+                  PlaceholderText="{Binding $parent[controls:DropdownField].Placeholder}"
+                  ItemsSource="{Binding $parent[controls:DropdownField].Items}"
+                  SelectedItem="{Binding $parent[controls:DropdownField].SelectedItem, Mode=TwoWay}"
+                  ToolTip.Tip="{Binding $parent[controls:DropdownField].Tooltip}"/>
+
+    </StackPanel>
+</UserControl>

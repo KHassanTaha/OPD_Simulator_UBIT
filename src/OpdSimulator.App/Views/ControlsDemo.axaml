@@ -49,11 +49,11 @@
                 </StackPanel>
             </Border>
 
-            <!-- 3. SearchableDropdown -->
+            <!-- 3. DropdownField -->
             <Border Classes="DemoCard">
                 <StackPanel Spacing="{DynamicResource SpaceXs}" Width="360" HorizontalAlignment="Left">
-                    <TextBlock Text="SearchableDropdown — click, type “e”, arrows, Enter, ×" Classes="Caption"/>
-                    <controls:SearchableDropdown Label="Service-time distribution"
+                    <TextBlock Text="DropdownField — click, arrows, Enter, Escape" Classes="Caption"/>
+                    <controls:DropdownField Label="Service-time distribution"
                                                  Placeholder="Choose a distribution…"
                                                  Tooltip="Which theoretical distribution the per-patient service times are drawn from"
                                                  Items="{Binding Distributions}"

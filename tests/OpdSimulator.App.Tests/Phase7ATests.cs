@@ -183,7 +183,7 @@ public class Phase7ATests
 
     /// <summary>
     /// The wrapper must bridge the strongly typed TimeUnit to the inner
-    /// SearchableDropdown's string selection in both directions: when the
+    /// DropdownField's string selection in both directions: when the
     /// view model changes TimeUnit, the dropdown's committed item follows.
     /// The dropdown selection is committed programmatically so the binding
     /// (not a pointer event) is the seam under test.
@@ -200,7 +200,7 @@ public class Phase7ATests
         window.Show();
         try
         {
-            var dropdown = selector.GetVisualDescendants().OfType<SearchableDropdown>().Single();
+            var dropdown = selector.GetVisualDescendants().OfType<DropdownField>().Single();
 
             Assert.Equal("Minutes", dropdown.SelectedItem);
 

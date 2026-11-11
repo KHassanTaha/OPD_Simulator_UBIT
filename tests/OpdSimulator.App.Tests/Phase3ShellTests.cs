@@ -26,17 +26,17 @@ public class Phase3ShellTests
                .ToArray();
 
     [AvaloniaFact]
-    public void MainWindow_HasFourTabs_InExpectedOrder()
+    public void MainWindow_HasThreeTabs_InExpectedOrder()
     {
         var window = new MainWindow();
         window.Show();
 
         var tabs = Shell(window);
-        Assert.Equal(4, tabs.Items.Count);
+        Assert.Equal(3, tabs.Items.Count);
         // Header 2 renamed in Phase 7D when Data + Input Analysis merged into a
         // single "Input" tab. Tab count unchanged.
         Assert.Equal(
-            new[] { "Simulation", "Input", "Token Generator", "Help" },
+            new[] { "Simulation", "Input", "Help" },
             Headers(tabs));
 
         window.Close();

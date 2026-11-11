@@ -26,7 +26,7 @@ public partial class ControlsDemoViewModel : ObservableObject
         _toastExpiry.Tick += OnToastExpiryTick;
     }
 
-    /// <summary>Distributions offered by the searchable dropdown demo.</summary>
+    /// <summary>Distributions offered by the dropdown demo.</summary>
     public IReadOnlyList<string> Distributions { get; } =
         new[]
         {

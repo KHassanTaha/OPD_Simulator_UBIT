@@ -37,7 +37,7 @@
             <!-- Kendall shortcut: M = exponential, D = deterministic, G = auto-fit from
                  data; the trailing digit is the server count. Advanced mode hides the
                  shortcut and reveals the independent family dropdowns instead. -->
-            <controls:SearchableDropdown Label="Model"
+            <controls:DropdownField Label="Model"
                                          Placeholder="e.g., M/M/2"
                                          Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
                                          Items="{Binding ModelOptions}"
@@ -48,14 +48,14 @@
                           IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
                           ToolTip.Tip="Set the arrival and service distribution families independently"/>
 
-            <controls:SearchableDropdown Label="Arrival distribution"
+            <controls:DropdownField Label="Arrival distribution"
                                          Placeholder="e.g., Exponential"
                                          Tooltip="Distribution family for the time between arrivals at this stage. Note: arrivals are engine-wide, so the Model section's arrival dropdown is what the run uses; this row records your choice per stage."
                                          Items="{Binding DistributionFamilies}"
                                          SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
                                          IsVisible="{Binding UseAdvancedSetup}"
                                          HelpAnchor="stage-arrival-distribution"/>
-            <controls:SearchableDropdown Label="Service distribution"
+            <controls:DropdownField Label="Service distribution"
                                          Placeholder="e.g., Exponential"
                                          Tooltip="Distribution family for this stage's service times"
                                          Items="{Binding DistributionFamilies}"

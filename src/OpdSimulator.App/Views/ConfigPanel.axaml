@@ -30,7 +30,7 @@
                 <!-- Phase 7C: top-level data-source selector. Fit the
                      distributions from an uploaded file, or enter the rates
                      by hand; exactly one path is active (D-128). -->
-                <controls:SearchableDropdown Label="Data source"
+                <controls:DropdownField Label="Data source"
                                              Placeholder="Choose how to configure…"
                                              Tooltip="Fit the distributions from an uploaded data file, or enter the arrival and service rates manually"
                                              Items="{Binding SourceModeOptions}"
@@ -81,7 +81,7 @@
                                              IsExpanded="{Binding IsModelSectionExpanded, Mode=TwoWay}"
                                              HelpText="Distribution shapes and how the entered numbers are interpreted (rate-wise vs mean-wise, CONTEXT §5.6).">
                     <StackPanel Spacing="{DynamicResource SpaceM}">
-                        <controls:SearchableDropdown Label="Inter-arrival distribution"
+                        <controls:DropdownField Label="Inter-arrival distribution"
                                                      Placeholder="Choose a distribution…"
                                                      Tooltip="Distribution the simulation samples inter-arrival times from. Exponential is the Poisson process (Ca² = 1); Gamma, Lognormal and Uniform give a genuine G/G process."
                                                      Items="{Binding Distributions}"
@@ -109,6 +109,15 @@
                                                  ErrorMessage="{Binding SignificanceLevel.ErrorMessage}"
                                                  HelpAnchor="significance-level"
                                                  views:ConfigPanelValidation.ValidationKey="significance-level"/>
+                        <!-- Phase 8X: the fitting unit moved here from the Input tab.
+                             It rescales the fitted samples only; the engine stays per
+                             minute, and the Input tab reports the unit chosen here. -->
+                        <controls:DropdownField Label="Distribution fitting unit"
+                                                Placeholder="Choose a unit…"
+                                                Tooltip="Unit the fitted distributions are reported in. Minutes is the data's native unit; hours, days (24 h) and sessions (165 operating min) rescale the same samples without changing the verdict."
+                                                Items="{Binding FittingUnitOptions}"
+                                                SelectedItem="{Binding SelectedFittingUnitLabel, Mode=TwoWay}"
+                                                HelpAnchor="fitting-unit"/>
                     </StackPanel>
                 </controls:CollapsibleSection>
 
@@ -215,22 +224,21 @@
                         <TextBlock Classes="Caption"
                                    TextWrapping="Wrap"
                                    Text="Stages added from now on start with these families. Stages already listed keep whatever they have; use Apply to all stages to change them."/>
-                        <StackPanel Orientation="Horizontal"
-                                    Spacing="{DynamicResource SpaceM}">
-                            <controls:SearchableDropdown Label="Default arrival family"
+                        <StackPanel Spacing="{DynamicResource SpaceM}">
+                            <controls:DropdownField Label="Default arrival family"
                                                          Placeholder="e.g., Exponential"
                                                          Tooltip="Arrival family stamped onto newly added stages. The run itself uses the Model section's inter-arrival distribution — arrivals are generated engine-wide, so this is the label each stage carries."
                                                          Items="{Binding StageFamilyOptions}"
                                                          SelectedItem="{Binding DefaultStageArrivalFamily, Mode=TwoWay}"
                                                          HelpAnchor="default-arrival-family"/>
-                            <controls:SearchableDropdown Label="Default service family for new stages"
+                            <controls:DropdownField Label="Default service family for new stages"
                                                          Placeholder="e.g., Exponential"
                                                          Tooltip="Service family stamped onto newly added stages, and the value Apply to all stages writes to every existing stage. Each stage's own family is what the run and the Input tab's per-stage chi-square use."
                                                          Items="{Binding StageFamilyOptions}"
                                                          SelectedItem="{Binding DefaultStageServiceFamily, Mode=TwoWay}"
                                                          HelpAnchor="default-service-family"/>
                             <Button Content="Apply to all stages"
-                                    VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Left"
                                     Command="{Binding ApplyDefaultsToAllStagesCommand}"
                                     Classes="GhostButton"
                                     ToolTip.Tip="Set every stage listed below to the two default families, replacing any per-stage choice"/>
@@ -294,7 +302,7 @@
                                                      ErrorMessage="{Binding Days.ErrorMessage}"
                                                      HelpAnchor="days"
                                                      views:ConfigPanelValidation.ValidationKey="days"/>
-                            <controls:SearchableDropdown Label="Start day"
+                            <controls:DropdownField Label="Start day"
                                                          Placeholder="Choose a day…"
                                                          Tooltip="First day of the clinic week"
                                                          Items="{Binding StartDays}"
@@ -320,7 +328,7 @@
                              above. -->
                         <StackPanel IsVisible="{Binding IsDiagnosticTrace}"
                                     Spacing="{DynamicResource SpaceM}">
-                            <controls:SearchableDropdown x:Name="DurationDropdown"
+                            <controls:DropdownField x:Name="DurationDropdown"
                                                          Label="Duration"
                                                          Placeholder="Choose a duration…"
                                                          Tooltip="How many minutes of arrival window the diagnostic trace simulates. One hour by default: a trace prints every event, so a longer window is slow to read."
@@ -357,7 +365,7 @@
                                                  ErrorMessage="{Binding Seed.ErrorMessage}"
                                                  HelpAnchor="random-seed"
                                                  views:ConfigPanelValidation.ValidationKey="seed"/>
-                        <controls:SearchableDropdown Label="Trace level"
+                        <controls:DropdownField Label="Trace level"
                                                      Placeholder="Choose a level…"
                                                      Tooltip="How much per-event detail the diagnostic run logs (Minimal / Standard / Detailed / Debug)"
                                                      IsVisible="{Binding TraceLevelVisible}"
@@ -383,10 +391,12 @@
         </ScrollViewer>
 
         <!-- FR-UI-9 / D-128: names exactly which required input is missing
-             while Start is disabled. Hides itself when nothing is missing. -->
+             while Start is disabled. Suppressed until the user interacts with
+             the panel so a fresh launch is not greeted by an error (Phase 8X);
+             hides itself when nothing is missing. -->
         <controls:ErrorBanner Grid.Row="1"
                               Margin="{DynamicResource ThicknessWindowPadding}"
-                              Message="{Binding StartBlockedMessage}"
+                              Message="{Binding StartBlockedBannerMessage}"
                               ToolTip.Tip="Shows which required inputs are missing before the simulation can start"/>
 
         <!-- Pinned primary action: stays visible while the config scrolls. -->

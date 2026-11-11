@@ -7,7 +7,7 @@ namespace OpdSimulator.App.Views;
 
 /// <summary>
 /// Root window of the OPD Clinic Queue Simulator. Phase 3 ships the shell:
-/// header bar + TabControl (Simulation / Input / Token Generator / Help),
+/// header bar + TabControl (Simulation / Input / Help),
 /// Simulation tab carries the 380px-config / fill-results split. Phase 7D
 /// wires the shell's tab selection and the single data-file picker to the
 /// view models.

@@ -263,10 +263,10 @@ public class Phase7BTests
         }
     }
 
-    private static List<SearchableDropdown> Dropdowns(Window window, string label)
+    private static List<DropdownField> Dropdowns(Window window, string label)
         // Scope to the stage rows: the Model section has its own
         // "Service distribution" dropdown, so label alone is ambiguous.
-        => window.GetVisualDescendants().OfType<SearchableDropdown>()
+        => window.GetVisualDescendants().OfType<DropdownField>()
             .Where(d => d.Label == label && d.DataContext is StageRow)
             .ToList();
 

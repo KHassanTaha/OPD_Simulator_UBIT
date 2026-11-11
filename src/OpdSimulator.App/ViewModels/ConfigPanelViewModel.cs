@@ -144,7 +144,7 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private DataSourceMode sourceMode = DataSourceMode.FitFromData;
 
-    /// <summary>The dropdown's committed label, kept in sync with <see cref="SourceMode"/> (string-based SearchableDropdown seam).</summary>
+    /// <summary>The dropdown's committed label, kept in sync with <see cref="SourceMode"/> (string-based DropdownField seam).</summary>
     [ObservableProperty]
     private string sourceModeSelection = FitFromDataLabel;
 
@@ -969,6 +969,27 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private string _startBlockedMessage = "";
 
+    /// <summary>
+    /// True once the user has focused anything inside the configuration panel.
+    /// The blocking banner is suppressed until then so a fresh launch shows no
+    /// error before the user has done anything (Phase 8X). The Start gate itself
+    /// is unchanged; this only controls when its explanation is painted.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasInteracted;
+
+    /// <summary>
+    /// The banner text: empty on a fresh launch, the real reason once the user
+    /// has interacted. Bound to <c>ErrorBanner.Message</c>.
+    /// </summary>
+    public string StartBlockedBannerMessage => HasInteracted ? StartBlockedMessage : "";
+
+    partial void OnHasInteractedChanged(bool value) =>
+        OnPropertyChanged(nameof(StartBlockedBannerMessage));
+
+    partial void OnStartBlockedMessageChanged(string value) =>
+        OnPropertyChanged(nameof(StartBlockedBannerMessage));
+
     private bool CanStartCalculation() => StartIsEnabled;
 
     /// <summary>Blur validation for the manual λ field (blank is valid — the fitted value is used).</summary>
@@ -1660,11 +1681,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Restates every fitted-rate label after the Input tab's fitting unit changes
+    /// Restates every fitted-rate label after the fitting unit changes
     /// (Phase 8W). The labels are the Parameters section's view of the same fit,
-    /// so they cannot be left quoting the previous unit.
+    /// so they cannot be left quoting the previous unit. Also re-reads the
+    /// selector itself, which now lives in this panel (Phase 8X).
     /// </summary>
-    public void RefreshFittedUnitLabels() => RefreshStageSourceLabels();
+    public void RefreshFittedUnitLabels()
+    {
+        RefreshStageSourceLabels();
+        OnPropertyChanged(nameof(SelectedFittingUnitLabel));
+    }
 
     /// <summary>
     /// "μ = 0.25 (from data)" for a fitted stage, "μ = 0.80 (manual)" for a
@@ -2288,6 +2314,38 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <see cref="RefreshFittedUnitLabels"/> when it changes.
     /// </remarks>
     public Func<FittingTimeUnit>? FittingUnitAccessor { get; set; }
+
+    /// <summary>
+    /// Writes the fitting unit back to its owner when the selector in this panel
+    /// changes (Phase 8X). The Input tab still holds the state because it owns
+    /// the fit; this panel only exposes the control the owner asked to have here.
+    /// </summary>
+    public Action<FittingTimeUnit>? FittingUnitSetter { get; set; }
+
+    /// <summary>Entries for the distribution-fitting unit dropdown (Phase 8X).</summary>
+    public IReadOnlyList<string> FittingUnitOptions => FittingTimeUnits.Options;
+
+    /// <summary>
+    /// The fitting unit as a dropdown label. Reads through
+    /// <see cref="FittingUnitAccessor"/> so there is one source of truth; the
+    /// setter forwards to <see cref="FittingUnitSetter"/>, whose owner raises
+    /// the refit event.
+    /// </summary>
+    public string SelectedFittingUnitLabel
+    {
+        get => FittingTimeUnits.Label(FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes);
+        set
+        {
+            var unit = FittingTimeUnits.ParseLabel(value);
+            if ((FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes) == unit)
+            {
+                return;
+            }
+
+            FittingUnitSetter?.Invoke(unit);
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>
     /// Builds the <see cref="DistributionSpec"/> for one stage from its row's family

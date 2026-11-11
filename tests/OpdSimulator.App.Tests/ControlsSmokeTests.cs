@@ -78,9 +78,9 @@ public class ControlsSmokeTests
     }
 
     [AvaloniaFact]
-    public void SearchableDropdown_Filter_ReducesItemsAndCommitRoundTrips()
+    public void DropdownField_UsesComboBox_AndSelectionRoundTrips()
     {
-        var dropdown = new SearchableDropdown
+        var dropdown = new DropdownField
         {
             Label = "Service distribution",
             Items = new[] { "exponential", "erlang", "lognormal", "uniform" },
@@ -88,25 +88,11 @@ public class ControlsSmokeTests
         };
         var window = Host(dropdown);
 
-        var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-        var popup = dropdown.FindDescendantOfType<Popup>()!;
+        var combo = dropdown.FindDescendantOfType<ComboBox>();
+        Assert.NotNull(combo);
+        Assert.Equal(4, combo.ItemCount);
 
-        // Focus (GotFocus) opens the popup and fills the item list.
-        filterBox.RaiseEvent(new GotFocusEventArgs());
-        Assert.True(popup.IsOpen);
-
-        var list = (popup.Child as Border)!.FindDescendantOfType<ListBox>()!;
-        Assert.Equal(4, list.ItemCount);
-
-        // Type-to-filter drops the list to the single matching item.
-        filterBox.Text = "log";
-        filterBox.RaiseEvent(new TextChangedEventArgs(TextBox.TextChangedEvent));
-        Assert.Equal(1, list.ItemCount);
-        Assert.Equal("lognormal", list.SelectedItem);
-
-        // Enter commits the filtered selection back to the SelectedItem DP.
-        var enter = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
-        list.RaiseEvent(enter);
+        combo.SelectedItem = "lognormal";
         Assert.Equal("lognormal", dropdown.SelectedItem);
 
         window.Close();

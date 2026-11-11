@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -111,56 +112,41 @@ public class Phase8EFixTests
         Assert.Contains("no patient reaches a downstream stage", outcome.Error);
     }
 
-    // ── Bug 2 — dropdown focus ring colour ─────────────────────────────────
+    // ── Phase 8X — prebuilt ComboBox ──────────────────────────────────────
 
     /// <summary>
-    /// Why it matters: the app's focus ring is the brand green everywhere else,
-    /// so a Fluent-blue ring on the most-used control broke the theme AND told
-    /// keyboard users nothing about where they were. The assertion is on the
-    /// resolved brush colour, not merely on "a style exists".
+    /// Why it matters: the replacement must be the platform ComboBox, not
+    /// another hand-rolled field. The whole point of the change is that open,
+    /// move and commit are the prebuilt control's behaviour.
     /// </summary>
     [AvaloniaFact]
-    public void SearchableDropdown_FocusBorder_UsesThemeBrush()
+    public void DropdownField_UsesAStandardComboBox()
     {
-        var dropdown = new SearchableDropdown
+        var dropdown = new DropdownField
         {
             Label = "Arrival distribution",
-            Items = new[] { "Exponential", "Normal", "Lognormal", "Gamma", "Uniform" },
-            Placeholder = "e.g., Exponential",
+            Items = new[] { "Exponential", "Normal", "Lognormal" },
         };
         var window = Host(dropdown);
 
-        var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-        var brand = (ISolidColorBrush)Theme("BrushBrandGreen");
-        var before = filterBox.BorderBrush as ISolidColorBrush;
-
-        Assert.NotEqual(brand.Color, before?.Color); // unfocused: theme default
-
-        filterBox.Focus();
-        Assert.True(filterBox.IsFocused, "the filter box must actually hold focus for :focus to apply");
-
-        var focused = Assert.IsAssignableFrom<ISolidColorBrush>(filterBox.BorderBrush);
-        Assert.Equal(brand.Color, focused.Color);
-        // The indicator must still be drawn — recoloured, not removed (§16.7).
-        Assert.True(filterBox.BorderThickness.Top > 0, "focus ring must stay visible");
+        var combo = dropdown.FindDescendantOfType<ComboBox>();
+        Assert.NotNull(combo);
+        Assert.Equal(3, combo.ItemCount);
+        Assert.Equal("Arrival distribution", AutomationProperties.GetName(combo));
 
         window.Close();
     }
 
-    // ── Bug 3 — dropdown selection ─────────────────────────────────────────
-
     /// <summary>
-    /// Root cause 1 of 2: the filter TextBox doubles as the display of the
-    /// committed value, and opening the popup left that text in place — so the
-    /// filter ran against the current value and the list collapsed to it. With
-    /// "Exponential" already selected, opening the dropdown offered nothing to
-    /// switch to.
+    /// Why it matters: a standard ComboBox must show every option when opened,
+    /// including when one is already selected — the failure the old custom
+    /// filter created by pre-filtering the list to the current value.
     /// </summary>
     [AvaloniaFact]
-    public void SearchableDropdown_OpenedWithValue_ShowsAllOptions()
+    public void DropdownField_OpenedWithValue_ShowsAllOptions()
     {
         var all = new[] { "Exponential", "Normal", "Lognormal", "Gamma", "Uniform" };
-        var dropdown = new SearchableDropdown
+        var dropdown = new DropdownField
         {
             Label = "Arrival distribution",
             Items = all,
@@ -168,40 +154,27 @@ public class Phase8EFixTests
         };
         var window = Host(dropdown);
 
-        var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-        var popup = dropdown.FindDescendantOfType<Popup>()!;
+        var combo = dropdown.FindDescendantOfType<ComboBox>()!;
+        Assert.Equal("Exponential", combo.SelectedItem);
 
-        // Precondition: the committed value is on screen before opening.
-        Assert.Equal("Exponential", filterBox.Text);
+        combo.IsDropDownOpen = true;
+        Assert.True(combo.IsDropDownOpen);
+        Assert.Equal(all.Length, combo.ItemCount);
+        Assert.Equal("Exponential", combo.SelectedItem);
 
-        filterBox.RaiseEvent(new Avalonia.Input.GotFocusEventArgs());
-        Assert.True(popup.IsOpen);
-
-        var list = (popup.Child as Border)!.FindDescendantOfType<ListBox>()!;
-        Assert.Equal(all.Length, list.ItemCount);
-        Assert.Equal(
-            all,
-            list.ItemsSource!.Cast<string>().ToArray());
-
-        // And the committed value is still marked, not silently dropped.
-        Assert.Equal("Exponential", list.SelectedItem);
-        // Opening must not have committed anything new.
-        Assert.Equal("Exponential", dropdown.SelectedItem);
-
+        combo.IsDropDownOpen = false;
         window.Close();
     }
 
     /// <summary>
-    /// Root cause 2 of 2, and the real one behind "clicking an option does
-    /// nothing": the ListBox had no SelectionChanged handler at all, so a mouse
-    /// click never committed anything — only the Enter key did. A selection made
-    /// by clicking must now commit the value, refresh the display text and
-    /// close the popup.
+    /// Why it matters: choosing an item in the ComboBox must round-trip through
+    /// the wrapper's two-way <c>SelectedItem</c>, which is what every screen
+    /// binds to.
     /// </summary>
     [AvaloniaFact]
-    public void SearchableDropdown_ItemClick_CommitsSelection()
+    public void DropdownField_Selection_CommitsValue()
     {
-        var dropdown = new SearchableDropdown
+        var dropdown = new DropdownField
         {
             Label = "Arrival distribution",
             Items = new[] { "Exponential", "Normal", "Lognormal", "Gamma", "Uniform" },
@@ -209,108 +182,11 @@ public class Phase8EFixTests
         };
         var window = Host(dropdown);
 
-        var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-        var popup = dropdown.FindDescendantOfType<Popup>()!;
-        filterBox.RaiseEvent(new Avalonia.Input.GotFocusEventArgs());
-        Assert.True(popup.IsOpen);
-        var list = (popup.Child as Border)!.FindDescendantOfType<ListBox>()!;
-
-        // Selecting an item is exactly what a click does inside the ListBox.
-        list.SelectedItem = "Lognormal";
+        var combo = dropdown.FindDescendantOfType<ComboBox>()!;
+        combo.SelectedItem = "Lognormal";
 
         Assert.Equal("Lognormal", dropdown.SelectedItem);
-        Assert.Equal("Lognormal", filterBox.Text);
-        Assert.False(popup.IsOpen);
-
-        window.Close();
-    }
-
-    /// <summary>
-    /// The user's reported sequence, replayed end to end: open a dropdown that
-    /// has a value, clear it with ×, then pick a different option. The clear
-    /// previously closed the popup, so there was nothing left to click.
-    /// </summary>
-    [AvaloniaFact]
-    public void SearchableDropdown_ClearThenSelect_CommitsNewValue()
-    {
-        var all = new[] { "Exponential", "Normal", "Lognormal", "Gamma", "Uniform" };
-        var dropdown = new SearchableDropdown
-        {
-            Label = "Arrival distribution",
-            Items = all,
-            SelectedItem = "Exponential",
-        };
-
-        // A sibling control gives step (4) somewhere to press that is neither
-        // the field nor the item list.
-        var elsewhere = new Border
-        {
-            Width = 40,
-            Height = 40,
-            Background = Brushes.Transparent,
-        };
-        var window = Host(new StackPanel { Children = { elsewhere, dropdown } });
-
-        var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-        var popup = dropdown.FindDescendantOfType<Popup>()!;
-
-        // (1) Open a dropdown that already has a value.
-        filterBox.RaiseEvent(new Avalonia.Input.GotFocusEventArgs());
-        Assert.True(popup.IsOpen);
-        var list = (popup.Child as Border)!.FindDescendantOfType<ListBox>()!;
-        Assert.Equal(all.Length, list.ItemCount);
-
-        // (2) Click the × clear button.
-        //
-        // The PointerPressed event is raised straight on the × rather than
-        // synthesised with HeadlessWindowExtensions.MouseDown: in this harness
-        // the translated coordinates route the press to the filter TextBox
-        // (its own template presenter is on top at that point), which focuses
-        // the box and re-opens the popup — the × handler is never entered. The
-        // routed handler under test is identical either way.
-        var clear = dropdown.GetVisualDescendants()
-            .OfType<Border>()
-            .First(b => b.Name == "ClearButton");
-        Assert.True(clear.IsVisible, "× appears only once something is selected");
-        clear.RaiseEvent(new PointerPressedEventArgs(
-            InputElement.PointerPressedEvent,
-            new Pointer(1, PointerType.Mouse, isPrimary: true),
-            clear,
-            default,
-            0,
-            default,
-            KeyModifiers.None,
-            1));
-
-        // The × must reset BOTH the committed value and the filter, in one go.
-        Assert.Null(dropdown.SelectedItem);
-        Assert.Equal(string.Empty, filterBox.Text);
-        // …and must leave the full list open so a replacement can be picked.
-        Assert.True(popup.IsOpen, "clearing must not close the popup — the user still has to choose");
-        Assert.Equal(all.Length, list.ItemCount);
-
-        // (3) Click a different option: it must now commit and display.
-        list.SelectedItem = "Gamma";
-        Assert.Equal("Gamma", dropdown.SelectedItem);
-        Assert.Equal("Gamma", filterBox.Text);
-        Assert.False(popup.IsOpen);
-
-        // (4) The dropdown must still close on an outside press. Light dismiss
-        // is off (it used to fight the ×), so the control owns this behaviour
-        // and it needs a test of its own or it silently regresses to a popup
-        // that stays open forever.
-        filterBox.RaiseEvent(new GotFocusEventArgs());
-        Assert.True(popup.IsOpen);
-        elsewhere.RaiseEvent(new PointerPressedEventArgs(
-            InputElement.PointerPressedEvent,
-            new Pointer(2, PointerType.Mouse, isPrimary: true),
-            elsewhere,
-            default,
-            0,
-            default,
-            KeyModifiers.None,
-            1));
-        Assert.False(popup.IsOpen, "a press outside the field and list must close the popup");
+        Assert.Equal("Lognormal", combo.SelectedItem);
 
         window.Close();
     }

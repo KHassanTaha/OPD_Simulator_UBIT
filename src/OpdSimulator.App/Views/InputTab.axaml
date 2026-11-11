@@ -256,24 +256,16 @@
                 </StackPanel>
             </Border>
 
-            <Grid ColumnDefinitions="*,280" IsVisible="{Binding HasFile}">
-                <StackPanel Spacing="{DynamicResource SpaceXs}">
-                    <TextBlock Text="Distribution fit"
-                               FontSize="{DynamicResource FontSizeTitle}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="Fit quality for the loaded data — histograms and chi-square goodness-of-fit. Changing the unit rescales the samples; it does not change the fit quality or the verdict."
-                               Classes="Caption"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-                <controls:SearchableDropdown Grid.Column="1"
-                                             Label="Fitting unit"
-                                             Placeholder="Choose a unit…"
-                                             Tooltip="Unit the fits are reported in. Minutes is the data's native unit; hours, days (24 h) and sessions (165 operating min) rescale the same samples."
-                                             Items="{Binding FittingUnitOptions}"
-                                             SelectedItem="{Binding SelectedFittingUnitLabel, Mode=TwoWay}"
-                                             HelpAnchor="fitting-unit"/>
-            </Grid>
+            <StackPanel IsVisible="{Binding HasFile}"
+                        Spacing="{DynamicResource SpaceXs}">
+                <TextBlock Text="Distribution fit"
+                           FontSize="{DynamicResource FontSizeTitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                <TextBlock Text="Fit quality for the loaded data — histograms and chi-square goodness-of-fit. The fitting unit is set in Simulation → Model; changing it rescales the samples but not the verdict."
+                           Classes="Caption"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
 
             <Border IsVisible="{Binding HasFile}">
                 <views:InputAnalysisView DataContext="{Binding Analysis}"/>

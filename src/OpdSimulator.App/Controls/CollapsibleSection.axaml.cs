@@ -237,11 +237,11 @@ public partial class CollapsibleSection : ContentControl
 
     /// <summary>
     /// A control is a "field" for FR-UI-7 if it is one of the app's field
-    /// wrappers (ValidatedField / SearchableDropdown — the tooltip then shows
+    /// wrappers (ValidatedField / DropdownField — the tooltip then shows
     /// anywhere in the field) or a focusable input control.
     /// </summary>
     private static bool IsField(Control control) =>
-        control is ValidatedField or SearchableDropdown
+        control is ValidatedField or DropdownField
         || control is TextBox or ComboBox or ListBox or DatePicker
             or CheckBox or ToggleSwitch or RadioButton or Button;
 }

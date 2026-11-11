@@ -424,7 +424,7 @@
                     <TextBlock Text="{Binding QueueLengthCaption}"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
-                    <controls:SearchableDropdown Label="Operating session"
+                    <controls:DropdownField Label="Operating session"
                                                  Placeholder="Choose a session…"
                                                  Tooltip="Plot one operating session on a 0–165 minute axis, or every session on the absolute clock"
                                                  Items="{Binding QueueSessionNames}"
@@ -441,7 +441,7 @@
             </Border>
 
             <!-- Waiting-time histogram widget (FR-UI-4 P2, Phase 6c.5): one stage
-                 at a time via a searchable dropdown; optional log-scale Y axis. -->
+                 at a time via the shared dropdown; optional log-scale Y axis. -->
             <Border IsVisible="{Binding ShowWaitHistogram}"
                     Background="{DynamicResource BrushBackgroundPanel}"
                     BorderBrush="{DynamicResource BrushBorderDefault}"
@@ -457,7 +457,7 @@
                                Foreground="{DynamicResource BrushTextSecondary}"/>
                     <StackPanel Spacing="{DynamicResource SpaceS}"
                                 IsVisible="{Binding HasWaitHistogramChart}">
-                        <controls:SearchableDropdown Label="Stage"
+                        <controls:DropdownField Label="Stage"
                                                      Placeholder="Choose a stage…"
                                                      Tooltip="The stage whose waiting-time histogram is shown (one stage at a time; resets to the first on every run)"
                                                      Items="{Binding WaitStageNames}"
@@ -600,7 +600,7 @@
                                TextWrapping="Wrap"
                                FontSize="{DynamicResource FontSizeCaption}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
-                    <controls:SearchableDropdown Label="Analytical model"
+                    <controls:DropdownField Label="Analytical model"
                                                  Placeholder="Choose a model…"
                                                  Tooltip="M/M/c is exact (Erlang-C). M/G/c is Allen–Cunneen; for a single server it is exactly Pollaczek–Khinchine. G/G/c is Allen–Cunneen; for a single server it is exactly Kingman's formula."
                                                  Items="{Binding AnalyticalValidation.ModelOptions}"

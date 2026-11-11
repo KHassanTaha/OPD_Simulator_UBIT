@@ -19,10 +19,8 @@ namespace OpdSimulator.App.Tests;
 /// visually, run headlessly per the D-089 method.
 ///
 /// <list type="bullet">
-/// <item>(d) <c>phase-8e-dropdown-open.png</c> — a dropdown that already has a
-/// value, opened, showing the FULL option list rather than the single committed
-/// item. This is the visible half of Bug 3; the click-to-commit half is
-/// asserted in <see cref="Phase8EFixTests"/>.</item>
+/// <item>(d) <c>phase-8x-dropdown-open.png</c> — the prebuilt ComboBox with a
+/// value already selected, opened, showing the full option list.</item>
 /// <item>(f) <c>phase-8e-clear-dialog.png</c> — the Clear-All confirmation with
 /// its new 24 px outer padding and the 16 / 24 px gaps (Bug 4).</item>
 /// </list>
@@ -40,7 +38,7 @@ public class Phase8EScreenshots
     [AvaloniaFact]
     public void Render_DropdownOpen_SavePhase8eDropdownOpenPng()
     {
-        var dropdown = new SearchableDropdown
+        var dropdown = new DropdownField
         {
             Label = "Arrival distribution",
             Tooltip = "Distribution family fitted to the uploaded inter-arrival times.",
@@ -73,21 +71,19 @@ public class Phase8EScreenshots
 
         try
         {
-            var filterBox = dropdown.FindDescendantOfType<TextBox>()!;
-            var popup = dropdown.FindDescendantOfType<Popup>()!;
-            var list = (popup.Child as Border)!.FindDescendantOfType<ListBox>()!;
+            var combo = dropdown.FindDescendantOfType<ComboBox>()!;
 
-            // The state the user complained about: open a dropdown that already
-            // holds a committed value. It used to show exactly one option.
-            filterBox.RaiseEvent(new GotFocusEventArgs());
+            // Open a dropdown that already holds a committed value; every option
+            // must still be offered.
+            combo.IsDropDownOpen = true;
+            window.UpdateLayout();
 
-            Assert.True(popup.IsOpen, "the popup must be open for the capture");
-            Assert.Equal(Options.Length, list.ItemCount);
-            Assert.Equal("Exponential", list.SelectedItem);
-            Assert.Equal(string.Empty, filterBox.Text);
+            Assert.True(combo.IsDropDownOpen, "the ComboBox must be open for the capture");
+            Assert.Equal(Options.Length, combo.ItemCount);
+            Assert.Equal("Exponential", combo.SelectedItem);
 
             var frame = HeadlessScreenshot.Capture(window);
-            Save(frame, "phase-8e-dropdown-open.png");
+            Save(frame, "phase-8x-dropdown-open.png");
         }
         finally
         {

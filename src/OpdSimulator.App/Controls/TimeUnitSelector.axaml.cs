@@ -9,7 +9,7 @@ using OpdSimulator.App.Models;
 namespace OpdSimulator.App.Controls;
 
 /// <summary>
-/// Phase 7A wrapper around <see cref="SearchableDropdown"/> for choosing the
+/// Phase 7A wrapper around <see cref="DropdownField"/> for choosing the
 /// <see cref="TimeUnit"/> of the rate/mean parameter fields. Reuses the
 /// FR-UI-6 dropdown (type-to-filter, × clear, keyboard navigation) instead of
 /// building a new one; the internal selection is a display string
@@ -25,7 +25,7 @@ public partial class TimeUnitSelector : UserControl
     {
         InitializeComponent();
         Dropdown.Items = UnitLabels;
-        Dropdown.Bind(SearchableDropdown.SelectedItemProperty,
+        Dropdown.Bind(DropdownField.SelectedItemProperty,
             new Binding(nameof(SelectedUnit))
             {
                 Source = this,

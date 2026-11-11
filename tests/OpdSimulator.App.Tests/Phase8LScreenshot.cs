@@ -152,7 +152,7 @@ public class Phase8LScreenshot
             window.UpdateLayout();
 
             int visibleServiceDropdowns = window.GetVisualDescendants()
-                .OfType<SearchableDropdown>()
+                .OfType<DropdownField>()
                 .Count(d => d.IsEffectivelyVisible
                     && d.Label is not null
                     && d.Label.Contains("service family", StringComparison.OrdinalIgnoreCase));
@@ -174,7 +174,7 @@ public class Phase8LScreenshot
     /// </summary>
     private static string[] RenderedDropdownLabels(Window window)
         => window.GetVisualDescendants()
-            .OfType<OpdSimulator.App.Controls.SearchableDropdown>()
+            .OfType<OpdSimulator.App.Controls.DropdownField>()
             .Where(d => d.IsEffectivelyVisible)
             .Select(d => d.Label)
             .Where(l => !string.IsNullOrWhiteSpace(l))

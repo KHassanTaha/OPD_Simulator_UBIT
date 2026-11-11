@@ -6,8 +6,7 @@ namespace OpdSimulator.App.Controls;
 
 /// <summary>
 /// Interim shell filler that shows a theme-resourced "coming in Phase N" card
-/// in a tab until the real panel replaces it. Reused by all four shell tabs
-/// (Simulation config/results, Input Analysis, Token Generator, Help).
+/// in a tab until the real panel replaces it. Currently used by the Help tab.
 /// </summary>
 public partial class PlaceholderContent : UserControl
 {

@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
@@ -48,7 +49,23 @@ public partial class ConfigPanel : UserControl
         // All ValidatedField blur events bubble up to the panel; route them by
         // ValidationKey so blur-time validation stays on the view model.
         AddHandler(ValidatedField.FieldLostFocusEvent, OnFieldLostFocus);
+        // Phase 8X: count real input, not passive focus, so a window that
+        // focuses its first control on activation still starts without a banner.
+        AddHandler(PointerPressedEvent, OnPanelInteraction, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnPanelInteraction, RoutingStrategies.Tunnel);
         DataContextChanged += OnDataContextChanged;
+    }
+
+    /// <summary>
+    /// Marks the panel as used on the first click or key press inside it, which
+    /// is when the Start-blocked banner becomes useful rather than noise.
+    /// </summary>
+    private void OnPanelInteraction(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is not null)
+        {
+            _vm.HasInteracted = true;
+        }
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)

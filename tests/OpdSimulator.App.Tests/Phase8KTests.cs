@@ -729,7 +729,7 @@ public class Phase8KTests
 
     /// <summary>
     /// Finds whichever labelled control carries the given Label text, whether it is a
-    /// <see cref="ValidatedField"/> or a <see cref="SearchableDropdown"/>. Matching on
+    /// <see cref="ValidatedField"/> or a <see cref="DropdownField"/>. Matching on
     /// the label rather than a name keeps the test tied to what the user reads, which is
     /// the thing that must not change.
     /// </summary>
@@ -739,7 +739,7 @@ public class Phase8KTests
             .FirstOrDefault(c => c switch
             {
                 ValidatedField f => f.Label == label,
-                SearchableDropdown d => d.Label == label,
+                DropdownField d => d.Label == label,
                 _ => false,
             });
 

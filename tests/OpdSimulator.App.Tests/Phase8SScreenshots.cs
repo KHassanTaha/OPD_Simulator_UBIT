@@ -137,14 +137,12 @@ public sealed class Phase8SScreenshots
             RunThreeStageMultiDay(main, new[] { 2, 4, 5 }, "0.8, 0.5, 0.4");
             window.UpdateLayout();
 
-            var dropdown = window.GetVisualDescendants().OfType<SearchableDropdown>()
+            var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
                 .Single(d => d.Label == "Operating session");
             Assert.True(dropdown.IsEffectivelyVisible, "the session selector must be offered after a multi-session run");
 
             // The results body is one sequence now, so the selector is below the
-            // fold at offset 0. Put it on screen BEFORE focusing it: a control
-            // outside the viewport cannot take focus, and the popup opens from
-            // the filter box's GotFocus handler.
+            // fold at offset 0. Put it on screen before capturing it.
             var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
                 .Single(s => s.Name == "ResultsScroller");
             scroller.Offset = new Vector(
@@ -153,40 +151,16 @@ public sealed class Phase8SScreenshots
                     + scroller.Offset.Y - 40);
             window.UpdateLayout();
 
-            var filter = dropdown.GetVisualDescendants().OfType<TextBox>()
-                .Single(t => t.Name == "FilterBox");
-            Assert.True(filter.Focus(), "the session dropdown's filter box must take focus");
-
-            // Open the popup through the same handler the keyboard uses. The real
-            // GotFocus may already have fired during Show(), so raise it
-            // explicitly rather than depend on headless focus order.
-            filter.RaiseEvent(new GotFocusEventArgs());
+            // Phase 8X: the session list is a standard ComboBox; choosing an
+            // item is the control's own two-way SelectedItem path.
+            var combo = dropdown.FindDescendantOfType<ComboBox>()!;
+            Assert.True(combo.ItemCount > 0, "the session selector must offer its options");
+            combo.IsDropDownOpen = true;
             window.UpdateLayout();
+            Assert.True(combo.IsDropDownOpen, "the session ComboBox must open");
 
-            // The popup opens from the filter box's GotFocus handler, which moves
-            // focus to the item list. The list lives inside the popup's child, not
-            // in the dropdown's own visual subtree — read it the way the control
-            // does (ControlsSmokeTests uses the same route).
-            var popup = dropdown.GetVisualDescendants().OfType<Popup>().Single();
-            Assert.True(popup.IsOpen, "the session dropdown's popup must open");
-            var list = ((Border)popup.Child!).FindDescendantOfType<ListBox>()!;
-            Assert.True(list.ItemCount > 0, "the session selector must offer its options");
-
-            filter.Text = "Day 3 (Tue)";
-            // Headless: setting Text does not raise TextChanged, so raise it the
-            // way ControlsSmokeTests does — otherwise the filter never runs.
-            filter.RaiseEvent(new TextChangedEventArgs(TextBox.TextChangedEvent));
-            window.UpdateLayout();
-            Assert.True(
-                list.SelectedItem is "Day 3 (Tue)",
-                $"filter left {list.ItemCount} item(s) with selection '{list.SelectedItem}'. "
-                    + $"Options: [{string.Join(" | ", dropdown.Items ?? Array.Empty<string>())}]");
-
-            list.RaiseEvent(new KeyEventArgs
-            {
-                RoutedEvent = InputElement.KeyDownEvent,
-                Key = Key.Enter,
-            });
+            combo.SelectedItem = "Day 3 (Tue)";
+            combo.IsDropDownOpen = false;
             window.UpdateLayout();
 
             Assert.Equal("Day 3 (Tue)", dropdown.SelectedItem);

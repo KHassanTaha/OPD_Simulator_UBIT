@@ -5,9 +5,7 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
-using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
@@ -17,20 +15,20 @@ using OpdSimulator.Data.Fitting;
 using Xunit;
 
 /// <summary>
-/// Phase 8W gate evidence: the owner-visible walkthrough of the fitting-unit
-/// selector. The test loads the shipped sample, selects "hours" through the real
-/// <see cref="SearchableDropdown"/> (keyboard path: focus the filter box, type,
-/// press Enter), waits for the production refit, then asserts what a user would
-/// see — an hourly λ readout and hourly chart headings — before saving the frame.
+/// Phase 8X gate evidence: the owner-visible walkthrough of the fitting-unit
+/// selector after it moved into the Simulation control panel. The test loads the
+/// shipped sample, selects "hours" through the prebuilt ComboBox, asserts the
+/// selector sits inside the window, waits for the production refit, then saves
+/// one frame of the selector and one of the hourly charts it produced.
 /// </summary>
 public sealed class Phase8WScreenshots
 {
     [AvaloniaFact]
-    public void Render_FittingUnitHours_SavePhase8wFittingUnitHoursPng()
+    public void Render_FittingUnitHours_SavePhase8xFittingUnitPng()
     {
         var window = new MainWindow();
         window.Width = 1200;
-        window.Height = 2000; // status + preview + 4 unit-labelled fit cards
+        window.Height = 2000; // model section + the four unit-labelled fit cards
         window.Show();
         try
         {
@@ -43,47 +41,30 @@ public sealed class Phase8WScreenshots
             Assert.Contains("patients/min", main.InputTab.MleLambdaText);
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 1; // Input
+            tabs.SelectedIndex = 0; // Simulation — where the selector now lives
             window.UpdateLayout();
 
-            var dropdown = window.GetVisualDescendants().OfType<SearchableDropdown>()
-                .Single(d => d.Label == "Fitting unit");
+            var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
+                .Single(d => d.Label == "Distribution fitting unit");
             dropdown.BringIntoView();
             window.UpdateLayout();
-            Assert.True(dropdown.IsEffectivelyVisible, "the fitting-unit selector must be visible on the Input tab");
+            Assert.True(dropdown.IsEffectivelyVisible, "the fitting-unit selector must be visible in the Simulation panel");
 
-            // D-169: a visibility flag is not a bounds check. The selector is new
-            // UI in a two-column header, so prove it actually sits inside the
-            // window — a clipped chevron would still report IsEffectivelyVisible.
+            // D-169: a visibility flag is not a bounds check.
             double rightEdge = dropdown.TranslatePoint(new Point(dropdown.Bounds.Width, 0), window)!.Value.X;
             Assert.True(
                 rightEdge <= window.Bounds.Width,
                 $"the fitting-unit selector ends at x={rightEdge:F0}, past the {window.Bounds.Width:F0}px window");
 
-            var filter = dropdown.GetVisualDescendants().OfType<TextBox>()
-                .Single(t => t.Name == "FilterBox");
-            Assert.True(filter.Focus(), "the fitting-unit filter box must take focus");
-            filter.RaiseEvent(new GotFocusEventArgs());
+            var combo = dropdown.FindDescendantOfType<ComboBox>()!;
+            combo.IsDropDownOpen = true;
             window.UpdateLayout();
+            Assert.True(combo.IsDropDownOpen, "the prebuilt ComboBox must open");
+            Assert.Equal(FittingTimeUnits.Options.Count, combo.ItemCount);
+            Save(window, "phase-8x-fitting-unit-selector.png");
 
-            var popup = dropdown.GetVisualDescendants().OfType<Popup>().Single();
-            Assert.True(popup.IsOpen, "the fitting-unit popup must open");
-            var list = ((Border)popup.Child!).FindDescendantOfType<ListBox>()!;
-
-            filter.Text = "hours";
-            // Headless: setting Text does not raise TextChanged, so raise it the
-            // way the control's own keyboard path does.
-            filter.RaiseEvent(new TextChangedEventArgs(TextBox.TextChangedEvent));
-            window.UpdateLayout();
-            Assert.True(
-                list.SelectedItem is "hours",
-                $"filter left {list.ItemCount} item(s) with selection '{list.SelectedItem}'");
-
-            list.RaiseEvent(new KeyEventArgs
-            {
-                RoutedEvent = InputElement.KeyDownEvent,
-                Key = Key.Enter,
-            });
+            combo.SelectedItem = "hours";
+            combo.IsDropDownOpen = false;
             window.UpdateLayout();
 
             Assert.Equal("hours", dropdown.SelectedItem);
@@ -99,6 +80,7 @@ public sealed class Phase8WScreenshots
                 System.Threading.Thread.Sleep(10);
             }
 
+            tabs.SelectedIndex = 1; // Input — the charts the unit produced
             window.UpdateLayout();
 
             Assert.Contains("patients/hour", main.InputTab.MleLambdaText);
@@ -110,7 +92,7 @@ public sealed class Phase8WScreenshots
             Assert.NotNull(histogram.Caption);
             Assert.Contains("p =", histogram.Caption!);
 
-            Save(window, "phase-8w-fitting-unit-hours.png");
+            Save(window, "phase-8x-fitting-unit-hours.png");
         }
         finally
         {
@@ -145,17 +127,16 @@ public sealed class Phase8WScreenshots
     private static string SamplePath(string fileName)
     {
         var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 8 && dir is not null; i++)
+        while (dir is not null && !Directory.Exists(Path.Combine(dir, "samples")))
         {
-            var candidate = Path.Combine(dir, "samples", fileName);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = Path.GetDirectoryName(dir);
+            dir = Directory.GetParent(dir)?.FullName;
         }
 
-        throw new FileNotFoundException($"Sample file {fileName} not found above {AppContext.BaseDirectory}");
+        if (dir is null)
+        {
+            throw new DirectoryNotFoundException("could not locate samples/ from " + AppContext.BaseDirectory);
+        }
+
+        return Path.Combine(dir, "samples", fileName);
     }
 }
