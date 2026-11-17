@@ -1,3 +1,66 @@
+Session Handoff — 2026-11-18 03:18 — Phase 9Q.1 IMPLEMENTED (Theory answer-key review fixes; owner-verifiable build running)
+Branch: feat/theory-tab
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+Phase 9Q.1 — Theory-tab answer-key review fixes (FR-UI-44 `[UPDATED]`, D-247) — `[~]` → `[x]` in `TODO.md` this session. Applied all five owner notes: removed the redundant PASTA caption; one formula per sheet line and one arithmetic step per substitution line; added σ and squared-CV (C²) spread forms with an exponential-spread hint; relabelled `60·Lq` "Aggregate customer wait per hour"; added a dedicated full-name column. Fixed a real defect found by the new tests — `TheoryTabViewModel.SetVariabilityMode` threw `ArgumentOutOfRangeException` for the two new modes.
+
+Verification table (AGENTS §18 — every requirement this phase touched)
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-UI-44 — five spread forms | `Variability_SigmaAndSquaredCv_MatchCv`, existing three-form test | σ and C² display the textbook quantity and agree with CV; 5/5 forms in the dropdown |
+| FR-UI-44 — models coincide at Cs² = 1 | `SpreadHint_ExplainsWhyMm1AndMg1Agree`, `Builder_Gg1_WithPoissonArrivals_ReducesToMg1` | Amber hint appears for M/G/1 default and G/G/1 defaults; disappears at Cs² = 0.25 |
+| FR-UI-44 — full names, stepped substitutions, aggregate-wait label | `WorkedRows_HaveFullNamesAndSteppedSubstitutions`, `View_ShowsFullNameColumnAndSpreadHint`, `View_FullNameColumn_StaysOnScreenAtProductionSize` | Name column present and on-screen at 1200×760; each step on its own line; `Wait/h` row says "Aggregate customer wait per hour" |
+| FR-UI-44 — one formula per line | `FormulaSheet_PutsEachFormulaOnItsOwnLine` | No line carries two formulas in M/M/1 or M/G/1 sheets |
+| FR-UI-44 — no redundant PASTA caption | `PWaitNote_OnlyExplainsTheOmittedGg1Row` | Empty for M/M/1 and M/G/1; G/G/1 still explains the omitted row |
+| §18 click-through | `Phase9QScreenshots` re-rendered on the real `MainWindow` at its declared 1200×760 | New frames 134,219 B and 143,975 B; structural assertions green; **owner visual inspection pending (B-012)** |
+| Build / gate | Dead-state `restore` → Release build+test → Debug build+test; clean 9Q-only tree in a temp worktree | 0 errors / 0 warnings; **1022/1022 both configurations**; clean 9Q-only tree **995/995**; `--filter Phase9Q` **28/28** |
+
+In Progress
+None — 9Q.1 is committed (`471fe6a`) and pushed; the uncommitted 9P work is deliberately preserved for its own branch.
+
+What is complete:
+The D-247 code, tests and all living docs: PRD **v1.16.6**, **D-247**, REQUIREMENTS FR-UI-44 `[x]`, both user manuals, `DEV_LAUNCH.md`, `BLOCKERS.md` B-012, `CONTEXT.md`'s `[UNVERIFIED]` σ interpretation, `TODO.md`, `PROGRESS.md`, the two re-rendered §18 frames, and the dead-state gates in both configurations plus the clean 9Q-only tree.
+
+What remains:
+Owner review and merge of `feat/theory-tab` (commits `1a92e4f`, `40fe117`, `471fe6a`, pushed). Owner visual inspection of the re-rendered frames — B-012 — does not block the code. Owner confirmation of the σ/C² interpretation in `CONTEXT.md` (tagged `[UNVERIFIED]`). The uncommitted Phase 9P work must be committed on its own branch, not with 9Q.
+
+Next Session Should Start With
+Owner review of `feat/theory-tab`, then merge to `main`.
+
+Inspect the relaunched app (started 2026-11-18 03:12 with `dotnet run --project src/OpdSimulator.App -c Release --no-build`) and confirm the D-247 notes on screen; close the B-012 Phase 9Q frames.
+
+Blocked
+B-012 — owner visual inspection of the headless screenshot backlog, including the two re-rendered Phase 9Q frames (does not block code or this phase).
+
+Git State
+Commits made this session: `471fe6a` — `feat: refine Theory answer key from owner review` (13 files, +355/−71; only 9Q.1 paths, no 9P work).
+Pushed to origin: Yes — `feat/theory-tab` → `origin/feat/theory-tab` (`40fe117..471fe6a`); no PR opened (owner review required).
+Uncommitted changes: the entire uncommitted Phase 9P source/test/doc set remains preserved and unstaged.
+
+Build & Test
+dotnet build: PASS — dead-state Release and Debug, 0 errors / 0 warnings; clean 9Q-only tree Release also 0/0.
+dotnet test: PASS — **1022/1022 in both configurations** (Core 183 / Data 139 / Cli 45 / App 655); clean 9Q-only tree **995/995**; `--filter Phase9Q` **28/28**.
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App: modified `Services/TheoryWorkedSolutionBuilder.cs` (`Name` field, stepped substitutions, σ/C² forms, one-formula-per-line sheet, PASTA caption removal), `ViewModels/TheoryTabViewModel.cs` (five spread modes, `SpreadHint`, `SetVariabilityMode` fix), `Views/TheoryTab.axaml` (Name column, hint, visibility converter).
+
+tests/OpdSimulator.App.Tests: modified `Phase9QTheoryTests.cs` (+7 D-247 tests); `Phase9QScreenshots.cs` unchanged but its two frames were re-rendered by the gate.
+
+docs: `PRD.md` (v1.16.6), `DECISIONS.md` (D-247), `REQUIREMENTS.md` (FR-UI-44), `TODO.md`, `DEV_LAUNCH.md`, `USER_MANUAL.md`, `USER_MANUAL_FULL.md`, `BLOCKERS.md` (B-012), `CONTEXT.md`, this `PROGRESS.md`.
+
+Decisions Made
+D-247 — five spread forms, exponential-spread hint, full-name column, one-step-per-line substitutions, honest aggregate-wait label, remove the PASTA caption (`docs/DECISIONS.md#d-247`).
+
+Assumptions Added/Changed
+**[UNVERIFIED] "give user ability to manage sigma and other variables" was interpreted as adding σ and squared-CV (C²) entry forms** — added to `docs/CONTEXT.md`; owner confirmation still needed.
+
+Notes for Next Session
+The staged 9Q.1 commit was verified from a detached worktree built from `git write-tree` — a clean tree with no 9P files — at 995 green, so the branch stays reviewable independently. Patch-level staging kept the mixed docs' 9P hunks unstaged; `git diff` still shows all 9P work. The two evidence frames remain unreviewed (D-166 permits regeneration until the owner has looked).
+
+---
+
 Session Handoff — 2026-11-18 02:10 — Phase 9Q IMPLEMENTED (single-server Theory tab; four-tab shell; honest Kingman wording; green)
 Branch: feat/theory-tab
 Status: In-Progress (awaiting owner review; no PR opened)
