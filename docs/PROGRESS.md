@@ -1,3 +1,75 @@
+Session Handoff — 2026-11-18 02:10 — Phase 9Q IMPLEMENTED (single-server Theory tab; four-tab shell; honest Kingman wording; green)
+Branch: feat/theory-tab
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+Phase 9Q — Single-server Theory tab (FR-UI-44, D-246) — `[~]` → `[x]` in `TODO.md` this session. Created `TheoryTabViewModel`, `TheoryWorkedSolutionBuilder`, `TheoryTab.axaml(.cs)`; inserted the tab between Input and Help (`TabIndex=2` / Help `3`); corrected the Core/CLI Kingman wording without changing a formula; added 21 behaviour/view tests and two §18 frames; made the tab self-contained so it builds without the uncommitted Phase 9P helper.
+
+Verification table (AGENTS §18 — every requirement this phase touched)
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-UI-44 — three single-server models, answer key | `Phase9QTheoryTests.Builder_Mm1_MatchesCoreErlangC`, `Builder_Mg1_UsesPollaczekKhinchine`, `Builder_Gg1_UsesKingmanAndOmitsPWait`, `Builder_Gg1_WithPoissonArrivals_ReducesToMg1` | All three answers equal Core `AnalyticalModels.TryCompute`; G/G/1 reduces to M/G/1 at Ca² = 1 |
+| FR-UI-44 — rate-wise/mean-wise, one time unit | `RateWiseAndMeanWise_SamePhysicalInputs_GiveTheSameAnswer`, `UnitChange_RewritesNumbersButKeepsTheAnswer`, `UnitChange_RescalesVarianceByTheSquareOfTheUnit` | Same physical λ/μ give the same Wq/Lq; switching units rewrites the text, not the answer |
+| FR-UI-44 — CV / variance / second moment | `Variability_CvVarianceSecondMoment_ProduceTheSameAnswer`, `Variability_SecondMomentBelowMeanSquared_IsRefused`, `Variability_CvZero_IsDeterministicAndValid` | All three forms agree; impossible moments refused; CV 0 accepted |
+| FR-UI-44 — worked substitutions, formula sheet | `Builder_SerialNumbers_AreContiguousFromOne`, `View_ShowsWorkedRowsAndHidesTheApproximationNoticeForMm1`, `View_FormulaSheet_IsCollapsedThenExpands` | Serials from 1; table rendered; sheet starts collapsed and opens |
+| FR-UI-44 — G/G/1 approximation notice, no P(wait) | `View_Gg1_ShowsProminentNoticeAndNoPWaitRow`, `Builder_Gg1_UsesKingmanAndOmitsPWait` | Amber notice visible above the numbers; no P(wait) row; Core `FormulaName` and CLI note corrected |
+| FR-UI-44 — invalid / unstable inputs | `UnstableArrivalRate_IsRefusedWithCause`, `BlankRate_NamesTheFieldAndDoesNotShowZero` | Named cause, no zero-filled answer |
+| Tab order (four tabs) | `Phase3ShellTests.MainWindow_HasFourTabs_InExpectedOrder`, arrow-key test; `Phase7DTests.Shell_Tabs_AreSimulationInputTheoryHelp`, `TabIndex_TheoryIsTwo`, `TabIndex_HelpIsThree` | Simulation \| Input \| Theory \| Help; keyboard navigation reaches Theory then Help |
+| FR-UI-36 — listing table serials | `Builder_SerialNumbers_AreContiguousFromOne` | Worked rows numbered from 1 |
+| §18 click-through | `Phase9QScreenshots` — headless walkthrough on the real `MainWindow` at its declared 1200×760, selecting M/M/1 and G/G/1 and observing the notice/table/sheet | Frames `phase-9q-theory-mm1.png`, `phase-9q-theory-gg1.png`; structural assertions green; **owner visual inspection pending (B-012)** |
+| Build / gate | Dead-state `restore` → Release build+test → Debug build+test | 0 errors / 0 warnings, **1015/1015** in both; 9Q-only tree **988/988**; filter 21/21 |
+
+In Progress
+None — 9Q is complete and staged for commit with this handoff.
+
+What is complete:
+The Theory tab and its four-tab shell, the honest Kingman wording in Core and CLI, PRD **v1.16.5**, **D-246** (including the self-containment amendment), REQUIREMENTS FR-UI-44 `[x]`, both user manuals, `DEV_LAUNCH.md`, `BLOCKERS.md` B-012, `CONTEXT.md`'s verified G/G/1 note, and both dead-state gates.
+
+What remains:
+Commit and push `feat/theory-tab` (immediately after this handoff), then owner review and merge. Owner visual inspection of the two new frames — B-012 — does not block the code.
+
+Next Session Should Start With
+Owner review of `feat/theory-tab`, then merge to `main`.
+
+Commit the uncommitted Phase 9P work on its own branch when it is ready; it was deliberately not staged here.
+
+Blocked
+B-012 — owner visual inspection of the headless screenshot backlog, including the two new Phase 9Q frames (does not block code or this phase).
+
+Git State
+Commits made this session: pending — the 9Q commit is created immediately after this handoff is written; its hash is recorded in the commit itself, not amended into pushed history.
+Pushed to origin: pending — push follows the commit.
+Uncommitted changes: the entire uncommitted Phase 9P source/test/doc set remains preserved and unstaged.
+
+Build & Test
+dotnet build: PASS — dead-state Release and Debug, 0 errors / 0 warnings.
+dotnet test: PASS — **1015/1015 in both configurations** (Core 183 / Data 139 / Cli 45 / App 648); clean 9Q-only tree 988/988; `--filter Phase9Q` 21/21.
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App: new `Services/TheoryWorkedSolutionBuilder.cs`, `ViewModels/TheoryTabViewModel.cs`, `Views/TheoryTab.axaml(.cs)`; modified `ViewModels/MainViewModel.cs` (TheoryTab only), `Views/MainWindow.axaml`.
+
+src/OpdSimulator.Core / src/OpdSimulator.Cli: `Analytics/AnalyticalModels.cs`, `Commands/ValidateCommand.cs` — Kingman wording only, no formula change.
+
+docs: `PRD.md` (v1.16.5), `DECISIONS.md` (D-246 + amendment), `REQUIREMENTS.md` (FR-UI-44), `TODO.md`, `DEV_LAUNCH.md`, `USER_MANUAL.md`, `USER_MANUAL_FULL.md`, `BLOCKERS.md`, `CONTEXT.md`, this `PROGRESS.md`, plus the §19.6 tab note in `AGENTS.md`.
+
+tests/OpdSimulator.App.Tests: new `Phase9QTheoryTests.cs`, `Phase9QScreenshots.cs`; updated `Phase3ShellTests.cs`, `Phase7DTests.cs`.
+
+Decisions Made
+D-246 — The Theory tab reuses Core's closed forms and labels G/G/1 honestly; owner ruled it self-contained rather than depending on the uncommitted 9P unit helper (`docs/DECISIONS.md#d-246`).
+
+Assumptions Added/Changed
+**[VERIFIED] G/G/1 has no simple exact steady-state mean formula** — two-moment Allen–Cunneen / Kingman is exact at Ca² = 1 and a heuristic otherwise; added to `docs/CONTEXT.md`.
+
+Notes for Next Session
+The 9Q-only commit intentionally carries PRD **v1.16.5** without the uncommitted **v1.16.4** 9P row, so the change history will show a gap until 9P lands; that is the price of keeping 9P reviewable and uncommitted, and no requirement was renumbered. `TheoryTabViewModel` converts units by enum name through `FittingTimeUnits`, so adding a sixth `TimeUnit` member in 9P requires the same name to exist in `FittingTimeUnit`. The two evidence frames were re-rendered by the dead-state gate and remain unreviewed (D-166 permits regeneration until the owner has looked).
+
+---
+
+## Resume — 2026-11-18 01:36 — reconciled: 3 findings
+
+Findings: (1) recorded branch `feat/general-arrivals` disagreed with reality (`feat/foundation-unit-and-authority`); (2) uncommitted Phase 9P source/test/doc changes are preserved and not staged by Phase 9Q; (3) `AGENTS.md` §19.6 still says "tab 2 of four: Simulation | Input | Token Generator | Help" while the app and PRD say three tabs — reconciled here as four tabs with Theory at index 2 and Help at index 3. Branch `feat/theory-tab` created from current HEAD.
+
 Session Handoff — 2026-11-11 06:15 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)

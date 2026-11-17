@@ -33,6 +33,13 @@ public partial class MainViewModel : ObservableObject
     public InputTabViewModel InputTab { get; }
 
     /// <summary>
+    /// Single-server textbook answer key (Theory tab, Phase 9Q, FR-UI-44). It
+    /// shares no state with the run configuration: a textbook question must not
+    /// inherit a λ or μ the user typed for the clinic simulation.
+    /// </summary>
+    public TheoryTabViewModel TheoryTab { get; } = new();
+
+    /// <summary>
     /// Output-side chi-square verification of the last run's generated samples
     /// (Phase 8B). Owned here and shared with <see cref="ResultsPanelViewModel"/>
     /// so the Results widget binds it under the panel's DataContext; populated

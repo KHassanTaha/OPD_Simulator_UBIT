@@ -1,6 +1,6 @@
 # Full User Manual — OPD Clinic Queue Simulator
 
-**Version:** 1.0 · **Date:** 2026-11-11 · **Phase 8X**
+**Version:** 1.1 · **Date:** 2026-11-18 · **Phase 9Q**
 **Audience:** anyone using the simulator — students, clinic staff, evaluators.
 
 > This is the complete step-by-step guide: every workflow, every control, and
@@ -62,7 +62,7 @@ documented with exact commands in `docs/DEV_LAUNCH.md` §7 and
 +--------------------------------------------------------------+
 | 🏥  OPD Clinic Queue Simulator — Simulation & Modelling      |
 +--------------------------------------------------------------+
-| [ Simulation ] [ Input ] [ Help ]                            |
+| [ Simulation ] [ Input ] [ Theory ] [ Help ]                 |
 +------------------+-------------------------------------------+
 |  Configuration   |  Results                                   |
 |  (left, ~380px)  |  (right, fills the window)                 |
@@ -293,6 +293,34 @@ trace.
 | **Servers** (per stage, when the file records them) | How many servers worked each stage; **Use for simulation →** copies them into the Stages configuration once. Historical utilisation is shown beside with its division. |
 | **Arrival rate (λ)** card | Both λ estimates; the radio picks which drives the run. |
 | **Distribution fit** cards | Histogram + fitted curve + chi-square verdict per series (inter-arrival, each stage's service). The unit comes from the Simulation tab's fitting unit (Workflow E). |
+
+---
+
+## 7a. Control-by-control reference — Theory tab
+
+The **Theory** tab is a single-server textbook answer key. It needs no data
+file and shares no state with the run configuration: it answers a question you
+type, it does not report a clinic simulation. Layout matches the Simulation
+tab — question on the left, answer on the right.
+
+| Control | What it controls |
+|---------|------------------|
+| **Model** | Exactly three choices: **M/M/1** (exact Erlang-C), **M/G/1** (exact Pollaczek–Khinchine) and **G/G/1** (a two-moment approximation). |
+| **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types 1/λ and 1/μ. Switching mode rewrites the displayed numbers so the same physical rate is preserved. |
+| **Time unit** | One unit for every number on this tab. Switching it also rewrites the numbers, so a rate does not silently change by 60. |
+| **Arrival rate λ** | Mean arrivals per unit, or the mean inter-arrival time in mean-wise mode. Required for all three models. |
+| **Service rate μ** | Mean completions per unit for the one server, or the mean service time in mean-wise mode. Required for all three models. |
+| **Enter spread as** | `CV`, `Variance` or `Second moment` — three equivalent ways to state a spread; all give the same answer. |
+| **Inter-arrival spread** | G/G/1 only. M/M/1 and M/G/1 assume Poisson arrivals (Ca² = 1), so the field is hidden. |
+| **Service-time spread** | M/G/1 and G/G/1. M/M/1 assumes exponential service (Cs² = 1), so the field is hidden. |
+| **Worked substitutions** | Right-side table: serial, metric, formula, your substitution and the value — the answer to copy into coursework. |
+| **Formula sheet — <model>** | Expandable closed form, symbol list and stability condition; starts collapsed. |
+| **⚠ Approximation notice** | G/G/1 only: the Allen–Cunneen / Kingman formula is exact when Ca² = 1 and **not exact generally**. P(wait) is omitted there because arrivals are not Poisson. |
+
+A steady-state answer is refused when a field is invalid or ρ ≥ 1; the reason
+appears in the right-side error banner. Numeric fields validate on blur, not on
+every keystroke. All arithmetic is the Core code shared with the Simulation
+tab's steady-state widget, so the Theory tab cannot disagree with it.
 
 ---
 

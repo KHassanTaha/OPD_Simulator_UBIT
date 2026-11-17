@@ -1322,11 +1322,13 @@ parameters).
 
 > **Phase 7D landed (2026-09-18).** The former Input Analysis
 > tab and the Simulation tab's Data section are now a single
-> **Input** tab (tab 2 of four: Simulation | Input | Token
-> Generator | Help). The Simulation tab's Data section is a
+> **Input** tab (tab 2: Simulation | Input | Help after Phase 8X,
+> D-221; tab 2 of four: Simulation | Input | Theory | Help after
+> Phase 9Q, D-246). The Simulation tab's Data section is a
 > status strip linking to it. The semantic split survives
 > unchanged: Input holds data-side content; the Results panel
-> holds run-side content.
+> holds run-side content. The Theory tab (Phase 9Q) is a separate
+> single-server answer key and does not change this split.
 
 ### 19.7 What this contract forbids
 

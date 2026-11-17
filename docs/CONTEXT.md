@@ -661,3 +661,11 @@ per-session averages were diluted by one empty session, and the 28 is the model
 working. The fix list is therefore 8T.1 (sessions), 8T.2 (per-session figures so
 the difference between sessions is *shown* rather than inferred) and 8T.4 (the
 rejected-arrival note, so the 3,201 are accounted for).
+
+**[VERIFIED] G/G/1 has no simple exact steady-state mean formula (Phase 9Q,
+D-246).** The two-moment Allen–Cunneen / Kingman expression used by Core is exact
+for M/G/1 when `Ca² = 1` (Poisson arrivals) and asymptotically correct in heavy
+traffic, but it is a heuristic for general G/G/1. The Theory tab therefore says
+"approximation" next to the answer and omits P(wait), which needs arrival-epoch
+information beyond `Ca²` and `Cs²`. Sources consulted: Whitt (Columbia), Adan &
+Resing (TU Eindhoven), MIT 6.263 lecture notes.

@@ -321,11 +321,12 @@ public static class ValidateCommand
         sb.AppendLine("-----");
         sb.AppendLine("  - Closed-form values are steady-state results; they describe the long-run");
         sb.AppendLine("    behaviour, not one clinic day. A 165-minute session is transient.");
-        sb.AppendLine("  - M/M/c is exact (Erlang-C). M/G/c uses Allen–Cunneen (exact");
-        sb.AppendLine("    Pollaczek–Khinchine at c = 1). G/G/c uses Allen–Cunneen (exact");
-        sb.AppendLine("    Kingman at c = 1). The two compound models are approximations for");
-        sb.AppendLine("    c > 1, so their 5% gate checks the simulator against the approximation,");
-        sb.AppendLine("    not against an exact answer.");
+        sb.AppendLine("  - M/M/c is exact (Erlang-C). M/G/c uses Pollaczek–Khinchine at");
+        sb.AppendLine("    c = 1 and Allen–Cunneen for c > 1. G/G/c uses Allen–Cunneen /");
+        sb.AppendLine("    Kingman, exact when Ca² = 1 (Poisson arrivals) and an approximation");
+        sb.AppendLine("    otherwise — even at c = 1. All compound models are approximations");
+        sb.AppendLine("    for c > 1, so their 5% gate checks the simulator against the");
+        sb.AppendLine("    approximation, not against an exact answer.");
         sb.AppendLine("  - A non-unit Ca² or Cs² is sampled from a Gamma distribution with shape");
         sb.AppendLine("    1/C²; Ca² = 0 is sampled as Deterministic. The report names the family");
         sb.AppendLine("    that was actually run.");

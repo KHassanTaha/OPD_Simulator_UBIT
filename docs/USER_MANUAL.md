@@ -93,8 +93,8 @@ useful if you want to see exactly what happened.
 
 ## 4. The Main Screen
 
-The window has a header and three tabs — **Simulation | Input | Help**. The
-**Simulation** tab is split into two panels:
+The window has a header and four tabs — **Simulation | Input | Theory | Help**.
+The **Simulation** tab is split into two panels:
 
 ```
 +----------------------------+--------------------------------+
@@ -117,6 +117,10 @@ The **Input** tab holds everything about the loaded data: the **Upload Data**
 button, the **data preview** table, the validation banner, and the
 distribution-fit charts. Until a data file is loaded the charts show a hint
 instead: *"Load a data file to see fit analysis."*
+
+The **Theory** tab (§8a) is a single-server textbook answer key — it does not
+need a data file and does not use the simulation configuration. The **Help** tab
+shows this manual inside the app.
 
 Once a data file is loaded, the tab shows **two chart cards** per fitted
 series, in fit order:
@@ -1333,8 +1337,61 @@ This tab was a placeholder and has been **removed from the window** (Phase 8X,
 2026-11-11). The token feature — issuing a numbered token per arriving patient
 with an estimated wait — is still planned work (see `FR-TOKEN` in
 `docs/PRD.md`); only the empty placeholder tab is gone, so the window now shows
-**Simulation | Input | Help**. When the feature is built it will return as a
-real panel rather than a placeholder.
+**Simulation | Input | Theory | Help**. When the feature is built it will return
+as a real panel rather than a placeholder.
+
+---
+
+## 8a. The Theory Tab (single-server answer key)
+
+The **Theory** tab answers textbook queueing questions without a data file and
+without running a simulation. It is an **answer key**, not a quiz: type a
+question on the left, read the worked solution on the right. It supports
+exactly three **single-server** models — **M/M/1**, **M/G/1** and **G/G/1** —
+and shares no input with the Simulation tab, so a λ or μ you typed for the
+clinic run cannot leak into a textbook answer.
+
+**Left side — the question**
+
+| Section | Control | What it does |
+|---------|---------|--------------|
+| 1 · Model & units | **Model** | Picks M/M/1 (exact Erlang-C), M/G/1 (exact Pollaczek–Khinchine) or G/G/1 (two-moment approximation). |
+| | **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types their reciprocals, `1/λ` and `1/μ`. |
+| | **Time unit** | One unit for **everything** on this tab (minutes, seconds, hours, days or sessions). Changing it rewrites the displayed numbers so the same physical rate is preserved. |
+| 2 · Arrival & service | **Arrival rate λ** | Mean arrivals per unit of time, or the mean gap between arrivals in mean-wise mode. |
+| | **Service rate μ** | Mean completions per unit of time for the one server, or the mean service time in mean-wise mode. |
+| 3 · Variability | **Enter spread as** | `CV`, `Variance` or `Second moment` — three equivalent ways to state the same spread. |
+| | **Inter-arrival spread** | Shown for G/G/1 only (M/M/1 and M/G/1 assume Poisson arrivals, Ca² = 1). |
+| | **Service-time spread** | Shown for M/G/1 and G/G/1 (M/M/1 assumes exponential service, Cs² = 1). |
+
+Numeric fields validate when the field **loses focus**, not on every keystroke.
+A bad value turns the field red with an icon and an actionable message ("must
+be greater than 0 — you entered 0"). Dropdown changes recalculate immediately.
+
+**Right side — the answer**
+
+- A **headline** line states the model, ρ, stability and the two headline
+  numbers (Wq and Lq).
+- A red **error banner** appears instead when the inputs are invalid or the
+  system is unstable (ρ ≥ 1): the engine refuses a steady-state answer whose
+  queue would grow without bound.
+- For **G/G/1 only**, a prominent amber **"Approximation — read before citing"**
+  notice appears above the numbers. The Allen–Cunneen / Kingman two-moment
+  formula is **exact when Ca² = 1** and **not exact generally**; treat its
+  output as an estimate. P(wait) is deliberately **not** reported for G/G/1
+  (arrivals are not Poisson, so PASTA does not apply); a note explains why.
+- A **Worked substitutions** table lists each metric with its serial number,
+  symbol, closed-form formula, the substitution of your numbers and the value.
+  This is the table to copy into a viva or coursework answer.
+- The expandable **Formula sheet — <model>** gives the closed form, the symbol
+  list and the stability condition. It starts collapsed; click its header to
+  open it.
+
+All arithmetic is performed by the same Core analytical code used by the
+Simulation tab's steady-state widget — the Theory tab only presents the
+substitutions. To check the tab by hand: `dotnet test tests/OpdSimulator.App.Tests
+--filter Phase9Q`. Evidence frames: `logs/screenshots/phase-9q-theory-mm1.png`
+and `phase-9q-theory-gg1.png` (owner visual inspection still required — B-012).
 
 ---
 
@@ -1376,6 +1433,7 @@ real panel rather than a placeholder.
 
 | Date | Change |
 |------|--------|
+| 2026-11-18 | Phase 9Q: a fourth tab, **Theory**, sits between Input and Help (§4, §8a) — a single-server answer key for **M/M/1, M/G/1 and G/G/1** that needs no data file. Rate-wise/mean-wise entry and one shared time unit; spread entered as CV, variance or second moment; a **Worked substitutions** table and an expandable **Formula sheet** per model. **G/G/1 shows a prominent approximation notice** (Allen–Cunneen / Kingman, exact only when Ca² = 1) and deliberately omits P(wait). Arithmetic reuses the Core analytical widget; the Core/CLI Kingman wording was corrected without changing any formula (FR-UI-44, D-246). |
 | 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |
 | 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |
 | 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |

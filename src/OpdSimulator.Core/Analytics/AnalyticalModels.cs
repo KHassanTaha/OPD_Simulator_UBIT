@@ -13,7 +13,7 @@ public enum AnalyticalModelFamily
     /// <summary>M/G/c — Allen–Cunneen approximation; for c = 1 it is exactly Pollaczek–Khinchine.</summary>
     Mgc = 1,
 
-    /// <summary>G/G/c — Allen–Cunneen approximation; for c = 1 it is exactly Kingman's formula.</summary>
+    /// <summary>G/G/c — Allen–Cunneen approximation; for c = 1 it is Kingman's two-moment approximation (exact when Ca² = 1).</summary>
     Ggc = 2
 }
 
@@ -71,7 +71,8 @@ public sealed record AnalyticalModelResult(
 /// <item><b>M/G/c</b> — <c>Wq ≈ Wq(M/M/c) · (1 + Cs²) / 2</c>. With c = 1 this reduces
 /// exactly to the Pollaczek–Khinchine result <c>Wq = ρ(1 + Cs²) / (2μ(1 − ρ))</c>.</item>
 /// <item><b>G/G/c</b> — <c>Wq ≈ Wq(M/M/c) · (Ca² + Cs²) / 2</c>. With c = 1 this is
-/// exactly Kingman's heavy-traffic formula.</item>
+/// Kingman's two-moment approximation, which is exact when Ca² = 1 (Poisson arrivals)
+/// but is not a general exact G/G/1 result.</item>
 /// </list>
 /// <para>
 /// Every model is a steady-state result, so a stage with ρ ≥ 1 is refused rather than
@@ -154,7 +155,7 @@ public static class AnalyticalModels
             AnalyticalModelFamily.Ggc => (
                 "G/G/c",
                 inputs.Servers == 1
-                    ? "Kingman's formula (exact for c = 1)"
+                    ? "Kingman / Allen–Cunneen two-moment approximation (exact when Ca² = 1)"
                     : "Allen–Cunneen G/G/c approximation",
                 (inputs.Ca2 + inputs.Cs2) / 2.0),
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, "Unknown analytical model family.")

@@ -524,7 +524,7 @@ public class Phase7DTests
     // ── Shell tab order (7D.3, RULING 2) ────────────────────────────────
 
     [AvaloniaFact]
-    public void Shell_Tabs_AreSimulationInputHelp()
+    public void Shell_Tabs_AreSimulationInputTheoryHelp()
     {
         var window = new MainWindow();
         window.Show();
@@ -533,7 +533,7 @@ public class Phase7DTests
         {
             var headers = Shell(window).Items.Cast<TabItem>()
                 .Select(t => t.Header?.ToString()).ToArray();
-            Assert.Equal(new[] { "Simulation", "Input", "Help" }, headers);
+            Assert.Equal(new[] { "Simulation", "Input", "Theory", "Help" }, headers);
         }
         finally
         {
@@ -557,13 +557,28 @@ public class Phase7DTests
     }
 
     [AvaloniaFact]
-    public void TabIndex_HelpIsTwo()
+    public void TabIndex_TheoryIsTwo()
     {
         var window = new MainWindow();
         window.Show();
         try
         {
-            Assert.Equal("Help", (Shell(window).Items[2] as TabItem)?.Header as string);
+            Assert.Equal("Theory", (Shell(window).Items[2] as TabItem)?.Header as string);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void TabIndex_HelpIsThree()
+    {
+        var window = new MainWindow();
+        window.Show();
+        try
+        {
+            Assert.Equal("Help", (Shell(window).Items[3] as TabItem)?.Header as string);
         }
         finally
         {

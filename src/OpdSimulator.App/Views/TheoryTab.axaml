@@ -1,0 +1,239 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:OpdSimulator.App.Controls"
+             xmlns:services="using:OpdSimulator.App.Services"
+             xmlns:viewModels="using:OpdSimulator.App.ViewModels"
+             x:Class="OpdSimulator.App.Views.TheoryTab"
+             x:DataType="viewModels:TheoryTabViewModel">
+
+    <!-- Theory tab (Phase 9Q, FR-UI-44): a single-server answer key. Left column
+         is the question, right column is the worked answer — the same visual
+         contract as the Simulation tab. Tab order follows the visual order:
+         model → entry mode → unit → λ → μ → spread form → spreads → answer. -->
+    <Grid ColumnDefinitions="360,6,*">
+
+        <!-- ── Question (left) ─────────────────────────────────────────── -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource BrushBackgroundPanel}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource CornerRadiusM}"
+                Padding="{DynamicResource ThicknessCardPadding}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="{DynamicResource SpaceM}">
+
+                    <StackPanel Spacing="{DynamicResource SpaceXxs}">
+                        <TextBlock Text="Textbook theory — single server"
+                                   FontSize="{DynamicResource FontSizeTitle}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="M/M/1, M/G/1 and G/G/1. Answers update when a field loses focus or a dropdown changes."
+                                   Classes="Caption"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <controls:CollapsibleSection Title="1 · Model &amp; units"
+                                                 HelpText="Pick the single-server model, how rates are entered, and one time unit for everything.">
+                        <StackPanel Spacing="{DynamicResource SpaceS}">
+                            <controls:DropdownField Label="Model"
+                                                    Placeholder="Choose a model…"
+                                                    Tooltip="M/M/1 is exact Erlang-C; M/G/1 is exact Pollaczek–Khinchine; G/G/1 is a two-moment approximation."
+                                                    Items="{Binding ModelOptions}"
+                                                    SelectedItem="{Binding SelectedModel, Mode=TwoWay}"/>
+                            <controls:DropdownField Label="Parameter entry"
+                                                    Placeholder="Rate-wise or mean-wise…"
+                                                    Tooltip="Rate-wise enters λ and μ; mean-wise enters their reciprocals, 1/λ and 1/μ. The unit applies to the number you type."
+                                                    Items="{Binding ParameterModeOptions}"
+                                                    SelectedItem="{Binding SelectedParameterMode, Mode=TwoWay}"/>
+                            <controls:TimeUnitSelector SelectedUnit="{Binding SelectedUnit, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </controls:CollapsibleSection>
+
+                    <controls:CollapsibleSection Title="2 · Arrival &amp; service"
+                                                 HelpText="λ feeds the queue; μ is the service rate of the one server. Both must be positive and ρ must stay below 1.">
+                        <StackPanel Spacing="{DynamicResource SpaceS}">
+                            <controls:ValidatedField x:Name="LambdaField"
+                                                     Label="Arrival rate λ"
+                                                     Watermark="e.g. 0.5"
+                                                     Tooltip="Average arrivals per unit of time (rate-wise) or the mean time between arrivals (mean-wise)."
+                                                     Unit="/ time"
+                                                     Value="{Binding LambdaInput, Mode=TwoWay}"
+                                                     HasError="{Binding LambdaHasError}"
+                                                     ErrorMessage="{Binding LambdaError}"
+                                                     HelpAnchor="arrival-rate"/>
+                            <controls:ValidatedField x:Name="MuField"
+                                                     Label="Service rate μ"
+                                                     Watermark="e.g. 0.8"
+                                                     Tooltip="Average completions per unit of time for the single server (rate-wise) or the mean service time (mean-wise)."
+                                                     Unit="/ time"
+                                                     Value="{Binding MuInput, Mode=TwoWay}"
+                                                     HasError="{Binding MuHasError}"
+                                                     ErrorMessage="{Binding MuError}"
+                                                     HelpAnchor="service-rate"/>
+                        </StackPanel>
+                    </controls:CollapsibleSection>
+
+                    <controls:CollapsibleSection Title="3 · Variability"
+                                                 HelpText="CV, variance and second moment are three ways to state the same spread; they give the same answer.">
+                        <StackPanel Spacing="{DynamicResource SpaceS}">
+                            <TextBlock Text="{Binding VariabilityCaption}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextSecondary}"/>
+                            <controls:DropdownField Label="Enter spread as"
+                                                    Placeholder="CV, variance or second moment…"
+                                                    Tooltip="CV is σ/mean; variance is σ²; second moment is E[X²]. All three convert to the squared coefficient of variation."
+                                                    Items="{Binding VariabilityOptions}"
+                                                    SelectedItem="{Binding SelectedVariabilityMode, Mode=TwoWay}"/>
+                            <controls:ValidatedField x:Name="ArrivalVariabilityField"
+                                                     IsVisible="{Binding IsArrivalVariabilityVisible}"
+                                                     Label="Inter-arrival spread"
+                                                     Watermark="e.g. 1"
+                                                     Tooltip="Spread of the time between arrivals. CV = 1 is Poisson, 0 is deterministic."
+                                                     Value="{Binding ArrivalVariabilityInput, Mode=TwoWay}"
+                                                     HasError="{Binding ArrivalVariabilityHasError}"
+                                                     ErrorMessage="{Binding ArrivalVariabilityError}"
+                                                     HelpAnchor="variability"/>
+                            <controls:ValidatedField x:Name="ServiceVariabilityField"
+                                                     IsVisible="{Binding IsServiceVariabilityVisible}"
+                                                     Label="Service-time spread"
+                                                     Watermark="e.g. 1"
+                                                     Tooltip="Spread of service time. CV = 1 is exponential, 0 is deterministic."
+                                                     Value="{Binding ServiceVariabilityInput, Mode=TwoWay}"
+                                                     HasError="{Binding ServiceVariabilityHasError}"
+                                                     ErrorMessage="{Binding ServiceVariabilityError}"
+                                                     HelpAnchor="variability"/>
+                        </StackPanel>
+                    </controls:CollapsibleSection>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <GridSplitter Grid.Column="1"
+                      Width="6"
+                      Background="{DynamicResource BrushBorderDefault}"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"/>
+
+        <!-- ── Worked answer (right) ───────────────────────────────────── -->
+        <Border Grid.Column="2"
+                Background="{DynamicResource BrushBackgroundWindow}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
+                BorderThickness="1,1,0,0"
+                Padding="{DynamicResource ThicknessWindowPadding}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="{DynamicResource SpaceM}">
+
+                    <StackPanel Spacing="{DynamicResource SpaceXxs}">
+                        <TextBlock Text="Answer key"
+                                   FontSize="{DynamicResource FontSizeTitle}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                        <TextBlock Text="{Binding Headline}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BrushTextSecondary}"/>
+                    </StackPanel>
+
+                    <controls:ErrorBanner Message="{Binding ErrorMessage}"
+                                          Severity="Error"/>
+
+                    <!-- D-246: G/G/1 must never look like an exact answer. -->
+                    <Border IsVisible="{Binding ApproximationNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            Background="{DynamicResource BrushWarningBackground}"
+                            BorderBrush="{DynamicResource BrushWarning}"
+                            BorderThickness="2"
+                            CornerRadius="{DynamicResource CornerRadiusM}"
+                            Padding="{DynamicResource ThicknessCardPadding}">
+                        <StackPanel Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="⚠ Approximation — read before citing"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BrushWarning}"/>
+                            <TextBlock Text="{Binding ApproximationNotice}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushWarning}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- A real listing table: serial numbers and right-aligned
+                         numeric columns per FR-UI-36. -->
+                    <Border Background="{DynamicResource BrushBackgroundPanel}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource CornerRadiusM}"
+                            Padding="{DynamicResource ThicknessCardPadding}"
+                            IsVisible="{Binding HasSolution}">
+                        <StackPanel Spacing="{DynamicResource SpaceXs}">
+                            <TextBlock Text="Worked substitutions"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                            <Grid ColumnDefinitions="28,62,140,*,96" ColumnSpacing="8">
+                                <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                                <TextBlock Grid.Column="1" Text="Metric" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="2" Text="Formula" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="3" Text="Substitution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="4" Text="Value" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding WorkedRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="services:TheoryWorkedRow">
+                                        <Grid ColumnDefinitions="28,62,140,*,96" ColumnSpacing="8" Margin="0,3">
+                                            <TextBlock Text="{Binding SerialNumber}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       Foreground="{DynamicResource BrushTextMuted}"
+                                                       TextAlignment="Right"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Symbol}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Formula}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       FontFamily="{DynamicResource FontFamilyMono}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource BrushTextSecondary}"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding Substitution}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       FontFamily="{DynamicResource FontFamilyMono}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource BrushTextSecondary}"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding Value}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"
+                                                       TextAlignment="Right"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding PWaitNote}"
+                               Classes="Caption"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasSolution}"
+                               Foreground="{DynamicResource BrushTextSecondary}"/>
+
+                    <controls:CollapsibleSection Title="{Binding FormulaSheetTitle}"
+                                                 IsExpanded="False"
+                                                 HelpText="The closed form, symbol list and stability condition for this model.">
+                        <Border Background="{DynamicResource BrushBackgroundAlt}"
+                                BorderBrush="{DynamicResource BrushBorderDefault}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource CornerRadiusS}"
+                                Padding="{DynamicResource ThicknessCardPadding}">
+                            <TextBlock Text="{Binding FormulaSheetText}"
+                                       FontFamily="{DynamicResource FontFamilyMono}"
+                                       FontSize="{DynamicResource FontSizeCaption}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                        </Border>
+                    </controls:CollapsibleSection>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

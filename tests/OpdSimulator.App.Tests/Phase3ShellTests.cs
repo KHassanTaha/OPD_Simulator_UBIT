@@ -10,7 +10,7 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 3 shell tests (feat/gui-rebuild gate): MainWindow is now the
-/// TabControl shell — Simulation | Input | Token Generator | Help —
+/// TabControl shell — Simulation | Input | Theory | Help (Phase 9Q) —
 /// with the Simulation tab carrying the 380px-config / fill-results split.
 /// Keyboard contract (AGENTS §16.7): the tab headers are the first focusable
 /// element and arrow keys move selection between tabs.
@@ -26,17 +26,18 @@ public class Phase3ShellTests
                .ToArray();
 
     [AvaloniaFact]
-    public void MainWindow_HasThreeTabs_InExpectedOrder()
+    public void MainWindow_HasFourTabs_InExpectedOrder()
     {
         var window = new MainWindow();
         window.Show();
 
         var tabs = Shell(window);
-        Assert.Equal(3, tabs.Items.Count);
-        // Header 2 renamed in Phase 7D when Data + Input Analysis merged into a
-        // single "Input" tab. Tab count unchanged.
+        // Phase 9Q (FR-UI-44) inserts Theory between Input and Help; Help moves
+        // from index 2 to 3. The old three-tab assertion would have passed with
+        // Help silently occupying the new tab's slot.
+        Assert.Equal(4, tabs.Items.Count);
         Assert.Equal(
-            new[] { "Simulation", "Input", "Help" },
+            new[] { "Simulation", "Input", "Theory", "Help" },
             Headers(tabs));
 
         window.Close();
@@ -101,9 +102,13 @@ public class Phase3ShellTests
 
         window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
         Assert.Equal(2, tabs.SelectedIndex);
+        Assert.Equal("Theory", (tabs.SelectedItem as TabItem)?.Header as string);
+
+        window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+        Assert.Equal(3, tabs.SelectedIndex);
 
         window.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
-        Assert.Equal(1, tabs.SelectedIndex);
+        Assert.Equal(2, tabs.SelectedIndex);
 
         window.Close();
     }
