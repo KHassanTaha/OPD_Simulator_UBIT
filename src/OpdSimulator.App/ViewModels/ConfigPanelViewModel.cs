@@ -7,7 +7,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
+using OpdSimulator.Core.Calendar;
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Core.Stages;
 using OpdSimulator.Data.Fitting;
 using OpdSimulator.Data.Parameters;
 using Serilog;
@@ -26,6 +28,15 @@ public partial class ConfigPanelViewModel : ObservableObject
 {
     /// <summary>Default stage names used to seed fresh rows (spec §4).</summary>
     private static readonly string[] DefaultStageNames = { "Reception", "Screening", "Doctor" };
+
+    // Section names as the panel heads them, used only by the Start gate's
+    // fallback reason so it can point at the section that still needs attention
+    // (Phase 9P, D-244).
+    private const string ModelSection = "the \"2 · Model\" section";
+    private const string ParametersSection = "the \"3 · Parameters\" section";
+    private const string StagesSection = "the \"4 · Stages\" section";
+    private const string HorizonSection = "the \"5 · Horizon\" section";
+    private const string AdvancedSection = "the \"6 · Advanced\" section";
 
     /// <summary>Distribution options offered by both model dropdowns.</summary>
     /// <remarks>
@@ -90,6 +101,13 @@ public partial class ConfigPanelViewModel : ObservableObject
             RecomputeRho();
             RefreshStageSourceLabels();
         };
+        // Phase 9P (D-243): the ρ preview is the run's topology, so it depends on
+        // the routing probabilities as much as on λ and μ. Without these two lines
+        // an edit to p_exit or p_bypass left the summary showing the ρ from the last
+        // unrelated change — a stale preview beside a live field, which is worse
+        // than no preview because it looks current.
+        PExit.ValueChanged += (_, _) => RecomputeRho();
+        PBypass.ValueChanged += (_, _) => RecomputeRho();
         StageCount.ValueChanged += (_, _) => OnStageCountEdited();
         // The arrival spread participates in the Start gate, so an edit must
         // re-evaluate it immediately — the same reason λ and the comma-list μ do.
@@ -151,9 +169,6 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <summary>Whether the Data section is shown — only while fitting from data (7C.3).</summary>
     public bool IsDataSectionVisible => SourceMode == DataSourceMode.FitFromData;
 
-    /// <summary>Whether the per-stage μ inputs are editable — only in manual mode (7C.5).</summary>
-    public bool IsManualMuEditable => SourceMode == DataSourceMode.EnterManually;
-
     /// <summary>Whether the comma-list μ field is shown — only while fitting from data (7C.5).</summary>
     public bool IsCommaListMuVisible => SourceMode == DataSourceMode.FitFromData;
 
@@ -193,7 +208,6 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsDataSectionVisible));
-        OnPropertyChanged(nameof(IsManualMuEditable));
         OnPropertyChanged(nameof(IsCommaListMuVisible));
         RefreshStageSourceLabels();
         RecomputeRho();
@@ -979,6 +993,29 @@ public partial class ConfigPanelViewModel : ObservableObject
     private bool _hasInteracted;
 
     /// <summary>
+    /// True while a freshly loaded file's fits are being applied (Phase 9P,
+    /// D-244). The gate treats it as one more reason, worded "fitting the
+    /// uploaded data", so Phase 9C can raise it around the load pass without
+    /// touching the gate at all.
+    /// </summary>
+    /// <remarks>
+    /// Phase 9P ships it at <c>false</c> and nothing sets it yet. It is here now,
+    /// with a test that proves the reason works, because the alternative is a
+    /// phase that edits another phase's gate — the exact coupling this hook
+    /// removes.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isAutoFitting;
+
+    /// <summary>
+    /// Re-gates Start when a fit pass starts or finishes. Without this the reason
+    /// would only appear the next time some other field happened to re-gate, which
+    /// is not when the user is looking.
+    /// </summary>
+    /// <param name="value">True while a fit pass is running.</param>
+    partial void OnIsAutoFittingChanged(bool value) => RecomputeBlockingState();
+
+    /// <summary>
     /// The banner text: empty on a fresh launch, the real reason once the user
     /// has interacted. Bound to <c>ErrorBanner.Message</c>.
     /// </summary>
@@ -1469,6 +1506,10 @@ public partial class ConfigPanelViewModel : ObservableObject
         yield return ManualLambda;
         yield return ManualMuPerStage;
         yield return PExit;
+        // Phase 9P (D-244): p_bypass had an inline error channel and a blur
+        // validator but was missing here, so an invalid p_bypass could disable
+        // Start without being cleared on reset or named in the banner.
+        yield return PBypass;
         yield return SignificanceLevel;
         yield return ArrivalSpread;
         yield return StageCount;
@@ -1518,9 +1559,19 @@ public partial class ConfigPanelViewModel : ObservableObject
                 ServiceFamily = DefaultStageServiceFamily,
             };
             row.Servers.ValueChanged += (_, _) => RecomputeRho();
-            // A manual per-stage μ edit changes both ρ and Start readiness (7C.4/7C.6).
+            // A manual per-stage μ edit changes ρ and Start readiness (7C.4/7C.6),
+            // and it decides the value's provenance: a number typed while a fit
+            // exists is an override, a number typed before any data was loaded is a
+            // fallback the fit may take over (Phase 9P, D-242).
             row.MuValueChanged += (_, _) =>
             {
+                if (row.MuProvenance == MuProvenance.UserSet
+                    && !(FittedRateFor(row.StageName) is > 0))
+                {
+                    row.MuProvenance = MuProvenance.Default;
+                }
+
+                RefreshStageSourceLabels();
                 RecomputeRho();
                 RecomputeBlockingState();
             };
@@ -1565,24 +1616,174 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private void RecomputeRho()
     {
-        double lambda = EffectiveLambda() ?? double.NaN;
-        bool lambdaKnown = lambda > 0;
-        var manualParts = ManualMuParts();
-        var parts = StageRows.Select((row, i) =>
+        // Phase 9P (D-243): one topology, two consumers. The preview asks the same
+        // NetworkTopology the run builds, so the number beside "Utilisation ρ" cannot
+        // disagree with the number in the results table. Before 9P this method
+        // recomputed λ / (c·μ) per stage from the front-door λ, which ignored p_exit
+        // and p_bypass and showed Screening and Doctor as busier than they are.
+        if (!TryBuildPreviewTopology(out var topology))
         {
-            double? mu = EffectiveMu(row, i, manualParts);
-            if (lambdaKnown
-                && mu is { } m && m > 0
-                && int.TryParse(row.Servers.Value, out var servers) && servers >= 1)
+            RhoSummary = "—";
+            return;
+        }
+
+        RhoSummary = string.Join(
+            "   ",
+            StageRows.Select((row, i) => $"{row.StageName}: {topology!.RhoFor(i):0.00}"));
+    }
+
+    /// <summary>
+    /// Builds the <see cref="NetworkTopology"/> the run would build, for the live ρ
+    /// preview only (Phase 9P, D-243).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every value here comes from the same resolver the run uses
+    /// (<see cref="ResolveMu"/>, <see cref="EffectiveLambda"/>,
+    /// <see cref="SimulationCoordinator.ResolveExitProbability"/>'s order and the
+    /// daily-cap arithmetic the coordinator applies). Nothing is re-derived: if a
+    /// number is wanted that the topology does not expose, the topology gains it.
+    /// </para>
+    /// <para>
+    /// It runs on every keystroke, so a half-typed form must render "—" rather than
+    /// throw. Every parse is guarded, the spec is built with
+    /// <c>reportErrors: false</c> so a keystroke cannot paint a blur-time error
+    /// (FR-UI-17), and the constructor is wrapped because a half-typed probability
+    /// or an out-of-range value can still reach it.
+    /// </para>
+    /// </remarks>
+    /// <param name="topology">The preview topology, or null when the form is incomplete.</param>
+    /// <returns>True when a topology could be built.</returns>
+    private bool TryBuildPreviewTopology(out NetworkTopology? topology)
+    {
+        topology = null;
+
+        if (!TryStageCount(out var stageCount) || stageCount != StageRows.Count)
+        {
+            return false;
+        }
+
+        double? arrivalRate = EffectiveLambda();
+        if (!(arrivalRate is > 0))
+        {
+            return false;
+        }
+
+        var specs = new List<StageSpec>(stageCount);
+        for (int i = 0; i < StageRows.Count; i++)
+        {
+            var row = StageRows[i];
+            if (!int.TryParse(row.Servers.Value, out var servers) || servers < 1)
             {
-                var rho = lambda / (m * servers);
-                return $"{row.StageName}: {rho:0.00}";
+                return false;
             }
 
-            return $"{row.StageName}: —";
-        });
+            double? mu = ResolveMu(row, i).PerMinute;
+            if (!(mu is > 0))
+            {
+                return false;
+            }
 
-        RhoSummary = parts.Any() ? string.Join("   ", parts) : "—";
+            DistributionSpec? spec = BuildSpec(row, mu, TimeUnit, reportErrors: false);
+            if (spec is null)
+            {
+                return false;
+            }
+
+            specs.Add(new StageSpec(row.StageName, servers, mu.Value, spec));
+        }
+
+        // Same routing resolution order as the run: a typed override wins, then the
+        // value fitted from the file, then the documented defaults. The preview must
+        // not invent its own fallback, or a blank field would preview a different run
+        // from the one Start would launch.
+        double exitProbability = ResolvePreviewExitProbability();
+        bool hasDownstreamStage = stageCount >= 2;
+        if (exitProbability >= 1.0 && hasDownstreamStage)
+        {
+            // The run refuses this outright (5-F); a refused run has no ρ to show.
+            return false;
+        }
+
+        double routingExitProbability = hasDownstreamStage ? exitProbability : 0.0;
+        double bypassProbability = ResolvePreviewBypassProbability();
+        double routingBypassProbability = hasDownstreamStage ? bypassProbability : 0.0;
+
+        int exitStageIndex = SimulationParameters.ExitStageIndexFor(stageCount, routingExitProbability);
+        int bypassStageIndex = SimulationParameters.BypassStageIndexFor(stageCount, routingBypassProbability);
+        int bypassDestinationIndex = SimulationParameters.BypassDestinationIndexFor(stageCount, routingBypassProbability);
+
+        // The cap is admitted load (D-190), so the preview has to apply it or it
+        // would show uncapped ρ while the run caps. DiagnosticTrace has no session
+        // and no gate, exactly as in the coordinator.
+        _ = Enum.TryParse<DayOfWeek>(StartDay, ignoreCase: true, out var previewStartDay);
+        var calendar = IsDiagnosticTrace ? null : new ClinicCalendar(startDayOfWeek: previewStartDay);
+        double sessionMinutes = calendar?.OpenDurationMinutes ?? 0;
+        int? dailyCap = int.TryParse(DailyCap.Value, out var cap) && cap >= 1 ? cap : null;
+        double? capRate = dailyCap is { } admitted && sessionMinutes > 0
+            ? admitted / sessionMinutes
+            : null;
+        int capStageIndex = capRate is null
+            ? -1
+            : routingBypassProbability > 0 ? bypassStageIndex : 0;
+
+        try
+        {
+            topology = new NetworkTopology(
+                arrivalRate.Value, specs,
+                exitStageIndex, routingExitProbability,
+                routingBypassProbability, bypassStageIndex, bypassDestinationIndex,
+                capRate, capStageIndex,
+                arrivalDistribution: null);
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            // Half-typed input must not throw from a property getter. Logged at Debug
+            // because this fires while the user is still typing, not as a fault.
+            Log.Debug(ex, "ρ preview skipped: the form does not yet form a valid topology");
+            topology = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The exit probability the run would use, resolved in the coordinator's order
+    /// for the preview (Phase 9P, D-243).
+    /// </summary>
+    /// <returns>Override, else fitted p_exit, else the documented default.</returns>
+    private double ResolvePreviewExitProbability()
+    {
+        // The override counts only while the Parameters section supplies it, which
+        // is exactly what TryBuildRunParameters decides for PExitOverride. Reading
+        // the field regardless would preview a routing the run never uses when the
+        // optional section is switched off.
+        if (ParametersSupplied
+            && double.TryParse(PExit.Value, out var manual)
+            && manual >= 0 && manual < 1)
+        {
+            return manual;
+        }
+
+        return Binding?.FittedExitProbability
+            ?? SimulationCoordinator.DefaultExitProbability;
+    }
+
+    /// <summary>
+    /// The bypass probability the run would use, resolved in the coordinator's order
+    /// for the preview (Phase 9P, D-243).
+    /// </summary>
+    /// <returns>Override, else fitted p_bypass, else off.</returns>
+    private double ResolvePreviewBypassProbability()
+    {
+        if (ParametersSupplied
+            && double.TryParse(PBypass.Value, out var manual)
+            && manual >= 0 && manual < 1)
+        {
+            return manual;
+        }
+
+        return Binding?.FittedBypassProbability ?? 0.0;
     }
 
     /// <summary>
@@ -1631,7 +1832,11 @@ public partial class ConfigPanelViewModel : ObservableObject
             return;
         }
 
-        row.ApplyFittedSpec(fit.Best.Spec);
+        // Phase 9P (D-245): the mode decides whether the blank μ is filled with a
+        // rate or a duration. A fitted spec's Mean is a duration, so mean-wise
+        // receives it directly instead of receiving its reciprocal in a
+        // duration-shaped field.
+        row.ApplyFittedSpec(fit.Best.Spec, ParameterMode);
         row.AutoFitBadge =
             $"Best fit: {fit.Best.Family} (AIC {fit.Best.Aic:F0}, " +
             $"p={fit.Best.ChiSquare?.PValue:F3})";
@@ -1666,14 +1871,16 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private void RefreshStageSourceLabels()
     {
-        var manualParts = ManualMuParts();
         for (int i = 0; i < StageRows.Count; i++)
         {
             var row = StageRows[i];
-            row.ServiceRateLabel = BuildServiceRateLabel(row, i, manualParts);
-            // The editable per-stage μ is always available in manual mode; in
-            // fit mode it appears only for a stage the data did not cover (7C.5).
-            row.IsMuVisible = IsManualMuEditable || !(FittedRateFor(row.StageName) is > 0);
+            row.ServiceRateLabel = BuildServiceRateLabel(row, i);
+            // Phase 9P (D-242): the field is always available now, in both modes. In
+            // fit mode its placeholder states the fitted value, so leaving it blank
+            // visibly means "use the data" and typing in it means "override" — which
+            // is what makes an override possible at all.
+            row.IsMuVisible = true;
+            row.MuPlaceholder = BuildMuPlaceholder(row);
             // Pushed per row rather than bound from the panel, because the extracted
             // StageRowControl cannot resolve a typed $parent[ItemsControl] binding.
             row.IsRateSourceVisible = IsCommaListMuVisible;
@@ -1681,99 +1888,134 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Restates every fitted-rate label after the fitting unit changes
-    /// (Phase 8W). The labels are the Parameters section's view of the same fit,
-    /// so they cannot be left quoting the previous unit. Also re-reads the
-    /// selector itself, which now lives in this panel (Phase 8X).
+    /// The μ field's placeholder: the example in manual mode, and the fitted value
+    /// in fit mode so the number the run would use is visible without being typed
+    /// (Phase 9P, D-242).
     /// </summary>
-    public void RefreshFittedUnitLabels()
+    /// <remarks>
+    /// Printed in the shape the current <see cref="ParameterMode"/> shows (a rate
+    /// rate-wise, a duration mean-wise) and in the configuration's unit. With the
+    /// default minutes the bare number is right because the field's caption already
+    /// says "/ min"; any other unit carries its own suffix, because the caption's
+    /// unit is finalised by Phase 9A and a bare number under the wrong caption
+    /// would be read as per-minute.
+    /// </remarks>
+    /// <param name="row">The row whose placeholder is wanted.</param>
+    /// <returns>Placeholder text for the μ field.</returns>
+    private string BuildMuPlaceholder(StageRow row)
     {
-        RefreshStageSourceLabels();
-        OnPropertyChanged(nameof(SelectedFittingUnitLabel));
+        const string Example = "e.g., 0.8";
+        double? fitted = FittedRateFor(row.StageName);
+        if (SourceMode != DataSourceMode.FitFromData || fitted is not > 0)
+        {
+            return Example;
+        }
+
+        double value = IsMeanWise
+            ? ToMinutes(1.0 / fitted.Value, TimeUnit)
+            : FittingTimeUnits.RateFromPerMinute(fitted.Value, TimeUnits.ToFitting(TimeUnit));
+
+        if (TimeUnit == TimeUnit.Minutes)
+        {
+            return $"{value:0.###}";
+        }
+
+        return IsMeanWise
+            ? $"{value:0.###} {TimeUnits.Label(TimeUnit)} (mean)"
+            : $"{value:0.###}/{TimeUnits.RateUnit(TimeUnit)}";
     }
+
+    /// <summary>
+    /// Restates every fitted-rate label after the time unit changes
+    /// (Phase 8W; one axis since Phase 9P/D-240).
+    /// </summary>
+    /// <remarks>
+    /// The labels are the Parameters section's view of the same fit, so they cannot
+    /// be left quoting the previous unit. The shell calls this when the Input tab's
+    /// derived fitting unit has been refreshed.
+    /// </remarks>
+    public void RefreshFittedUnitLabels() => RefreshStageSourceLabels();
 
     /// <summary>
     /// "μ = 0.25 (from data)" for a fitted stage, "μ = 0.80 (manual)" for a
-    /// comma-list entry, "μ = 0.60 (per-stage)" for a fallback field, or
-    /// "μ = — (no source)". In fit mode a fitted rate wins over the comma-list
-    /// and per-stage overrides (7C.5).
+    /// comma-list entry, "μ = 0.60 (per-stage)" for a row-field value, or
+    /// "μ = — (no source)". Built from <see cref="ResolveMu"/>, so the label and
+    /// the run cannot disagree about which source won (Phase 9P, D-242).
     /// </summary>
-    private string BuildServiceRateLabel(StageRow row, int index, IReadOnlyList<double?> manualParts)
+    /// <remarks>
+    /// Phase 8K read <c>IsMuFittedLocally</c> first and never cleared it, so a μ the
+    /// user overrode would still read "(fitted)" while the run used the typed value
+    /// (seam S3). Reading provenance instead means the label describes the number
+    /// that will actually run.
+    /// </remarks>
+    private string BuildServiceRateLabel(StageRow row, int index)
     {
-        // Checked before the mode branches: a μ the G/G/c auto-fit wrote into this row
-        // is the most specific description of it, and the coordinator resolves it as a
-        // per-stage value, so this is the number the run will actually use. The
-        // remaining branches are untouched, so a row that was never auto-fitted keeps
-        // exactly the label it had.
-        if (row.IsMuFittedLocally && double.TryParse(row.MuValue, out var fittedMu) && fittedMu > 0)
+        var (perMinute, source) = ResolveMu(row, index);
+        if (perMinute is not > 0)
         {
-            return $"μ = {fittedMu:0.###} (fitted)";
+            return "μ = — (no source)";
         }
 
-        if (SourceMode == DataSourceMode.EnterManually)
+        return source switch
         {
-            return double.TryParse(row.MuValue, out var perStage) && perStage > 0
-                ? $"μ = {(IsMeanWise ? 1.0 / perStage : perStage):0.##} (per-stage)"
-                : "μ = — (no source)";
-        }
-
-        if (FittedRateFor(row.StageName) is { } fitted && fitted > 0)
-        {
-            return $"μ = {DescribeFittedRate(fitted)} (from data)";
-        }
-
-        if (index < manualParts.Count && manualParts[index] is { } manual)
-        {
-            double effective = IsMeanWise && manual > 0 ? 1.0 / manual : manual;
-            return $"μ = {effective:0.##} (manual)";
-        }
-
-        if (double.TryParse(row.MuValue, out var fallback) && fallback > 0)
-        {
-            return $"μ = {(IsMeanWise ? 1.0 / fallback : fallback):0.##} (per-stage)";
-        }
-
-        return "μ = — (no source)";
+            MuProvenance.UserSet => $"μ = {DescribeMu(perMinute.Value)} (per-stage)",
+            MuProvenance.Fitted => FittedRateFor(row.StageName) is > 0
+                ? $"μ = {DescribeFittedRate(perMinute.Value)} (from data)"
+                : $"μ = {DescribeMu(perMinute.Value)} (fitted)",
+            // Default is either the comma list (nothing typed on the row) or a value
+            // that was typed before any fit existed. No chain is re-walked here: a
+            // blank row field cannot have supplied the number.
+            _ => string.IsNullOrWhiteSpace(row.MuValue)
+                ? $"μ = {DescribeMu(perMinute.Value)} (manual)"
+                : $"μ = {DescribeMu(perMinute.Value)} (per-stage)",
+        };
     }
 
     /// <summary>
-    /// Formats a fitted per-minute rate for a stage row (Phase 8W), stating the
-    /// fit unit the Input tab shows and the manual-unit equivalent the Parameters
-    /// section works in.
+    /// Formats a per-minute μ in the configuration's shape and unit: a rate when
+    /// rate-wise, a duration when mean-wise, in <see cref="TimeUnit"/> (Phase 9P).
+    /// </summary>
+    /// <param name="perMinute">The rate in events per minute.</param>
+    /// <returns>The number as the user would type it, plus its unit when not minutes.</returns>
+    private string DescribeMu(double perMinute)
+    {
+        double value = IsMeanWise
+            ? ToMinutes(1.0 / perMinute, TimeUnit)
+            : FittingTimeUnits.RateFromPerMinute(perMinute, TimeUnits.ToFitting(TimeUnit));
+
+        if (TimeUnit == TimeUnit.Minutes)
+        {
+            return $"{value:0.##}";
+        }
+
+        return IsMeanWise
+            ? $"{value:0.##} {TimeUnits.Label(TimeUnit)}"
+            : $"{value:0.##}/{TimeUnits.RateUnit(TimeUnit)}";
+    }
+
+    /// <summary>
+    /// Formats a fitted per-minute rate for a stage row, in the one unit the whole
+    /// configuration uses (Phase 8W, redesigned by Phase 9P/D-240).
     /// </summary>
     /// <remarks>
-    /// Minutes-in, minutes-out keeps the historic "μ = 0.25" form byte-identical,
-    /// so every existing label and test is untouched. Any other combination
-    /// prints both figures — e.g. "20/hour = 0.33/min" — because the Input tab and
-    /// this row would otherwise appear to describe different data.
+    /// Minutes-in, minutes-out keeps the historic "μ = 0.25" form byte-identical.
+    /// Any other unit prints the rate with its denominator — "μ = 20/hour" —
+    /// because a fitted μ is a rate and a bare "20" would be read as per-minute.
+    /// Before 9P this printed "<i>fit unit</i> = <i>manual unit</i>" when the two
+    /// selectors disagreed; one axis makes that state unreachable, so the label
+    /// states the single unit instead of two conversions of the same number.
     /// </remarks>
     /// <param name="perMinute">The fitted rate in events per minute.</param>
     /// <returns>The rate text without the surrounding "μ = … (from data)".</returns>
     private string DescribeFittedRate(double perMinute)
     {
-        FittingTimeUnit fitUnit = FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes;
-        if (fitUnit == FittingTimeUnit.Minutes && TimeUnit == TimeUnit.Minutes)
+        if (TimeUnit == TimeUnit.Minutes)
         {
             return $"{perMinute:0.##}";
         }
 
-        string fitText =
-            $"{FittingTimeUnits.RateFromPerMinute(perMinute, fitUnit):0.##}/{FittingTimeUnits.RateUnit(fitUnit)}";
-
-        double manualRate = TimeUnit switch
-        {
-            TimeUnit.Seconds => perMinute * 60.0,
-            TimeUnit.Hours => perMinute / 60.0,
-            _ => perMinute,
-        };
-        string manualUnit = TimeUnit switch
-        {
-            TimeUnit.Seconds => "s",
-            TimeUnit.Hours => "hour",
-            _ => "min",
-        };
-
-        return $"{fitText} = {manualRate:0.##}/{manualUnit}";
+        double perUnit = FittingTimeUnits.RateFromPerMinute(perMinute, TimeUnits.ToFitting(TimeUnit));
+        return $"{perUnit:0.##}/{TimeUnits.RateUnit(TimeUnit)}";
     }
 
     /// <summary>
@@ -1827,33 +2069,85 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The effective μ in the entered unit for display/gating (mean-wise is
-    /// inverted). Manual mode uses the per-stage field; fit mode prefers a
-    /// fitted rate, then the comma list, then the per-stage fallback (7C.5).
+    /// The one μ resolver (Phase 9P, D-242): every caller that needs a stage's
+    /// effective service rate goes through this method, and nothing else walks the
+    /// chain.
     /// </summary>
-    private double? EffectiveMu(StageRow row, int index, IReadOnlyList<double?> manualParts)
+    /// <remarks>
+    /// <para>
+    /// Precedence in fit mode is <c>UserSet → fitted → comma list → typed fallback</c>.
+    /// The owner ruled on 2026-11-15 that the fit wins by default and that an
+    /// explicit edit must still reach the run so the simulator can be tested with a
+    /// modified μ. A value typed before any file was loaded is *not* an override —
+    /// there was no fit for it to override — so it stays
+    /// <see cref="MuProvenance.Default"/> and the fit takes over when the file
+    /// arrives.
+    /// </para>
+    /// <para>
+    /// Typed values are converted with <see cref="ToPerMinute"/> <b>inside</b> this
+    /// method, so the ρ preview, the label and the run cannot disagree about the
+    /// unit. The fitted rate is already per-minute and is not converted: it comes
+    /// from the file, not from a typed field.
+    /// </para>
+    /// </remarks>
+    /// <param name="row">The stage row.</param>
+    /// <param name="index">The row's index in <see cref="StageRows"/>.</param>
+    /// <returns>The rate in per-minute units and where it came from; null when no source is usable.</returns>
+    private (double? PerMinute, MuProvenance Source) ResolveMu(StageRow row, int index)
     {
+        // Manual mode: the row's own field is the only source (§19.4). The comma
+        // list is hidden there, so it is never consulted.
         if (SourceMode == DataSourceMode.EnterManually)
         {
-            return double.TryParse(row.MuValue, out var perStage) && perStage > 0
-                ? (IsMeanWise ? 1.0 / perStage : perStage)
-                : null;
+            return (ParseTypedMu(row), MuProvenance.Default);
         }
 
-        if (FittedRateFor(row.StageName) is { } fitted && fitted > 0)
+        if (row.MuProvenance == MuProvenance.UserSet && ParseTypedMu(row) is { } userSet)
         {
-            return fitted;
+            return (userSet, MuProvenance.UserSet);
         }
 
-        if (index < manualParts.Count && manualParts[index] is { } manual)
+        if (FittedRateFor(row.StageName) is > 0 and var fitted)
         {
-            return IsMeanWise && manual > 0 ? 1.0 / manual : manual;
+            return (fitted, MuProvenance.Fitted);
         }
 
-        return double.TryParse(row.MuValue, out var fallback) && fallback > 0
-            ? (IsMeanWise ? 1.0 / fallback : fallback)
-            : null;
+        var manualParts = ManualMuParts();
+        if (index >= 0 && index < manualParts.Count && manualParts[index] is { } manual)
+        {
+            // The comma list is a typed source, so it is converted here too. Before
+            // 9P it ignored the time unit entirely, which made it the one μ entry
+            // whose number meant something different from its neighbours.
+            return (ToPerMinute(IsMeanWise ? 1.0 / manual : manual, TimeUnit), MuProvenance.Default);
+        }
+
+        double? typed = ParseTypedMu(row);
+        return (typed, row.MuProvenance == MuProvenance.Fitted && typed is not null
+            ? MuProvenance.Fitted
+            : MuProvenance.Default);
     }
+
+    /// <summary>
+    /// Parses a row's typed μ into per-minute units, applying the parameter mode and
+    /// the time unit. Null when the text is blank, non-positive or not finite.
+    /// </summary>
+    /// <param name="row">The stage row.</param>
+    /// <returns>The rate per minute, or null.</returns>
+    private double? ParseTypedMu(StageRow row)
+    {
+        if (!double.TryParse(row.MuValue, out var value) || !(value > 0) || !double.IsFinite(value))
+        {
+            return null;
+        }
+
+        return ToPerMinute(IsMeanWise ? 1.0 / value : value, TimeUnit);
+    }
+
+    /// <summary>
+    /// The effective μ in per-minute units for display/gating. Thin wrapper over
+    /// <see cref="ResolveMu"/>; the resolver is the only place the chain is walked.
+    /// </summary>
+    private double? EffectiveMu(StageRow row, int index) => ResolveMu(row, index).PerMinute;
 
     /// <summary>
     /// Re-derives <see cref="StartIsEnabled"/> from every field's error state
@@ -1868,25 +2162,24 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     private void RecomputeBlockingState()
     {
-        var advancedInUse = AdvancedIsOptionalEnabled;
-
-        // Evaluate the arrival spread from the current text rather than from
+        // Phase 9P (D-244): the gate reads the fields that are VISIBLE AND IN USE,
+        // never a hand-written chain of `HasError` checks. A hidden field (p_exit
+        // with one stage, the comma list in manual mode, the cap in a diagnostic
+        // trace) is simply not in this collection, so a stale error on it cannot
+        // disable Start — the two 9A G4 repros.
+        //
+        // The arrival spread is evaluated from the current text rather than from
         // HasError: the error flag is only raised on blur (FR-UI-17), and Start
         // must not depend on whether the user happened to leave the field.
         bool arrivalSpreadInvalid = !IsArrivalSpreadValid();
 
-        var blocked = arrivalSpreadInvalid
-            || StageCount.HasError
-            || SignificanceLevel.HasError
-            || (IsMultiDay && Days.HasError)
-            // The cap is visible in BOTH calendar modes (D-190), so an invalid cap
-            // blocks a single-day run too — previously it only blocked multi-day,
-            // which let a single-day run start with a cap the engine cannot apply.
-            || (DailyCapVisible && DailyCap.HasError)
-            || (IsDiagnosticTrace && IsCustomMinutesVisible && CustomMinutes.HasError)
-            || StageRows.Any(row => row.HasErrors)
-            || (ParametersIsOptionalEnabled && (ManualLambda.HasError || ManualMuPerStage.HasError || PExit.HasError))
-            || (advancedInUse && Seed.HasError);
+        var erroredFields = GatedFields()
+            .Where(entry => entry.Field.HasError)
+            .ToList();
+        var sectionsWithErrors = erroredFields
+            .Select(entry => entry.Section)
+            .Distinct()
+            .ToList();
 
         var missing = new List<string>();
         if (arrivalSpreadInvalid)
@@ -1895,9 +2188,10 @@ public partial class ConfigPanelViewModel : ObservableObject
                 $"the arrival spread ({ArrivalSpreadLabel.ToLowerInvariant()}) is missing, " +
                 "zero, or too large for the mean inter-arrival time");
         }
-
-        if (!blocked)
+        else if (sectionsWithErrors.Count == 0)
         {
+            // No field-level error: ask the mode's completeness rules, which name
+            // the missing VALUE (λ, μ, a file) rather than the field holding it.
             CollectServerGaps(missing);
             if (SourceMode == DataSourceMode.EnterManually)
             {
@@ -1909,9 +2203,25 @@ public partial class ConfigPanelViewModel : ObservableObject
             }
         }
 
-        if (missing.Count > 0)
+        if (IsAutoFitting)
         {
-            blocked = true;
+            missing.Add("fitting the uploaded data (this finishes on its own)");
+        }
+
+        bool blocked = missing.Count > 0 || sectionsWithErrors.Count > 0;
+
+        // A disabled Start must always say why (D-244). Field-level errors are
+        // named by their inline messages, which can leave the banner empty, so a
+        // fallback names the section AND the field that still needs attention —
+        // "Parameters … (p_bypass)" is something the user can go and fix, where a
+        // bare section name leaves them hunting for the red border.
+        if (blocked && missing.Count == 0)
+        {
+            string fields = string.Join(
+                ", ", erroredFields.Select(entry => entry.FieldName).Distinct());
+            missing.Add(
+                $"{string.Join(" and ", sectionsWithErrors)} still has a field marked in red " +
+                $"({fields}) — fix it to enable Start");
         }
 
         StartIsEnabled = !blocked;
@@ -1919,6 +2229,73 @@ public partial class ConfigPanelViewModel : ObservableObject
             ? ""
             : "Cannot start: " + string.Join(", ", missing) + ".";
         StartCalculationCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// The fields the Start gate may consult, paired with the section that owns
+    /// each one and the name the user knows it by (Phase 9P, D-244).
+    /// </summary>
+    /// <remarks>
+    /// "In use" is decided by exactly the visibility rules the panel binds, so a
+    /// field the user cannot see is a field that cannot block. That is the whole
+    /// point: before 9P the gate checked hidden controls, and a stale error on a
+    /// control scrolled out of sight disabled Start with no way to find it.
+    /// Collapsed sections are still in use — collapsing is a view choice, not a
+    /// configuration one.
+    /// </remarks>
+    /// <returns>Every visible, in-use field, with its section and field name.</returns>
+    private IEnumerable<(string Section, string FieldName, ConfigFieldViewModel Field)> GatedFields()
+    {
+        yield return (ModelSection, "significance level", SignificanceLevel);
+        if (ArrivalSpreadVisible)
+        {
+            yield return (ModelSection, "arrival spread", ArrivalSpread);
+        }
+
+        yield return (StagesSection, "stage count", StageCount);
+        foreach (var row in StageRows)
+        {
+            yield return (StagesSection, $"{row.StageName} server count", row.Servers);
+        }
+
+        if (ParametersSupplied)
+        {
+            yield return (ParametersSection, "λ", ManualLambda);
+            if (IsCommaListMuVisible)
+            {
+                yield return (ParametersSection, "μ per stage", ManualMuPerStage);
+            }
+
+            if (PExitVisible)
+            {
+                yield return (ParametersSection, "p_exit", PExit);
+            }
+
+            if (PBypassVisible)
+            {
+                yield return (ParametersSection, "p_bypass", PBypass);
+            }
+        }
+
+        if (IsMultiDay)
+        {
+            yield return (HorizonSection, "operating days", Days);
+        }
+
+        if (DailyCapVisible)
+        {
+            yield return (HorizonSection, "daily cap", DailyCap);
+        }
+
+        if (IsDiagnosticTrace && IsCustomMinutesVisible)
+        {
+            yield return (HorizonSection, "custom minutes", CustomMinutes);
+        }
+
+        if (AdvancedIsOptionalEnabled)
+        {
+            yield return (AdvancedSection, "random seed", Seed);
+        }
     }
 
     /// <summary>Adds a message for every stage whose server count is not an integer ≥ 1 (defence in depth on top of the blur error).</summary>
@@ -1985,10 +2362,9 @@ public partial class ConfigPanelViewModel : ObservableObject
             return;
         }
 
-        var manualParts = ManualMuParts();
         for (int i = 0; i < StageRows.Count; i++)
         {
-            if (EffectiveMu(StageRows[i], i, manualParts) is not { } mu || mu <= 0)
+            if (EffectiveMu(StageRows[i], i) is not { } mu || mu <= 0)
             {
                 missing.Add($"{StageRows[i].StageName} has no μ");
             }
@@ -2034,15 +2410,11 @@ public partial class ConfigPanelViewModel : ObservableObject
             !ParametersSupplied || string.IsNullOrWhiteSpace(field.Value) || !double.TryParse(field.Value, out var v) || !(v > 0)
                 ? null
                 : v;
-        double? ParseRawPositive(string? value) =>
-            double.TryParse(value, out var v) && v > 0 ? v : null;
 
-        // FitFromData: the comma list is the manual μ override for stages the
-        // data did not cover (a fitted rate wins over it — 7C.5). EnterManually:
-        // the list is hidden and each row's own μ field is authoritative.
-        double?[] commaRates = ManualMuParts()
-            .Select(rate => rate is { } r ? Convert(r) : null)
-            .ToArray();
+        // Phase 9P (D-242): the comma list is no longer resolved here. It is one
+        // source inside ResolveMu, which converts it with the same unit and mode as
+        // every other typed μ — before 9P it ignored the time unit, so it was the
+        // one μ entry whose number meant something different from its neighbours.
 
         double? manualLambda = Convert(ParsePositive(ManualLambda));
 
@@ -2069,35 +2441,35 @@ public partial class ConfigPanelViewModel : ObservableObject
 
             serverCounts.Add(servers);
 
-            // A null entry tells the coordinator to use the fitted rate. In fit
-            // mode a fitted rate therefore wins (7C.5); only uncovered stages
-            // fall through to the comma list, then to the per-stage field.
+            // Phase 9P (D-242): one resolver decides the stage's rate, and the
+            // coordinator, the source label and the ρ preview all read that same
+            // answer. `rate` is what the COORDINATOR resolves against, `specRate` is
+            // what the spec is BUILT from.
             //
-            // `rate` is what the COORDINATOR resolves against, and `specRate` is what
-            // the spec is BUILT from. They differ in exactly one case — a stage the
-            // file covers, where the fitted rate is deliberately left null above so
-            // the coordinator keeps 7C.5's precedence. The MEAN, though, is not
-            // unknown in that case (D-159, B-011 case 1): the fit already knows it, so
-            // the spec is built from it and its mean-dependent fields come out
-            // complete. Building from null instead left Gamma's `Scale = mean/k` and
-            // Uniform's `Min`/`Max = mean ∓ w` as NaN, and the sampler factory then
-            // threw on a configuration the Start gate had every reason to accept.
+            // They differ in exactly one case: a Default-provenance stage the file
+            // covers. There the manual slot is deliberately left null so the
+            // coordinator's fitted fallback wins (7C.5), while the SPEC is built from
+            // the fitted rate — its Mean is already known (D-159, B-011 case 1), and
+            // building from null left Gamma's `Scale = mean/k` and Uniform's
+            // `Min`/`Max = mean ∓ w` as NaN, so the sampler threw on a configuration
+            // the Start gate had every reason to accept.
+            //
+            // A UserSet μ — one the user typed while a fit existed — is NOT left null:
+            // the owner ruled on 2026-11-15 that an explicit edit must reach the run so
+            // the simulator can be exercised with a modified μ.
+            var (perMinute, muSource) = ResolveMu(row, rowIndex);
             double? rate;
             double? specRate;
-            if (SourceMode == DataSourceMode.EnterManually)
-            {
-                rate = specRate = Convert(ParseRawPositive(row.MuValue));
-            }
-            else if (FittedRateFor(row.StageName) is > 0 and var fitted)
+            if (SourceMode == DataSourceMode.FitFromData
+                && muSource != MuProvenance.UserSet
+                && FittedRateFor(row.StageName) is > 0 and var fitted)
             {
                 rate = null;
                 specRate = fitted;
             }
             else
             {
-                rate = specRate = rowIndex < commaRates.Length && commaRates[rowIndex] is { } comma
-                    ? comma
-                    : Convert(ParseRawPositive(row.MuValue));
+                rate = specRate = perMinute;
             }
 
             manualRates.Add(rate);
@@ -2159,7 +2531,7 @@ public partial class ConfigPanelViewModel : ObservableObject
                 return null;
             }
 
-            var spec = BuildSpec(row, specRate);
+            var spec = BuildSpec(row, specRate, TimeUnit);
             if (spec is null)
             {
                 // BuildSpec has written the reason on the row. Refusing the run here is
@@ -2304,50 +2676,6 @@ public partial class ConfigPanelViewModel : ObservableObject
     public Func<ObservationWindow?>? SelectedWindowAccessor { get; set; }
 
     /// <summary>
-    /// Reads the Input tab's fitting unit (Phase 8W) so a fitted μ shown here can
-    /// state the same unit the fit is reported in. Unset yields minutes.
-    /// </summary>
-    /// <remarks>
-    /// A delegate for the same reason as <see cref="WindowLambdaAccessor"/>: the
-    /// Input tab owns the selector, and a stored copy here would go stale the
-    /// moment the user picks a different unit. The shell calls
-    /// <see cref="RefreshFittedUnitLabels"/> when it changes.
-    /// </remarks>
-    public Func<FittingTimeUnit>? FittingUnitAccessor { get; set; }
-
-    /// <summary>
-    /// Writes the fitting unit back to its owner when the selector in this panel
-    /// changes (Phase 8X). The Input tab still holds the state because it owns
-    /// the fit; this panel only exposes the control the owner asked to have here.
-    /// </summary>
-    public Action<FittingTimeUnit>? FittingUnitSetter { get; set; }
-
-    /// <summary>Entries for the distribution-fitting unit dropdown (Phase 8X).</summary>
-    public IReadOnlyList<string> FittingUnitOptions => FittingTimeUnits.Options;
-
-    /// <summary>
-    /// The fitting unit as a dropdown label. Reads through
-    /// <see cref="FittingUnitAccessor"/> so there is one source of truth; the
-    /// setter forwards to <see cref="FittingUnitSetter"/>, whose owner raises
-    /// the refit event.
-    /// </summary>
-    public string SelectedFittingUnitLabel
-    {
-        get => FittingTimeUnits.Label(FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes);
-        set
-        {
-            var unit = FittingTimeUnits.ParseLabel(value);
-            if ((FittingUnitAccessor?.Invoke() ?? FittingTimeUnit.Minutes) == unit)
-            {
-                return;
-            }
-
-            FittingUnitSetter?.Invoke(unit);
-            OnPropertyChanged();
-        }
-    }
-
-    /// <summary>
     /// Builds the <see cref="DistributionSpec"/> for one stage from its row's family
     /// and the mode-converted μ that will also be handed to the engine as
     /// <c>StageSpec.ServiceRate</c> (Phase 8K, D-150).
@@ -2376,15 +2704,35 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </remarks>
     /// <param name="row">The stage row, holding the family and the spread text.</param>
     /// <param name="rate">Mode-converted μ per minute, or null when not entered.</param>
+    /// <param name="unit">
+    /// The unit the row's spread field is typed in (Phase 9P, D-240). A spread is a
+    /// duration, so σ and the uniform half-width convert by the same rule as μ while
+    /// the Gamma shape k — unitless — does not convert at all.
+    /// </param>
+    /// <param name="reportErrors">
+    /// When false the refusal is silent: the ρ preview calls this on every keystroke
+    /// and must not paint a blur-time error into the row before the user has left
+    /// the field (FR-UI-17). The run path keeps the default, so its refusals are
+    /// still written where the user can read them.
+    /// </param>
     /// <returns>
     /// The spec, or null when the family needs a spread parameter that is missing or
     /// invalid. Null is a refusal, not a default: the caller stops the run so the user
     /// gets the reason on the row instead of an exception from the sampler factory.
     /// </returns>
-    internal static DistributionSpec? BuildSpec(StageRow row, double? rate)
+    internal static DistributionSpec? BuildSpec(
+        StageRow row, double? rate, TimeUnit unit, bool reportErrors = true)
     {
         var family = row.ServiceFamily;
         double mean = rate is > 0 ? 1.0 / rate.Value : double.NaN;
+
+        void Refuse(string message)
+        {
+            if (reportErrors)
+            {
+                row.InlineError = message;
+            }
+        }
 
         switch (family)
         {
@@ -2396,35 +2744,41 @@ public partial class ConfigPanelViewModel : ObservableObject
             case DistributionFamily.Lognormal:
                 if (!TryPositive(row.ServiceStdDev, out var stdDev))
                 {
-                    row.InlineError =
+                    Refuse(
                         $"{family} needs a standard deviation greater than 0. " +
-                        $"You entered \"{row.ServiceStdDev ?? "blank"}\".";
+                        $"You entered \"{row.ServiceStdDev ?? "blank"}\".");
                     return null;
                 }
 
-                return new DistributionSpec(family, mean, StdDev: stdDev);
+                // A spread is a duration: typed in the configuration's unit, stored
+                // in minutes (R-UNIT-1). Phase 9P fixes the 60× mismatch that a
+                // per-hour μ beside a per-minute σ used to create.
+                return new DistributionSpec(family, mean, StdDev: ToMinutes(stdDev, unit));
 
             case DistributionFamily.Gamma:
                 if (!TryPositive(row.ServiceShape, out var shape))
                 {
-                    row.InlineError =
+                    Refuse(
                         "Gamma needs a shape k greater than 0. " +
-                        $"You entered \"{row.ServiceShape ?? "blank"}\".";
+                        $"You entered \"{row.ServiceShape ?? "blank"}\".");
                     return null;
                 }
 
                 // Scale is derived, never entered: it is the one value that makes the
                 // sampler's mean (k·Scale) equal the mean the user asked for with μ.
+                // k is unitless, so it is the one spread field that does NOT convert.
                 return new DistributionSpec(family, mean, Shape: shape, Scale: mean / shape);
 
             case DistributionFamily.Uniform:
                 if (!TryPositive(row.ServiceSpread, out var halfWidth))
                 {
-                    row.InlineError =
+                    Refuse(
                         "Uniform needs a half-width w greater than 0. " +
-                        $"You entered \"{row.ServiceSpread ?? "blank"}\".";
+                        $"You entered \"{row.ServiceSpread ?? "blank"}\".");
                     return null;
                 }
+
+                double halfWidthMinutes = ToMinutes(halfWidth, unit);
 
                 // A half-width at or beyond the mean drives the derived lower bound to
                 // zero or below, and a negative service time is not a service time.
@@ -2433,18 +2787,25 @@ public partial class ConfigPanelViewModel : ObservableObject
                 // wait time derived from them would be wrong. Refuse it here, where the
                 // mean is known; the blur check cannot do this, because it would have to
                 // re-derive the mean from the row's own μ and risk disagreeing with this.
-                if (halfWidth >= mean)
+                //
+                // Both numbers in the message are minutes: the comparison is in minutes,
+                // so reporting the typed value in its own unit would make a correct
+                // refusal read like an arithmetic mistake.
+                if (halfWidthMinutes >= mean)
                 {
-                    row.InlineError =
+                    Refuse(
                         $"Uniform needs a half-width w less than the mean service time " +
                         $"({mean:0.####} min), or Min would be 0 or negative. " +
-                        $"You entered \"{row.ServiceSpread ?? "blank"}\".";
+                        $"You entered {halfWidthMinutes:0.####} min.");
                     return null;
                 }
 
                 // Bounds derived from mean ± half-width, so a symmetric spread about the
                 // user's μ is guaranteed rather than typed twice and able to disagree.
-                return new DistributionSpec(family, mean, Min: mean - halfWidth, Max: mean + halfWidth);
+                return new DistributionSpec(
+                    family, mean,
+                    Min: mean - halfWidthMinutes,
+                    Max: mean + halfWidthMinutes);
 
             default:
                 throw new ArgumentOutOfRangeException(
@@ -2474,17 +2835,33 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Converts a user-entered rate or inverted mean to the engine's native
-    /// per-minute scale (D-125): seconds × 60, hours ÷ 60, minutes unchanged.
+    /// Converts a user-entered value to the engine's native per-minute scale
+    /// (D-125): the value is divided by the minutes in one <paramref name="unit"/>.
     /// </summary>
+    /// <remarks>
+    /// Both converters exist and both handle all five members (Phase 9P, D-240).
+    /// Adding <see cref="TimeUnit.Days"/> and <see cref="TimeUnit.Sessions"/> to the
+    /// enum without adding them here would throw from a property getter the moment
+    /// the user picked one, because the old form ended in
+    /// <c>_ =&gt; throw new ArgumentOutOfRangeException</c> — a crash, not a wrong
+    /// number (seam S1). They are asserted to be mutual inverses for every member,
+    /// so a sixth unit cannot be added to one and forgotten in the other.
+    /// </remarks>
+    /// <param name="value">The value in <paramref name="unit"/>.</param>
+    /// <param name="unit">The unit the value is expressed in.</param>
+    /// <returns>The same quantity per minute.</returns>
     private static double ToPerMinute(double value, TimeUnit unit) =>
-        unit switch
-        {
-            TimeUnit.Minutes => value,
-            TimeUnit.Seconds => value * 60.0,
-            TimeUnit.Hours => value / 60.0,
-            _ => throw new ArgumentOutOfRangeException(nameof(unit)),
-        };
+        value / TimeUnits.MinutesPerUnit(unit);
+
+    /// <summary>
+    /// The inverse of <see cref="ToPerMinute"/>: a duration in minutes expressed in
+    /// <paramref name="unit"/>.
+    /// </summary>
+    /// <param name="value">The duration in minutes.</param>
+    /// <param name="unit">The unit to express it in.</param>
+    /// <returns>The same duration in <paramref name="unit"/>.</returns>
+    private static double ToMinutes(double value, TimeUnit unit) =>
+        value * TimeUnits.MinutesPerUnit(unit);
 
     private static bool AllPartsPositive(string value) =>
         value.Split(',')

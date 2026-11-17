@@ -4,8 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Data.Parameters;
 using Serilog;
 
 /// <summary>
@@ -66,12 +68,21 @@ public partial class StageRow : ObservableObject
     private string muError = string.Empty;
 
     /// <summary>
-    /// Whether this row's editable μ field is shown: always in manual mode, and
-    /// in fit mode only when the loaded data has no fitted rate for this stage
-    /// (7C.5). Set by <see cref="ConfigPanelViewModel.RefreshStageSourceLabels"/>.
+    /// Whether this row's editable μ field is shown. Since Phase 9P it is shown
+    /// whenever the panel is enabled, in both modes: in fit mode its placeholder
+    /// states the fitted value, so a blank field visibly means "use the data" and a
+    /// typed one is a real override (D-242).
     /// </summary>
     [ObservableProperty]
-    private bool isMuVisible;
+    private bool isMuVisible = true;
+
+    /// <summary>
+    /// The placeholder shown in the μ field. In fit mode it carries the fitted
+    /// value in the shape the current parameter mode shows, so the field can be
+    /// left blank without the user losing the number (Phase 9P, D-242).
+    /// </summary>
+    [ObservableProperty]
+    private string _muPlaceholder = "e.g., 0.8";
 
     /// <summary>Raised whenever <see cref="MuValue"/> changes so the parent VM can re-gate Start (7C.6).</summary>
     public event EventHandler? MuValueChanged;
@@ -81,6 +92,11 @@ public partial class StageRow : ObservableObject
         // FR-UI-17: editing clears the stale error; blur re-validates.
         MuHasError = false;
         MuError = string.Empty;
+        // A non-blank edit is the user's own value. The parent downgrades it to
+        // Default when there is no fit for it to override (D-242), and
+        // ApplyFittedSpec writes Fitted after its own assignment, so a fit's fill is
+        // never mistaken for a typed one.
+        MuProvenance = string.IsNullOrWhiteSpace(value) ? MuProvenance.Default : MuProvenance.UserSet;
         MuValueChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -135,15 +151,14 @@ public partial class StageRow : ObservableObject
     private string? _autoFitBadge;
 
     /// <summary>
-    /// True when this row's μ was filled in by a G/G/c auto-fit rather than typed
-    /// by the user. It decides only how <see cref="ServiceRateLabel"/> reads —
-    /// "(fitted)" instead of "(per-stage)" — so the user can tell a number they
-    /// typed from one the fitter chose. It is deliberately not a precedence input:
-    /// a filled μ is a μ, and it wins by being present, exactly like a typed one
-    /// (Phase 8K, D-151).
+    /// Where this row's effective μ came from (Phase 9P, D-242). It decides the
+    /// precedence the resolver applies and how <see cref="ServiceRateLabel"/>
+    /// reads. Provenance, not non-emptiness: a value typed before any file was
+    /// loaded is a fallback, not an override, which is why the parent sets this
+    /// from what it knows rather than from "the field is not blank".
     /// </summary>
     [ObservableProperty]
-    private bool _isMuFittedLocally = false;
+    private MuProvenance _muProvenance = MuProvenance.Default;
 
     /// <summary>
     /// The notation this row held before the current selection, so a G/G/c
@@ -480,19 +495,28 @@ public partial class StageRow : ObservableObject
     }
 
     /// <summary>
-    /// Applies a G/G/c auto-fit result to this row, taking the fitted family's
-    /// <b>spread only</b> (Phase 8K, D-151, ruling A11).
+    /// Applies a fitted family and its <b>spread only</b> to this row. Never touches
+    /// μ (Phase 9P, D-245).
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// This is the method every load path calls: a file supplies a shape, not a
+    /// service rate, and the run's μ comes from the resolver. Phase 8K's single
+    /// <see cref="ApplyFittedSpec"/> wrote <c>1.0 / spec.Mean</c> unconditionally,
+    /// which would have put a duration into a field that holds a rate in mean-wise
+    /// mode and would have created a second μ authority alongside the fitter
+    /// (seam S2).
+    /// </para>
+    /// <para>
     /// The fitted spec's <c>Mean</c> is deliberately discarded. It is the mean of
     /// the observed data, whereas the run's location parameter is μ and the mean
     /// is derived from it as <c>1/μ</c> (D-150). Writing the data's mean onto the
     /// row would make <c>ServiceRate</c> and <c>Mean</c> disagree and trip D-147 the
-    /// first time an auto-fitted stage was run. <see cref="ConfigPanelViewModel.BuildSpec"/>
-    /// re-derives the mean from μ, so only the spread has to travel this way.
+    /// first time an auto-fitted stage was run.
+    /// </para>
     /// </remarks>
     /// <param name="spec">The winning fit. Its family and spread parameters are read; its mean is not.</param>
-    public void ApplyFittedSpec(DistributionSpec spec)
+    public void ApplyFittedShape(DistributionSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
 
@@ -538,17 +562,44 @@ public partial class StageRow : ObservableObject
             _suppressNotationSync = false;
         }
 
-        // μ is the run's only location parameter, so it decides the stage's mean. If
-        // the user already set one it is kept — a typed μ is a deliberate answer and
-        // the fitter does not get to overwrite it. A blank one is filled from the fit,
-        // which is the whole reason a G/G/c stage can run at all.
+        InlineError = null;
+    }
+
+    /// <summary>
+    /// Applies a G/G/c auto-fit result to this row — shape <b>and</b> a blank μ —
+    /// for the explicit auto-fit path only (Phase 9P, D-245).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// μ is the run's only location parameter, so it decides the stage's mean. If
+    /// the user already set one it is kept — a typed μ is a deliberate answer and
+    /// the fitter does not get to overwrite it. A blank one is filled from the fit,
+    /// which is the whole reason a G/G/c stage can run at all.
+    /// </para>
+    /// <para>
+    /// The fill is mode-aware: mean-wise the field holds a duration, so it receives
+    /// <c>spec.Mean</c>; rate-wise it receives <c>1.0 / spec.Mean</c>. Phase 8K
+    /// wrote the rate in both modes, which put a rate where a duration was expected.
+    /// No load path may call this method — the file loader calls
+    /// <see cref="ApplyFittedShape"/> and lets the resolver own μ.
+    /// </para>
+    /// </remarks>
+    /// <param name="spec">The winning fit.</param>
+    /// <param name="mode">How the μ field is interpreted (rate-wise or mean-wise).</param>
+    public void ApplyFittedSpec(DistributionSpec spec, ParameterMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        ApplyFittedShape(spec);
+
         if (string.IsNullOrWhiteSpace(MuValue) && spec.Mean > 0)
         {
-            MuValue = (1.0 / spec.Mean).ToString("R", CultureInfo.InvariantCulture);
-            IsMuFittedLocally = true;
+            double value = mode == ParameterMode.MeanWise ? spec.Mean : 1.0 / spec.Mean;
+            MuValue = value.ToString("R", CultureInfo.InvariantCulture);
+            // Written after the assignment: the change handler marks a non-blank edit
+            // as the user's, and this write is the fitter's, so provenance is set last
+            // and wins (D-242).
+            MuProvenance = MuProvenance.Fitted;
         }
-
-        InlineError = null;
     }
 
     /// <summary>

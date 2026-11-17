@@ -109,15 +109,6 @@
                                                  ErrorMessage="{Binding SignificanceLevel.ErrorMessage}"
                                                  HelpAnchor="significance-level"
                                                  views:ConfigPanelValidation.ValidationKey="significance-level"/>
-                        <!-- Phase 8X: the fitting unit moved here from the Input tab.
-                             It rescales the fitted samples only; the engine stays per
-                             minute, and the Input tab reports the unit chosen here. -->
-                        <controls:DropdownField Label="Distribution fitting unit"
-                                                Placeholder="Choose a unit…"
-                                                Tooltip="Unit the fitted distributions are reported in. Minutes is the data's native unit; hours, days (24 h) and sessions (165 operating min) rescale the same samples without changing the verdict."
-                                                Items="{Binding FittingUnitOptions}"
-                                                SelectedItem="{Binding SelectedFittingUnitLabel, Mode=TwoWay}"
-                                                HelpAnchor="fitting-unit"/>
                     </StackPanel>
                 </controls:CollapsibleSection>
 

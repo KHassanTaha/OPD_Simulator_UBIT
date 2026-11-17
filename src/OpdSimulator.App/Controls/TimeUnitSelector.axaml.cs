@@ -18,8 +18,15 @@ namespace OpdSimulator.App.Controls;
 /// </summary>
 public partial class TimeUnitSelector : UserControl
 {
-    /// <summary>Display labels, in the same order as the three <see cref="TimeUnit"/> members.</summary>
-    private static readonly string[] UnitLabels = { "Minutes", "Seconds", "Hours" };
+    /// <summary>
+    /// Display labels, in the same order as the <see cref="TimeUnit"/> members.
+    /// </summary>
+    /// <remarks>
+    /// Read from the enum rather than written out: Phase 9P added Days and Sessions,
+    /// and a hand-written array is exactly how the selector would have gone on
+    /// offering three units while the converters accepted five.
+    /// </remarks>
+    private static readonly string[] UnitLabels = Enum.GetNames<TimeUnit>();
 
     public TimeUnitSelector()
     {

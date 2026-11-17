@@ -116,12 +116,10 @@ public partial class MainViewModel : ObservableObject
         Config.WindowLambdaAccessor = () => InputTab.SelectedWindowLambda;
         Config.SelectedWindowAccessor = () => InputTab.SelectedWindow;
 
-        // Phase 8W/8X: a fitted μ shown in the Parameters section states the same
-        // fitting unit the Input tab reports. The selector now sits in the
-        // Simulation panel, so the panel writes through this setter and the
-        // InputTab's change event still drives the refit.
-        Config.FittingUnitAccessor = () => InputTab.SelectedFittingUnit;
-        Config.FittingUnitSetter = unit => InputTab.SelectedFittingUnit = unit;
+        // Phase 9P (D-240): there is ONE unit axis. The Simulation panel's Time unit
+        // is the only state; the Input tab derives its fitting unit from it through
+        // this accessor, so the fit captions and the λ/μ fields cannot disagree.
+        InputTab.TimeUnitAccessor = () => Config.TimeUnit;
 
         // The verification widget lives in the Results panel, whose DataContext
         // is the ResultsPanelViewModel; share the single instance so its XAML
@@ -174,6 +172,15 @@ public partial class MainViewModel : ObservableObject
         if (e.PropertyName == nameof(ConfigPanelViewModel.SourceMode))
         {
             UpdateConfigSourceStatus();
+        }
+
+        // Phase 9P (D-240): the Input tab's fitting unit is derived from this one
+        // value, so a unit change must restate its λ readouts and refit its charts
+        // through the existing gen guard. This is the only place the unit moves,
+        // which is why the old second selector could be deleted outright.
+        if (e.PropertyName == nameof(ConfigPanelViewModel.TimeUnit))
+        {
+            InputTab.RefreshFittingUnit();
         }
 
         if (e.PropertyName is nameof(ConfigPanelViewModel.IsStageMismatchWarningVisible)

@@ -224,33 +224,49 @@ public partial class InputTabViewModel : ObservableObject
     private bool hasWindowLambda;
 
     /// <summary>
-    /// The unit the Input tab fits and reports in (Phase 8W). Reset to minutes
-    /// on every launch: it is never read from or written to disk (FR-UI-21).
-    /// The dropdown that sets it lives in the Simulation panel (Phase 8X);
-    /// this view model remains the single owner of the value.
+    /// Reads the configuration's single time unit (Phase 9P, D-240). The Input
+    /// tab no longer owns a unit: the Simulation panel's Time unit selector is the
+    /// one state, and this tab derives its fitting unit from it.
     /// </summary>
-    [ObservableProperty]
-    private FittingTimeUnit selectedFittingUnit = FittingTimeUnit.Minutes;
+    /// <remarks>
+    /// Unset yields minutes, which is what standalone tests and a shell that has
+    /// not wired the accessor yet both need.
+    /// </remarks>
+    public Func<TimeUnit>? TimeUnitAccessor { get; set; }
 
     /// <summary>
-    /// The selected unit as a label. Parsed back through
-    /// <see cref="FittingTimeUnits.ParseLabel"/> so the label strings live in one place.
+    /// The unit the Input tab fits and reports in, derived from the one time unit
+    /// (<see cref="TimeUnitAccessor"/>). It is never stored and never persisted
+    /// (FR-UI-21).
     /// </summary>
-    public string SelectedFittingUnitLabel
-    {
-        get => FittingTimeUnits.Label(SelectedFittingUnit);
-        set => SelectedFittingUnit = FittingTimeUnits.ParseLabel(value);
-    }
+    public FittingTimeUnit SelectedFittingUnit =>
+        TimeUnits.ToFitting(TimeUnitAccessor?.Invoke() ?? TimeUnit.Minutes);
 
     /// <summary>
-    /// Raised when the fitting unit changes, so the shell can refit and rebuild
+    /// The derived unit as a label, for the read-only caption. Getter-only: a
+    /// setter would be a second home for the unit, which is exactly what Phase 9P
+    /// deleted.
+    /// </summary>
+    public string SelectedFittingUnitLabel => FittingTimeUnits.Label(SelectedFittingUnit);
+
+    /// <summary>
+    /// Raised when the shared time unit changes, so the shell can refit and rebuild
     /// the charts. The λ readouts refresh here; the charts are the shell's job
     /// because it owns the configured families and α.
     /// </summary>
     public event EventHandler? FittingUnitChanged;
 
-    partial void OnSelectedFittingUnitChanged(FittingTimeUnit value)
+    /// <summary>
+    /// Re-reads the derived unit after the owner's <see cref="TimeUnit"/> changed:
+    /// restates both λ readouts and raises <see cref="FittingUnitChanged"/>.
+    /// </summary>
+    /// <remarks>
+    /// Called by the shell from the config panel's
+    /// <c>OnTimeUnitChanged</c>, which is the only place the unit moves.
+    /// </remarks>
+    public void RefreshFittingUnit()
     {
+        OnPropertyChanged(nameof(SelectedFittingUnit));
         OnPropertyChanged(nameof(SelectedFittingUnitLabel));
         ApplyBindingLambda(_lastBinding);
         FittingUnitChanged?.Invoke(this, EventArgs.Empty);

@@ -147,7 +147,7 @@ public static class SimulationCoordinator
                 string.Format(MissingServiceRateMessage, stageResult.MissingStageName ?? "?"));
         }
 
-        int exitStageIndex = routingExitProbability > 0 ? parameters.StageNames.Count - 2 : -1;
+        int exitStageIndex = parameters.ExitStageIndexFor(routingExitProbability);
 
         // Bypass (D-179, reshaped by D-189). S is the stage being SKIPPED, and the stage
         // being skipped is the one before the destination the patient is heading
@@ -165,8 +165,8 @@ public static class SimulationCoordinator
         // the front door, so the draw happens at the arrival event.
         bool bypassRouteable = parameters.StageNames.Count >= 2;
         double routingBypassProbability = bypassRouteable ? bypassProbability : 0.0;
-        int bypassStageIndex = routingBypassProbability > 0 ? parameters.StageNames.Count - 2 : -1;
-        int bypassDestinationIndex = routingBypassProbability > 0 ? parameters.StageNames.Count - 1 : -1;
+        int bypassStageIndex = parameters.BypassStageIndexFor(routingBypassProbability);
+        int bypassDestinationIndex = parameters.BypassDestinationIndexFor(routingBypassProbability);
 
         // G4: build INSIDE the try so a topology-level refusal (the fitted
         // p_exit = 1.0 Constructor OutOfRange) becomes a banner, never an

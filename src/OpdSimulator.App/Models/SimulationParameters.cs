@@ -171,6 +171,81 @@ public sealed record SimulationParameters(
     public ObservationWindow? SelectedWindow { get; init; }
 
     /// <summary>
+    /// The stage after which a patient may exit, for the given stage count and
+    /// resolved exit probability, or −1 when exit routing is off (Phase 9P, D-243).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The resolved probability is an <b>argument</b> rather than a read of
+    /// <see cref="PExitOverride"/> because the value the run uses is frequently
+    /// fitted from the file (<c>DataBindingResult.FittedExitProbability</c>) and
+    /// therefore unknown when the record is built. A property reading the override
+    /// would say "no exit" for every fit-mode run that did not type one — the exact
+    /// disagreement D-243 exists to remove. The stage count and the routing rule
+    /// are the parts that live here; the number comes from the one resolver.
+    /// </para>
+    /// <para>
+    /// Static as well as instance so the ρ preview can ask for the index from a
+    /// stage count it holds, without building a whole record it would then discard.
+    /// The instance form delegates here, so there is exactly one definition of the
+    /// rule for the run and the preview.
+    /// </para>
+    /// <para>
+    /// The rule is the pre-9P rule verbatim: with routing on, the exit stage is the
+    /// one before the last, and a single-stage network yields −1 because it has no
+    /// downstream stage.
+    /// </para>
+    /// </remarks>
+    /// <param name="stageCount">Number of stages in the serial network.</param>
+    /// <param name="exitProbability">The resolved p_exit the run will use.</param>
+    /// <returns>Zero-based exit-stage index, or −1 when exit routing is off.</returns>
+    public static int ExitStageIndexFor(int stageCount, double exitProbability) =>
+        exitProbability > 0 ? stageCount - 2 : -1;
+
+    /// <summary>
+    /// The stage a bypass draw fires on — the stage being skipped — for the given
+    /// stage count and resolved bypass probability (Phase 9P, D-243).
+    /// </summary>
+    /// <remarks>
+    /// Three stages put S at 1 (skipping Screening, landing on Doctor); two stages
+    /// put S at 0 (skipping the front door, so the draw fires at arrival). A
+    /// single-stage network can neither skip nor land, so it is always −1. See
+    /// <see cref="ExitStageIndexFor(int,double)"/> for why the probability is an
+    /// argument and why the rule is static.
+    /// </remarks>
+    /// <param name="stageCount">Number of stages in the serial network.</param>
+    /// <param name="bypassProbability">The resolved p_bypass the run will use.</param>
+    /// <returns>Zero-based index of the skipped stage, or −1 when bypass is off.</returns>
+    public static int BypassStageIndexFor(int stageCount, double bypassProbability) =>
+        stageCount >= 2 && bypassProbability > 0 ? stageCount - 2 : -1;
+
+    /// <summary>
+    /// The stage a bypassed patient lands on for the given stage count and resolved
+    /// bypass probability (Phase 9P, D-243).
+    /// </summary>
+    /// <remarks>The terminal stage, exactly as D-179 defined it for any chain length.</remarks>
+    /// <param name="stageCount">Number of stages in the serial network.</param>
+    /// <param name="bypassProbability">The resolved p_bypass the run will use.</param>
+    /// <returns>Zero-based index of the destination stage, or −1 when bypass is off.</returns>
+    public static int BypassDestinationIndexFor(int stageCount, double bypassProbability) =>
+        stageCount >= 2 && bypassProbability > 0 ? stageCount - 1 : -1;
+
+    /// <inheritdoc cref="ExitStageIndexFor(int,double)"/>
+    /// <param name="exitProbability">The resolved p_exit the run will use.</param>
+    public int ExitStageIndexFor(double exitProbability) =>
+        ExitStageIndexFor(StageNames.Count, exitProbability);
+
+    /// <inheritdoc cref="BypassStageIndexFor(int,double)"/>
+    /// <param name="bypassProbability">The resolved p_bypass the run will use.</param>
+    public int BypassStageIndexFor(double bypassProbability) =>
+        BypassStageIndexFor(StageNames.Count, bypassProbability);
+
+    /// <inheritdoc cref="BypassDestinationIndexFor(int,double)"/>
+    /// <param name="bypassProbability">The resolved p_bypass the run will use.</param>
+    public int BypassDestinationIndexFor(double bypassProbability) =>
+        BypassDestinationIndexFor(StageNames.Count, bypassProbability);
+
+    /// <summary>
     /// The first stage's service family as a display name, for callers that still need one
     /// family for the whole run.
     /// </summary>

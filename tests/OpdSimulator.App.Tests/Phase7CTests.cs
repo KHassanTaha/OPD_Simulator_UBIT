@@ -75,8 +75,10 @@ public class Phase7CTests
         Assert.Equal(DataSourceMode.FitFromData, vm.SourceMode);
         Assert.Equal(ConfigPanelViewModel.FitFromDataLabel, vm.SourceModeSelection);
         Assert.True(vm.IsDataSectionVisible);
-        Assert.False(vm.IsManualMuEditable);
         Assert.True(vm.IsCommaListMuVisible);
+        // Phase 9P (D-242) deleted IsManualMuEditable: the per-stage μ is editable
+        // in BOTH modes now, and in fit mode its placeholder carries the fitted
+        // value. A mode-dependent enable flag would have said otherwise.
     }
 
     [AvaloniaFact]

@@ -111,11 +111,12 @@
                            ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
             </StackPanel>
 
-            <!-- Phase 7C: the editable per-stage μ. Always shown in manual mode; in fit
-                 mode it appears only when the data has no fitted rate for this stage
-                 (7C.4/7C.5). -->
+            <!-- Phase 9P (D-242): the editable per-stage μ is shown in both modes.
+                 In fit mode its placeholder carries the fitted value, so a blank
+                 field visibly means "use the data" and a typed one is an override
+                 — which is what makes the owner's manual test edit reach the run. -->
             <controls:ValidatedField Label="Service rate μ"
-                                     Watermark="e.g., 0.8"
+                                     Watermark="{Binding MuPlaceholder}"
                                      Tooltip="Manual mean service rate for this stage, interpreted by the Parameter mode and Time unit. This is the only location parameter: the family above sets the spread."
                                      Unit="/ min"
                                      IsVisible="{Binding IsMuVisible}"

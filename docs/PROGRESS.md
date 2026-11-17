@@ -1,3 +1,22 @@
+Session Handoff — 2026-11-18 05:00 — Phase 9P LANDED on its own branch (D-251)
+Branch: feat/foundation-unit-and-authority
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+Phase 9P landing — the 23 modified/deleted paths plus 4 untracked 9P files that were sitting on `feat/theory-tab` were stashed and applied to this `main`-based branch. Four documentation conflicts (DECISIONS, PRD, REQUIREMENTS, TODO) were resolved preserving **only** 9P content; all D-246…D-250 Theory decisions, FR-UI-44 and PRD v1.16.5…v1.16.9 rows were excluded. The 9P planning block D-239…D-245 came across from the 9Q commits, because it had never had a 9P commit of its own. `feat/theory-tab` remains untouched with 9Q.3 pushed.
+
+Verification table (AGENTS §18 — the four 9P requirements)
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-UI-41 one unit axis | `Phase9PUnitAxisTests` (five-unit mutual-inverse round trip, λ/μ in days and sessions, exactly one selector in the visual tree, no fitting-unit state, keyboard reachability) and `Phase9PScreenshots` frames `phase-9p-time-unit-selector.png` / `phase-9p-time-unit-hours.png`; numeric geometry assertions only | green in Release and Debug; human inspection outstanding (B-012) |
+| FR-UI-42 one μ resolver | `Phase9PResolutionTests`: fit default, pre-existing value does not override, explicit edit reaches `ManualServiceRates`, provenance label, `ApplyFittedShape` never writes μ, mode-aware `ApplyFittedSpec` | green in both configurations |
+| FR-UI-43 honest Start gate | `HiddenField_NeverBlocksStart`, `StartBlockedMessage_IsNeverEmptyWhenStartIsDisabled`, `InvalidPBypass_DisablesStartAndNamesTheField`, `IsAutoFitting_True_BlocksStartWithItsOwnReason` | green in both configurations |
+| FR-STAT-12 ρ parity | `RhoSummary_WithExit_MatchesTopologyRhoForEveryStage`, `..._WithBypass_...`, `..._UnknownInputs_RendersDashNotZero`; parity previously proven non-vacuous against pre-change HEAD | green in both configurations |
+
+Dead-state gate executed 2026-11-18 04:52: all `bin`/`obj` removed, restore, Release build and test, Debug build and test: **0 warnings / 0 errors**, **993 green in each** (Core 183 / Data 139 / Cli 45 / App 626 — one more App test than the 992 recorded in the original 9P prose; the discrepancy is recorded here rather than hidden). Real launch `timeout 20s dotnet run --project src/OpdSimulator.App -c Release --no-build` logged `Application started. Main window created.`; no new crash log.
+
+Docs reconciled on this branch: PRD v1.16.4, REQUIREMENTS matrix + header, TODO, DECISIONS D-239…D-245 + D-251, both manuals, DEV_LAUNCH, BLOCKERS (B-012 frame count), PROGRESS.
+
 Session Handoff — 2026-11-11 06:15 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)

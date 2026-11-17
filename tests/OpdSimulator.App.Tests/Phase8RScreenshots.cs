@@ -22,7 +22,10 @@ namespace OpdSimulator.App.Tests;
 /// <para>
 /// Screenshot evidence is append-only (D-166): each test writes a NEW filename and
 /// never overwrites a frame cited as evidence of a known defect. These three are new
-/// claims, not re-renders of old ones.
+/// claims, not re-renders of old ones. Phase 9P later re-rendered
+/// `phase-8r-cap-field.png` — the same positive claim, with one removed control gone
+/// from the sidebar beside it — and recorded that in `docs/PROGRESS.md`; no defect
+/// frame was touched.
 /// </para>
 /// <para>
 /// A screenshot is asserted by opening the PNG afterwards and by checking the text
@@ -57,7 +60,13 @@ public class Phase8RScreenshots
             // format is in the watermark, and the scope is stated where it is read.
             Assert.Contains("Maximum patients admitted per session", text);
             Assert.Contains("85", text);
-            Assert.Contains("Screening", text);
+
+            // Phase 9P: this used to assert a capital-S "Screening" and pass only
+            // because the ρ summary listed stage names ("Reception: —  Screening: …").
+            // That summary now renders a single "—" when there is no topology, so the
+            // assertion is aimed at what the test actually means: the caption saying
+            // the cap is scoped to screening-bound patients.
+            Assert.Contains("only to patients bound for screening", text, StringComparison.OrdinalIgnoreCase);
 
             // The cap is offered for both calendar modes (D-190).
             Assert.True(main.Config.DailyCapVisible);

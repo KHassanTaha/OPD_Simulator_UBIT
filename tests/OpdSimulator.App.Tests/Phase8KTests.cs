@@ -85,7 +85,9 @@ public class Phase8KTests
         string? stdDev = null,
         string? shape = null,
         string? spread = null) =>
-        ConfigPanelViewModel.BuildSpec(Row(family, stdDev, shape, spread), Mu)
+        // Phase 9P (D-240): BuildSpec takes the unit the spread field is typed in.
+        // These expectations were written in minutes and stay in minutes.
+        ConfigPanelViewModel.BuildSpec(Row(family, stdDev, shape, spread), Mu, TimeUnit.Minutes)
         ?? throw new InvalidOperationException($"BuildSpec refused {family}.");
 
     // ── 8K.1 · typed families, the notation, and the spread contract ────
@@ -302,7 +304,8 @@ public class Phase8KTests
         // become a zero-mean spec that throws somewhere downstream with no clue which
         // stage or field caused it. A family with no spread of its own is the common
         // case, so that is the one asserted here.
-        var spec = ConfigPanelViewModel.BuildSpec(Row(DistributionFamily.Exponential), null);
+        var spec = ConfigPanelViewModel.BuildSpec(
+            Row(DistributionFamily.Exponential), null, TimeUnit.Minutes);
 
         Assert.NotNull(spec);
         Assert.True(double.IsNaN(spec!.Mean));
@@ -319,7 +322,7 @@ public class Phase8KTests
         {
             var row = Row(family);
 
-            var spec = ConfigPanelViewModel.BuildSpec(row, Mu);
+            var spec = ConfigPanelViewModel.BuildSpec(row, Mu, TimeUnit.Minutes);
 
             Assert.Null(spec);
             Assert.NotEqual(string.Empty, row.InlineError);
@@ -348,7 +351,7 @@ public class Phase8KTests
         {
             var row = Row(DistributionFamily.Uniform, spread: halfWidth);
 
-            var spec = ConfigPanelViewModel.BuildSpec(row, Mu);
+            var spec = ConfigPanelViewModel.BuildSpec(row, Mu, TimeUnit.Minutes);
 
             if (accepted)
             {
@@ -454,9 +457,9 @@ public class Phase8KTests
         // location parameter, so no family may suppress it.
         var row = Row(DistributionFamily.Normal, stdDev: "0.4");
 
-        // The panel normally sets this from the source mode; a bare row defaults to
-        // hidden, which would mask what this test is about.
-        row.IsMuVisible = true;
+        // Phase 9P (D-242): μ is always available now — in fit mode its
+        // placeholder carries the fitted value — so no family may suppress it.
+        Assert.True(row.IsMuVisible);
         var control = new StageRowControl { DataContext = row };
         var window = new Window { Content = control, Width = 600, Height = 900 };
         window.Show();
@@ -614,8 +617,11 @@ public class Phase8KTests
         row.SelectedModel = "G/G/1";
 
         Assert.False(string.IsNullOrWhiteSpace(row.MuValue));
-        Assert.True(row.IsMuFittedLocally);
-        Assert.Contains("(fitted)", row.ServiceRateLabel);
+        // Phase 9P (D-242): provenance replaces the sticky local flag, and the
+        // label reads provenance — so it now says where the number came from in
+        // the run's own terms. With a fit covering this stage, that is "(from data)".
+        Assert.Equal(MuProvenance.Fitted, row.MuProvenance);
+        Assert.EndsWith("(from data)", row.ServiceRateLabel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -630,8 +636,11 @@ public class Phase8KTests
         row.SelectedModel = "G/G/1";
 
         Assert.Equal("0.300", row.MuValue);
-        Assert.False(row.IsMuFittedLocally);
-        Assert.DoesNotContain("(fitted)", row.ServiceRateLabel);
+        // A typed μ is the user's, and the label must say so rather than keep
+        // crediting the fit (Phase 9P/D-242, seam S3).
+        Assert.Equal(MuProvenance.UserSet, row.MuProvenance);
+        Assert.DoesNotContain("(from data)", row.ServiceRateLabel);
+        Assert.EndsWith("(per-stage)", row.ServiceRateLabel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -972,8 +981,8 @@ public class Phase8KTests
         // not one literal value.
         var row = new StageRow { ServiceFamily = DistributionFamily.Gamma, ServiceShape = "2" };
 
-        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.5);
-        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.25);
+        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.5, unit: TimeUnit.Minutes);
+        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.25, unit: TimeUnit.Minutes);
 
         Assert.NotNull(first);
         Assert.NotNull(second);
@@ -995,8 +1004,8 @@ public class Phase8KTests
         // is held constant on purpose; only the mean moves.
         var row = new StageRow { ServiceFamily = DistributionFamily.Uniform, ServiceSpread = "0.5" };
 
-        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.25);
-        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.1);
+        var first = ConfigPanelViewModel.BuildSpec(row, rate: 0.25, unit: TimeUnit.Minutes);
+        var second = ConfigPanelViewModel.BuildSpec(row, rate: 0.1, unit: TimeUnit.Minutes);
 
         Assert.NotNull(first);
         Assert.NotNull(second);

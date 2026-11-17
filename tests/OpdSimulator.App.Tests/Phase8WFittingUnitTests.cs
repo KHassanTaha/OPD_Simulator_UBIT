@@ -109,7 +109,14 @@ public class Phase8WFittingUnitTests
     [Fact]
     public void InputTab_ShowsTheChosenUnit_WhileTheRunValueStaysPerMinute()
     {
-        var vm = new InputTabViewModel(new InputAnalysisViewModel());
+        // Phase 9P (D-240): the Input tab stores no unit of its own. It derives
+        // one from the configuration's single TimeUnit, so this test drives that
+        // one state and asks the tab to restate itself.
+        var unit = TimeUnit.Minutes;
+        var vm = new InputTabViewModel(new InputAnalysisViewModel())
+        {
+            TimeUnitAccessor = () => unit,
+        };
         int changed = 0;
         vm.FittingUnitChanged += (_, _) => changed++;
 
@@ -120,7 +127,8 @@ public class Phase8WFittingUnitTests
         vm.SetLoadedFile(Binding());
         Assert.Contains("0.2500 patients/min", vm.MleLambdaText);
 
-        vm.SelectedFittingUnit = FittingTimeUnit.Hours;
+        unit = TimeUnit.Hours;
+        vm.RefreshFittingUnit();
 
         Assert.Equal(1, changed);
         Assert.Equal("hours", vm.SelectedFittingUnitLabel);
@@ -135,7 +143,7 @@ public class Phase8WFittingUnitTests
     }
 
     [Fact]
-    public void Parameters_FittedMuLabel_StatesTheFitUnitAndTheManualUnit()
+    public void Parameters_FittedMuLabel_StatesTheOneUnit()
     {
         var vm = new ConfigPanelViewModel();
         vm.ApplyLoadedFile(SamplePath("sample_patients.csv"));
@@ -144,13 +152,13 @@ public class Phase8WFittingUnitTests
         Assert.EndsWith("(from data)", screening.ServiceRateLabel, StringComparison.Ordinal);
         Assert.Matches(@"^μ = [0-9.]+ \(from data\)$", screening.ServiceRateLabel);
 
-        vm.FittingUnitAccessor = () => FittingTimeUnit.Hours;
-        vm.RefreshFittedUnitLabels();
+        vm.TimeUnit = TimeUnit.Hours;
 
-        // The Input tab now reports this fit per hour; the Parameters row says
-        // the same thing and still gives the per-minute figure it will consume.
+        // One axis (Phase 9P/D-240): the row states the single unit the whole
+        // configuration uses. The per-minute figure the engine consumes is no
+        // longer printed beside it as a second conversion of the same number.
         Assert.Contains("/hour", screening.ServiceRateLabel);
-        Assert.Contains("/min", screening.ServiceRateLabel);
+        Assert.DoesNotContain("/min", screening.ServiceRateLabel);
         Assert.EndsWith("(from data)", screening.ServiceRateLabel, StringComparison.Ordinal);
     }
 

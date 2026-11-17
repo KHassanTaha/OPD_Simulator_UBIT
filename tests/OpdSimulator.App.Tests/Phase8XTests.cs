@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 using OpdSimulator.Data.Fitting;
@@ -15,29 +16,31 @@ namespace OpdSimulator.App.Tests;
 
 /// <summary>
 /// Phase 8X — the three owner-visible behaviour changes that are not covered by
-/// the screenshot walkthrough: the move of the fitting-unit selector into the
-/// Simulation panel, and the suppression of the Start-blocked banner on a fresh
-/// launch. The Token Generator tab removal is asserted by Phase3/Phase7D shell
-/// tests, which now expect exactly Simulation | Input | Help.
+/// the screenshot walkthrough: the single fitting-unit state (moved into the
+/// Simulation panel by 8X, then collapsed to one axis by Phase 9P/D-240), and the
+/// suppression of the Start-blocked banner on a fresh launch. The Token Generator
+/// tab removal is asserted by Phase3/Phase7D shell tests, which now expect exactly
+/// Simulation | Input | Help.
 /// </summary>
 public sealed class Phase8XTests
 {
     /// <summary>
-    /// Why it matters: the selector must write through to the single owner of
-    /// the unit (the Input tab), or the charts and the Parameters labels would
-    /// report different units.
+    /// Why it matters: there must be exactly one unit state. The Simulation
+    /// panel's Time unit is it, and the Input tab must follow it — otherwise the
+    /// fit captions and the λ/μ fields would report different units. Phase 9P
+    /// deleted the second selector that used to make this a write-through.
     /// </summary>
     [Fact]
-    public void ConfigPanel_FittingUnitSelector_WritesThroughToTheInputTab()
+    public void ConfigPanel_TimeUnit_IsTheInputTabsOnlyUnitState()
     {
         var main = new MainViewModel();
 
         Assert.Equal(FittingTimeUnit.Minutes, main.InputTab.SelectedFittingUnit);
 
-        main.Config.SelectedFittingUnitLabel = "hours";
+        main.Config.TimeUnit = TimeUnit.Hours;
 
         Assert.Equal(FittingTimeUnit.Hours, main.InputTab.SelectedFittingUnit);
-        Assert.Equal("hours", main.Config.SelectedFittingUnitLabel);
+        Assert.Equal(TimeUnit.Hours, main.Config.TimeUnit);
     }
 
     /// <summary>

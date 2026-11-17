@@ -1,6 +1,6 @@
 # Full User Manual — OPD Clinic Queue Simulator
 
-**Version:** 1.0 · **Date:** 2026-11-11 · **Phase 8X**
+**Version:** 1.1 · **Date:** 2026-11-18 · **Phase 9P**
 **Audience:** anyone using the simulator — students, clinic staff, evaluators.
 
 > This is the complete step-by-step guide: every workflow, every control, and
@@ -208,7 +208,6 @@ whole panel. Every field's **? icon** links to its section of this manual.
 | **Inter-arrival distribution** | The family the engine samples inter-arrival times from. `Exponential`/`Poisson` = the classic Poisson process; `Gamma`, `Lognormal`, `Normal`, `Uniform`, `Deterministic` give a genuine G/G process. Changing it refits the Input-tab cards. |
 | **Arrival spread** | The chosen family's spread parameter (σ, k, w). Only appears for families that have one; the arrival **mean is λ**, never typed here. |
 | **Significance level (α)** | The cut-off for every chi-square test (default 0.05): p below α rejects the fit. |
-| **Distribution fitting unit** | The unit fits are reported in — `minutes`, `seconds`, `hours`, `days`, `sessions` (Workflow E). Engine outputs stay in minutes. |
 
 ### 3 · Parameters (optional overrides)
 
@@ -217,10 +216,10 @@ Blank fields fall back to fitted values; typed values win.
 | Control | What it controls |
 |---------|------------------|
 | **Parameter mode** radios | How λ/μ are typed: **Rate-wise** (events per minute) or **Mean-wise** (minutes per event). |
-| **Time unit** | The unit of the λ/μ you type here (per minute / second / hour) — independent of the fitting unit. |
+| **Time unit** | The **one** unit for λ, both μ entries and the service spread: `minutes` (default), `seconds`, `hours`, `days` (1,440 min) or `sessions` (165 min). The Input tab fits and reports in this same unit; the engine stays per minute. Gamma `k` is unitless and the arrival spread stays in minutes. |
 | **Manual λ (per minute)** | Overrides the fitted arrival rate. |
-| **Manual μ per stage** | Comma list of per-stage service rates, used for stages the file does not cover. Hidden in manual mode (rows own their μ there). |
-| **Utilisation ρ per stage** | Read-only: ρ = λ / (c·μ) per stage. All values below 1 are required for a stable queue. |
+| **Manual μ per stage** | Comma-list fallback for a stage with no fitted rate. Hidden in manual mode (rows own their μ there). An explicit per-stage edit still outranks it. |
+| **Utilisation ρ per stage** | Read-only ρ from the **same `NetworkTopology` as the run**, using routed inflow and the same μ resolver; p_exit/p_bypass edits update it immediately. `—` means the form cannot yet produce a number, not zero. |
 | **p_exit override** | Probability a patient leaves after Screening (0 ≤ p < 1). |
 | **p_bypass override** | Probability an arrival skips Screening and goes straight to the Doctor. |
 
@@ -234,7 +233,7 @@ Blank fields fall back to fitted values; typed values win.
 | Per-row **Advanced** toggle | Reveals independent **Arrival distribution** / **Service distribution** dropdowns per stage. |
 | Per-row spread fields (σ, k, w) | The chosen family's spread; μ stays the only location parameter. |
 | Per-row **Servers** | Parallel servers at that stage (≥ 1). |
-| Per-row **Service rate μ** | The stage's mean service rate (editable in manual mode; shows the fitted value otherwise, labelled with its source). |
+| Per-row **Service rate μ** | Always visible when enabled. Blank shows the fitted value as placeholder ("use the data"); typing while a fit is visible overrides it. The row label states the source: from data, typed by you, or none. |
 
 ### 5 · Horizon
 
@@ -256,7 +255,7 @@ Blank fields fall back to fitted values; typed values win.
 
 | Control | What it controls |
 |---------|------------------|
-| **Start Calculation** | Runs the simulation. It is a **completeness gate**: it stays disabled until every required input exists, and the banner above the footer names exactly what is missing (from your first click or keystroke in the panel — a fresh launch is not greeted by an error). |
+| **Start Calculation** | Runs the simulation. It is a **completeness gate**: only visible, in-use fields can block it; hidden or mode-irrelevant fields cannot. An invalid p_bypass is named, and the banner always ends with the section and the fields marked in red (silent until your first click or keystroke in the panel). |
 | **Clear All** | Resets every field to the fresh-launch state, after a confirmation dialog. |
 
 ---

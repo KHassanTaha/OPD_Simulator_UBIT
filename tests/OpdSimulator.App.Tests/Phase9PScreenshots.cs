@@ -9,22 +9,37 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpdSimulator.App.Controls;
+using OpdSimulator.App.Models;
 using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 using OpdSimulator.Data.Fitting;
 using Xunit;
 
 /// <summary>
-/// Phase 8X gate evidence: the owner-visible walkthrough of the fitting-unit
-/// selector after it moved into the Simulation control panel. The test loads the
-/// shipped sample, selects "hours" through the prebuilt ComboBox, asserts the
-/// selector sits inside the window, waits for the production refit, then saves
-/// one frame of the selector and one of the hourly charts it produced.
+/// Phase 9P gate evidence (D-240): the owner-visible walkthrough of the ONE unit
+/// selector. The test loads the shipped sample, picks "Hours" through the
+/// production <see cref="TimeUnitSelector"/>, asserts the selection reaches the
+/// configuration's single <see cref="TimeUnit"/> state, waits for the production
+/// refit, then saves one frame of the selector and one of the hourly charts it
+/// produced.
 /// </summary>
-public sealed class Phase8WScreenshots
+/// <remarks>
+/// <para>
+/// This replaces the Phase 8X screenshots, which drove a second, display-only
+/// "Distribution fitting unit" dropdown. 9P deleted that control, so that test
+/// could no longer run; its two frames stay on disk as the record of what it
+/// showed. The two frames written here are new filenames (D-166).
+/// </para>
+/// <para>
+/// What the test asserts is the point of the phase: choosing a unit once, in the
+/// Simulation panel, moves the fitted readouts and the charts together — there is
+/// no second selection to fall out of step.
+/// </para>
+/// </remarks>
+public sealed class Phase9PScreenshots
 {
     [AvaloniaFact]
-    public void Render_FittingUnitHours_SavePhase8xFittingUnitPng()
+    public void Render_TimeUnitHours_SavePhase9pTimeUnitPng()
     {
         var window = new MainWindow();
         window.Width = 1200;
@@ -41,33 +56,39 @@ public sealed class Phase8WScreenshots
             Assert.Contains("patients/min", main.InputTab.MleLambdaText);
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
-            tabs.SelectedIndex = 0; // Simulation — where the selector now lives
+            tabs.SelectedIndex = 0; // Simulation — where the one selector lives
             window.UpdateLayout();
 
-            var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
-                .Single(d => d.Label == "Distribution fitting unit");
+            var dropdown = window.GetVisualDescendants().OfType<TimeUnitSelector>()
+                .Single()
+                .FindDescendantOfType<DropdownField>()!;
             dropdown.BringIntoView();
             window.UpdateLayout();
-            Assert.True(dropdown.IsEffectivelyVisible, "the fitting-unit selector must be visible in the Simulation panel");
+            Assert.True(dropdown.IsEffectivelyVisible, "the time-unit selector must be visible in the Simulation panel");
 
             // D-169: a visibility flag is not a bounds check.
             double rightEdge = dropdown.TranslatePoint(new Point(dropdown.Bounds.Width, 0), window)!.Value.X;
             Assert.True(
                 rightEdge <= window.Bounds.Width,
-                $"the fitting-unit selector ends at x={rightEdge:F0}, past the {window.Bounds.Width:F0}px window");
+                $"the time-unit selector ends at x={rightEdge:F0}, past the {window.Bounds.Width:F0}px window");
 
             var combo = dropdown.FindDescendantOfType<ComboBox>()!;
             combo.IsDropDownOpen = true;
             window.UpdateLayout();
             Assert.True(combo.IsDropDownOpen, "the prebuilt ComboBox must open");
-            Assert.Equal(FittingTimeUnits.Options.Count, combo.ItemCount);
-            Save(window, "phase-8x-fitting-unit-selector.png");
 
-            combo.SelectedItem = "hours";
+            // All five units are offered, read from the enum rather than copied:
+            // a hand-written list is how Days/Sessions would have been missed.
+            Assert.Equal(FittingTimeUnits.Options.Count, combo.ItemCount);
+            Assert.Equal(Enum.GetNames<TimeUnit>().Length, combo.ItemCount);
+            Save(window, "phase-9p-time-unit-selector.png");
+
+            combo.SelectedItem = "Hours";
             combo.IsDropDownOpen = false;
             window.UpdateLayout();
 
-            Assert.Equal("hours", dropdown.SelectedItem);
+            Assert.Equal("Hours", dropdown.SelectedItem);
+            Assert.Equal(TimeUnit.Hours, main.Config.TimeUnit);
             Assert.Equal(FittingTimeUnit.Hours, main.InputTab.SelectedFittingUnit);
 
             // The shell refits on the background thread. Wait for the production
@@ -92,7 +113,7 @@ public sealed class Phase8WScreenshots
             Assert.NotNull(histogram.Caption);
             Assert.Contains("p =", histogram.Caption!);
 
-            Save(window, "phase-8x-fitting-unit-hours.png");
+            Save(window, "phase-9p-time-unit-hours.png");
         }
         finally
         {

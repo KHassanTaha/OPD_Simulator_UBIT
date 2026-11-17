@@ -170,8 +170,12 @@ the simulation gets its parameters:
 Both paths are complete configurations. **Start Calculation stays disabled
 until the chosen path is complete**, and the banner above the Start button
 names exactly what is missing (for example *"Cannot start: upload a usable
-data file, Reception has no μ."*). Switching the dropdown back and forth does
-not lose values you already typed.
+data file, Reception has no μ."*). Only fields that are currently visible and
+in use can block Start: a field inside a collapsed/optional-off section, or one
+that does not apply to the chosen run mode, cannot trap you. An invalid
+p_bypass is named just like p_exit, and the banner always ends with the section
+and the fields marked in red. Switching the dropdown back and forth does not
+lose values you already typed.
 
 ### Arrival rate
 
@@ -195,12 +199,21 @@ turns both on.
 
 ### Time unit
 
-The unit your manual λ/μ entries are written in: **Minutes** (default),
-**Seconds**, or **Hours**. It applies to the manual Parameters fields only —
-the simulation engine always works in per-minute values, so the app converts
-your input at the parameter boundary (Seconds are multiplied by 60, Hours
-divided by 60, per event; in Mean-wise mode the mean is inverted first, then
-converted). Values fitted from an uploaded file are unaffected.
+There is exactly **one** time-unit selector, and it governs every value you
+type that carries a time dimension: λ, the comma-list μ, each stage's μ, and
+the **service spread** (σ for Normal/Lognormal, half-width for Uniform). The
+five choices are **Minutes** (default), **Seconds**, **Hours**, **Days**
+(1 day = 1,440 minutes) and **Sessions** (1 session = 165 operating minutes).
+In rate-wise mode a field shows a rate unit (`per hour`, `per session`, …); in
+mean-wise mode the same field shows a duration unit (`hours`, `sessions`, …).
+
+The engine always works in per-minute values, so each typed value is converted
+at the parameter boundary; converting to the chosen unit and back returns the
+same number. The Input tab's fitted figures are reported in this same unit, so
+a fitted μ can be compared with the μ field beside it without mental arithmetic.
+Two values deliberately do **not** convert: the Gamma shape `k` is unitless,
+and the **arrival spread** stays in minutes. There is no second "distribution
+fitting unit" dropdown. The choice is never saved.
 
 ### Inter-arrival distribution
 
@@ -263,11 +276,19 @@ stage row shows a read-only label telling you the source:
 - **`μ = — (no source)`** — none available; Start stays disabled and the
   banner names the stage until you supply one.
 
-In **Fit from an uploaded data file** mode the comma list is the bulk override,
-and a fitted rate wins over a comma-list entry for the same stage; a row whose
-stage the data does not cover shows an editable **Service rate μ** field as a
-fallback. In **Enter parameters manually** mode the per-stage **Service rate
-μ** fields are the single entry point and the comma list is hidden.
+The per-stage field is always visible when enabled, in both source modes. A
+blank field shows the fitted value as its placeholder and means "use the data";
+typing a value into that blank while a fitted value is visible overrides the
+fit, so a changed μ can be tested without editing the file. A value typed
+before any fit exists is simply the row's starting value. On a new file load an
+override is kept and the untouched rows return to the fitted default.
+
+In **Fit from an uploaded data file** mode the precedence is explicit override
+→ fitted rate → comma-list μ → blank (Start is blocked and the stage is named).
+In **Enter parameters manually** mode the per-stage field is the only source
+and the comma list is hidden. The read-only **ρ per stage** summary is computed
+from the same network topology as the run, so a change to p_exit, p_bypass, λ
+or μ updates it at once; a half-typed form shows `—`, never `0.00`.
 
 ### Significance level (α)
 
@@ -1376,6 +1397,7 @@ real panel rather than a placeholder.
 
 | Date | Change |
 |------|--------|
+| 2026-11-16 | Phase 9P: **one time unit and one μ authority.** One selector (minutes / seconds / hours / days / sessions) now governs λ, both μ entries and the service spread; the old *Distribution fitting unit* dropdown is gone and the Input tab reports fits in the same unit. A fitted μ is the default, an explicit edit overrides it, and each row names where its μ came from. The per-stage ρ summary is the run topology's own ρ and updates on routing edits. Start is blocked only by visible, in-use fields and always names the section and red fields (§4, §Config fields; D-240…D-245). |
 | 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |
 | 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |
 | 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |
