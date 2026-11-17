@@ -97,6 +97,18 @@ public partial class TheoryTabViewModel : ObservableObject
 
     public bool IsRateWise => SelectedParameterMode == "Rate-wise";
 
+    public string LambdaFieldLabel => IsRateWise ? "Arrival rate λ" : "Mean inter-arrival time 1/λ";
+
+    public string MuFieldLabel => IsRateWise ? "Service rate μ" : "Mean service time 1/μ";
+
+    public string LambdaFieldWatermark => IsRateWise ? "e.g. 0.5" : "e.g. 2";
+
+    public string MuFieldWatermark => IsRateWise ? "e.g. 0.8" : "e.g. 1.25";
+
+    public string LambdaFieldUnit => IsRateWise ? "/ time" : "time";
+
+    public string MuFieldUnit => IsRateWise ? "/ time" : "time";
+
     public VariabilityMode CurrentVariabilityMode => SelectedVariabilityMode switch
     {
         "Variance" => VariabilityMode.Variance,
@@ -241,11 +253,11 @@ public partial class TheoryTabViewModel : ObservableObject
         switch (key)
         {
             case "lambda":
-                _lambdaValid = TryParseRate(LambdaInput, "Arrival rate λ", out _lambdaPerMinute, out error);
+                _lambdaValid = TryParseRate(LambdaInput, LambdaFieldLabel, out _lambdaPerMinute, out error);
                 break;
 
             case "mu":
-                _muValid = TryParseRate(MuInput, "Service rate μ", out _muPerMinute, out error);
+                _muValid = TryParseRate(MuInput, MuFieldLabel, out _muPerMinute, out error);
                 break;
 
             case "arrival":
@@ -314,6 +326,12 @@ public partial class TheoryTabViewModel : ObservableObject
     partial void OnSelectedParameterModeChanged(string value)
     {
         OnPropertyChanged(nameof(IsRateWise));
+        OnPropertyChanged(nameof(LambdaFieldLabel));
+        OnPropertyChanged(nameof(MuFieldLabel));
+        OnPropertyChanged(nameof(LambdaFieldWatermark));
+        OnPropertyChanged(nameof(MuFieldWatermark));
+        OnPropertyChanged(nameof(LambdaFieldUnit));
+        OnPropertyChanged(nameof(MuFieldUnit));
         RewriteInputs();
         Recompute();
     }
@@ -360,9 +378,15 @@ public partial class TheoryTabViewModel : ObservableObject
         double ca2 = needArrival ? _arrivalCv2 : 1.0;
         double cs2 = needService ? _serviceCv2 : 1.0;
 
+        double minutes = MinutesPerUnit(SelectedUnit);
+        double arrivalMean = IsRateWise ? 0 : 1.0 / (_lambdaPerMinute * minutes);
+        double serviceMean = IsRateWise ? 0 : 1.0 / (_muPerMinute * minutes);
+
         if (TheoryWorkedSolutionBuilder.TryBuild(
                 CurrentModel, _lambdaPerMinute, _muPerMinute, ca2, cs2,
-                out var answer, out var refusal))
+                out var answer, out var refusal,
+                IsRateWise ? ParameterMode.RateWise : ParameterMode.MeanWise,
+                arrivalMean, serviceMean))
         {
             Solution = answer;
             ErrorMessage = null;

@@ -1356,10 +1356,10 @@ clinic run cannot leak into a textbook answer.
 | Section | Control | What it does |
 |---------|---------|--------------|
 | 1 · Model & units | **Model** | Picks M/M/1 (exact Erlang-C), M/G/1 (exact Pollaczek–Khinchine) or G/G/1 (two-moment approximation). |
-| | **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types their reciprocals, `1/λ` and `1/μ`. |
+| | **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types their reciprocals, `1/λ` and `1/μ`. The summary on the right keeps the same textbook rate formulas in both modes — in mean-wise mode it first shows the inversion of what you typed, e.g. `ρ = (1 / 2) / (1 / 1.25) = 0.5 / 0.8 = 0.625`. |
 | | **Time unit** | One unit for **everything** on this tab (minutes, seconds, hours, days or sessions). Changing it rewrites the displayed numbers so the same physical rate is preserved. |
-| 2 · Arrival & service | **Arrival rate λ** | Mean arrivals per unit of time, or the mean gap between arrivals in mean-wise mode. |
-| | **Service rate μ** | Mean completions per unit of time for the one server, or the mean service time in mean-wise mode. |
+| 2 · Arrival & service | **Arrival rate λ / Mean inter-arrival time 1/λ** | In rate-wise mode, mean arrivals per unit of time (unit `/ time`); in mean-wise mode the field is labelled **Mean inter-arrival time 1/λ**, takes the mean gap between arrivals, and shows unit `time`. |
+| | **Service rate μ / Mean service time 1/μ** | In rate-wise mode, mean completions per unit of time for the one server (unit `/ time`); in mean-wise mode the field is labelled **Mean service time 1/μ**, takes the mean service duration, and shows unit `time`. |
 | 3 · Variability | **Enter spread as** | `CV`, `Variance`, `Second moment`, `Standard deviation (σ)` or `Squared CV (C²)` — five equivalent ways to state the same spread. Use whichever form the textbook question gives you: σ is entered in time units, C² is CV². |
 | | **Inter-arrival spread** | Shown for G/G/1 only (M/M/1 and M/G/1 assume Poisson arrivals, Ca² = 1). |
 | | **Service-time spread** | Shown for M/G/1 and G/G/1 (M/M/1 assumes exponential service, Cs² = 1). |

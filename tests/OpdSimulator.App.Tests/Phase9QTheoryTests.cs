@@ -171,6 +171,138 @@ public sealed class Phase9QTheoryTests
     }
 
     [Fact]
+    public void MeanWiseSubstitution_ShowsTheReciprocalStep()
+    {
+        var vm = new TheoryTabViewModel();
+        vm.SetMode(ParameterMode.MeanWise);
+
+        var rows = vm.Solution!.Rows.ToDictionary(r => r.Symbol);
+        Assert.Equal(
+            "= (1 / 2) / (1 / 1.25)\n= 0.5 / 0.8\n= 0.625",
+            rows["ρ"].Substitution);
+        Assert.Equal(
+            "= 0.625\n/ [(1 / 1.25) × (1 − 0.625)]\n= 0.625 / [0.8 × (1 − 0.625)]\n= 2.0833 min",
+            rows["Wq"].Substitution);
+        Assert.Equal(
+            "= (1 / 2) × 2.0833\n= 0.5 × 2.0833\n= 1.0417",
+            rows["Lq"].Substitution);
+        Assert.Equal(
+            "= 2.0833 + 1 / (1 / 1.25)\n= 2.0833 + 1 / 0.8\n= 3.3333",
+            rows["W"].Substitution);
+        Assert.Equal(
+            "= (1 / 2) × 3.3333\n= 0.5 × 3.3333\n= 1.6667",
+            rows["L"].Substitution);
+    }
+
+    [Fact]
+    public void RateWiseSubstitution_RemainsCanonicalAndUnchanged()
+    {
+        var vm = new TheoryTabViewModel();
+        Assert.Equal("= 0.5 / 0.8\n= 0.625", vm.Solution!.Rows[0].Substitution);
+        Assert.Equal(
+            "= 0.625\n/ [0.8 × (1 − 0.625)]\n= 2.0833 min",
+            vm.Solution.Rows.Single(r => r.Symbol == "Wq").Substitution);
+
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Mm1, Lambda, Mu, 1, 1,
+            out var explicitRateWise, out _));
+        Assert.Equal(vm.Solution.Rows.Select(r => r.Substitution),
+            explicitRateWise!.Rows.Select(r => r.Substitution));
+    }
+
+    [Fact]
+    public void MeanWiseFormulaSheet_StaysInRateNotation()
+    {
+        var vm = new TheoryTabViewModel();
+        string sheet = vm.FormulaSheetText;
+
+        vm.SetMode(ParameterMode.MeanWise);
+
+        Assert.Equal(sheet, vm.FormulaSheetText);
+        Assert.Contains("ρ = λ / μ", vm.FormulaSheetText);
+        Assert.DoesNotContain("1 / λ", vm.FormulaSheetText);
+    }
+
+    [Fact]
+    public void MeanWiseFields_ShowMeanTimeLabelsAndUnits()
+    {
+        var vm = new TheoryTabViewModel();
+        Assert.Equal("Arrival rate λ", vm.LambdaFieldLabel);
+        Assert.Equal("Service rate μ", vm.MuFieldLabel);
+        Assert.Equal("/ time", vm.LambdaFieldUnit);
+        Assert.Equal("/ time", vm.MuFieldUnit);
+
+        vm.SetMode(ParameterMode.MeanWise);
+
+        Assert.Equal("Mean inter-arrival time 1/λ", vm.LambdaFieldLabel);
+        Assert.Equal("Mean service time 1/μ", vm.MuFieldLabel);
+        Assert.Equal("e.g. 2", vm.LambdaFieldWatermark);
+        Assert.Equal("e.g. 1.25", vm.MuFieldWatermark);
+        Assert.Equal("time", vm.LambdaFieldUnit);
+        Assert.Equal("time", vm.MuFieldUnit);
+    }
+
+    [Fact]
+    public void MeanWiseSubstitution_UsesTheTypedTimeUnit()
+    {
+        var vm = new TheoryTabViewModel();
+        vm.SetUnit(TimeUnit.Hours);
+        vm.SetMode(ParameterMode.MeanWise);
+
+        Assert.Equal("0.03333333333333333", vm.LambdaInput);
+        Assert.Equal("0.020833333333333332", vm.MuInput);
+
+        string rho = vm.Solution!.Rows[0].Substitution;
+        Assert.Contains("(1 / 0.0333)", rho);
+        Assert.Contains("(1 / 0.0208)", rho);
+    }
+
+    [Fact]
+    public void MeanWise_InvalidFieldError_NamesTheVisibleLabel()
+    {
+        var vm = new TheoryTabViewModel();
+        vm.SetMode(ParameterMode.MeanWise);
+        vm.MuInput = "";
+        vm.ValidateField("mu");
+
+        Assert.Contains("Mean service time 1/μ", vm.MuError);
+        Assert.DoesNotContain("Service rate μ", vm.MuError);
+    }
+
+    [AvaloniaFact]
+    public void View_MeanWise_BindsMeanTimeLabelsAndUnits()
+    {
+        var vm = new TheoryTabViewModel();
+        var window = Host(new TheoryTab { DataContext = vm });
+        try
+        {
+            var fields = window.GetVisualDescendants().OfType<ValidatedField>().ToArray();
+            var lambda = fields.Single(f => f.HelpAnchor == "arrival-rate");
+            var mu = fields.Single(f => f.HelpAnchor == "service-rate");
+
+            Assert.Equal("Arrival rate λ", lambda.Label);
+            Assert.Equal("/ time", lambda.Unit);
+            Assert.Equal("Arrival rate λ", lambda.GetVisualDescendants()
+                .OfType<TextBlock>().First().Text);
+
+            vm.SetMode(ParameterMode.MeanWise);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+
+            Assert.Equal("Mean inter-arrival time 1/λ", lambda.Label);
+            Assert.Equal("Mean service time 1/μ", mu.Label);
+            Assert.Equal("time", lambda.Unit);
+            Assert.Equal("time", mu.Unit);
+            Assert.Contains("Mean inter-arrival time 1/λ", window.GetVisualDescendants()
+                .OfType<TextBlock>().Select(t => t.Text));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [Fact]
     public void UnitChange_RewritesNumbersButKeepsTheAnswer()
     {
         var vm = new TheoryTabViewModel();

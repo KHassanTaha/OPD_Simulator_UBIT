@@ -306,10 +306,10 @@ tab — question on the left, answer on the right.
 | Control | What it controls |
 |---------|------------------|
 | **Model** | Exactly three choices: **M/M/1** (exact Erlang-C), **M/G/1** (exact Pollaczek–Khinchine) and **G/G/1** (a two-moment approximation). |
-| **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types 1/λ and 1/μ. Switching mode rewrites the displayed numbers so the same physical rate is preserved. |
+| **Parameter entry** | `Rate-wise` types λ and μ; `Mean-wise` types 1/λ and 1/μ. Switching mode rewrites the displayed numbers so the same physical rate is preserved. The worked solution keeps one set of textbook rate formulas: in mean-wise mode it shows the reciprocal of what you typed before evaluating it (e.g. `ρ = (1 / 2) / (1 / 1.25) = 0.5 / 0.8 = 0.625`), so every number on the right can be traced back to the fields on the left. |
 | **Time unit** | One unit for every number on this tab. Switching it also rewrites the numbers, so a rate does not silently change by 60. |
-| **Arrival rate λ** | Mean arrivals per unit, or the mean inter-arrival time in mean-wise mode. Required for all three models. |
-| **Service rate μ** | Mean completions per unit for the one server, or the mean service time in mean-wise mode. Required for all three models. |
+| **Arrival rate λ / Mean inter-arrival time 1/λ** | Rate-wise: mean arrivals per unit, unit `/ time`. Mean-wise: the field is labelled **Mean inter-arrival time 1/λ**, takes the mean gap between arrivals, and shows unit `time`. Required for all three models. |
+| **Service rate μ / Mean service time 1/μ** | Rate-wise: mean completions per unit for the one server, unit `/ time`. Mean-wise: the field is labelled **Mean service time 1/μ**, takes the mean service duration, and shows unit `time`. Required for all three models. |
 | **Enter spread as** | `CV`, `Variance`, `Second moment`, `Standard deviation (σ)` or `Squared CV (C²)` — five equivalent ways to state a spread; all give the same answer. Use σ for a textbook standard deviation and C² for the squared CV that appears in the formulas. |
 | **Inter-arrival spread** | G/G/1 only. M/M/1 and M/G/1 assume Poisson arrivals (Ca² = 1), so the field is hidden. |
 | **Service-time spread** | M/G/1 and G/G/1. M/M/1 assumes exponential service (Cs² = 1), so the field is hidden. |

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using OpdSimulator.Core.Analytics;
+using OpdSimulator.Data.Parameters;
 
 public enum TheoryModel
 {
@@ -52,7 +53,10 @@ public static class TheoryWorkedSolutionBuilder
         double ca2,
         double cs2,
         out TheorySolution? solution,
-        out string? refusal)
+        out string? refusal,
+        ParameterMode parameterMode = ParameterMode.RateWise,
+        double arrivalMean = 0,
+        double serviceMean = 0)
     {
         solution = null;
 
@@ -74,21 +78,33 @@ public static class TheoryWorkedSolutionBuilder
         }
 
         AnalyticalModelResult answer = result!;
+        bool inverted = parameterMode == ParameterMode.MeanWise && arrivalMean > 0 && serviceMean > 0;
+        string lambdaTerm = inverted ? $"(1 / {N(arrivalMean)})" : N(lambda);
+        string muTerm = inverted ? $"(1 / {N(serviceMean)})" : N(mu);
+
         var rows = new List<TheoryWorkedRow>
         {
             Worked("ρ", "Traffic intensity (utilisation)", "λ / μ",
-                $"= {N(lambda)} / {N(mu)}\n= {N(answer.Rho)}", N(answer.Rho)),
+                $"= {lambdaTerm} / {muTerm}\n"
+                + (inverted ? $"= {N(lambda)} / {N(mu)}\n" : string.Empty)
+                + $"= {N(answer.Rho)}", N(answer.Rho)),
             Worked("P₀", "Server idle probability", "1 − ρ",
                 $"= 1 − {N(answer.Rho)}\n= {N(answer.P0)}", N(answer.P0)),
             Worked("Wq", "Mean queue waiting time", WaitFormula(model),
-                WaitSubstitution(model, answer.Rho, mu, arrivalCv2, serviceCv2, answer.Wq),
+                WaitSubstitution(model, answer.Rho, mu, arrivalCv2, serviceCv2, answer.Wq, muTerm, inverted),
                 $"{N(answer.Wq)} min"),
             Worked("Lq", "Mean queue length", "λ · Wq",
-                $"= {N(lambda)} × {N(answer.Wq)}\n= {N(answer.Lq)}", N(answer.Lq)),
+                $"= {lambdaTerm} × {N(answer.Wq)}\n"
+                + (inverted ? $"= {N(lambda)} × {N(answer.Wq)}\n" : string.Empty)
+                + $"= {N(answer.Lq)}", N(answer.Lq)),
             Worked("W", "Mean time in system", "Wq + 1 / μ",
-                $"= {N(answer.Wq)} + 1 / {N(mu)}\n= {N(answer.W)}", $"{N(answer.W)} min"),
+                $"= {N(answer.Wq)} + 1 / {muTerm}\n"
+                + (inverted ? $"= {N(answer.Wq)} + 1 / {N(mu)}\n" : string.Empty)
+                + $"= {N(answer.W)}", $"{N(answer.W)} min"),
             Worked("L", "Mean number in system", "λ · W",
-                $"= {N(lambda)} × {N(answer.W)}\n= {N(answer.L)}", N(answer.L)),
+                $"= {lambdaTerm} × {N(answer.W)}\n"
+                + (inverted ? $"= {N(lambda)} × {N(answer.W)}\n" : string.Empty)
+                + $"= {N(answer.L)}", N(answer.L)),
             Worked("Busy", "Server busy fraction", "ρ (one server)",
                 $"= {N(answer.Rho)}\n= {Pct(answer.Rho)}", Pct(answer.Rho)),
             Worked("Idle", "Server idle fraction", "1 − ρ",
@@ -156,17 +172,20 @@ public static class TheoryWorkedSolutionBuilder
     };
 
     private static string WaitSubstitution(
-        TheoryModel model, double rho, double mu, double ca2, double cs2, double wq)
+        TheoryModel model, double rho, double mu, double ca2, double cs2, double wq,
+        string muTerm, bool inverted)
     {
         string numerator = model switch
         {
-            TheoryModel.Mm1 => $"= {N(rho)}",
-            TheoryModel.Mg1 => $"= {N(rho)} × (1 + {N(cs2)}) / 2",
-            TheoryModel.Gg1 => $"= {N(rho)} × ({N(ca2)} + {N(cs2)}) / 2",
+            TheoryModel.Mm1 => N(rho),
+            TheoryModel.Mg1 => $"{N(rho)} × (1 + {N(cs2)}) / 2",
+            TheoryModel.Gg1 => $"{N(rho)} × ({N(ca2)} + {N(cs2)}) / 2",
             _ => throw new ArgumentOutOfRangeException(nameof(model), model, "Unknown theory model."),
         };
 
-        return $"{numerator}\n/ [{N(mu)} × (1 − {N(rho)})]\n= {N(wq)} min";
+        return $"= {numerator}\n/ [{muTerm} × (1 − {N(rho)})]\n"
+            + (inverted ? $"= {numerator} / [{N(mu)} × (1 − {N(rho)})]\n" : string.Empty)
+            + $"= {N(wq)} min";
     }
 
     private static string FormulaSheet(TheoryModel model, double ca2, double cs2)
