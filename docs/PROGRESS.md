@@ -1,3 +1,65 @@
+Session Handoff — 2026-11-18 04:13
+Branch: feat/theory-tab
+Status: In-Progress (awaiting owner review; no PR opened)
+
+Done
+Phase 9Q.2 — package/import supply-chain audit + Theory comment truthfulness audit and removal (D-248, D-249) — `[~]` → `[x]` in `TODO.md` this session. Inventoried all 133 resolved NuGet packages against the single registered source, checked every direct package against its upstream, and enumerated every C# `using` and XAML `xmlns`; no suspicious import or maintainer found. Remediated three advisories by pinning patched versions without upgrading parent frameworks. Removed every Theory-tab comment and fixed the two false behaviours they concealed before deleting them: the Variability caption now names all five entry forms for every model, and a blur-created inline error clears immediately when the field is corrected. Synced all living docs.
+
+Verification table (AGENTS §18 — every requirement this phase touched)
+| Requirement | How it was verified | Result |
+|---|---|---|
+| Owner audit request — packages/imports | `dotnet list "$PWD/OpdSimulator.sln" package --vulnerable --include-transitive`, `dotnet nuget list source`, package/catalogue hash match, `using`/`xmlns` inventory | 133 packages hash-matched, one source, no advisories, no suspicious imports |
+| FR-UI-17 — inline error clears on fix | `InlineError_ClearsImmediatelyWhenFieldIsCorrected` (still-invalid typing keeps the error; corrected value clears flag + message and restores the solution) | PASS, non-vacuous against the pre-fix code |
+| FR-UI-44 — five forms named | `View_VariabilityControls_DescribeAllFiveEntryForms` | PASS for all three models |
+| FR-UI-44 — validation waits for blur | `InlineError_WaitsForExplicitValidation` | PASS |
+| AGENTS §10.4 — dead state | deleted all `bin`/`obj`, restore, Release+Debug `--no-restore` build and `--no-build` test | 0/0 warnings/errors; 1025/1025 in both |
+| AGENTS §18 — evidence | two 9Q frames re-rendered by the dead-state gate | 1200×760, 134,219 B and 143,975 B, unreviewed (B-012) |
+
+In Progress
+None
+
+What is complete:
+All 9Q.2 code, tests and living docs. `feat/theory-tab` carries four previously pushed commits plus this session's `d644e1b`; no PR opened.
+
+What remains:
+Owner review of `feat/theory-tab` and merge to `main`. The uncommitted Phase 9P set stays untouched and unstaged. Owner visual inspection of 27 headless frames (B-012).
+
+Next Session Should Start With
+Owner review of `feat/theory-tab`, then merge to `main`.
+
+Close the two re-rendered Phase 9Q frames in B-012 after the owner looks at them.
+
+Blocked
+B-012 — owner visual inspection of the 27-frame headless screenshot backlog, including the two re-rendered Phase 9Q frames (does not block code or this phase).
+
+Git State
+Commits made this session: `d644e1b` — `fix: audit dependencies and remove Theory tab comments` (20 files, +311/−294; only 9Q.2 paths, no 9P work staged).
+Pushed to origin: No at time of writing — `d644e1b` is local and will be pushed immediately after this handoff. No PR opened (owner review required).
+Uncommitted changes: the entire uncommitted Phase 9P source/test/doc set remains preserved and unstaged.
+
+Build & Test
+dotnet build: PASS — dead-state Release and Debug, 0 errors / 0 warnings; pre-commit Release rerun also 0/0.
+dotnet test: PASS — **1025/1025 in both configurations** (Core 183 / Data 139 / Cli 45 / App 658); `--filter Phase9Q` **31/31 in both**.
+Warnings: 0.
+
+Files Touched
+src/OpdSimulator.App: modified `OpdSimulator.App.csproj` (three D-248 pins), `Services/TheoryWorkedSolutionBuilder.cs` and `Views/TheoryTab.axaml(.cs)` (all comments removed), `ViewModels/TheoryTabViewModel.cs` (comments removed, `ClearErrorIfNowValid`, five-form caption text).
+
+tests: modified all four test `.csproj` files (D-248 pins), `Phase9QTheoryTests.cs` (two audit tests + one FR-UI-17 clearing test; comments removed), `Phase9QScreenshots.cs` (comments removed).
+
+docs: `PRD.md` (v1.16.7 request + v1.16.8 completion), `REQUIREMENTS.md` (FR-UI-44 evidence 31 tests, D-249, header v1.16.8), `DECISIONS.md` (D-248/D-249), `DEV_LAUNCH.md` (pins, exact commands, verification, changelog), `USER_MANUAL.md` + `USER_MANUAL_FULL.md` (blur/clear wording), `CONTEXT.md` (two verified audit facts), `BLOCKERS.md` (B-012 re-render note), `TODO.md`, this `PROGRESS.md`.
+
+Decisions Made
+D-248 — pin `Tmds.DBus.Protocol 0.21.3`, `System.Net.Http 4.3.4`, `System.Text.RegularExpressions 4.3.1` rather than upgrading Avalonia/xunit (`docs/DECISIONS.md`).
+
+D-249 — remove all Theory comments, overriding the general XML-doc rule for those six files only; correct false UI text and blur validation first (`docs/DECISIONS.md`).
+
+Assumptions Added/Changed
+No new assumptions. The existing **[UNVERIFIED]** σ/C² interpretation from D-247 remains open in `docs/CONTEXT.md`; two **[VERIFIED]** implementation facts about the dependency/import audit were added there.
+
+Notes for Next Session
+Local SDK is 8.0.134 (`global.json` pins 8.0.100, `rollForward: latestFeature`); older DEV_LAUNCH rows cite 8.0.131 and are historical. Stage only 9Q.2 paths with `git add -p` or blobs — the Phase 9P hunks in `docs/PRD.md`, `docs/REQUIREMENTS.md` and `docs/TODO.md` are still unstaged and must stay that way.
+
 Session Handoff — 2026-11-18 03:18 — Phase 9Q.1 IMPLEMENTED (Theory answer-key review fixes; owner-verifiable build running)
 Branch: feat/theory-tab
 Status: In-Progress (awaiting owner review; no PR opened)
