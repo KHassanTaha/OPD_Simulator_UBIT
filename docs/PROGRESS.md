@@ -1,3 +1,71 @@
+Session Handoff — 2026-11-18 04:39
+Branch: feat/theory-tab
+Status: In-Progress (owner review pending; no PR opened)
+
+Done
+Phase 9Q.3 — Mean-wise Theory display: canonical rate formulas + inversion step (FR-UI-44 `[UPDATED]`, D-250) — `[~]` → `[x]` in `TODO.md` this session. Mean-wise substitutions now show the reciprocal of each typed mean followed by its evaluation (`ρ = (1 / 2) / (1 / 1.25) = 0.5 / 0.8 = 0.625`; same inversion on Wq, Lq, W, L); the λ/μ fields switch to "Mean inter-arrival time 1/λ" / "Mean service time 1/μ" with unit `time` and mean watermarks; validation errors name the visible label. Core's `AnalyticalModels.TryCompute` stays the single arithmetic authority and the formula sheet stays in rate notation in both modes; rate-wise output is byte-for-byte unchanged. Seven new tests; non-vacuity proved by reverting the inversion flag (2 tests failed) and restoring it.
+
+Verification table (AGENTS §18 — requirement touched this session)
+| Requirement | How it was verified | Result |
+|---|---|---|
+| FR-UI-44 mean-wise display | `View_MeanWise_BindsMeanTimeLabelsAndUnits` headless walkthrough: opened Theory tab, switched Parameter mode to Mean-wise, observed rendered labels/units change to "Mean inter-arrival time 1/λ" / `time`; exact-string tests pin all five substitutions plus unchanged rate-wise output and formula-sheet parity; `RateWiseAndMeanWise_SamePhysicalInputs_GiveTheSameAnswer` still passes | PASS (headless, 38/38 Phase9Q) |
+| FR-UI-44 evidence frames | `logs/screenshots/phase-9q-theory-mm1.png` (134,219 B) and `phase-9q-theory-gg1.png` (143,975 B) re-rendered at the declared 1200×760; geometry assertions green | Rendered; human inspection still outstanding (B-012) |
+
+FR-UI-44 (mean-wise display) verified on 2026-11-18 by agent: clicked [Theory tab → Parameter mode = Mean-wise], observed [mean-time labels and `time` units on both fields; worked substitutions showing `(1 / typed mean)` then the evaluated rate], screenshots at `logs/screenshots/phase-9q-theory-mm1.png` and `logs/screenshots/phase-9q-theory-gg1.png`.
+
+In Progress
+None. (B-012 and B-007 are owner-pending acceptance tasks, not agent work items.)
+
+What is complete:
+Code, tests, dead-state gate and all six living documents (PRD v1.16.9, REQUIREMENTS, DEV_LAUNCH, USER_MANUAL, USER_MANUAL_FULL, CONTEXT, BLOCKERS, TODO) are synced. Feature commit `625dc98` is pushed to `origin/feat/theory-tab`.
+
+What remains:
+Owner review/merge of the branch (no PR opened by request); human inspection of the 27 outstanding headless frames (B-012); owner confirmation of the `[UNVERIFIED]` σ/C² entry-form interpretation in `CONTEXT.md`; relaunch of the app for owner testing; merge of the uncommitted Phase 9P work on its own branch.
+
+Next Session Should Start With
+- [?] UI acceptance of the 8 controls at M5-D screens: §16.7/§16.8 keyboard checklist, focus restore on dialogs, tooltips on hover — deferred to when the real panels land — **BLOCKED B-007** (owner must run the keyboard pass)
+- [ ] Fade-out on "Start Calculation" click (≤ 300 ms) — card swaps out instantly today; animated fade deferred
+
+Blocked
+- B-012 — owner human review of 27 headless frames, including the two re-rendered Phase 9Q frames; see `docs/BLOCKERS.md`.
+- B-007 — owner keyboard acceptance pass; see `docs/BLOCKERS.md`.
+
+Git State
+Commits made this session: `625dc98 feat: show mean-wise inversion step in Theory worked solutions`. This handoff is recorded in a separate following docs commit.
+Pushed to origin: Yes — `625dc98` is on `origin/feat/theory-tab`; no PR opened (owner reviews and merges).
+Uncommitted changes: Phase 9P work only — `src/OpdSimulator.App/Controls/StageRowControl.axaml`, `src/OpdSimulator.App/Controls/TimeUnitSelector.axaml.cs`, `src/OpdSimulator.App/Models/SimulationParameters.cs`, `src/OpdSimulator.App/Models/TimeUnit.cs`, `src/OpdSimulator.App/Services/SimulationCoordinator.cs`, `src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs`, `src/OpdSimulator.App/ViewModels/InputTabViewModel.cs`, `src/OpdSimulator.App/ViewModels/MainViewModel.cs`, `src/OpdSimulator.App/ViewModels/StageRow.cs`, `src/OpdSimulator.App/Views/ConfigPanel.axaml`, `tests/OpdSimulator.App.Tests/Phase7CTests.cs`, `Phase8KTests.cs`, `Phase8RScreenshots.cs`, `Phase8WFittingUnitTests.cs`, `Phase8WScreenshots.cs` (deleted), `Phase8XTests.cs`, plus untracked `src/OpdSimulator.App/Models/MuProvenance.cs` and `tests/OpdSimulator.App.Tests/Phase9P{Resolution, Screenshots, UnitAxis}Tests.cs`. None of these were staged.
+
+Build & Test
+dotnet build: PASS (Release and Debug, dead state, 0 warnings / 0 errors)
+dotnet test: PASS — 1032 passed, 0 failed (Core 183 / Data 139 / Cli 45 / App 665) in Release **and** Debug; `--filter Phase9Q` 38/38 in both
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/TheoryWorkedSolutionBuilder.cs: modified (mode-aware reciprocal substitution lines)
+src/OpdSimulator.App/ViewModels/TheoryTabViewModel.cs: modified (mode-aware field labels/watermarks/units, error names, inversion inputs)
+src/OpdSimulator.App/Views/TheoryTab.axaml: modified (bound Label/Watermark/Unit)
+tests/OpdSimulator.App.Tests/Phase9QTheoryTests.cs: modified (7 new tests)
+docs/PRD.md: modified (FR-UI-44 mean-wise clause, v1.16.9 changelog)
+docs/REQUIREMENTS.md: modified (v1.16.9 header, FR-UI-44 38-test evidence, changelog)
+docs/DECISIONS.md: modified (D-250)
+docs/TODO.md: modified (Phase 9Q.3 `[x] DONE`)
+docs/DEV_LAUNCH.md: modified (verified commands/numbers, changelog)
+docs/USER_MANUAL.md: modified (mean-wise field reference)
+docs/USER_MANUAL_FULL.md: modified (§7a mean-wise reference)
+docs/CONTEXT.md: modified (verified D-250 implementation fact)
+docs/BLOCKERS.md: modified (B-012 re-render note)
+docs/PROGRESS.md: modified (this handoff)
+logs/screenshots/phase-9q-theory-mm1.png, phase-9q-theory-gg1.png: re-rendered at 1200×760
+
+Decisions Made
+D-250 — Mean-wise Theory mode keeps Core's rate formulas and shows the inversion step (`docs/DECISIONS.md`, Phase 9Q.3 owner ruling 2026-11-18)
+
+Assumptions Added/Changed
+None added. Existing `[UNVERIFIED]` in `docs/CONTEXT.md` — owner phrase "give user ability to manage sigma and other variables" interpreted as σ/C² entry forms — is unchanged and still awaits confirmation.
+
+Notes for Next Session
+The app was stopped for the dead-state gate and is not running; relaunch with `dotnet run --project src/OpdSimulator.App -c Release --no-build`. Keep Phase 9P paths unstaged until their own branch/PR. No PR was opened for `feat/theory-tab` by request.
+
 Session Handoff — 2026-11-18 04:13
 Branch: feat/theory-tab
 Status: In-Progress (awaiting owner review; no PR opened)
