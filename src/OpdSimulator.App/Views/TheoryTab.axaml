@@ -6,14 +6,9 @@
              x:Class="OpdSimulator.App.Views.TheoryTab"
              x:DataType="viewModels:TheoryTabViewModel">
 
-    <!-- Theory tab (Phase 9Q, FR-UI-44): a single-server answer key. Left column
-         is the question, right column is the worked answer — the same visual
-         contract as the Simulation tab. Tab order follows the visual order:
-         model → entry mode → unit → λ → μ → spread form → spreads → answer. -->
-    <Grid ColumnDefinitions="360,6,*">
+        <Grid ColumnDefinitions="360,6,*">
 
-        <!-- ── Question (left) ─────────────────────────────────────────── -->
-        <Border Grid.Column="0"
+                <Border Grid.Column="0"
                 Background="{DynamicResource BrushBackgroundPanel}"
                 BorderBrush="{DynamicResource BrushBorderDefault}"
                 BorderThickness="1"
@@ -75,22 +70,20 @@
                     </controls:CollapsibleSection>
 
                     <controls:CollapsibleSection Title="3 · Variability"
-                                                 HelpText="CV, variance and second moment are three ways to state the same spread; they give the same answer.">
+                                                 HelpText="CV, variance, second moment, standard deviation (σ) and squared CV (C²) are five ways to state the same spread; they give the same answer.">
                         <StackPanel Spacing="{DynamicResource SpaceS}">
                             <TextBlock Text="{Binding VariabilityCaption}"
                                        Classes="Caption"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource BrushTextSecondary}"/>
-                            <!-- D-247: exponential spread makes the models coincide;
-                                 say so rather than letting equal answers look like a bug. -->
-                            <TextBlock Text="{Binding SpreadHint}"
+                                                        <TextBlock Text="{Binding SpreadHint}"
                                        IsVisible="{Binding HasSpreadHint}"
                                        Classes="Caption"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource BrushWarning}"/>
                             <controls:DropdownField Label="Enter spread as"
-                                                    Placeholder="CV, variance or second moment…"
-                                                    Tooltip="CV is σ/mean; variance is σ²; second moment is E[X²]. All three convert to the squared coefficient of variation."
+                                                    Placeholder="CV, variance, second moment, σ or C²…"
+                                                    Tooltip="CV=σ/mean; variance=σ²; second moment=E[X²]; σ=standard deviation; C²=squared CV. All five convert to CV²."
                                                     Items="{Binding VariabilityOptions}"
                                                     SelectedItem="{Binding SelectedVariabilityMode, Mode=TwoWay}"/>
                             <controls:ValidatedField x:Name="ArrivalVariabilityField"
@@ -124,8 +117,7 @@
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"/>
 
-        <!-- ── Worked answer (right) ───────────────────────────────────── -->
-        <Border Grid.Column="2"
+                <Border Grid.Column="2"
                 Background="{DynamicResource BrushBackgroundWindow}"
                 BorderBrush="{DynamicResource BrushBorderDefault}"
                 BorderThickness="1,1,0,0"
@@ -147,8 +139,7 @@
                     <controls:ErrorBanner Message="{Binding ErrorMessage}"
                                           Severity="Error"/>
 
-                    <!-- D-246: G/G/1 must never look like an exact answer. -->
-                    <Border IsVisible="{Binding ApproximationNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                        <Border IsVisible="{Binding ApproximationNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                             Background="{DynamicResource BrushWarningBackground}"
                             BorderBrush="{DynamicResource BrushWarning}"
                             BorderThickness="2"
@@ -164,9 +155,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- A real listing table: serial numbers and right-aligned
-                         numeric columns per FR-UI-36. -->
-                    <Border Background="{DynamicResource BrushBackgroundPanel}"
+                                        <Border Background="{DynamicResource BrushBackgroundPanel}"
                             BorderBrush="{DynamicResource BrushBorderDefault}"
                             BorderThickness="1"
                             CornerRadius="{DynamicResource CornerRadiusM}"
@@ -176,9 +165,7 @@
                             <TextBlock Text="Worked substitutions"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource BrushTextPrimary}"/>
-                            <!-- D-247: a dedicated Name column puts the full metric
-                                 name beside its abbreviation; the substitution wraps. -->
-                            <Grid ColumnDefinitions="28,52,150,120,*,96" ColumnSpacing="8">
+                                                        <Grid ColumnDefinitions="28,52,150,120,*,96" ColumnSpacing="8">
                                 <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                                 <TextBlock Grid.Column="1" Text="Metric" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
                                 <TextBlock Grid.Column="2" Text="Name" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
@@ -224,10 +211,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- D-247: only G/G/1 needs this caption (it explains an
-                         absent row). The Poisson models already print P(wait)
-                         in the table, so an empty string collapses the line. -->
-                    <TextBlock Text="{Binding PWaitNote}"
+                                        <TextBlock Text="{Binding PWaitNote}"
                                Classes="Caption"
                                TextWrapping="Wrap"
                                IsVisible="{Binding PWaitNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"

@@ -12,12 +12,6 @@ using OpdSimulator.App.ViewModels;
 using OpdSimulator.App.Views;
 using Xunit;
 
-/// <summary>
-/// Phase 9Q evidence (FR-UI-44): headless walkthrough of the production
-/// MainWindow — click the new Theory tab, read the worked answer, switch to
-/// G/G/1 and confirm the approximation notice replaces the exact-model layout.
-/// Both frames use new filenames (D-166); no existing evidence is overwritten.
-/// </summary>
 public sealed class Phase9QScreenshots
 {
     [AvaloniaFact]
@@ -32,8 +26,6 @@ public sealed class Phase9QScreenshots
             var main = Assert.IsType<MainViewModel>(window.DataContext);
             SelectTheoryTab(window);
 
-            // Walk the exact sequence the owner will click: open the tab, read
-            // the default M/M/1 answer, then confirm the collapsed formula sheet.
             Assert.NotNull(main.TheoryTab.Solution);
             Assert.Equal(TheoryModel.Mm1, main.TheoryTab.CurrentModel);
             Assert.Contains("Erlang-C", main.TheoryTab.Solution!.Result.FormulaName);

@@ -17,19 +17,11 @@ using OpdSimulator.Core.Analytics;
 using OpdSimulator.Data.Parameters;
 using Xunit;
 
-/// <summary>
-/// Phase 9Q gate (FR-UI-44, D-246): the single-server Theory tab. Behaviour
-/// tests pin the three models against Core's closed forms and prove that all
-/// three variability entry forms describe the same process; view tests assert
-/// the answer key, the approximation notice and the collapsed formula sheet.
-/// </summary>
 public sealed class Phase9QTheoryTests
 {
     private const double Lambda = 0.5;
     private const double Mu = 0.8;
     private const double Rho = Lambda / Mu;
-
-    // ── Core reuse and the three models ─────────────────────────────────
 
     [Fact]
     public void Builder_Mm1_MatchesCoreErlangC()
@@ -54,7 +46,6 @@ public sealed class Phase9QTheoryTests
         Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
             TheoryModel.Mm1, Lambda, Mu, 1, 1, out var solution, out _));
 
-        // ρ / [μ(1−ρ)] = 0.625 / (0.8 × 0.375) = 2.08333…
         double expected = Rho / (Mu * (1.0 - Rho));
         Assert.Equal(expected, solution!.Result.Wq, 10);
         Assert.Equal(1.0 - Rho, solution.Result.P0, 10);
@@ -63,7 +54,6 @@ public sealed class Phase9QTheoryTests
     [Fact]
     public void Builder_Mg1_UsesPollaczekKhinchine()
     {
-        // Cs² = 0 (deterministic service) halves the M/M/1 wait.
         Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
             TheoryModel.Mg1, Lambda, Mu, 1, 0, out var solution, out _));
 
@@ -76,7 +66,6 @@ public sealed class Phase9QTheoryTests
     [Fact]
     public void Builder_Gg1_UsesKingmanAndOmitsPWait()
     {
-        // Ca² = 0 and Cs² = 1 gives the mean of the two M/M/1 variability terms.
         Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
             TheoryModel.Gg1, Lambda, Mu, 0, 1, out var solution, out _));
 
@@ -96,7 +85,6 @@ public sealed class Phase9QTheoryTests
         Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
             TheoryModel.Gg1, Lambda, Mu, 1, 0.25, out var gg1, out _));
 
-        // Ca² = 1 is the exactness limit of the two-moment approximation.
         Assert.Equal(mg1!.Result.Wq, gg1!.Result.Wq, 12);
     }
 
@@ -110,8 +98,6 @@ public sealed class Phase9QTheoryTests
             Enumerable.Range(1, solution!.Rows.Count),
             solution.Rows.Select(r => r.SerialNumber));
     }
-
-    // ── Variability entry forms ─────────────────────────────────────────
 
     [Fact]
     public void Variability_CvVarianceSecondMoment_ProduceTheSameAnswer()
@@ -150,7 +136,8 @@ public sealed class Phase9QTheoryTests
         vm.SetModel(TheoryModel.Gg1);
         vm.SetVariabilityMode(VariabilityMode.SecondMoment);
 
-        vm.ServiceVariabilityInput = "0.5"; // mean² = 1.5625, so this is impossible
+        vm.ServiceVariabilityInput = "0.5";
+        vm.ValidateField("service");
 
         Assert.Null(vm.Solution);
         Assert.True(vm.ServiceVariabilityHasError);
@@ -170,8 +157,6 @@ public sealed class Phase9QTheoryTests
         Assert.Equal(Rho / (2.0 * Mu * (1.0 - Rho)), vm.Solution!.Result.Wq, 10);
     }
 
-    // ── One unit axis, two entry modes ──────────────────────────────────
-
     [Fact]
     public void RateWiseAndMeanWise_SamePhysicalInputs_GiveTheSameAnswer()
     {
@@ -180,8 +165,8 @@ public sealed class Phase9QTheoryTests
 
         var meanWise = new TheoryTabViewModel();
         meanWise.SetMode(ParameterMode.MeanWise);
-        Assert.Equal("2", meanWise.LambdaInput); // 1 / 0.5 per minute
-        Assert.Equal("1.25", meanWise.MuInput);  // 1 / 0.8 per minute
+        Assert.Equal("2", meanWise.LambdaInput);
+        Assert.Equal("1.25", meanWise.MuInput);
         Assert.Equal(byRate, meanWise.Solution!.Result.Wq, 10);
     }
 
@@ -193,8 +178,8 @@ public sealed class Phase9QTheoryTests
 
         vm.SetUnit(TimeUnit.Hours);
 
-        Assert.Equal("30", vm.LambdaInput); // 0.5/min = 30/hour
-        Assert.Equal("48", vm.MuInput);     // 0.8/min = 48/hour
+        Assert.Equal("30", vm.LambdaInput);
+        Assert.Equal("48", vm.MuInput);
         Assert.Equal(original, vm.Solution!.Result.Wq, 10);
     }
 
@@ -204,24 +189,21 @@ public sealed class Phase9QTheoryTests
         var vm = new TheoryTabViewModel();
         vm.SetModel(TheoryModel.Mg1);
         vm.SetVariabilityMode(VariabilityMode.Variance);
-        vm.ServiceVariabilityInput = "1.5625"; // (1.25 min)² × CV² 1
+        vm.ServiceVariabilityInput = "1.5625";
         double original = vm.Solution!.Result.Wq;
 
         vm.SetUnit(TimeUnit.Hours);
 
-        // 1.5625 min² = 1.5625 / 3600 h²; the CV is unchanged.
         Assert.Equal(original, vm.Solution!.Result.Wq, 10);
         Assert.False(vm.ServiceVariabilityHasError);
     }
-
-    // ── Refusals ────────────────────────────────────────────────────────
 
     [Fact]
     public void UnstableArrivalRate_IsRefusedWithCause()
     {
         var vm = new TheoryTabViewModel();
 
-        vm.LambdaInput = "1"; // ρ = 1.25
+        vm.LambdaInput = "1";
 
         Assert.Null(vm.Solution);
         Assert.Contains("unstable", vm.ErrorMessage, StringComparison.OrdinalIgnoreCase);
@@ -234,6 +216,7 @@ public sealed class Phase9QTheoryTests
         var vm = new TheoryTabViewModel();
 
         vm.MuInput = "";
+        vm.ValidateField("mu");
 
         Assert.Null(vm.Solution);
         Assert.True(vm.MuHasError);
@@ -241,7 +224,40 @@ public sealed class Phase9QTheoryTests
         Assert.DoesNotContain("0.00", vm.Headline);
     }
 
-    // ── View (FR-UI-44 layout, notice, formula sheet) ───────────────────
+    [Fact]
+    public void InlineError_WaitsForExplicitValidation()
+    {
+        var vm = new TheoryTabViewModel();
+
+        vm.MuInput = "";
+
+        Assert.False(vm.MuHasError);
+        Assert.Null(vm.MuError);
+        Assert.Null(vm.Solution);
+
+        vm.ValidateField("mu");
+
+        Assert.True(vm.MuHasError);
+        Assert.Contains("Service rate μ", vm.MuError);
+    }
+
+    [Fact]
+    public void InlineError_ClearsImmediatelyWhenFieldIsCorrected()
+    {
+        var vm = new TheoryTabViewModel();
+
+        vm.MuInput = "";
+        vm.ValidateField("mu");
+        Assert.True(vm.MuHasError);
+
+        vm.MuInput = "not-a-number";
+        Assert.True(vm.MuHasError, "an existing error must persist while the field is still invalid");
+
+        vm.MuInput = "0.8";
+        Assert.False(vm.MuHasError, "the inline error must clear the moment the field becomes valid");
+        Assert.Null(vm.MuError);
+        Assert.NotNull(vm.Solution);
+    }
 
     private static Window Host(TheoryTab tab, int width = 1200, int height = 760)
     {
@@ -283,8 +299,6 @@ public sealed class Phase9QTheoryTests
             Assert.Contains("Wq", texts);
             Assert.Contains("P(wait)", texts);
 
-            // The notice's TextBlocks stay in the tree when the Border is hidden,
-            // so assert the Border — not the presence of its words.
             var notice = window.GetVisualDescendants().OfType<Border>()
                 .Single(b => b.BorderThickness == new Avalonia.Thickness(2));
             Assert.False(notice.IsEffectivelyVisible);
@@ -377,8 +391,6 @@ public sealed class Phase9QTheoryTests
         }
     }
 
-    // ── D-247 owner review fixes ─────────────────────────────────────────
-
     [Fact]
     public void WorkedRows_HaveFullNamesAndSteppedSubstitutions()
     {
@@ -450,8 +462,6 @@ public sealed class Phase9QTheoryTests
         vm.ServiceVariabilityInput = squaredCvText;
         double bySquaredCv = vm.Solution!.Result.Wq;
 
-        // The entry forms must display the quantity the textbook gives the user:
-        // σ = CV × mean and C² = CV² — not just produce a matching Wq by accident.
         Assert.Equal(cv * mean, double.Parse(sigmaText, CultureInfo.InvariantCulture), 10);
         Assert.Equal(cv2, double.Parse(squaredCvText, CultureInfo.InvariantCulture), 10);
         Assert.Equal(byCv, bySigma, 10);
@@ -469,7 +479,7 @@ public sealed class Phase9QTheoryTests
         Assert.True(mg1.HasSpreadHint);
         Assert.Contains("M/M/1", mg1.SpreadHint);
 
-        mg1.ServiceVariabilityInput = "0.5"; // Cs² = 0.25 — no longer exponential
+        mg1.ServiceVariabilityInput = "0.5";
         Assert.False(mg1.HasSpreadHint);
     }
 
@@ -498,10 +508,32 @@ public sealed class Phase9QTheoryTests
     }
 
     [AvaloniaFact]
+    public void View_VariabilityControls_DescribeAllFiveEntryForms()
+    {
+        var window = Host(new TheoryTab { DataContext = new TheoryTabViewModel() });
+        try
+        {
+            var section = window.GetVisualDescendants().OfType<CollapsibleSection>()
+                .Single(s => s.Title?.StartsWith("3 · Variability") == true);
+            Assert.Contains("five", section.HelpText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("σ", section.HelpText);
+            Assert.Contains("C²", section.HelpText);
+
+            var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
+                .Single(d => d.Label == "Enter spread as");
+            Assert.Contains("σ", dropdown.Placeholder);
+            Assert.Contains("C²", dropdown.Placeholder);
+            Assert.Contains("five", dropdown.Tooltip, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void View_FullNameColumn_StaysOnScreenAtProductionSize()
     {
-        // D-169: a visibility flag is not a position check. Measure where the
-        // new Name column actually lands at the size MainWindow.axaml declares.
         var window = Host(new TheoryTab { DataContext = new TheoryTabViewModel() });
         try
         {

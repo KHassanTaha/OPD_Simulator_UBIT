@@ -320,8 +320,10 @@ tab — question on the left, answer on the right.
 
 A steady-state answer is refused when a field is invalid or ρ ≥ 1; the reason
 appears in the right-side error banner. Numeric fields validate on blur, not on
-every keystroke. All arithmetic is the Core code shared with the Simulation
-tab's steady-state widget, so the Theory tab cannot disagree with it.
+every keystroke: typing never raises a new error mid-edit, but an **existing**
+red field clears its border and message immediately once the value is valid
+again. All arithmetic is the Core code shared with the Simulation tab's
+steady-state widget, so the Theory tab cannot disagree with it.
 
 ---
 

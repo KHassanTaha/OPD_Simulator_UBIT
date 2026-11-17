@@ -1371,7 +1371,10 @@ G/G/1 the hint appears when both Ca² and Cs² are 1, where all three coincide.
 
 Numeric fields validate when the field **loses focus**, not on every keystroke.
 A bad value turns the field red with an icon and an actionable message ("must
-be greater than 0 — you entered 0"). Dropdown changes recalculate immediately.
+be greater than 0 — you entered 0"). Typing does not raise a new error while you
+are still editing, but **as soon as the value becomes valid the red border and
+the message clear immediately** — you do not have to click away a second time.
+Dropdown changes recalculate immediately.
 
 **Right side — the answer**
 
@@ -1442,6 +1445,7 @@ and `phase-9q-theory-gg1.png` (owner visual inspection still required — B-012)
 
 | Date | Change |
 |------|--------|
+| 2026-11-18 | Phase 9Q.2 audit (D-249, §8a): the Variability caption now names **all five** entry forms for every model, and inline validation errors **clear the moment you correct the field** — they no longer wait for a second blur. No new control or workflow. |
 | 2026-11-18 | Phase 9Q.1 review (D-247, §8a): five spread entry forms now include **standard deviation σ** and **squared CV (C²)**; an amber hint explains why exponential spread makes M/G/1 (and G/G/1) agree with M/M/1. The worked table gained a **full-name column**, puts **each substitution step on its own line**, and labels `60 × Lq` as **aggregate customer wait per hour**. The formula sheet puts one formula per line and the redundant PASTA caption under the table was removed. |
 | 2026-11-18 | Phase 9Q: a fourth tab, **Theory**, sits between Input and Help (§4, §8a) — a single-server answer key for **M/M/1, M/G/1 and G/G/1** that needs no data file. Rate-wise/mean-wise entry and one shared time unit; spread entered as CV, variance or second moment; a **Worked substitutions** table and an expandable **Formula sheet** per model. **G/G/1 shows a prominent approximation notice** (Allen–Cunneen / Kingman, exact only when Ca² = 1) and deliberately omits P(wait). Arithmetic reuses the Core analytical widget; the Core/CLI Kingman wording was corrected without changing any formula (FR-UI-44, D-246). |
 | 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |

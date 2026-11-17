@@ -9,25 +9,6 @@ using OpdSimulator.App.Services;
 using OpdSimulator.Data.Fitting;
 using OpdSimulator.Data.Parameters;
 
-/// <summary>
-/// Phase 9Q (FR-UI-44): the single-server Theory tab — an answer key for textbook
-/// M/M/1, M/G/1 and G/G/1 questions with the substitutions shown next to every
-/// number. All arithmetic is delegated to
-/// <see cref="TheoryWorkedSolutionBuilder"/>, which delegates in turn to Core.
-/// </summary>
-/// <remarks>
-/// <para>
-/// The four numeric fields follow FR-UI-17: they validate on blur (<c>FieldLostFocus</c>
-/// in the view's code-behind), not on every keystroke. Dropdown and unit changes are
-/// not numeric, so they recompute immediately. On a unit or entry-mode change the
-/// displayed numbers are rewritten to preserve the same physical λ and μ — otherwise
-/// switching "minutes" to "hours" would silently multiply the arrival rate by 60.
-/// </para>
-/// <para>
-/// One time unit is shared by both rates and both spreads, matching FR-UI-41's
-/// single-axis rule; conversion delegates to <see cref="FittingTimeUnits.MinutesPerUnit"/>.
-/// </para>
-/// </remarks>
 public partial class TheoryTabViewModel : ObservableObject
 {
     private bool _lambdaValid;
@@ -39,97 +20,74 @@ public partial class TheoryTabViewModel : ObservableObject
     private double _arrivalCv2 = 1.0;
     private double _serviceCv2 = 1.0;
 
-    /// <summary>Creates the tab and computes a valid default answer.</summary>
     public TheoryTabViewModel()
     {
         ValidateAll();
     }
 
-    /// <summary>The three single-server models offered by this tab.</summary>
     public IReadOnlyList<string> ModelOptions { get; } = new[] { "M/M/1", "M/G/1", "G/G/1" };
 
-    /// <summary>The two parameter interpretations, sharing the app's <see cref="ParameterMode"/>.</summary>
     public IReadOnlyList<string> ParameterModeOptions { get; } = new[] { "Rate-wise", "Mean-wise" };
 
-    /// <summary>The five equivalent ways to enter a process spread (D-247).</summary>
     public IReadOnlyList<string> VariabilityOptions { get; } = new[]
     {
         "CV", "Variance", "Second moment", "Standard deviation (σ)", "Squared CV (C²)",
     };
 
-    /// <summary>The selected model label ("M/M/1", "M/G/1" or "G/G/1").</summary>
     [ObservableProperty]
     private string selectedModel = "M/M/1";
 
-    /// <summary>The selected interpretation label ("Rate-wise" or "Mean-wise").</summary>
     [ObservableProperty]
     private string selectedParameterMode = "Rate-wise";
 
-    /// <summary>The selected spread entry form (CV, variance, second moment, σ or squared CV).</summary>
     [ObservableProperty]
     private string selectedVariabilityMode = "CV";
 
-    /// <summary>The one time unit governing every entered value.</summary>
     [ObservableProperty]
     private TimeUnit selectedUnit = TimeUnit.Minutes;
 
-    /// <summary>The entered arrival rate λ or mean inter-arrival time 1/λ.</summary>
     [ObservableProperty]
     private string lambdaInput = "0.5";
 
-    /// <summary>The entered service rate μ or mean service time 1/μ.</summary>
     [ObservableProperty]
     private string muInput = "0.8";
 
-    /// <summary>The entered inter-arrival spread (G/G/1 only).</summary>
     [ObservableProperty]
     private string arrivalVariabilityInput = "1";
 
-    /// <summary>The entered service spread (M/G/1 and G/G/1).</summary>
     [ObservableProperty]
     private string serviceVariabilityInput = "1";
 
-    /// <summary>The worked answer, or null when the inputs are invalid or unstable.</summary>
     [ObservableProperty]
     private TheorySolution? solution;
 
-    /// <summary>The cause of a refused answer, shown in an inline banner.</summary>
     [ObservableProperty]
     private string? errorMessage;
 
-    /// <summary>Whether the arrival-rate field is currently invalid.</summary>
     [ObservableProperty]
     private bool lambdaHasError;
 
-    /// <summary>Whether the service-rate field is currently invalid.</summary>
     [ObservableProperty]
     private bool muHasError;
 
-    /// <summary>Whether the arrival-spread field is currently invalid.</summary>
     [ObservableProperty]
     private bool arrivalVariabilityHasError;
 
-    /// <summary>Whether the service-spread field is currently invalid.</summary>
     [ObservableProperty]
     private bool serviceVariabilityHasError;
 
-    /// <summary>Actionable error text for the arrival-rate field.</summary>
     [ObservableProperty]
     private string? lambdaError;
 
-    /// <summary>Actionable error text for the service-rate field.</summary>
     [ObservableProperty]
     private string? muError;
 
-    /// <summary>Actionable error text for the arrival-spread field.</summary>
     [ObservableProperty]
     private string? arrivalVariabilityError;
 
-    /// <summary>Actionable error text for the service-spread field.</summary>
     [ObservableProperty]
     private string? serviceVariabilityError;
 
-    /// <summary>The model behind the current answer.</summary>
     public TheoryModel CurrentModel => SelectedModel switch
     {
         "M/G/1" => TheoryModel.Mg1,
@@ -137,10 +95,8 @@ public partial class TheoryTabViewModel : ObservableObject
         _ => TheoryModel.Mm1,
     };
 
-    /// <summary>True when the fields hold rates rather than means.</summary>
     public bool IsRateWise => SelectedParameterMode == "Rate-wise";
 
-    /// <summary>The currently selected spread entry form.</summary>
     public VariabilityMode CurrentVariabilityMode => SelectedVariabilityMode switch
     {
         "Variance" => VariabilityMode.Variance,
@@ -150,13 +106,10 @@ public partial class TheoryTabViewModel : ObservableObject
         _ => VariabilityMode.Cv,
     };
 
-    /// <summary>True only for G/G/1, which is the only model with general arrivals.</summary>
     public bool IsArrivalVariabilityVisible => CurrentModel == TheoryModel.Gg1;
 
-    /// <summary>False for M/M/1, whose exponential service fixes Cs² = 1.</summary>
     public bool IsServiceVariabilityVisible => CurrentModel != TheoryModel.Mm1;
 
-    /// <summary>Explains which spreads the selected model actually uses.</summary>
     public string VariabilityCaption => CurrentModel switch
     {
         TheoryModel.Mm1 =>
@@ -167,11 +120,6 @@ public partial class TheoryTabViewModel : ObservableObject
             "G/G/1 uses both entered spreads. Enter the same spread in any form (CV, variance, second moment, σ or squared CV) — the answer is identical.",
     };
 
-    /// <summary>
-    /// Explains why two models give the same answer when the spread is exponential
-    /// (D-247). Correct maths otherwise reads as a bug: with Cs² = 1,
-    /// Pollaczek–Khinchine reduces exactly to Erlang-C.
-    /// </summary>
     public string SpreadHint => CurrentModel switch
     {
         TheoryModel.Mm1 => string.Empty,
@@ -185,35 +133,25 @@ public partial class TheoryTabViewModel : ObservableObject
         _ => string.Empty,
     };
 
-    /// <summary>Whether the exponential-spread explanation should be shown.</summary>
     public bool HasSpreadHint => SpreadHint.Length > 0;
 
-    /// <summary>The compact one-line verdict above the worked rows.</summary>
     public string Headline => Solution is null
         ? "No steady-state answer — see the message below."
         : $"{SelectedModel} · ρ = {N(Solution.Result.Rho)} < 1 · stable · "
           + $"Wq = {N(Solution.Result.Wq)} min · Lq = {N(Solution.Result.Lq)} customers";
 
-    /// <summary>True when an answer key is available.</summary>
     public bool HasSolution => Solution is not null;
 
-    /// <summary>The worked rows for the answer key (empty until a valid answer exists).</summary>
     public IReadOnlyList<TheoryWorkedRow> WorkedRows => Solution?.Rows ?? Array.Empty<TheoryWorkedRow>();
 
-    /// <summary>The expandable derivation for the selected model.</summary>
     public string FormulaSheetText => Solution?.FormulaSheetText ?? string.Empty;
 
-    /// <summary>The G/G/1 approximation notice; empty for the exact models.</summary>
     public string ApproximationNotice => Solution?.ApproximationNotice ?? string.Empty;
 
-    /// <summary>Why P(wait) is reported for the Poisson models and omitted for G/G/1.</summary>
     public string PWaitNote => Solution?.PWaitNote ?? string.Empty;
 
-    /// <summary>The expandable sheet's title, naming the model it describes.</summary>
     public string FormulaSheetTitle => $"Formula sheet — {SelectedModel}";
 
-    /// <summary>Selects a model by enum value (used by tests and keyboard shortcuts).</summary>
-    /// <param name="model">The single-server model to select.</param>
     public void SetModel(TheoryModel model) => SelectedModel = model switch
     {
         TheoryModel.Mm1 => "M/M/1",
@@ -222,18 +160,12 @@ public partial class TheoryTabViewModel : ObservableObject
         _ => throw new ArgumentOutOfRangeException(nameof(model), model, "Unknown theory model."),
     };
 
-    /// <summary>Selects the time unit by enum value.</summary>
-    /// <param name="unit">The unit to select.</param>
     public void SetUnit(TimeUnit unit) => SelectedUnit = unit;
 
-    /// <summary>Selects the parameter interpretation by enum value.</summary>
-    /// <param name="mode">Rate-wise or mean-wise.</param>
     public void SetMode(ParameterMode mode) => SelectedParameterMode = mode == ParameterMode.RateWise
         ? "Rate-wise"
         : "Mean-wise";
 
-    /// <summary>Selects the spread entry form by enum value.</summary>
-    /// <param name="mode">CV, variance, second moment, standard deviation or squared CV.</param>
     public void SetVariabilityMode(VariabilityMode mode) => SelectedVariabilityMode = mode switch
     {
         VariabilityMode.Cv => "CV",
@@ -244,38 +176,30 @@ public partial class TheoryTabViewModel : ObservableObject
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown variability mode."),
     };
 
-    /// <summary>Validates one named field on blur, then refreshes the answer.</summary>
-    /// <param name="key"><c>lambda</c>, <c>mu</c>, <c>arrival</c> or <c>service</c>.</param>
     public void ValidateField(string key)
     {
+        ReparseField(key, out var error);
+
         switch (key)
         {
             case "lambda":
-                _lambdaValid = TryParseRate(LambdaInput, "Arrival rate λ", out _lambdaPerMinute, out var lambdaError);
-                LambdaHasError = !_lambdaValid && lambdaError is not null;
-                LambdaError = lambdaError;
+                LambdaHasError = !_lambdaValid && error is not null;
+                LambdaError = error;
                 break;
 
             case "mu":
-                _muValid = TryParseRate(MuInput, "Service rate μ", out _muPerMinute, out var muError);
-                MuHasError = !_muValid && muError is not null;
-                MuError = muError;
+                MuHasError = !_muValid && error is not null;
+                MuError = error;
                 break;
 
             case "arrival":
-                _arrivalVariabilityValid = TryParseVariability(
-                    ArrivalVariabilityInput, "Inter-arrival spread", ArrivalMeanUnit(), out _arrivalCv2,
-                    out var arrivalError);
-                ArrivalVariabilityHasError = !_arrivalVariabilityValid && arrivalError is not null;
-                ArrivalVariabilityError = arrivalError;
+                ArrivalVariabilityHasError = !_arrivalVariabilityValid && error is not null;
+                ArrivalVariabilityError = error;
                 break;
 
             case "service":
-                _serviceVariabilityValid = TryParseVariability(
-                    ServiceVariabilityInput, "Service spread", ServiceMeanUnit(), out _serviceCv2,
-                    out var serviceError);
-                ServiceVariabilityHasError = !_serviceVariabilityValid && serviceError is not null;
-                ServiceVariabilityError = serviceError;
+                ServiceVariabilityHasError = !_serviceVariabilityValid && error is not null;
+                ServiceVariabilityError = error;
                 break;
 
             default:
@@ -283,6 +207,62 @@ public partial class TheoryTabViewModel : ObservableObject
         }
 
         Recompute();
+    }
+
+    private void ClearErrorIfNowValid(string key)
+    {
+        switch (key)
+        {
+            case "lambda" when _lambdaValid:
+                LambdaHasError = false;
+                LambdaError = null;
+                break;
+
+            case "mu" when _muValid:
+                MuHasError = false;
+                MuError = null;
+                break;
+
+            case "arrival" when _arrivalVariabilityValid:
+                ArrivalVariabilityHasError = false;
+                ArrivalVariabilityError = null;
+                break;
+
+            case "service" when _serviceVariabilityValid:
+                ServiceVariabilityHasError = false;
+                ServiceVariabilityError = null;
+                break;
+        }
+    }
+
+    private void ReparseField(string key, out string? error)
+    {
+        error = null;
+        switch (key)
+        {
+            case "lambda":
+                _lambdaValid = TryParseRate(LambdaInput, "Arrival rate λ", out _lambdaPerMinute, out error);
+                break;
+
+            case "mu":
+                _muValid = TryParseRate(MuInput, "Service rate μ", out _muPerMinute, out error);
+                break;
+
+            case "arrival":
+                _arrivalVariabilityValid = TryParseVariability(
+                    ArrivalVariabilityInput, "Inter-arrival spread", ArrivalMeanUnit(), out _arrivalCv2,
+                    out error);
+                break;
+
+            case "service":
+                _serviceVariabilityValid = TryParseVariability(
+                    ServiceVariabilityInput, "Service spread", ServiceMeanUnit(), out _serviceCv2,
+                    out error);
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown theory field.");
+        }
     }
 
     private void ValidateAll()
@@ -293,13 +273,33 @@ public partial class TheoryTabViewModel : ObservableObject
         ValidateField("service");
     }
 
-    partial void OnLambdaInputChanged(string value) => ValidateField("lambda");
+    partial void OnLambdaInputChanged(string value)
+    {
+        ReparseField("lambda", out _);
+        ClearErrorIfNowValid("lambda");
+        Recompute();
+    }
 
-    partial void OnMuInputChanged(string value) => ValidateField("mu");
+    partial void OnMuInputChanged(string value)
+    {
+        ReparseField("mu", out _);
+        ClearErrorIfNowValid("mu");
+        Recompute();
+    }
 
-    partial void OnArrivalVariabilityInputChanged(string value) => ValidateField("arrival");
+    partial void OnArrivalVariabilityInputChanged(string value)
+    {
+        ReparseField("arrival", out _);
+        ClearErrorIfNowValid("arrival");
+        Recompute();
+    }
 
-    partial void OnServiceVariabilityInputChanged(string value) => ValidateField("service");
+    partial void OnServiceVariabilityInputChanged(string value)
+    {
+        ReparseField("service", out _);
+        ClearErrorIfNowValid("service");
+        Recompute();
+    }
 
     partial void OnSelectedModelChanged(string value)
     {
@@ -343,8 +343,6 @@ public partial class TheoryTabViewModel : ObservableObject
 
     private void Recompute()
     {
-        // D-247: the hint depends on the resolved spreads, which are updated by
-        // ValidateField immediately before this runs.
         OnPropertyChanged(nameof(SpreadHint));
         OnPropertyChanged(nameof(HasSpreadHint));
 
@@ -401,10 +399,6 @@ public partial class TheoryTabViewModel : ObservableObject
         return "Enter a positive arrival rate and service rate to see the answer.";
     }
 
-    /// <summary>
-    /// Rewrites the four displayed numbers for a new unit, entry mode or spread form
-    /// while keeping the underlying λ, μ and CV² unchanged.
-    /// </summary>
     private void RewriteInputs()
     {
         if (!(_lambdaValid && _muValid && _arrivalVariabilityValid && _serviceVariabilityValid))
@@ -460,7 +454,6 @@ public partial class TheoryTabViewModel : ObservableObject
 
         if (double.IsNaN(meanUnit))
         {
-            // The rate field owns this error; do not report the same cause twice.
             error = null;
             return false;
         }
@@ -526,21 +519,10 @@ public partial class TheoryTabViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>
-    /// Minutes in one selected unit, without depending on the configuration
-    /// panel's unit helper (9Q, D-246 amendment). The Theory tab owns its own
-    /// selector and must build independently of the uncommitted 9P refactor, so
-    /// it converts by NAME — the enum has three members before 9P and five
-    /// after — and delegates the actual mapping to <see cref="FittingTimeUnits"/>,
-    /// which already owns every minute constant in the project.
-    /// </summary>
-    /// <param name="unit">The unit chosen on this tab.</param>
-    /// <returns>Minutes represented by one <paramref name="unit"/>.</returns>
     private static double MinutesPerUnit(TimeUnit unit) =>
         FittingTimeUnits.MinutesPerUnit(
             Enum.Parse<FittingTimeUnit>(unit.ToString(), ignoreCase: true));
 
-    /// <summary>Text written back into a field must keep enough digits to round-trip.</summary>
     private static string RoundTrip(double value) =>
         value.ToString("R", CultureInfo.InvariantCulture);
 
