@@ -20,13 +20,13 @@ Verification table (AGENTS §18 — every requirement this phase touched)
 | Build / gate | Dead-state `restore` → Release build+test → Debug build+test | 0 errors / 0 warnings, **1015/1015** in both; 9Q-only tree **988/988**; filter 21/21 |
 
 In Progress
-None — 9Q is complete and staged for commit with this handoff.
+None — 9Q is committed (`1a92e4f`) and pushed; the uncommitted 9P work is deliberately preserved for its own branch.
 
 What is complete:
 The Theory tab and its four-tab shell, the honest Kingman wording in Core and CLI, PRD **v1.16.5**, **D-246** (including the self-containment amendment), REQUIREMENTS FR-UI-44 `[x]`, both user manuals, `DEV_LAUNCH.md`, `BLOCKERS.md` B-012, `CONTEXT.md`'s verified G/G/1 note, and both dead-state gates.
 
 What remains:
-Commit and push `feat/theory-tab` (immediately after this handoff), then owner review and merge. Owner visual inspection of the two new frames — B-012 — does not block the code.
+Owner review and merge of `feat/theory-tab` (commit `1a92e4f`, pushed). Owner visual inspection of the two new frames — B-012 — does not block the code. The uncommitted Phase 9P work must be committed on its own branch, not with 9Q.
 
 Next Session Should Start With
 Owner review of `feat/theory-tab`, then merge to `main`.
@@ -37,8 +37,8 @@ Blocked
 B-012 — owner visual inspection of the headless screenshot backlog, including the two new Phase 9Q frames (does not block code or this phase).
 
 Git State
-Commits made this session: pending — the 9Q commit is created immediately after this handoff is written; its hash is recorded in the commit itself, not amended into pushed history.
-Pushed to origin: pending — push follows the commit.
+Commits made this session: `1a92e4f` — `feat: add single-server Theory tab answer key` (23 files, +1826/−34; only 9Q paths, no 9P work).
+Pushed to origin: Yes — `feat/theory-tab` → `origin/feat/theory-tab`, upstream tracking set; no PR opened (owner review required).
 Uncommitted changes: the entire uncommitted Phase 9P source/test/doc set remains preserved and unstaged.
 
 Build & Test
