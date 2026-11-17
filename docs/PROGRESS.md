@@ -1,3 +1,60 @@
+Session Handoff — 2026-11-18 04:58
+Branch: feat/foundation-unit-and-authority
+Status: Clean
+
+Done
+Phase 9P landing — move the uncommitted 9P work onto `feat/foundation-unit-and-authority` based on `main`, gate, push, and reconcile the persistent docs (owner ruling D-251) — `[~]` → `[x]` in `TODO.md` this session.
+
+In Progress
+None
+
+What is complete:
+23 modified/deleted paths plus 4 untracked 9P files were moved off `feat/theory-tab` onto a `main`-based branch; four 3-way doc conflicts were resolved with 9P-only content; D-239…D-245 were carried over because they had been recorded inside 9Q commits; dead-state Release and Debug gates passed with 993/993 tests and zero warnings; the app launched cleanly; the branch was pushed. D-252 records the owner's rulings to ignore the stale `AGENTS.md` §19.6 shell wording and to cancel 8Y for now.
+
+What remains:
+Owner review and merge of `feat/foundation-unit-and-authority` and of the already-pushed `feat/theory-tab` (9Q.3); a written 8Y brief before that phase restarts; human inspection of 27 headless frames; the keyboard-only acceptance pass; Windows dead-state verification; confirmation of the σ/C² interpretation in `CONTEXT.md`.
+
+Next Session Should Start With
+UI acceptance of the 8 controls at M5-D screens — §16.7/§16.8 keyboard checklist — currently `[?] BLOCKED` on B-007 in `TODO.md`
+Fade-out on "Start Calculation" click (≤ 300 ms) — first open `[ ]` item under Upcoming
+
+Blocked
+B-012 — 27 headless screenshot frames await human visual inspection (see `docs/BLOCKERS.md`)
+B-007 — owner keyboard-only acceptance pass (see `docs/BLOCKERS.md`)
+B-006 — Windows dead-state verification (see `docs/BLOCKERS.md`)
+
+Git State
+Commits made this session: 8919a5e feat: land Phase 9P foundation on its own branch, 8fcafde docs: defer Phase 8Y and record stale AGENTS.md ruling
+Pushed to origin: Yes — both commits on feat/foundation-unit-and-authority
+Uncommitted changes: None
+
+Build & Test
+dotnet build: PASS (Release and Debug, dead state, 0 warnings / 0 errors)
+dotnet test: PASS — 993 passed, 0 failed in each configuration (Core 183 / Data 139 / Cli 45 / App 626)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Models/TimeUnit.cs: modified (five-unit axis + shared minute mapping)
+src/OpdSimulator.App/Models/MuProvenance.cs: added
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (resolver, gate, ρ preview, fit split)
+src/OpdSimulator.App/ViewModels/StageRow.cs: modified (provenance, fit shape)
+src/OpdSimulator.App/ViewModels/InputTabViewModel.cs, MainViewModel.cs: modified (derived fit unit, wiring)
+src/OpdSimulator.App/Models/SimulationParameters.cs, Services/SimulationCoordinator.cs: modified (routing helpers)
+src/OpdSimulator.App/Controls/TimeUnitSelector.axaml.cs, Controls/StageRowControl.axaml, Views/ConfigPanel.axaml: modified
+tests/OpdSimulator.App.Tests/Phase9PResolutionTests.cs, Phase9PUnitAxisTests.cs: added; Phase9PScreenshots.cs: renamed from Phase8WScreenshots.cs
+tests/OpdSimulator.App.Tests/Phase7CTests.cs, Phase8KTests.cs, Phase8RScreenshots.cs, Phase8WFittingUnitTests.cs, Phase8XTests.cs: modified
+docs/PRD.md, REQUIREMENTS.md, TODO.md, DECISIONS.md, DEV_LAUNCH.md, USER_MANUAL.md, USER_MANUAL_FULL.md, BLOCKERS.md, PROGRESS.md: modified
+
+Decisions Made
+D-251 — land 9P on its own branch off main; 8Y next then stop (see docs/DECISIONS.md)
+D-252 — defer 8Y and treat the AGENTS.md §19.6 edit as stale (see docs/DECISIONS.md)
+
+Assumptions Added/Changed
+None
+
+Notes for Next Session
+No 8Y brief exists in any file or branch; D-241 assigns only the verb "8Y owns the queue-length chart". Do not restart 8Y until the brief and D-223…D-228 decisions are supplied. `feat/theory-tab` (9Q.3) remains separate and pushed. The backup stash from the branch move was dropped after verification. The stale `AGENTS.md` §19.6 wording is a recorded drift, not a task.
+
 Session Handoff — 2026-11-18 05:00 — Phase 9P LANDED on its own branch (D-251)
 Branch: feat/foundation-unit-and-authority
 Status: In-Progress (awaiting owner review; no PR opened)
