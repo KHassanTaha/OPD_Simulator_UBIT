@@ -34,7 +34,7 @@ B-012 — owner visual inspection of the 27-frame headless screenshot backlog, i
 
 Git State
 Commits made this session: `d644e1b` — `fix: audit dependencies and remove Theory tab comments` (20 files, +311/−294; only 9Q.2 paths, no 9P work staged).
-Pushed to origin: No at time of writing — `d644e1b` is local and will be pushed immediately after this handoff. No PR opened (owner review required).
+Pushed to origin: Yes — `feat/theory-tab` → `origin/feat/theory-tab` (`827c5e5..749cf99`); no PR opened (owner review required).
 Uncommitted changes: the entire uncommitted Phase 9P source/test/doc set remains preserved and unstaged.
 
 Build & Test
