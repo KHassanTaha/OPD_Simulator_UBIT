@@ -81,6 +81,13 @@
                                        Classes="Caption"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource BrushTextSecondary}"/>
+                            <!-- D-247: exponential spread makes the models coincide;
+                                 say so rather than letting equal answers look like a bug. -->
+                            <TextBlock Text="{Binding SpreadHint}"
+                                       IsVisible="{Binding HasSpreadHint}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushWarning}"/>
                             <controls:DropdownField Label="Enter spread as"
                                                     Placeholder="CV, variance or second moment…"
                                                     Tooltip="CV is σ/mean; variance is σ²; second moment is E[X²]. All three convert to the squared coefficient of variation."
@@ -169,17 +176,20 @@
                             <TextBlock Text="Worked substitutions"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource BrushTextPrimary}"/>
-                            <Grid ColumnDefinitions="28,62,140,*,96" ColumnSpacing="8">
+                            <!-- D-247: a dedicated Name column puts the full metric
+                                 name beside its abbreviation; the substitution wraps. -->
+                            <Grid ColumnDefinitions="28,52,150,120,*,96" ColumnSpacing="8">
                                 <TextBlock Text="#" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                                 <TextBlock Grid.Column="1" Text="Metric" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                                <TextBlock Grid.Column="2" Text="Formula" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                                <TextBlock Grid.Column="3" Text="Substitution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
-                                <TextBlock Grid.Column="4" Text="Value" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
+                                <TextBlock Grid.Column="2" Text="Name" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="3" Text="Formula" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="4" Text="Substitution" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}"/>
+                                <TextBlock Grid.Column="5" Text="Value" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushTextMuted}" TextAlignment="Right"/>
                             </Grid>
                             <ItemsControl ItemsSource="{Binding WorkedRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="services:TheoryWorkedRow">
-                                        <Grid ColumnDefinitions="28,62,140,*,96" ColumnSpacing="8" Margin="0,3">
+                                        <Grid ColumnDefinitions="28,52,150,120,*,96" ColumnSpacing="8" Margin="0,3">
                                             <TextBlock Text="{Binding SerialNumber}"
                                                        FontSize="{DynamicResource FontSizeCaption}"
                                                        Foreground="{DynamicResource BrushTextMuted}"
@@ -187,17 +197,21 @@
                                             <TextBlock Grid.Column="1" Text="{Binding Symbol}"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource BrushTextPrimary}"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Formula}"
+                                            <TextBlock Grid.Column="2" Text="{Binding Name}"
+                                                       FontSize="{DynamicResource FontSizeCaption}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding Formula}"
                                                        FontSize="{DynamicResource FontSizeCaption}"
                                                        FontFamily="{DynamicResource FontFamilyMono}"
                                                        TextWrapping="Wrap"
                                                        Foreground="{DynamicResource BrushTextSecondary}"/>
-                                            <TextBlock Grid.Column="3" Text="{Binding Substitution}"
+                                            <TextBlock Grid.Column="4" Text="{Binding Substitution}"
                                                        FontSize="{DynamicResource FontSizeCaption}"
                                                        FontFamily="{DynamicResource FontFamilyMono}"
                                                        TextWrapping="Wrap"
                                                        Foreground="{DynamicResource BrushTextSecondary}"/>
-                                            <TextBlock Grid.Column="4" Text="{Binding Value}"
+                                            <TextBlock Grid.Column="5" Text="{Binding Value}"
                                                        FontSize="{DynamicResource FontSizeCaption}"
                                                        FontWeight="SemiBold"
                                                        TextWrapping="Wrap"
@@ -210,10 +224,13 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- D-247: only G/G/1 needs this caption (it explains an
+                         absent row). The Poisson models already print P(wait)
+                         in the table, so an empty string collapses the line. -->
                     <TextBlock Text="{Binding PWaitNote}"
                                Classes="Caption"
                                TextWrapping="Wrap"
-                               IsVisible="{Binding HasSolution}"
+                               IsVisible="{Binding PWaitNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                Foreground="{DynamicResource BrushTextSecondary}"/>
 
                     <controls:CollapsibleSection Title="{Binding FormulaSheetTitle}"

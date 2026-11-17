@@ -1,6 +1,7 @@
 namespace OpdSimulator.App.Tests;
 
 using System;
+using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -369,6 +370,150 @@ public sealed class Phase9QTheoryTests
             Assert.True(
                 right <= window.Bounds.Width,
                 $"the worked table ends at x={right:F0}, past the {window.Bounds.Width:F0}px window");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // ── D-247 owner review fixes ─────────────────────────────────────────
+
+    [Fact]
+    public void WorkedRows_HaveFullNamesAndSteppedSubstitutions()
+    {
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Mm1, Lambda, Mu, 1, 1, out var solution, out _));
+
+        var wq = solution!.Rows.Single(r => r.Symbol == "Wq");
+        Assert.Equal("Mean queue waiting time", wq.Name);
+        Assert.Contains('\n', wq.Substitution);
+
+        var wait = solution.Rows.Single(r => r.Symbol == "Wait/h");
+        Assert.Equal("Aggregate customer wait per hour", wait.Name);
+        Assert.Contains("all customers", wait.Substitution, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FormulaSheet_PutsEachFormulaOnItsOwnLine()
+    {
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Mm1, Lambda, Mu, 1, 1, out var mm1, out _));
+        var mmLines = mm1!.FormulaSheetText.Split('\n');
+        Assert.Contains(mmLines, l => l.Trim() == "5. Wq = Lq / λ");
+        Assert.Contains(mmLines, l => l.Trim() == "6. Wq = ρ / [μ(1 − ρ)]");
+        Assert.DoesNotContain(mmLines, l => l.Contains("Wq =") && l.Contains("Lq ="));
+
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Mg1, Lambda, Mu, 1, 0, out var mg1, out _));
+        var mgLines = mg1!.FormulaSheetText.Split('\n');
+        Assert.Contains(mgLines, l => l.Trim() == "5. Lq = λWq");
+        Assert.Contains(mgLines, l => l.Trim() == "6. W = Wq + 1/μ");
+        Assert.Contains(mgLines, l => l.Trim() == "7. L = λW (Little's law)");
+        Assert.DoesNotContain(mgLines, l => l.Contains("Lq =") && l.Contains("W ="));
+    }
+
+    [Fact]
+    public void PWaitNote_OnlyExplainsTheOmittedGg1Row()
+    {
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Mm1, Lambda, Mu, 1, 1, out var mm1, out _));
+        Assert.Equal(string.Empty, mm1!.PWaitNote);
+
+        Assert.True(TheoryWorkedSolutionBuilder.TryBuild(
+            TheoryModel.Gg1, Lambda, Mu, 1, 1, out var gg1, out _));
+        Assert.Contains("arrival epochs", gg1!.PWaitNote);
+    }
+
+    [Fact]
+    public void Variability_SigmaAndSquaredCv_MatchCv()
+    {
+        const double cv = 0.5;
+        double mean = 1.0 / Mu;
+        double cv2 = cv * cv;
+
+        var vm = new TheoryTabViewModel();
+        vm.SetModel(TheoryModel.Mg1);
+        vm.SetVariabilityMode(VariabilityMode.Cv);
+        vm.ServiceVariabilityInput = "0.5";
+        double byCv = vm.Solution!.Result.Wq;
+
+        vm.SetVariabilityMode(VariabilityMode.StandardDeviation);
+        string sigmaText = TheoryWorkedSolutionBuilder.VariabilityText(
+            cv2, mean, VariabilityMode.StandardDeviation);
+        vm.ServiceVariabilityInput = sigmaText;
+        double bySigma = vm.Solution!.Result.Wq;
+
+        vm.SetVariabilityMode(VariabilityMode.SquaredCv);
+        string squaredCvText = TheoryWorkedSolutionBuilder.VariabilityText(
+            cv2, mean, VariabilityMode.SquaredCv);
+        vm.ServiceVariabilityInput = squaredCvText;
+        double bySquaredCv = vm.Solution!.Result.Wq;
+
+        // The entry forms must display the quantity the textbook gives the user:
+        // σ = CV × mean and C² = CV² — not just produce a matching Wq by accident.
+        Assert.Equal(cv * mean, double.Parse(sigmaText, CultureInfo.InvariantCulture), 10);
+        Assert.Equal(cv2, double.Parse(squaredCvText, CultureInfo.InvariantCulture), 10);
+        Assert.Equal(byCv, bySigma, 10);
+        Assert.Equal(byCv, bySquaredCv, 10);
+    }
+
+    [Fact]
+    public void SpreadHint_ExplainsWhyMm1AndMg1Agree()
+    {
+        var mm1 = new TheoryTabViewModel();
+        Assert.False(mm1.HasSpreadHint);
+
+        var mg1 = new TheoryTabViewModel();
+        mg1.SetModel(TheoryModel.Mg1);
+        Assert.True(mg1.HasSpreadHint);
+        Assert.Contains("M/M/1", mg1.SpreadHint);
+
+        mg1.ServiceVariabilityInput = "0.5"; // Cs² = 0.25 — no longer exponential
+        Assert.False(mg1.HasSpreadHint);
+    }
+
+    [AvaloniaFact]
+    public void View_ShowsFullNameColumnAndSpreadHint()
+    {
+        var vm = new TheoryTabViewModel();
+        vm.SetModel(TheoryModel.Mg1);
+        var window = Host(new TheoryTab { DataContext = vm });
+        try
+        {
+            var texts = window.GetVisualDescendants().OfType<TextBlock>()
+                .Select(t => t.Text).Where(t => t is not null).ToArray();
+            Assert.Contains("Name", texts);
+            Assert.Contains("Mean queue waiting time", texts);
+            Assert.Contains("Aggregate customer wait per hour", texts);
+
+            var hint = window.GetVisualDescendants().OfType<TextBlock>()
+                .Single(t => t.Text == vm.SpreadHint);
+            Assert.True(hint.IsEffectivelyVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void View_FullNameColumn_StaysOnScreenAtProductionSize()
+    {
+        // D-169: a visibility flag is not a position check. Measure where the
+        // new Name column actually lands at the size MainWindow.axaml declares.
+        var window = Host(new TheoryTab { DataContext = new TheoryTabViewModel() });
+        try
+        {
+            foreach (string name in new[] { "Mean queue waiting time", "Aggregate customer wait per hour" })
+            {
+                var cell = window.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(t => t.Text == name);
+                var right = cell.TranslatePoint(new Point(cell.Bounds.Width, 0), window)!.Value.X;
+                Assert.True(
+                    right <= window.Bounds.Width,
+                    $"the Name cell \"{name}\" ends at x={right:F0}, past the {window.Bounds.Width:F0}px window");
+            }
         }
         finally
         {

@@ -51,8 +51,11 @@ public partial class TheoryTabViewModel : ObservableObject
     /// <summary>The two parameter interpretations, sharing the app's <see cref="ParameterMode"/>.</summary>
     public IReadOnlyList<string> ParameterModeOptions { get; } = new[] { "Rate-wise", "Mean-wise" };
 
-    /// <summary>The three equivalent ways to enter a process spread.</summary>
-    public IReadOnlyList<string> VariabilityOptions { get; } = new[] { "CV", "Variance", "Second moment" };
+    /// <summary>The five equivalent ways to enter a process spread (D-247).</summary>
+    public IReadOnlyList<string> VariabilityOptions { get; } = new[]
+    {
+        "CV", "Variance", "Second moment", "Standard deviation (σ)", "Squared CV (C²)",
+    };
 
     /// <summary>The selected model label ("M/M/1", "M/G/1" or "G/G/1").</summary>
     [ObservableProperty]
@@ -62,7 +65,7 @@ public partial class TheoryTabViewModel : ObservableObject
     [ObservableProperty]
     private string selectedParameterMode = "Rate-wise";
 
-    /// <summary>The selected spread entry form ("CV", "Variance" or "Second moment").</summary>
+    /// <summary>The selected spread entry form (CV, variance, second moment, σ or squared CV).</summary>
     [ObservableProperty]
     private string selectedVariabilityMode = "CV";
 
@@ -142,6 +145,8 @@ public partial class TheoryTabViewModel : ObservableObject
     {
         "Variance" => VariabilityMode.Variance,
         "Second moment" => VariabilityMode.SecondMoment,
+        "Standard deviation (σ)" => VariabilityMode.StandardDeviation,
+        "Squared CV (C²)" => VariabilityMode.SquaredCv,
         _ => VariabilityMode.Cv,
     };
 
@@ -159,8 +164,29 @@ public partial class TheoryTabViewModel : ObservableObject
         TheoryModel.Mg1 =>
             "M/G/1 assumes Poisson arrivals (Ca² = 1). Only the service spread is used.",
         _ =>
-            "G/G/1 uses both entered spreads. Enter the same spread as CV, variance or second moment — the answer is identical.",
+            "G/G/1 uses both entered spreads. Enter the same spread in any form (CV, variance, second moment, σ or squared CV) — the answer is identical.",
     };
+
+    /// <summary>
+    /// Explains why two models give the same answer when the spread is exponential
+    /// (D-247). Correct maths otherwise reads as a bug: with Cs² = 1,
+    /// Pollaczek–Khinchine reduces exactly to Erlang-C.
+    /// </summary>
+    public string SpreadHint => CurrentModel switch
+    {
+        TheoryModel.Mm1 => string.Empty,
+        TheoryModel.Mg1 when Math.Abs(_serviceCv2 - 1.0) < 1e-9 =>
+            "Cs² = 1 means exponential service: M/G/1 gives exactly the M/M/1 answer. "
+            + "Change the service spread to see a difference.",
+        TheoryModel.Gg1 when Math.Abs(_arrivalCv2 - 1.0) < 1e-9
+                          && Math.Abs(_serviceCv2 - 1.0) < 1e-9 =>
+            "Ca² = Cs² = 1 means Poisson arrivals and exponential service, so all three "
+            + "models coincide. Change a spread to see a difference.",
+        _ => string.Empty,
+    };
+
+    /// <summary>Whether the exponential-spread explanation should be shown.</summary>
+    public bool HasSpreadHint => SpreadHint.Length > 0;
 
     /// <summary>The compact one-line verdict above the worked rows.</summary>
     public string Headline => Solution is null
@@ -207,12 +233,14 @@ public partial class TheoryTabViewModel : ObservableObject
         : "Mean-wise";
 
     /// <summary>Selects the spread entry form by enum value.</summary>
-    /// <param name="mode">CV, variance or second moment.</param>
+    /// <param name="mode">CV, variance, second moment, standard deviation or squared CV.</param>
     public void SetVariabilityMode(VariabilityMode mode) => SelectedVariabilityMode = mode switch
     {
         VariabilityMode.Cv => "CV",
         VariabilityMode.Variance => "Variance",
         VariabilityMode.SecondMoment => "Second moment",
+        VariabilityMode.StandardDeviation => "Standard deviation (σ)",
+        VariabilityMode.SquaredCv => "Squared CV (C²)",
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown variability mode."),
     };
 
@@ -315,6 +343,11 @@ public partial class TheoryTabViewModel : ObservableObject
 
     private void Recompute()
     {
+        // D-247: the hint depends on the resolved spreads, which are updated by
+        // ValidateField immediately before this runs.
+        OnPropertyChanged(nameof(SpreadHint));
+        OnPropertyChanged(nameof(HasSpreadHint));
+
         bool needArrival = IsArrivalVariabilityVisible;
         bool needService = IsServiceVariabilityVisible;
 
@@ -457,6 +490,14 @@ public partial class TheoryTabViewModel : ObservableObject
                 }
 
                 cv2 = value / meanSquared - 1.0;
+                return true;
+
+            case VariabilityMode.StandardDeviation:
+                cv2 = (value / meanUnit) * (value / meanUnit);
+                return true;
+
+            case VariabilityMode.SquaredCv:
+                cv2 = value;
                 return true;
 
             default:

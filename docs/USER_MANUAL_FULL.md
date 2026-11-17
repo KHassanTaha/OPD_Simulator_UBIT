@@ -310,11 +310,12 @@ tab — question on the left, answer on the right.
 | **Time unit** | One unit for every number on this tab. Switching it also rewrites the numbers, so a rate does not silently change by 60. |
 | **Arrival rate λ** | Mean arrivals per unit, or the mean inter-arrival time in mean-wise mode. Required for all three models. |
 | **Service rate μ** | Mean completions per unit for the one server, or the mean service time in mean-wise mode. Required for all three models. |
-| **Enter spread as** | `CV`, `Variance` or `Second moment` — three equivalent ways to state a spread; all give the same answer. |
+| **Enter spread as** | `CV`, `Variance`, `Second moment`, `Standard deviation (σ)` or `Squared CV (C²)` — five equivalent ways to state a spread; all give the same answer. Use σ for a textbook standard deviation and C² for the squared CV that appears in the formulas. |
 | **Inter-arrival spread** | G/G/1 only. M/M/1 and M/G/1 assume Poisson arrivals (Ca² = 1), so the field is hidden. |
 | **Service-time spread** | M/G/1 and G/G/1. M/M/1 assumes exponential service (Cs² = 1), so the field is hidden. |
-| **Worked substitutions** | Right-side table: serial, metric, formula, your substitution and the value — the answer to copy into coursework. |
-| **Formula sheet — <model>** | Expandable closed form, symbol list and stability condition; starts collapsed. |
+| **Amber spread hint** | Appears when the entered spread is exponential (Cs² = 1, or Ca² = Cs² = 1 for G/G/1) and explains why the models give the same answer. Not an error. |
+| **Worked substitutions** | Right-side table: serial, abbreviation, full metric name, formula, your substitution and the value — the answer to copy into coursework. Each arithmetic step is on its own line. The `Wait/h` row is `60 × Lq`, the **aggregate customer wait per hour** across all customers (not one customer's Wq), so it can exceed 60. |
+| **Formula sheet — <model>** | Expandable closed form (one formula per line), symbol list and stability condition; starts collapsed. |
 | **⚠ Approximation notice** | G/G/1 only: the Allen–Cunneen / Kingman formula is exact when Ca² = 1 and **not exact generally**. P(wait) is omitted there because arrivals are not Poisson. |
 
 A steady-state answer is refused when a field is invalid or ρ ≥ 1; the reason

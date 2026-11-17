@@ -669,3 +669,5 @@ traffic, but it is a heuristic for general G/G/1. The Theory tab therefore says
 "approximation" next to the answer and omits P(wait), which needs arrival-epoch
 information beyond `Ca²` and `Cs²`. Sources consulted: Whitt (Columbia), Adan &
 Resing (TU Eindhoven), MIT 6.263 lecture notes.
+
+**[UNVERIFIED] Owner's 2026-11-18 phrase "give user ability to manage sigma and other variables" was interpreted as two more spread entry forms — standard deviation (σ) and squared coefficient of variation (C²) — alongside the existing CV, variance and second moment (D-247).** Rationale: σ is the textbook parameter the user wants to type directly, and C² is the quantity that actually appears in the Pollaczek–Khinchine and Kingman formulas. This does NOT change which models are offered or any formula. Owner confirmation still needed; if a different variable was meant, add it as another entry form rather than replacing these.
