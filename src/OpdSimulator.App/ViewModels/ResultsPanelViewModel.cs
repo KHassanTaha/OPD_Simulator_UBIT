@@ -692,6 +692,8 @@ public partial class ResultsPanelViewModel : ObservableObject
         }
 
         var data = QueueLengthChartService.Build(_queueResult, SelectedQueueSession);
+        _queueCaption = data.CaptionForView;
+        OnPropertyChanged(nameof(QueueLengthCaption));
         try
         {
             QueueLengthChart = ChartControlBuilder.BuildQueueChart(data);
@@ -1137,8 +1139,10 @@ public partial class ResultsPanelViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowQueueLengthEmptyState));
     }
 
-    /// <summary>Widget caption: names the sampling and downsampling policy.</summary>
-    public string QueueLengthCaption => QueueLengthChartService.Caption;
+    /// <summary>Widget caption for the view currently on screen (D-223).</summary>
+    public string QueueLengthCaption => _queueCaption;
+
+    private string _queueCaption = QueueLengthChartService.Caption;
 
     /// <summary>The last finished run the queue chart rebuilds from (selector changes).</summary>
     private OpdSimulator.Core.Engine.SimulationResult? _queueResult;

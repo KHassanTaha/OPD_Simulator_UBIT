@@ -7,10 +7,12 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.Kernel;
 using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Avalonia;
 using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.Painting.Effects;
 using SkiaSharp;
 
 /// <summary>
@@ -264,6 +266,7 @@ public static class ChartControlBuilder
             .OrderByDescending(s => s.Points.Count == 0 ? 0 : s.Points.Average(p => p.Length))
             .ToList();
 
+        var timeAxis = data.TimeAxis;
         var series = new List<ISeries>();
         foreach (var stage in ordered)
         {
@@ -272,17 +275,28 @@ public static class ChartControlBuilder
             // events. A straight segment would draw an average that never
             // existed, and smoothing would invent the same fiction more
             // prettily. Numeric X pairs time/length directly.
-            series.Add(new StepLineSeries<ObservablePoint>
+            var line = new StepLineSeries<ObservablePoint>
             {
                 Name = stage.StageName,
                 Values = stage.Points
-                    .Select(p => new ObservablePoint(p.Time, p.Length))
+                    .Select(p => new ObservablePoint(p.Time, p.IsSeam ? double.NaN : p.Length))
                     .ToList(),
                 Stroke = new SolidColorPaint(
                     SeriesPaletteColor(stage.StageIndex), 2),
                 Fill = null,
                 GeometrySize = 0,
-            });
+                // The service inserts a NaN point at each session seam; without
+                // this the line would join the last point of Day n to the first
+                // of Day n+1 across the display-only gutter (D-223).
+                EnableNullSplitting = true,
+            };
+
+            if (timeAxis is not null)
+            {
+                line.XToolTipLabelFormatter = point => timeAxis.FormatTooltip(point.Model?.X ?? 0d);
+            }
+
+            series.Add(line);
         }
 
         // +1 headroom: the queue length steps to whole numbers, so an axis that
@@ -293,19 +307,50 @@ public static class ChartControlBuilder
             .DefaultIfEmpty(0)
             .Max() + 1;
 
-        // When one operating session is selected the service has rebased time
-        // to minutes from the opening and reports the window length, so pin the
-        // X axis to 0…165 (FR-UI-40). "All sessions" keeps the automatic
-        // absolute-clock range.
-        var xAxis = data.XAxisMaximum is { } sessionMinutes
-            ? new Axis { MinLimit = 0, MaxLimit = sessionMinutes }
-            : null;
+        // The service owns the axis contract (D-223). A plain-horizon run has
+        // no TimeAxis and keeps LiveCharts' automatic absolute-clock range;
+        // session runs pin the range and the labeler published by the service.
+        var xAxis = timeAxis is null
+            ? null
+            : new Axis
+            {
+                MinLimit = timeAxis.Minimum,
+                MaxLimit = timeAxis.Maximum,
+                Name = timeAxis.Compressed
+                    ? "Operating minutes (closed time removed)"
+                    : "Minutes from session open",
+            };
 
-        return CreateChart(
+        var chart = CreateChart(
             series,
-            xLabeler: value => value.ToString("0.##", CultureInfo.InvariantCulture),
+            xLabeler: timeAxis is null
+                ? value => value.ToString("0.##", CultureInfo.InvariantCulture)
+                : timeAxis.FormatTick,
             yAxisOverride: new Axis { MinLimit = 0, MaxLimit = yMax },
             xAxisOverride: xAxis);
+
+        // A selected session can extend past 165 while its queue drains. The
+        // marker is a chart section, not another series, so it adds no legend
+        // entry and no data point (checked in the builder test).
+        if (data.ArrivalsCloseAt is { } arrivalsClose)
+        {
+            chart.Sections = new IChartElement[]
+            {
+                new RectangularSection
+                {
+                    Xi = arrivalsClose,
+                    Xj = arrivalsClose,
+                    Fill = null,
+                    Stroke = new SolidColorPaint(SKColors.Gray, 1)
+                    {
+                        PathEffect = new DashEffect(new float[] { 4, 4 }),
+                    },
+                    Label = "arrivals close",
+                },
+            };
+        }
+
+        return chart;
     }
 
     /// <summary>

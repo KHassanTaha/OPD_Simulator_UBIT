@@ -272,7 +272,7 @@ trace.
 | **Performance Measures** | System totals (patients served, average wait, average queue length) plus a stability verdict and the bottleneck stage. |
 | Per-stage metrics | Per stage: arrivals, served, average wait, average queue length, utilisation ρ, busy time. |
 | **Per-server utilisation** | One bar per server; amber when a server deviates from its stage average. |
-| **Queue length over time** | The run's queue lengths. With a multi-day run, the **Operating session** dropdown shows one session on a 0–165 minute-from-open axis; **All sessions** shows the whole run. |
+| **Queue length over time** | The run's queue lengths. With a multi-day run, the **Operating session** dropdown shows one session on a minutes-from-open axis that extends past 165 while its queue drains (dashed `arrivals close` marker at 165); **All sessions** removes closed nights/days and shows one labelled slot per open session — the gaps are display spacing, not elapsed time. |
 | **Waiting time distribution** | Histogram of patient waits for a chosen **stage**. |
 | Chi-square results | Input-side goodness-of-fit verdicts for the fitted distributions. |
 | **Simulation verification** | Output-side chi-square: confirms the engine generates values matching the configured distributions. |

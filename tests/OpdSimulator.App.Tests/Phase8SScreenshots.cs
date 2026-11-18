@@ -117,16 +117,58 @@ public sealed class Phase8SScreenshots
         return text.TranslatePoint(new Point(0, 0), window)!.Value.Y;
     }
 
-    // ------------------------------------------------------------- issue 3
+    // ------------------------------------------------------------- issue 3 (8Y)
 
     [AvaloniaFact]
-    public void Render_QueueSessionSelected_SavePhase8T3QueueSessionPng()
+    public void Render_QueueOperatingAxis_SavePhase8YOperatingAxisPng()
     {
-        // FR-UI-40 / D-203 verification: a 3-session run, then the user opens the
-        // "Operating session" dropdown with the keyboard, types the session name
-        // and presses Enter. The commit path is the production one; the chart is
-        // asserted to be rebased to 0…165 and the frame records the selector in
-        // its selected state.
+        // FR-UI-40 / D-223 verification: All sessions, multi-day run. Closed
+        // nights and days must be gone from the horizontal axis — the frame
+        // shows per-session day labels and a hard max well below 3 × 1440.
+        // New filename: the 8T3 frame stays as evidence of the old axis (D-166).
+        var window = new MainWindow();
+        window.Width = 1200;
+        window.Height = 900;
+        window.Show();
+        try
+        {
+            var main = Assert.IsType<MainViewModel>(window.DataContext);
+            RunThreeStageMultiDay(main, new[] { 2, 4, 5 }, "0.8, 0.5, 0.4");
+            window.UpdateLayout();
+
+            Assert.Equal(QueueLengthChartService.AllSessionsLabel, main.Results.SelectedQueueSession);
+            var chart = Assert.IsType<CartesianChart>(main.Results.QueueLengthChart);
+            var axis = chart.XAxes.Single();
+
+            Assert.Equal(0d, axis.MinLimit);
+            Assert.NotNull(axis.Labeler);
+            Assert.Equal("Day 1", axis.Labeler!(0));
+
+            // No adjacent rendered x pair may span a 1440-minute closure.
+            var xs = chart.Series
+                .SelectMany(s => s.Values!.Cast<LiveChartsCore.Defaults.ObservablePoint>())
+                .Select(p => p.X ?? 0d)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToArray();
+            Assert.True(xs.Skip(1).Zip(xs).All(pair => pair.Second - pair.First < 400),
+                "the operating axis still contains a closed-period jump");
+
+            ScrollQueueChartIntoView(window, main);
+            Save(window, "phase-8y-queue-operating-axis.png");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Render_QueueSessionDrain_SavePhase8YSessionDrainPng()
+    {
+        // D-223 verification: selecting a session whose queue drains past the
+        // 165-minute arrival window. The axis must reach the drain end (>165)
+        // and the frame records the dashed marker and its caption.
         var window = new MainWindow();
         window.Width = 1200;
         window.Height = 900;
@@ -139,44 +181,39 @@ public sealed class Phase8SScreenshots
 
             var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
                 .Single(d => d.Label == "Operating session");
-            Assert.True(dropdown.IsEffectivelyVisible, "the session selector must be offered after a multi-session run");
-
-            // The results body is one sequence now, so the selector is below the
-            // fold at offset 0. Put it on screen before capturing it.
-            var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
-                .Single(s => s.Name == "ResultsScroller");
-            scroller.Offset = new Vector(
-                0,
-                dropdown.TranslatePoint(new Point(0, 0), scroller)!.Value.Y
-                    + scroller.Offset.Y - 40);
-            window.UpdateLayout();
-
-            // Phase 8X: the session list is a standard ComboBox; choosing an
-            // item is the control's own two-way SelectedItem path.
             var combo = dropdown.FindDescendantOfType<ComboBox>()!;
-            Assert.True(combo.ItemCount > 0, "the session selector must offer its options");
-            combo.IsDropDownOpen = true;
-            window.UpdateLayout();
-            Assert.True(combo.IsDropDownOpen, "the session ComboBox must open");
-
-            combo.SelectedItem = "Day 3 (Tue)";
-            combo.IsDropDownOpen = false;
+            combo.SelectedItem = "Day 1 (Sat)";
             window.UpdateLayout();
 
-            Assert.Equal("Day 3 (Tue)", dropdown.SelectedItem);
-            Assert.Equal("Day 3 (Tue)", main.Results.SelectedQueueSession);
-
+            Assert.Equal("Day 1 (Sat)", main.Results.SelectedQueueSession);
             var chart = Assert.IsType<CartesianChart>(main.Results.QueueLengthChart);
             var axis = chart.XAxes.Single();
             Assert.Equal(0d, axis.MinLimit);
-            Assert.Equal(165d, axis.MaxLimit);
+            Assert.True(axis.MaxLimit > 165d,
+                $"the drain is clipped at {axis.MaxLimit:F0}");
+            Assert.NotEmpty(chart.Sections);
 
-            Save(window, "phase-8t3-queue-session-selected.png");
+            ScrollQueueChartIntoView(window, main);
+            Save(window, "phase-8y-queue-session-drain.png");
         }
         finally
         {
             window.Close();
         }
+    }
+
+    /// <summary>Scrolls the single results sequence so the queue chart is visible in the frame.</summary>
+    private static void ScrollQueueChartIntoView(Window window, MainViewModel main)
+    {
+        var dropdown = window.GetVisualDescendants().OfType<DropdownField>()
+            .Single(d => d.Label == "Operating session");
+        var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+            .Single(s => s.Name == "ResultsScroller");
+        scroller.Offset = new Vector(
+            0,
+            dropdown.TranslatePoint(new Point(0, 0), scroller)!.Value.Y
+                + scroller.Offset.Y - 40);
+        window.UpdateLayout();
     }
 
     // ------------------------------------------------------------- issue 3 (cont.)

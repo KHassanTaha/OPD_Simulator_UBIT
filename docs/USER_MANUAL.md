@@ -705,10 +705,19 @@ How to read it:
 
 - The **Operating session** dropdown offers `All sessions` plus one entry per
   operating session (`Day 1 (Sat)`, `Day 2 (Mon)`, …). Closed days never
-  appear. Choosing one plots only that session and changes the X axis to
-  **minutes from the session opening, 0…165**, so two sessions sit on the same
-  scale and can be compared by position. `All sessions` keeps the absolute
-  clock and plots the whole run.
+  appear. Choosing one plots only that session on an axis starting at
+  **minutes from the session opening**. If patients are still queued when
+  arrivals stop at 165 minutes, the axis **extends past 165** to show the
+  drain; a dashed line at 165 labelled `arrivals close` marks where new
+  patients stopped arriving. Everything to its right is existing patients
+  being served, not new arrivals. A session that drains by 165 keeps its
+  0…165 axis and shows no marker.
+- `All sessions` removes the **closed periods**: overnight hours and closed
+  Fridays/Sundays are not drawn. Each open session gets its own slot, even if
+  its queue never rose above zero; the gaps between slots are **display
+  spacing only, not elapsed time**. Tick labels read `Day 1`, `Day 1 +50m`,
+  `Day 2`, and a tooltip names the weekday and says "from open". Do not read
+  a compressed x value as a minute count of the whole run.
 - The selection resets to `All sessions` whenever you start a new run, because
   session numbers belong to the run that produced them.
 - Each line is a **step**, not a slope. The engine only changes a queue
@@ -1378,6 +1387,7 @@ real panel rather than a placeholder.
 |------|--------|
 | 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |
 | 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |
+| 2026-11-19 | Phase 8Y: the queue chart no longer plots closed nights and days — `All sessions` shows one labelled slot per open session, and a selected session extends past the 165-minute `arrivals close` marker while its queue drains (§6.5). |
 | 2026-11-09 | Phase 8T.3–8T.5: **the queue chart can show one operating session**, the **event trace is now a table**, and the **results panel scrolls as one sequence**. In the queue-length widget, a new **Operating session** dropdown lists `All sessions` plus `Day n (Weekday)` for every open session; picking one plots that session on a **0…165 minutes-from-open** axis, and `All sessions` still shows the whole run on the absolute clock (§6.5). The event trace is no longer one block of pre-formatted text: it is a virtualised, selectable **table** with minutes, clock, type, patient, stage, server, queue and detail columns, and a single muted note reports arrivals the generator refused (outside the opening window or over the session cap) (§6.3). The run header, widgets and trace now sit in **one scrolling panel** — nothing is pinned above or below, so a short window scrolls the whole thing instead of squeezing the widgets. The trace remains always present and is still not in the "Customise results" list. |
 | 2026-11-07 | Phase 8V: **the arrival distribution now drives the simulation.** Choosing Gamma, Lognormal, Normal, Uniform or Deterministic for **Inter-arrival distribution** makes the engine sample that family instead of always drawing exponential gaps; a new **Arrival spread** field appears with the family-appropriate parameter and is validated (a Uniform or Normal spread at or above the mean is refused, because an inter-arrival time could be zero). The analytical widget now checks each model's assumptions separately — **M/M/c** needs exponential arrivals *and* service, **M/G/c** needs exponential arrivals, **G/G/c** accepts anything — and prints the specific reason plus the model that would work when a run does not qualify, instead of one fixed paragraph. It also gained **Run steady-state validation (100,000 min)**, which produces a comparable run without replacing the clinic-day results on screen (§6.9). The `validate` CLI takes `--ca2`/`--cs2` and **samples** those distributions (Gamma with shape 1/C², Deterministic at 0), so every row of `validation_report.txt` is a real validation rather than a sensitivity note (§6.9, §3). |
 | 2026-10-04 | Phase 8T.1: **Days now means operating days.** The run length field reads **Operating days** and counts the clinic's open days, so 4 from a Saturday start is Sat/Mon/Tue/Wed — the Sunday in between no longer counts as a day and no longer adds an empty day of zeros to any average. The results panel names the sessions a run covered, e.g. *4 operating sessions: Day 1 (Sat) · Day 2 (Mon) · …* (§6.0). A **daily patient cap** resets at the start of each operating session rather than each calendar day. Single-day and diagnostic-trace runs are unchanged. |

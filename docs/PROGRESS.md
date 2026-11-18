@@ -1,3 +1,12 @@
+## Verification — 2026-11-19 — Phase 8Y (queue chart operating-time axis + drain tail, D-223)
+
+- **FR-UI-40 verified on 2026-11-19 by agent (headless walkthrough, D-089):** in the production `MainWindow` after a real three-stage multi-day run, observed the queue chart's X axis pinned to 0…<compressed max> with `Day 1` at x=0 and `Day 2` after the first gutter; no adjacent x pair spans a 1440-minute closure. Frame at `logs/screenshots/phase-8y-queue-operating-axis.png`.
+- **D-223 drain verified on 2026-11-19 by agent:** selected `Day 1 (Sat)` through the production `Operating session` ComboBox; observed `MaxLimit > 165`, one `arrivals close` chart section at 165, and the drain caption. Frame at `logs/screenshots/phase-8y-queue-session-drain.png`.
+- **Gate:** Release and Debug `--no-incremental` 0 errors / 0 warnings; full suite 975/975 green in both (Core 183 / Data 139 / Cli 45 / App 608); `Phase8T3QueueSession` filter 17/17 green.
+- **Boundary check:** `git diff --name-only main...HEAD` touches only the three owned App source files and their tests/docs; no Core, config-panel, unit or fit-histogram file.
+- **Incident:** the retired 8T3 frame writer ran once before deletion and overwrote `phase-8t3-queue-session-selected.png` (gitignored, unrecoverable). Recorded in D-223 and B-012.
+- **Owner visual inspection of the two new frames remains required** (§18, B-012).
+
 Session Handoff — 2026-11-11 06:15 — Phase 8X IMPLEMENTED (quiet launch, prebuilt dropdowns, moved fitting unit, three-tab shell, full manual; green)
 Branch: feat/general-arrivals
 Status: In-Progress (awaiting owner review; no PR opened)

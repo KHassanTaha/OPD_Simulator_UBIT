@@ -58,7 +58,9 @@ public class Phase6c5Screenshot
 
             Assert.True(main.Results.HasQueueLengthChart, "a finished run must build the queue chart");
             Assert.False(main.Results.ShowQueueLengthEmptyState);
-            Assert.Equal(QueueLengthChartService.Caption, main.Results.QueueLengthCaption);
+            // Phase 8Y: a clinic-day run has operating sessions, so the queue
+            // caption names the compressed axis rather than the old sampling note.
+            Assert.Equal(QueueLengthChartService.CompressedCaption, main.Results.QueueLengthCaption);
 
             Assert.True(main.Results.HasWaitHistogramChart, "a finished run must build the wait histogram");
             Assert.False(main.Results.ShowWaitHistogramEmptyState);
