@@ -82,7 +82,7 @@ Assumptions Added/Changed
 [UNVERIFIED] Stage-list ownership on load — names follow the file, count does not (B-014), recorded in `docs/CONTEXT.md`.
 
 Notes for Next Session
-`planning.md` is the owner's local brief: gitignored, untracked, never commit it. The branch boundary is `2371c2b` (the 9A tip), not `main`. Do not merge or open a PR — the owner reviews and merges. Newest crash log remains `logs/crash-20260916.log`; the smoke launch created none. Screenshot evidence is append-only (D-166).
+`planning.md` is the owner's local brief: gitignored, untracked, never commit it. The branch boundary is `2371c2b` (the 9A tip), not `main`. Do not merge or open a PR — the owner reviews and merges. Newest crash log remains `logs/crash-20260916.log`; the smoke launch created none. Screenshot evidence is append-only (D-166). All owner actions are consolidated in `docs/BLOCKERS.md` → "Owner action queue — read this first on return" (eight items, including the six branches awaiting review/merge and the new 9C frame).
 
 ## Checkpoint — 2026-11-19 04:04 — Phase 9C.4–9C.8 implemented (uncommitted)
 
