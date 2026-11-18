@@ -1,3 +1,52 @@
+Session Handoff — 2026-11-19 01:52
+Branch: feat/queue-chart-operating-time
+Status: In-Progress (8Y pushed, awaiting owner review; 8Z not started)
+
+Done
+Phase 8Y — queue-length chart: operating-time axis + session drain tail — `[~]` → `[x]` in `TODO.md` this session.
+
+In Progress
+None
+
+What is complete:
+`planning.md` was found at the repo root; D-253 reversed D-252's cancellation and D-223 was written from the plan's §3. The service now projects multi-day samples into per-session slots with day labels, gutters and NaN seams, and a selected session extends past 165 with an `arrivals close` marker. The builder publishes the axis contract. 17 focused tests plus two new headless frames are green; both dead-state builds are 0/0 and the full suite is 975/975 in Release and Debug. Commit `804f296` is pushed.
+
+What remains:
+Owner review and merge of `feat/queue-chart-operating-time` (8Y) — 8Z's brief requires 8Y merged or rebased first. Also still awaiting review: `feat/foundation-unit-and-authority` (9P) and `feat/theory-tab` (9Q.3). B-012 now has 29 unreviewed frames, including two 8Y frames. B-007 keyboard acceptance and B-006 Windows dead-state verification still need the owner. The old `phase-8t3-queue-session-selected.png` evidence frame was overwritten before its writer was deleted and cannot be recovered (D-223 amendment, B-012).
+
+Next Session Should Start With
+After 8Y is merged: 8Z — waiting-time histogram readable bins, labelled axes, unfinished waits (`planning.md` §827+, D-224; Core censoring change + wait-histogram builder only; branch `feat/wait-histogram-bins` off `main` after 8Y is merged or rebased).
+
+Then 9A — control-panel relevance (`planning.md` §1292+), then 9C — run follows the data (`planning.md` §2314+).
+
+Blocked
+8Y.8 — owner visual review of the two new frames, linked to B-012 in `docs/BLOCKERS.md`.
+
+Git State
+Commits made this session: 804f296 feat: compress queue chart to operating time and show drain tail
+Pushed to origin: Yes — `feat/queue-chart-operating-time`
+Uncommitted changes: untracked `planning.md` (owner file, deliberately not committed)
+
+Build & Test
+dotnet build: PASS — Release and Debug `--no-incremental`, 0 warnings / 0 errors
+dotnet test: PASS — 975/975 in both (Core 183 / Data 139 / Cli 45 / App 608)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/: QueueLengthChartService.cs (added axis value objects, per-session bucketing/compression/drain), ChartControlBuilder.cs (axis/labeler/tooltip/seams/marker), ViewModels/ResultsPanelViewModel.cs (queue caption wiring) — modified
+tests/OpdSimulator.App.Tests/: Phase8T3QueueSessionTests.cs (replaced with 8Y tests), Phase8SScreenshots.cs (old writer deleted, two new frames), Phase6c5Screenshot.cs (caption assertion) — modified
+docs/: PRD.md, REQUIREMENTS.md, TODO.md, PROGRESS.md, DECISIONS.md, BLOCKERS.md, USER_MANUAL.md, USER_MANUAL_FULL.md, DEV_LAUNCH.md — modified
+
+Decisions Made
+D-253 — 8Y reopened from `planning.md` — see `docs/DECISIONS.md`
+D-223 — operating-time axis + drain tail — see `docs/DECISIONS.md`
+
+Assumptions Added/Changed
+None. Every value shown comes from the run result or the service's own axis contract.
+
+Notes for Next Session
+The D-166 incident is real and unrecoverable: the retired 8T3 screenshot writer ran once before deletion and overwrote its gitignored frame. Do not claim the old frame is intact. A stash named "D-253 reopen 8Y docs" also remains on `feat/foundation-unit-and-authority` and can be dropped once the owner confirms the docs landed here.
+
 ## Verification — 2026-11-19 — Phase 8Y (queue chart operating-time axis + drain tail, D-223)
 
 - **FR-UI-40 verified on 2026-11-19 by agent (headless walkthrough, D-089):** in the production `MainWindow` after a real three-stage multi-day run, observed the queue chart's X axis pinned to 0…<compressed max> with `Day 1` at x=0 and `Day 2` after the first gutter; no adjacent x pair spans a 1440-minute closure. Frame at `logs/screenshots/phase-8y-queue-operating-axis.png`.
