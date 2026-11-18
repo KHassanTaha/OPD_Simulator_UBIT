@@ -186,6 +186,30 @@ public partial class StageRow : ObservableObject
     private string? _autoFitBadge;
 
     /// <summary>
+    /// Where this row's service family came from (Phase 9C, D-232). A
+    /// <see cref="FieldProvenance.UserSet"/> family is never overwritten by a
+    /// later load; the parent warns instead. μ has its own provenance because
+    /// its value is resolved separately by 9P's resolver.
+    /// </summary>
+    [ObservableProperty]
+    private FieldProvenance _familyProvenance = FieldProvenance.Default;
+
+    /// <summary>The family the uploaded data chose for this stage, or null when no acceptable fit exists.</summary>
+    [ObservableProperty]
+    private DistributionFamily? _bestFitFamily;
+
+    /// <summary>AIC of <see cref="BestFitFamily"/>, printed in the disclosure sentence.</summary>
+    [ObservableProperty]
+    private double _bestFitAic;
+
+    /// <summary>
+    /// The one sentence under the service-family field stating what a load did
+    /// (Phase 9C, §4.3). Computed by the panel so its wording has one home.
+    /// </summary>
+    [ObservableProperty]
+    private string? _fitDisclosure;
+
+    /// <summary>
     /// Where this row's effective μ came from (Phase 9P, D-242). It decides the
     /// precedence the resolver applies and how <see cref="ServiceRateLabel"/>
     /// reads. Provenance, not non-emptiness: a value typed before any file was
@@ -503,6 +527,13 @@ public partial class StageRow : ObservableObject
     /// </summary>
     partial void OnServiceFamilyChanged(DistributionFamily value)
     {
+        // A fit writes this field under _suppressNotationSync, so only an unguarded
+        // write is the user's own choice (Phase 9C, D-232).
+        if (!_suppressNotationSync)
+        {
+            FamilyProvenance = FieldProvenance.UserSet;
+        }
+
         // A spread that no longer applies must go, or a Normal's σ would be read as
         // Gamma's k after the switch (0.4 is a legal-looking but wrong model).
         ClearShapeParametersFor(value);

@@ -312,6 +312,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <param name="value">The newly selected arrival family label.</param>
     partial void OnInterArrivalDistributionChanged(string? value)
     {
+        // A fit writes this field under _isApplyingAutoFit; an unguarded write is
+        // the user choosing a family over the data (Phase 9C, D-232).
+        if (!_isApplyingAutoFit)
+        {
+            _arrivalFamilyProvenance = FieldProvenance.UserSet;
+        }
+
         OnPropertyChanged(nameof(ArrivalFamily));
         OnPropertyChanged(nameof(ArrivalSpreadVisible));
         OnPropertyChanged(nameof(ArrivalSpreadLabel));
@@ -1077,6 +1084,23 @@ public partial class ConfigPanelViewModel : ObservableObject
     private bool _isAutoFitting;
 
     /// <summary>
+    /// Guards the apply against its own notifications (Phase 9C, D-231). Set for
+    /// the duration of <see cref="ApplyAutoFit"/>; the row-family handler checks
+    /// it so one apply cannot start another fit through PropertyChanged.
+    /// </summary>
+    private bool _isApplyingAutoFit;
+
+    /// <summary>Provenance of the Model section's arrival family (Phase 9C, D-232).</summary>
+    private FieldProvenance _arrivalFamilyProvenance = FieldProvenance.Default;
+
+    /// <summary>
+    /// The one sentence under the arrival-family dropdown saying what a load
+    /// decided, or why it could not decide (Phase 9C, §4.3).
+    /// </summary>
+    [ObservableProperty]
+    private string? _arrivalFitDisclosure;
+
+    /// <summary>
     /// Re-gates Start when a fit pass starts or finishes. Without this the reason
     /// would only appear the next time some other field happened to re-gate, which
     /// is not when the user is looking.
@@ -1528,6 +1552,9 @@ public partial class ConfigPanelViewModel : ObservableObject
         // Parameters toggle is locked on, so it must be cleared from fit mode.
         SourceMode = DataSourceMode.FitFromData;
         InterArrivalDistribution = "Exponential";
+        // Phase 9C (D-232): Clear All is the return to "no provenance decision".
+        _arrivalFamilyProvenance = FieldProvenance.Default;
+        ArrivalFitDisclosure = null;
         // Phase 8L: the old reset wrote the deleted global `ServiceDistribution`
         // string. The value that actually matters is the one new stages are seeded
         // from, so that is what goes back to its default.
@@ -1671,6 +1698,13 @@ public partial class ConfigPanelViewModel : ObservableObject
             {
                 if (args.PropertyName == nameof(StageRow.ServiceFamily))
                 {
+                    // Our own write during ApplyAutoFit; the caller syncs once when
+                    // the whole report has landed (Phase 9C, D-231).
+                    if (_isApplyingAutoFit)
+                    {
+                        return;
+                    }
+
                     StageServiceFamiliesChanged?.Invoke(this, EventArgs.Empty);
                     // The spread caption switches between σ and w with the family.
                     RefreshStageSourceLabels();
@@ -1881,6 +1915,142 @@ public partial class ConfigPanelViewModel : ObservableObject
 
         return Binding?.FittedBypassProbability ?? 0.0;
     }
+
+    /// <summary>
+    /// Applies one load's fitted families and spreads to the fields the run reads
+    /// (Phase 9C, D-231/D-232). μ is deliberately absent: 9P's resolver owns it,
+    /// and <see cref="StageRow.ApplyFittedShape"/> carries only shape. A user-set
+    /// family is never overwritten; it keeps its value and gets its deviation
+    /// warning from the panel. Re-entrant calls are ignored, writes that do not
+    /// change a value notify nobody, and the derived labels are raised once.
+    /// </summary>
+    /// <param name="report">Fits computed off the UI thread for the current file.</param>
+    public void ApplyAutoFit(AutoFitReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        if (_isApplyingAutoFit)
+        {
+            return;
+        }
+
+        _isApplyingAutoFit = true;
+        try
+        {
+            ApplyFittedArrival(report.InterArrival);
+
+            foreach (var stage in report.Stages)
+            {
+                var row = StageRows.FirstOrDefault(r =>
+                    string.Equals(r.StageName, stage.StageName, StringComparison.OrdinalIgnoreCase));
+                if (row is null)
+                {
+                    // A stage the file reports but the panel does not configure is
+                    // a stage-list mismatch (D-236), not a reason to invent a row.
+                    Log.Warning("Auto-fit: no configured row for data stage '{Stage}'.", stage.StageName);
+                    continue;
+                }
+
+                if (row.FamilyProvenance == FieldProvenance.UserSet)
+                {
+                    continue;
+                }
+
+                var best = stage.Fit.Best;
+                if (best is null)
+                {
+                    row.BestFitFamily = null;
+                    row.FitDisclosure =
+                        $"⚠ Could not choose a family from this stage's data: {FitRefusalReason(stage.Fit)} " +
+                        $"Using {row.ServiceFamily} (the current selection); the run will not follow the data's shape.";
+                    continue;
+                }
+
+                // Equal values are skipped by the generated setters, so loading the
+                // same file twice emits no second round of change notifications.
+                row.ApplyFittedShape(best.Spec);
+                row.FamilyProvenance = FieldProvenance.AutoFitted;
+                row.BestFitFamily = best.Family;
+                row.BestFitAic = best.Aic;
+                row.FitDisclosure =
+                    $"Auto-fitted from the uploaded data: {best.Family} " +
+                    $"(AIC {best.Aic:F0}, p = {best.ChiSquare?.PValue:F2}). Change the family to override.";
+                row.AutoFitBadge =
+                    $"Best fit: {best.Family} (AIC {best.Aic:F0}, p={best.ChiSquare?.PValue:F3})";
+            }
+
+            // 9A D-229: the derived first letter and inflow follow the family that
+            // was just written; one call after the whole apply, not one per row.
+            RefreshStageSourceLabels();
+        }
+        finally
+        {
+            _isApplyingAutoFit = false;
+        }
+    }
+
+    /// <summary>
+    /// Writes the inter-arrival winner into the Model section's family field and
+    /// the one spread field that family uses. Mirrors
+    /// <see cref="StageRow.ApplyFittedShape"/> without re-implementing it: arrivals
+    /// are engine-wide, so there is no row to hang the shape on (D-231).
+    /// </summary>
+    /// <param name="fit">Fit of the inter-arrival series.</param>
+    private void ApplyFittedArrival(GeneralFitResult fit)
+    {
+        if (_arrivalFamilyProvenance == FieldProvenance.UserSet)
+        {
+            return;
+        }
+
+        var best = fit.Best;
+        if (best is null)
+        {
+            ArrivalFitDisclosure =
+                $"⚠ Could not choose a family from the inter-arrival data: {FitRefusalReason(fit)} " +
+                $"Using {ArrivalFamily} (the current selection); the run will not follow the data's shape.";
+            return;
+        }
+
+        string label = best.Family.ToString();
+        if (InterArrivalDistribution != label)
+        {
+            InterArrivalDistribution = label;
+        }
+
+        ArrivalSpread.Value = FittedSpreadText(best.Spec) ?? string.Empty;
+        _arrivalFamilyProvenance = FieldProvenance.AutoFitted;
+        ArrivalFitDisclosure =
+            $"Auto-fitted from the uploaded data: {best.Family} " +
+            $"(AIC {best.Aic:F0}, p = {best.ChiSquare?.PValue:F2}). Change the family to override.";
+    }
+
+    /// <summary>The fitted spread in the shape the arrival spread field expects, or null when the family has none.</summary>
+    /// <param name="spec">Winning fit from which only the spread is read.</param>
+    private string? FittedSpreadText(DistributionSpec spec)
+    {
+        var fitting = TimeUnits.ToFitting(TimeUnit);
+        return spec.Family switch
+        {
+            DistributionFamily.Gamma => spec.Shape?.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            DistributionFamily.Normal or DistributionFamily.Lognormal => spec.StdDev is { } sd
+                ? FittingTimeUnits.FromMinutes(sd, fitting).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+                : null,
+            DistributionFamily.Uniform => spec.Min is { } lo && spec.Max is { } hi
+                ? FittingTimeUnits.FromMinutes((hi - lo) / 2.0, fitting)
+                    .ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+                : null,
+            _ => null,
+        };
+    }
+
+    /// <summary>Uses the fitter's own first rejection reason, never a second hard-coded threshold.</summary>
+    /// <param name="fit">A fit whose best candidate was rejected or absent.</param>
+    private static string FitRefusalReason(GeneralFitResult fit) =>
+        fit.AllCandidates
+            .Select(c => c.RejectionReason)
+            .FirstOrDefault(r => !string.IsNullOrEmpty(r))
+            ?? "no family survived the goodness-of-fit checks.";
 
     /// <summary>
     /// Answers a stage row's G/G/c request: fit a family to the loaded data for that

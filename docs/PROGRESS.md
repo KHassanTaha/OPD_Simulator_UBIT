@@ -1,3 +1,52 @@
+## Session Handoff — 2026-11-19 03:34
+Branch: feat/run-follows-data
+Status: In-Progress
+
+Done
+9C.1 — `AutoFitService` + 4 unit tests (Phase9CAutoFitTests 4/4 green).
+
+In Progress
+9C.4 — disclosures + `[Use the data fit]` reset.
+
+What is complete:
+Steps 9C.1–9C.3: pure AutoFitService; ApplyAutoFit with guard/idempotence; arrival mirror; background load pass with generation counter and IsAutoFitting cleared on every path. Full App suite 673/673 green.
+
+What remains:
+Steps 9C.4–9C.9: XAML disclosures and reset action, provenance moves, p_exit/p_bypass, stage list, histogram caption, docs/gates.
+
+Next Session Should Start With
+9C.4 — disclosures + `[Use the data fit]` reset.
+
+9C.5 — provenance moves on load.
+Blocked
+Owner visual review B-012; keyboard B-007; Windows B-006.
+
+Git State
+Commits made this session: none yet.
+Pushed to origin: No — work not committed yet.
+Uncommitted changes: DECISIONS.md, TODO.md, AutoFitService.cs, Phase9CAutoFitTests.cs.
+
+Build & Test
+dotnet build: PASS (App + tests compiled as part of dotnet test)
+dotnet test: PASS — full App suite 673 passed, 0 failed (Phase9CAutoFitTests 10)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Services/AutoFitService.cs: added
+tests/OpdSimulator.App.Tests/Phase9CAutoFitTests.cs: added
+docs/DECISIONS.md: modified (D-231, D-257)
+docs/TODO.md: modified (9C tasks)
+
+Decisions Made
+D-231 — auto-fit on load through one pure service and one background pass.
+D-257 — branch from the 9A tip; boundary base 2371c2b.
+
+Assumptions Added/Changed
+None.
+
+Notes for Next Session
+Owner merges remain deferred; do not merge or open a PR. Boundary base is 2371c2b, not main.
+
 Session Handoff — 2026-11-19 03:21
 Branch: feat/panel-relevance
 Status: Clean

@@ -190,6 +190,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Generation counter for the load-time auto-fit. A second file loaded while
+    /// the first is still fitting must not let the older report overwrite it.
+    /// </summary>
+    private int _autoFitGeneration;
+
     /// <summary>Refreshes the Input Analysis charts when a data file is loaded or cleared.</summary>
     private void OnConfigDataBindingChanged(object? sender, EventArgs e)
     {
@@ -206,6 +212,67 @@ public partial class MainViewModel : ObservableObject
 
         UpdateConfigSourceStatus();
         SyncStageMismatchToInputTab();
+        StartAutoFitPass();
+    }
+
+    /// <summary>
+    /// Chooses the run's families from the newly loaded file off the UI thread
+    /// (Phase 9C, D-231). <see cref="ConfigPanelViewModel.IsAutoFitting"/> is
+    /// raised before the pass and cleared on every exit path — 9P's gate reads
+    /// it, so a fit that failed must never leave Start blocked forever. One
+    /// explicit chart sync after the apply is enough: the panel suppresses the
+    /// family notifications raised by its own write.
+    /// </summary>
+    private void StartAutoFitPass()
+    {
+        var binding = Config.Binding;
+        if (binding is not { IsUsable: true })
+        {
+            Config.IsAutoFitting = false;
+            return;
+        }
+
+        int generation = ++_autoFitGeneration;
+        double alpha = Config.SignificanceLevelForRun;
+        Config.IsAutoFitting = true;
+
+        Task.Run(() =>
+        {
+            AutoFitReport? report = null;
+            try
+            {
+                report = AutoFitService.Fit(binding, alpha);
+            }
+            catch (Exception ex)
+            {
+                // A fit refusal is disclosed by the panel; an unexpected exception
+                // is logged with the file named and must not strand the gate.
+                Log.Error(ex, "Auto-fit failed for {File}", binding.SourcePath ?? "(in-memory)");
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (generation != _autoFitGeneration)
+                {
+                    Log.Warning("Auto-fit superseded by a newer load; dropping stale report for {File}",
+                        binding.SourcePath ?? "(in-memory)");
+                    return;
+                }
+
+                try
+                {
+                    if (report is not null)
+                    {
+                        Config.ApplyAutoFit(report);
+                        SyncInputAnalysis();
+                    }
+                }
+                finally
+                {
+                    Config.IsAutoFitting = false;
+                }
+            });
+        });
     }
 
     /// <summary>
