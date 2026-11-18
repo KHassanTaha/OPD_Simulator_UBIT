@@ -76,8 +76,8 @@ public class Phase8KScreenshots
 
             window.UpdateLayout();
 
-            var labels = RenderedFieldLabels(window);
-            Assert.Contains("Standard deviation σ", labels);
+            Assert.True(AnyFieldVisible(window, "stage-std-dev"),
+                "the Normal/Lognormal rows must show their σ field");
 
             var frame = Capture(window, "phase-8k-per-stage-families.png");
             Assert.True(frame >= 512, "per-stage-families frame missing or suspiciously small");
@@ -255,10 +255,10 @@ public class Phase8KScreenshots
             window.UpdateLayout();
 
             // Both fields must be realised on screen, and the σ field must not be.
-            var labels = RenderedFieldLabels(window);
-            Assert.Contains("Shape k", labels);
-            Assert.Contains("Half-width w", labels);
-            Assert.DoesNotContain("Standard deviation σ", labels);
+            // Phase 9A made captions unit-dependent; anchors are the stable key.
+            Assert.True(AnyFieldVisible(window, "stage-shape"));
+            Assert.True(AnyFieldVisible(window, "stage-spread"));
+            Assert.False(AnyFieldVisible(window, "stage-std-dev"));
 
             var frame = Capture(window, "phase-8k-gamma-uniform-parameters.png");
             Assert.True(frame >= 512, "gamma-uniform frame missing or suspiciously small");
@@ -332,18 +332,12 @@ public class Phase8KScreenshots
     }
 
     /// <summary>
-    /// Collects the label text of every realised <c>ValidatedField</c> in the tree.
-    /// Reading the labels back is how a test proves a field is actually on screen
-    /// rather than merely bound to a visibility flag.
+    /// Finds a field by its stable HelpAnchor. Phase 9A made captions follow the
+    /// unit and the rate/mean radio, so label text is no longer a test key.
     /// </summary>
-    private static string[] RenderedFieldLabels(Window window)
-        => window.GetVisualDescendants()
-            .OfType<ValidatedField>()
-            .Where(f => f.IsVisible)
-            .Select(f => f.Label)
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l => l!)
-            .ToArray();
+    private static bool AnyFieldVisible(Window window, string anchor)
+        => window.GetVisualDescendants().OfType<ValidatedField>()
+            .Any(f => f.HelpAnchor == anchor && f.IsEffectivelyVisible);
 
     private static TextBlock? FindByText(Window window, string needle)
         => window.GetVisualDescendants()

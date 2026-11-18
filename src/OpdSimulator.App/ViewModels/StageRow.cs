@@ -3,10 +3,12 @@ namespace OpdSimulator.App.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
+using OpdSimulator.Data.Fitting;
 using OpdSimulator.Data.Parameters;
 using Serilog;
 
@@ -125,6 +127,39 @@ public partial class StageRow : ObservableObject
     private string _serviceRateLabel = "μ = — (no source)";
 
     /// <summary>
+    /// Read-only derived inflow for this stage — "Inflow λᵢ = … ρᵢ = …".
+    /// The numbers come from 9P's preview topology; 9A only formats them, so the
+    /// panel can never disagree with the engine about a stage's arrival rate
+    /// (Phase 9A, D-229/D-243).
+    /// </summary>
+    [ObservableProperty]
+    private string _inflowLabel = "Inflow λᵢ = —   ρᵢ = —";
+
+    /// <summary>
+    /// This row's μ-field caption, in the shape the current parameter mode shows
+    /// (a rate rate-wise, a duration mean-wise). Pushed by
+    /// <c>ConfigPanelViewModel.RefreshStageSourceLabels</c> because an extracted
+    /// control cannot resolve a parent binding (Phase 9A, G6d).
+    /// </summary>
+    [ObservableProperty]
+    private string _muLabel = string.Empty;
+
+    /// <summary>The unit badge for <see cref="MuLabel"/>, from <see cref="FittingTimeUnits"/>.</summary>
+    [ObservableProperty]
+    private string _muUnit = string.Empty;
+
+    /// <summary>
+    /// This row's spread-field caption (σ or the uniform half-width w) with the
+    /// current time unit. A spread is a duration in either parameter mode (G6e).
+    /// </summary>
+    [ObservableProperty]
+    private string _spreadLabel = string.Empty;
+
+    /// <summary>The unit badge for <see cref="SpreadLabel"/>, from <see cref="FittingTimeUnits"/>.</summary>
+    [ObservableProperty]
+    private string _spreadUnit = string.Empty;
+
+    /// <summary>
     /// Kendall-notation shortcut chosen for this stage (Phase 7B), e.g.
     /// "M/M/2". Ignored while <see cref="UseAdvancedSetup"/> is on.
     /// </summary>
@@ -176,17 +211,16 @@ public partial class StageRow : ObservableObject
     private bool _useAdvancedSetup = false;
 
     /// <summary>
-    /// Arrival distribution family for this stage (Phase 8K, D-150). Typed as the
+    /// Arrival family recorded for this stage (Phase 8K, D-150). Typed as the
     /// Core enum rather than a display string so the value can be carried into a
     /// <see cref="DistributionSpec"/> without a name lookup that could fail.
     /// </summary>
     /// <remarks>
-    /// <b>Informational only.</b> Core samples inter-arrivals from a single
-    /// engine-wide exponential process; <c>StageSpec</c> covers the service side
-    /// only. The Model section's arrival dropdown therefore remains authoritative
-    /// for every stage, and this property records what the user asked for so the
-    /// row can display it. Per-stage arrivals would be a Core change and are out
-    /// of scope for Phase 8K.
+    /// <b>Recorded, not applied.</b> One external arrival process is chosen in the
+    /// Model section and shared by the whole run; a patient reaching this stage is
+    /// the same entity the previous stage released (Phase 9A, D-229). This value
+    /// exists only so the Kendall notation parser has a family to record — the
+    /// panel pushes it from <c>InterArrivalDistribution</c> and no sampler reads it.
     /// </remarks>
     [ObservableProperty]
     private DistributionFamily _arrivalFamily = DistributionFamily.Exponential;
@@ -323,8 +357,36 @@ public partial class StageRow : ObservableObject
         }
     }
 
-    /// <summary>Kendall model shortcuts offered by the per-stage model dropdown.</summary>
-    public IReadOnlyList<string> ModelOptions => ModelNotationParser.StandardModels;
+    /// <summary>
+    /// The Kendall first token for this row, derived from the engine-wide arrival
+    /// family recorded on <see cref="ArrivalFamily"/>: M for Exponential (Poisson),
+    /// D for Deterministic, G for anything fitted. A row can never claim an
+    /// arrival process the run does not use (Phase 9A, D-229).
+    /// </summary>
+    public string ArrivalLetter => ArrivalToken(ArrivalFamily);
+
+    /// <summary>
+    /// Kendall model shortcuts offered by the row's dropdown. Service-side
+    /// choices are filtered to the derived <see cref="ArrivalLetter"/>: a
+    /// Markovian front door offers M/M/c and M/D/c, a deterministic one D/M/c.
+    /// The G/G/c auto-fit notations stay available on every row: G names no
+    /// family at all, it asks the loaded data to choose one, so it never claims
+    /// an arrival process the engine does not use (D-229).
+    /// </summary>
+    public IReadOnlyList<string> ModelOptions => ModelNotationParser.StandardModels
+        .Where(model => model.StartsWith($"{ArrivalLetter}/", StringComparison.Ordinal)
+                        || ModelNotationParser.IsGeneralModel(model))
+        .ToList();
+
+    /// <summary>Maps a recorded arrival family to its Kendall first token.</summary>
+    /// <param name="family">The engine-wide arrival family.</param>
+    /// <returns>M, D or G.</returns>
+    private static string ArrivalToken(DistributionFamily family) => family switch
+    {
+        DistributionFamily.Exponential => "M",
+        DistributionFamily.Deterministic => "D",
+        _ => "G",
+    };
 
     /// <summary>
     /// Distribution families offered when Advanced setup is on — all six the engine
@@ -390,7 +452,16 @@ public partial class StageRow : ObservableObject
         _suppressNotationSync = true;
         try
         {
-            ArrivalFamily = parsed.ArrivalFamily ?? DistributionFamily.Exponential;
+            // 9A D-229: the first letter belongs to the Model section, not to a
+            // row. Accept a notation's arrival family only when it agrees with the
+            // derived letter (the standalone-row case); never let a row retune the
+            // engine-wide arrival process. G/G/c parses to null and is left alone.
+            if (parsed.ArrivalFamily is { } parsedArrival
+                && ArrivalToken(parsedArrival) != ArrivalLetter)
+            {
+                ArrivalFamily = parsedArrival;
+            }
+
             ServiceFamily = parsed.ServiceFamily ?? DistributionFamily.Exponential;
             ClearShapeParametersFor(ServiceFamily);
         }
@@ -460,12 +531,58 @@ public partial class StageRow : ObservableObject
 
     partial void OnArrivalFamilyChanged(DistributionFamily value)
     {
+        // The letter and the option list are computed properties: nothing raises
+        // for them when the recorded family changes. A missed raise would leave
+        // a stale M/… list under a D/… row — the lie this phase removes.
+        OnPropertyChanged(nameof(ArrivalLetter));
+        OnPropertyChanged(nameof(ModelOptions));
+        RebaseModelNotation();
+
         if (!UseAdvancedSetup || _suppressNotationSync)
         {
             return;
         }
 
         SelectedModel = CustomModel;
+    }
+
+    /// <summary>
+    /// Rewrites the row's notation so its first letter matches the derived one.
+    /// Without this, changing the Model section from Exponential to Deterministic
+    /// would leave "M/M/1" on screen while the row's arrival letter says D.
+    /// </summary>
+    private void RebaseModelNotation()
+    {
+        if (UseAdvancedSetup || _suppressNotationSync)
+        {
+            return;
+        }
+
+        // A G/G/c notation asks the data to choose a family; it names no arrival
+        // process, so there is no first letter to rebase. Rewriting it would erase
+        // an explicit auto-fit request whenever the Model section changed.
+        if (ModelNotationParser.IsGeneralModel(SelectedModel))
+        {
+            return;
+        }
+
+        var parts = SelectedModel.Split('/');
+        if (parts.Length != 3)
+        {
+            return;
+        }
+
+        var options = ModelOptions;
+        var candidate = $"{ArrivalLetter}/{parts[1]}/{parts[2]}";
+        _suppressNotationSync = true;
+        try
+        {
+            SelectedModel = options.Contains(candidate) ? candidate : options[0];
+        }
+        finally
+        {
+            _suppressNotationSync = false;
+        }
     }
 
     /// <summary>
@@ -485,6 +602,27 @@ public partial class StageRow : ObservableObject
         try
         {
             ArrivalFamily = arrival;
+            ServiceFamily = service;
+            SelectedModel = CustomModel;
+        }
+        finally
+        {
+            _suppressNotationSync = false;
+        }
+    }
+
+    /// <summary>
+    /// Applies only a service family, leaving the engine-wide arrival family alone.
+    /// Used by "Apply to all stages" after Phase 9A removed the per-stage arrival
+    /// dropdown (D-229); the shorthand becomes "Custom" for the same reason as
+    /// <see cref="ApplyFamilies"/>.
+    /// </summary>
+    /// <param name="service">Service family to assign to this row.</param>
+    public void ApplyServiceFamily(DistributionFamily service)
+    {
+        _suppressNotationSync = true;
+        try
+        {
             ServiceFamily = service;
             SelectedModel = CustomModel;
         }

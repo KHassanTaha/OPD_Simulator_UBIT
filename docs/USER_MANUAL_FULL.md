@@ -199,7 +199,7 @@ whole panel. Every field's **? icon** links to its section of this manual.
 | Control | What it controls |
 |---------|------------------|
 | **Data source** dropdown | Which of the two paths (§1) is active: **Fit from an uploaded data file** (default) or **Enter parameters manually**. The choice decides which fields below are editable and what Start requires. |
-| Data status strip | Names the loaded file (or "Entering parameters manually"), with **Manage input →** jumping to the Input tab. Shows a one-line warning when the configured stages differ from the file's. |
+| Data status strip | **Shown only on the Fit-from-data path**: names the loaded file with **Manage input →** jumping to the Input tab, and warns when the configured stages differ from the file's. On **Enter manually** it is removed from the visible set — there is no file to manage; the Input tab remains a top-level tab. Field captions and unit badges follow the **Time unit** selector (§3). |
 
 ### 2 · Model
 
@@ -217,20 +217,21 @@ Blank fields fall back to fitted values; typed values win.
 |---------|------------------|
 | **Parameter mode** radios | How λ/μ are typed: **Rate-wise** (events per minute) or **Mean-wise** (minutes per event). |
 | **Time unit** | The **one** unit for λ, both μ entries and the service spread: `minutes` (default), `seconds`, `hours`, `days` (1,440 min) or `sessions` (165 min). The Input tab fits and reports in this same unit; the engine stays per minute. Gamma `k` is unitless and the arrival spread stays in minutes. |
-| **Manual λ (per minute)** | Overrides the fitted arrival rate. |
+| **Manual λ** | Overrides the fitted arrival rate. Its caption and badge name the selected **Time unit** and rate/mean shape. |
 | **Manual μ per stage** | Comma-list fallback for a stage with no fitted rate. Hidden in manual mode (rows own their μ there). An explicit per-stage edit still outranks it. |
 | **Utilisation ρ per stage** | Read-only ρ from the **same `NetworkTopology` as the run**, using routed inflow and the same μ resolver; p_exit/p_bypass edits update it immediately. `—` means the form cannot yet produce a number, not zero. |
-| **p_exit override** | Probability a patient leaves after Screening (0 ≤ p < 1). |
-| **p_bypass override** | Probability an arrival skips Screening and goes straight to the Doctor. |
+| **p_exit override** | Probability a patient leaves after Screening (0 ≤ p < 1). Hidden with **p_bypass** below two stages, and unable to block Start while hidden. |
+| **p_bypass override** | Probability an arrival skips Screening and goes straight to the Doctor. Shown only when the network has at least two stages — one stage has nowhere to route to. |
 
 ### 4 · Stages
 
 | Control | What it controls |
 |---------|------------------|
-| **Default arrival/service family** + **Apply to all stages** | Families stamped onto **new** rows; the button writes them onto every existing row. |
+| **Default service family** + **Apply to all stages** | The service family stamped onto **new** rows; the button writes it onto every existing row. Arrivals are engine-wide and fixed by **2 · Model** (D-229). |
 | **Number of stages** | 1–5 sequential stages (default 3: Reception → Screening → Doctor). |
-| Per-row **Model** | Kendall shortcut, e.g. `M/M/2` sets exponential arrival + exponential service + 2 servers. `G/G/c` asks the fitter to supply the family from data. |
-| Per-row **Advanced** toggle | Reveals independent **Arrival distribution** / **Service distribution** dropdowns per stage. |
+| Per-row **Model** | Kendall shortcut, e.g. `M/M/2` sets exponential service with the **Model-section** arrival family (shown as the row's first letter) and 2 servers. `G/G/c` asks the fitter to supply the family from data and stays available on every row. Changing the Model-section arrival family re-bases every row's first letter. |
+| Per-row **Inflow λᵢ / ρᵢ** | Read-only line showing that stage's routed inflow and utilisation from the run's own topology — it is **not** λ₀ on every row. |
+| Per-row **Advanced** toggle | Reveals the per-stage **Service distribution** dropdown. There is no per-stage arrival dropdown: one arrival process serves the whole run. |
 | Per-row spread fields (σ, k, w) | The chosen family's spread; μ stays the only location parameter. |
 | Per-row **Servers** | Parallel servers at that stage (≥ 1). |
 | Per-row **Service rate μ** | Always visible when enabled. Blank shows the fitted value as placeholder ("use the data"); typing while a fit is visible overrides it. The row label states the source: from data, typed by you, or none. |

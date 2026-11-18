@@ -74,7 +74,7 @@ public class Phase7CTests
 
         Assert.Equal(DataSourceMode.FitFromData, vm.SourceMode);
         Assert.Equal(ConfigPanelViewModel.FitFromDataLabel, vm.SourceModeSelection);
-        Assert.True(vm.IsDataSectionVisible);
+        Assert.True(vm.IsDataSourceStripVisible);
         Assert.True(vm.IsCommaListMuVisible);
         // Phase 9P (D-242) deleted IsManualMuEditable: the per-stage μ is editable
         // in BOTH modes now, and in fit mode its placeholder carries the fitted
@@ -82,7 +82,7 @@ public class Phase7CTests
     }
 
     [AvaloniaFact]
-    public void ModeSelector_SwitchToManual_KeepsStatusStripVisible()
+    public void ModeSelector_SwitchToManual_HidesStatusStrip()
     {
         var vm = NewVm();
         var panel = new ConfigPanel { DataContext = vm };
@@ -90,16 +90,17 @@ public class Phase7CTests
 
         try
         {
-            // Phase 7D replaced the collapsible Data section with an always-on
-            // status strip; the mode selector no longer hides data UI here.
+            // G1: the strip is bound on its parent Border, so observe the
+            // button's *effective* visibility (D-169) — its local IsVisible flag
+            // stays true when the Border collapses. Fit mode is the control case.
             var manage = window.GetVisualDescendants().OfType<Button>()
                 .Single(b => (b.Content?.ToString() ?? "") == "Manage input →");
-            Assert.True(manage.IsVisible, "the data status strip must show in fit mode");
+            Assert.True(manage.IsEffectivelyVisible, "the data status strip must show in fit mode");
 
             vm.SourceMode = DataSourceMode.EnterManually;
             window.UpdateLayout();
 
-            Assert.True(manage.IsVisible, "the data status strip stays visible in manual mode too (Phase 7D)");
+            Assert.False(manage.IsEffectivelyVisible, "the data status strip hides in manual mode (G1/D-225)");
         }
         finally
         {
@@ -118,7 +119,7 @@ public class Phase7CTests
         try
         {
             var commaMu = window.GetVisualDescendants().OfType<ValidatedField>()
-                .Single(f => f.Label == "Manual μ per stage (per minute)");
+                .Single(f => f.HelpAnchor == "manual-mu"); // 9A G6: the caption follows the unit
             Assert.False(commaMu.IsVisible, "manual mode owns per-stage μ — the comma list hides");
 
             vm.SourceMode = DataSourceMode.FitFromData;
@@ -142,7 +143,7 @@ public class Phase7CTests
         try
         {
             var commaMu = window.GetVisualDescendants().OfType<ValidatedField>()
-                .Single(f => f.Label == "Manual μ per stage (per minute)");
+                .Single(f => f.HelpAnchor == "manual-mu"); // 9A G6: the caption follows the unit
             Assert.False(commaMu.IsVisible, "manual mode owns per-stage μ — the comma list must hide");
         }
         finally
@@ -161,7 +162,7 @@ public class Phase7CTests
         try
         {
             var commaMu = window.GetVisualDescendants().OfType<ValidatedField>()
-                .Single(f => f.Label == "Manual μ per stage (per minute)");
+                .Single(f => f.HelpAnchor == "manual-mu"); // 9A G6: the caption follows the unit
             Assert.True(commaMu.IsVisible, "fit mode keeps the comma-list μ override");
         }
         finally
@@ -178,7 +179,7 @@ public class Phase7CTests
         vm.SourceModeSelection = ConfigPanelViewModel.EnterManuallyLabel;
 
         Assert.Equal(DataSourceMode.EnterManually, vm.SourceMode);
-        Assert.False(vm.IsDataSectionVisible);
+        Assert.False(vm.IsDataSourceStripVisible);
 
         vm.SourceModeSelection = ConfigPanelViewModel.FitFromDataLabel;
 

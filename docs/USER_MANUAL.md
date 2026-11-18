@@ -164,8 +164,12 @@ the simulation gets its parameters:
   link to that tab, and the **Manual μ per stage** comma-list override is shown.
 - **Enter parameters manually** — no file needed. The comma-list μ override is
   hidden, the per-stage **Service rate μ** fields become editable, and p_exit
-  defaults to **0.4** (you can change it). The strip reads *"Entering
-  parameters manually"*.
+  defaults to **0.4** (you can change it). **The Data source strip is not shown
+  on this path** — there is no file to manage. The **Input** tab stays available
+  as a top-level tab if you later want to upload one.
+
+Field captions and unit badges always name the unit currently selected in
+**Time unit** below.
 
 Both paths are complete configurations. **Start Calculation stays disabled
 until the chosen path is complete**, and the banner above the Start button
@@ -318,10 +322,18 @@ Example: choosing **M/M/2** sets exponential arrivals, exponential service
 and **Servers = 2**. The 11 shortcuts are M/M/1–M/M/5, M/D/1–M/D/3, D/M/1,
 D/M/2 and G/G/1.
 
+The **first letter is not chosen on the row**: it follows the single
+**Inter-arrival distribution** selected in **2 · Model** for the whole run. A
+patient reaching a later stage is the same patient the previous stage
+released, so a row cannot claim a different arrival process. Changing the
+Model-section choice re-bases every row's letter and rebuilds its offered
+shortcuts; the G/G/c auto-fit shortcuts stay available because **G** names no
+family. In place of a per-stage arrival dropdown each row shows a read-only
+**Inflow λᵢ … ρᵢ** line, computed from the run's own routing topology.
+
 **Advanced** (the toggle on the same row) turns the shortcut off and reveals
-two extra dropdowns — **Arrival distribution** and **Service distribution** —
-so you can set the two families independently. Turn it back off to return to
-the single Model shortcut.
+the **Service distribution** dropdown so you can set the service family
+independently. Turn it back off to return to the single Model shortcut.
 
 **Each stage has its own service family.** The three stages really are
 sampled differently, so an M/M/1 + M/D/2 + M/G/3 network behaves as three
@@ -366,7 +378,7 @@ naming the three places you can enter it, and **Start stays disabled**. The
 other four families have no such requirement.
 
 One thing to know: arrivals come from one stream, so the whole network uses
-the **first stage's** arrival family. Service families, by contrast, are set
+the **engine-wide** arrival family chosen in **2 · Model**. Service families, by contrast, are set
 per stage.
 
 ### Horizon
@@ -411,6 +423,11 @@ The fitted value is a fraction of the **screened** patients only — patients wh
 went to the Doctor without being screened are not counted, because they never
 reached the decision this probability describes.
 
+**p_exit and p_bypass both disappear when the network has fewer than two
+stages** — with one stage there is nowhere to route to. While they are hidden
+they cannot block Start; set the stage count back to two or more to bring them
+back.
+
 ### P-bypass
 
 The probability that a patient goes **straight from Reception to the Doctor**,
@@ -419,9 +436,9 @@ records those rows as a doctor visit with no screening times. Leave it empty to
 fit it from your file (roughly 1 in 6 rows in a real capture); type a number to
 override it.
 
-The field appears once your network has **three or more stages** — there has to
-be a stage to skip. On a shorter network the value is ignored and the run
-reports a bypass of **0**, so the number in the receipt always matches what the
+The field appears once your network has **at least two stages** — there has to
+be a downstream stage to land on. On a one-stage network the field is hidden
+and the value is ignored, so the number in the receipt always matches what the
 engine actually did.
 
 ---
@@ -1397,6 +1414,7 @@ real panel rather than a placeholder.
 
 | Date | Change |
 |------|--------|
+| 2026-11-19 | Phase 9A: the Data source strip appears only on the **Fit from data** path; on **Enter manually** there is no file to manage, but the Input tab stays available as a top tab. **p_exit/p_bypass** hide below two stages and cannot block Start while hidden. Each row's Kendall first letter now follows the engine-wide **Inter-arrival distribution** in **2 · Model**; the per-stage **Arrival distribution** dropdown is gone, replaced by a read-only **Inflow λᵢ / ρᵢ** line. Captions and unit badges always name the selected **Time unit** (§4; D-225, D-229). |
 | 2026-11-16 | Phase 9P: **one time unit and one μ authority.** One selector (minutes / seconds / hours / days / sessions) now governs λ, both μ entries and the service spread; the old *Distribution fitting unit* dropdown is gone and the Input tab reports fits in the same unit. A fitted μ is the default, an explicit edit overrides it, and each row names where its μ came from. The per-stage ρ summary is the run topology's own ρ and updates on routing edits. Start is blocked only by visible, in-use fields and always names the section and red fields (§4, §Config fields; D-240…D-245). |
 | 2026-11-11 | Phase 8X: **four usability changes requested by the owner.** (1) All dropdowns were **rebuilt on the standard ComboBox** — the custom type-to-filter field is gone; clicking opens the list, the arrow keys move through it, Enter picks and Escape closes, like every desktop dropdown. (2) The **Start-blocked banner no longer appears on launch** — a fresh start is no longer greeted by "Cannot start: upload a usable data file"; the explanation only appears once you click or type in the configuration, and the Start button stays gated exactly as before. (3) The **Distribution fitting unit dropdown moved to the Simulation tab's Model section** (§7.3a); the Input tab now only reports the fit. (4) The placeholder **Token Generator tab was removed** — the window is **Simulation \| Input \| Help** (§8). A complete step-by-step manual was added at `docs/USER_MANUAL_FULL.md`. |
 | 2026-11-11 | Phase 8W: **distribution fits can be reported in a unit you choose.** The Input tab's **Distribution fit** section has a new **Fitting unit** dropdown — `minutes` (default), `seconds`, `hours`, `days` (24 h) or `sessions` (165 operating minutes). It rescales the same loaded samples before fitting, so the fitted parameters, histogram bins and card titles all move to the chosen unit; a converted arrival rate says *"converted from minutes"*. The chi-square statistic, p-value and verdict are **identical** in every unit, because this is a unit change, not a different sample (§7.3a). The Parameters section keeps its own **Time unit**, and a fitted mu there states both units when they differ. Run outputs — waits, queues, backlog, the trace clock — stay in minutes. The choice is never saved and is not part of a preset. |

@@ -166,8 +166,12 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private string sourceModeSelection = FitFromDataLabel;
 
-    /// <summary>Whether the Data section is shown — only while fitting from data (7C.3).</summary>
-    public bool IsDataSectionVisible => SourceMode == DataSourceMode.FitFromData;
+    /// <summary>
+    /// Whether the data-source status strip is shown — only while fitting from
+    /// data (7C.3, G1). In manual mode there is no file to manage, so the strip
+    /// is hidden rather than dimmed (D-225/R1).
+    /// </summary>
+    public bool IsDataSourceStripVisible => SourceMode == DataSourceMode.FitFromData;
 
     /// <summary>Whether the comma-list μ field is shown — only while fitting from data (7C.5).</summary>
     public bool IsCommaListMuVisible => SourceMode == DataSourceMode.FitFromData;
@@ -207,7 +211,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             ParametersIsOptionalEnabled = true;
         }
 
-        OnPropertyChanged(nameof(IsDataSectionVisible));
+        OnPropertyChanged(nameof(IsDataSourceStripVisible));
         OnPropertyChanged(nameof(IsCommaListMuVisible));
         RefreshStageSourceLabels();
         RecomputeRho();
@@ -318,6 +322,11 @@ public partial class ConfigPanelViewModel : ObservableObject
         {
             ArrivalSpread.ClearError();
         }
+
+        // 9A D-229: the row notations' first letter is derived from this choice.
+        // Re-push it now so every row re-bases its Kendall string and rebuilds
+        // ModelOptions the moment the Model-section family changes (§5.4 step 2).
+        RefreshStageSourceLabels();
 
         RecomputeBlockingState();
     }
@@ -442,12 +451,51 @@ public partial class ConfigPanelViewModel : ObservableObject
     [ObservableProperty]
     private TimeUnit timeUnit = TimeUnit.Minutes;
 
+    /// <summary>The λ field's caption, restated for the chosen mode and unit (9A G6a/b).</summary>
+    public string LambdaFieldLabel => LambdaFieldCaption.Label;
+
+    /// <summary>The λ field's unit badge, restated for the chosen mode and unit (9A G6a/b).</summary>
+    public string LambdaFieldUnit => LambdaFieldCaption.Unit;
+
+    /// <summary>The comma-list μ field's caption, restated for the chosen mode and unit (9A G6b).</summary>
+    public string MuFieldLabel => MuFieldCaption.Label;
+
+    /// <summary>The comma-list μ field's unit badge, restated for the chosen mode and unit (9A G6b).</summary>
+    public string MuFieldUnit => MuFieldCaption.Unit;
+
+    private (string Label, string Unit) LambdaFieldCaption
+        => FieldCaption("Manual λ", "Manual mean inter-arrival 1/λ", TimeUnit, IsMeanWise);
+
+    private (string Label, string Unit) MuFieldCaption
+        => FieldCaption("Manual μ per stage", "Manual mean service time 1/μ per stage", TimeUnit, IsMeanWise);
+
+    /// <summary>
+    /// Builds an input caption from <see cref="FittingTimeUnits"/> only. 9A owns
+    /// the words on screen; 9P owns the value's unit conversion (D-240/D-242), so
+    /// no string here may be a unit literal and no caller may convert a number.
+    /// A rate shows the fitted rate label and a "/ unit" badge; a mean shows the
+    /// plural duration and a bare unit badge, matching the radio beside it.
+    /// </summary>
+    /// <param name="rateName">The field name when entered rate-wise.</param>
+    /// <param name="meanName">The field name when entered mean-wise.</param>
+    /// <param name="unit">The configured time unit.</param>
+    /// <param name="isMeanWise">Whether the mean-wise radio is selected.</param>
+    /// <returns>The caption and its unit badge.</returns>
+    internal static (string Label, string Unit) FieldCaption(
+        string rateName, string meanName, TimeUnit unit, bool isMeanWise)
+    {
+        var fitting = TimeUnits.ToFitting(unit);
+        return isMeanWise
+            ? ($"{meanName} ({FittingTimeUnits.Label(fitting)})", FittingTimeUnits.RateUnit(fitting))
+            : ($"{rateName} ({FittingTimeUnits.RateLabel(fitting)})", $"/ {FittingTimeUnits.RateUnit(fitting)}");
+    }
+
     /// <summary>
     /// The fitted-rate labels are unit-dependent (Phase 8W): a change of the
     /// manual Time unit must restate the fitted "from data" figure in the new
     /// manual unit without waiting for the next unrelated refresh.
     /// </summary>
-    partial void OnTimeUnitChanged(TimeUnit value) => RefreshStageSourceLabels();
+    partial void OnTimeUnitChanged(TimeUnit value) => RaiseUnitDependents();
 
     /// <summary>
     /// Canonical rate-vs-mean flag (Phase 7A): the radio-backed booleans stay in
@@ -458,6 +506,24 @@ public partial class ConfigPanelViewModel : ObservableObject
     {
         IsRateWise = value == ParameterMode.RateWise;
         IsMeanWise = value == ParameterMode.MeanWise;
+        RaiseUnitDependents();
+    }
+
+    /// <summary>
+    /// Raises every label that follows the unit or the rate/mean radio, and
+    /// refreshes the per-row captions with it. One method is the point: adding a
+    /// unit-aware field later cannot forget to notify its label (9A §6.3).
+    /// </summary>
+    private void RaiseUnitDependents()
+    {
+        OnPropertyChanged(nameof(LambdaFieldLabel));
+        OnPropertyChanged(nameof(LambdaFieldUnit));
+        OnPropertyChanged(nameof(MuFieldLabel));
+        OnPropertyChanged(nameof(MuFieldUnit));
+        RefreshStageSourceLabels();
+        // The inflow line prints a rate in the chosen unit, so it must be
+        // reformatted when that unit changes (9A D-229).
+        RecomputeRho();
     }
 
     partial void OnIsRateWiseChanged(bool value)
@@ -469,7 +535,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         RecomputeRho();
-        RefreshStageSourceLabels();
+        RaiseUnitDependents();
     }
 
     partial void OnIsMeanWiseChanged(bool value)
@@ -481,7 +547,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         RecomputeRho();
-        RefreshStageSourceLabels();
+        RaiseUnitDependents();
     }
 
     // ── Section 3 · Parameters ──────────────────────────────────────────
@@ -873,10 +939,13 @@ public partial class ConfigPanelViewModel : ObservableObject
     {
         foreach (var row in StageRows)
         {
-            // ApplyFamilies also marks the notation "Custom", because after this the
+            // ApplyServiceFamily also marks the notation "Custom", because after this the
             // shorthand no longer describes the row and leaving a stale M/M/1 beside a
             // Normal family would misreport what the run will do.
-            row.ApplyFamilies(DefaultStageArrivalFamily, DefaultStageServiceFamily);
+            // 9A D-229: arrivals are engine-wide, so "Apply to all stages" can only
+            // push the service family. The removed arrival dropdown used to write a
+            // value nothing read.
+            row.ApplyServiceFamily(DefaultStageServiceFamily);
         }
 
         RecomputeRho();
@@ -1523,6 +1592,17 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Raises every visibility flag that depends on the number of stages. G3:
+    /// both routing overrides need a downstream stage, so a single raise point
+    /// prevents one of them being left on screen when the count drops below two.
+    /// </summary>
+    private void RaiseStageCountDependents()
+    {
+        OnPropertyChanged(nameof(PExitVisible));
+        OnPropertyChanged(nameof(PBypassVisible));
+    }
+
     private void OnStageCountEdited()
     {
         if (TryStageCount(out var n) && n is >= 1 and <= 5)
@@ -1530,7 +1610,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             EnsureStageCount(n);
         }
 
-        OnPropertyChanged(nameof(PExitVisible));
+        RaiseStageCountDependents();
         RecomputeBlockingState();
     }
 
@@ -1592,6 +1672,8 @@ public partial class ConfigPanelViewModel : ObservableObject
                 if (args.PropertyName == nameof(StageRow.ServiceFamily))
                 {
                     StageServiceFamiliesChanged?.Invoke(this, EventArgs.Empty);
+                    // The spread caption switches between σ and w with the family.
+                    RefreshStageSourceLabels();
                 }
             };
             StageRows.Add(row);
@@ -1602,7 +1684,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             StageRows.RemoveAt(StageRows.Count - 1);
         }
 
-        OnPropertyChanged(nameof(PExitVisible));
+        RaiseStageCountDependents();
         RefreshStageSourceLabels();
         RecomputeRho();
         RecomputeBlockingState();
@@ -1624,12 +1706,26 @@ public partial class ConfigPanelViewModel : ObservableObject
         if (!TryBuildPreviewTopology(out var topology))
         {
             RhoSummary = "—";
+            foreach (var row in StageRows)
+            {
+                row.InflowLabel = "Inflow λᵢ = —   ρᵢ = —";
+            }
+
             return;
         }
 
         RhoSummary = string.Join(
             "   ",
             StageRows.Select((row, i) => $"{row.StageName}: {topology!.RhoFor(i):0.00}"));
+
+        // 9A D-229: give the derived per-stage λ a home on the row itself. Both
+        // numbers are read from 9P's topology — 9A formats, it never computes.
+        string rateLabel = FittingTimeUnits.RateLabel(TimeUnits.ToFitting(TimeUnit));
+        for (int i = 0; i < StageRows.Count; i++)
+        {
+            StageRows[i].InflowLabel =
+                $"Inflow λᵢ = {DescribeFittedRate(topology!.EffectiveArrivalRate(i))} ({rateLabel})   ρᵢ = {topology.RhoFor(i):0.00}";
+        }
     }
 
     /// <summary>
@@ -1884,6 +1980,30 @@ public partial class ConfigPanelViewModel : ObservableObject
             // Pushed per row rather than bound from the panel, because the extracted
             // StageRowControl cannot resolve a typed $parent[ItemsControl] binding.
             row.IsRateSourceVisible = IsCommaListMuVisible;
+
+            // 9A D-229: the row's first Kendall letter and its recorded arrival
+            // family are both derived from the Model section's engine-wide choice.
+            // Assign only on an actual change: RefreshStageSourceLabels runs after
+            // every μ edit and auto-fit, and re-pushing an unchanged family would
+            // rebase (and silently rewrite) a valid G/G/c notation each time.
+            if (row.ArrivalFamily != ArrivalFamily)
+            {
+                row.ArrivalFamily = ArrivalFamily;
+            }
+
+            // 9A G6d/e: the row cannot see the panel's unit, so its field captions
+            // are pushed from here — the same pattern the two flags above use.
+            var muCaption = FieldCaption(
+                "Service rate μ", "Service mean 1/μ", TimeUnit, IsMeanWise);
+            row.MuLabel = muCaption.Label;
+            row.MuUnit = muCaption.Unit;
+
+            var fitting = TimeUnits.ToFitting(TimeUnit);
+            var spreadName = row.NeedsStdDev
+                ? "Standard deviation σ"
+                : row.NeedsSpread ? "Half-width w" : "Spread";
+            row.SpreadLabel = $"{spreadName} ({FittingTimeUnits.Label(fitting)})";
+            row.SpreadUnit = FittingTimeUnits.RateUnit(fitting);
         }
     }
 
@@ -1896,9 +2016,8 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// Printed in the shape the current <see cref="ParameterMode"/> shows (a rate
     /// rate-wise, a duration mean-wise) and in the configuration's unit. With the
     /// default minutes the bare number is right because the field's caption already
-    /// says "/ min"; any other unit carries its own suffix, because the caption's
-    /// unit is finalised by Phase 9A and a bare number under the wrong caption
-    /// would be read as per-minute.
+    /// carries the minute unit; any other unit carries its own suffix, because a
+    /// bare number under the wrong caption would be read as per-minute.
     /// </remarks>
     /// <param name="row">The row whose placeholder is wanted.</param>
     /// <returns>Placeholder text for the μ field.</returns>

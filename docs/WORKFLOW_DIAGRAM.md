@@ -28,7 +28,7 @@ START
 │ SimulationParameters
 │ │
 │ ▼
-│ Stability check — ρ per stage
+│ Stability check — ρ per stage (λᵢ is the stage's routed inflow, not λ₀)
 │ │
 │ ├── ρ < 1 for every stage → continue
 │ └── any ρ ≥ 1 → STOP + explain

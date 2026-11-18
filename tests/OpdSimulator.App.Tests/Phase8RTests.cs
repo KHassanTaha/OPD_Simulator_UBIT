@@ -127,6 +127,11 @@ public class Phase8RTests
         var vm = new ConfigPanelViewModel();
         Assert.Equal(3, vm.StageRows.Count);
         Assert.True(vm.PBypassVisible);
+
+        // 9A G3: the override is not decided only at load time — it follows the
+        // live stage count, so dropping to one stage must retract it again.
+        vm.StageCount.Value = "1";
+        Assert.False(vm.PBypassVisible, "one stage has nowhere to bypass to");
     }
 
     // ── Change 3 · effective λ under the cap ─────────────────────────────────

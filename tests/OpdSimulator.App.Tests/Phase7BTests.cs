@@ -36,6 +36,21 @@ public class Phase7BTests
         "G/G/1", "G/G/2", "G/G/3", "G/G/4", "G/G/5",
     };
 
+    /// <summary>
+    /// Phase 9A (D-229): a row's notation list is filtered to the first letter
+    /// derived from the Model section. The default front door is Markovian, so a
+    /// fresh panel offers the M/… subset plus the five G/G/c auto-fit notations.
+    /// G names no family — it asks the data to choose one — so it never claims an
+    /// arrival process the engine does not use. D/… is absent: a row cannot
+    /// silently retune the engine-wide arrival process.
+    /// </summary>
+    private static readonly string[] ExpectedMarkovianModels =
+    {
+        "M/M/1", "M/M/2", "M/M/3", "M/M/4", "M/M/5",
+        "M/D/1", "M/D/2", "M/D/3",
+        "G/G/1", "G/G/2", "G/G/3", "G/G/4", "G/G/5",
+    };
+
     // ── Parser ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -212,7 +227,7 @@ public class Phase7BTests
             Assert.Equal(3, modelDropdowns.Count);
             Assert.All(modelDropdowns, d => Assert.True(d.IsVisible));
             Assert.All(modelDropdowns, d =>
-                Assert.Equal(ExpectedModels, d.Items!));
+                Assert.Equal(ExpectedMarkovianModels, d.Items!));
         }
         finally
         {
@@ -221,8 +236,12 @@ public class Phase7BTests
     }
 
     [AvaloniaFact]
-    public void ConfigPanel_AdvancedToggle_RevealsTwoDistributions()
+    public void ConfigPanel_AdvancedToggle_RevealsServiceDistributionOnly()
     {
+        // Phase 9A (D-229): the per-stage "Arrival distribution" control was a
+        // lie — one arrival process is chosen in the Model section for the whole
+        // run, and a patient reaching stage i is the one stage i−1 released. It
+        // is gone; Advanced now reveals only the service-family dropdown.
         var vm = new ConfigPanelViewModel();
         var panel = new ConfigPanel { DataContext = vm };
         var window = Host(panel);
@@ -234,9 +253,8 @@ public class Phase7BTests
             var service = Dropdowns(window, "Service distribution");
 
             Assert.Equal(3, model.Count);
-            Assert.Equal(3, arrival.Count);
+            Assert.Empty(arrival); // no per-stage arrival dropdown anywhere
             Assert.Equal(3, service.Count);
-            Assert.All(arrival, d => Assert.False(d.IsVisible));
             Assert.All(service, d => Assert.False(d.IsVisible));
 
             // Drive the real control (row 0's toggle) — it is bound TwoWay to
@@ -247,14 +265,12 @@ public class Phase7BTests
             window.UpdateLayout();
 
             Assert.Equal(2, model.Count(d => d.IsVisible));
-            Assert.Equal(1, arrival.Count(d => d.IsVisible));
             Assert.Equal(1, service.Count(d => d.IsVisible));
 
             advanced.IsChecked = false;
             window.UpdateLayout();
 
             Assert.Equal(3, model.Count(d => d.IsVisible));
-            Assert.Equal(0, arrival.Count(d => d.IsVisible));
             Assert.Equal(0, service.Count(d => d.IsVisible));
         }
         finally

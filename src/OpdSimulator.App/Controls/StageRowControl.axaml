@@ -34,12 +34,13 @@
                                      HelpAnchor="servers"
                                      views:ConfigPanelValidation.ValidationKey="servers"/>
 
-            <!-- Kendall shortcut: M = exponential, D = deterministic, G = auto-fit from
-                 data; the trailing digit is the server count. Advanced mode hides the
-                 shortcut and reveals the independent family dropdowns instead. -->
+            <!-- Kendall shortcut (Phase 9A, D-229): the first letter is fixed by the
+                 Model section's engine-wide arrival family, never chosen on a row.
+                 The trailing digits are the server count. Advanced mode hides the
+                 shortcut and reveals the service-family dropdown instead. -->
             <controls:DropdownField Label="Model"
                                          Placeholder="e.g., M/M/2"
-                                         Tooltip="Kendall notation shortcut: sets the arrival/service families and the server count"
+                                         Tooltip="Kendall notation shortcut. The first letter follows the Model section's arrival family; choose the service family and server count here."
                                          Items="{Binding ModelOptions}"
                                          SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
                                          IsVisible="{Binding !UseAdvancedSetup}"
@@ -48,13 +49,6 @@
                           IsChecked="{Binding UseAdvancedSetup, Mode=TwoWay}"
                           ToolTip.Tip="Set the arrival and service distribution families independently"/>
 
-            <controls:DropdownField Label="Arrival distribution"
-                                         Placeholder="e.g., Exponential"
-                                         Tooltip="Distribution family for the time between arrivals at this stage. Note: arrivals are engine-wide, so the Model section's arrival dropdown is what the run uses; this row records your choice per stage."
-                                         Items="{Binding DistributionFamilies}"
-                                         SelectedItem="{Binding ArrivalFamily, Mode=TwoWay}"
-                                         IsVisible="{Binding UseAdvancedSetup}"
-                                         HelpAnchor="stage-arrival-distribution"/>
             <controls:DropdownField Label="Service distribution"
                                          Placeholder="e.g., Exponential"
                                          Tooltip="Distribution family for this stage's service times"
@@ -69,9 +63,9 @@
                  family can never be read as a valid one. -->
             <StackPanel Spacing="2"
                         IsVisible="{Binding NeedsShapeParameters}">
-                <controls:ValidatedField Label="Standard deviation σ"
+                <controls:ValidatedField Label="{Binding SpreadLabel}"
                                          Watermark="e.g., 0.4"
-                                         Unit="min"
+                                         Unit="{Binding SpreadUnit}"
                                          Tooltip="Spread of the service times. Shown for the Normal and Lognormal families only; the mean stays whatever μ you set."
                                          IsVisible="{Binding NeedsStdDev}"
                                          Value="{Binding ServiceStdDev, Mode=TwoWay}"
@@ -88,9 +82,9 @@
                                          ErrorMessage="{Binding InlineError}"
                                          HelpAnchor="stage-shape"
                                          views:ConfigPanelValidation.ValidationKey="stage-shape"/>
-                <controls:ValidatedField Label="Half-width w"
+                <controls:ValidatedField Label="{Binding SpreadLabel}"
                                          Watermark="e.g., 0.5"
-                                         Unit="min"
+                                         Unit="{Binding SpreadUnit}"
                                          Tooltip="Half-width w. Min = Mean − w, Max = Mean + w."
                                          IsVisible="{Binding NeedsSpread}"
                                          Value="{Binding ServiceSpread, Mode=TwoWay}"
@@ -111,14 +105,23 @@
                            ToolTip.Tip="Source of this stage's effective service rate: fitted from the loaded data, entered manually, or missing"/>
             </StackPanel>
 
+            <!-- 9A D-229: the derived per-stage inflow is visible on both paths.
+                 It sits outside IsRateSourceVisible so manual mode still shows
+                 where this stage's patients come from. -->
+            <TextBlock Text="{Binding InflowLabel}"
+                       Classes="Caption"
+                       TextWrapping="Wrap"
+                       ToolTip.Tip="ρᵢ = λᵢ / (cᵢ·μᵢ), where λᵢ is this stage's inflow after p_exit and p_bypass routing — not the front-door λ. The same patients move through the stages."
+                       Foreground="{DynamicResource BrushTextSecondary}"/>
+
             <!-- Phase 9P (D-242): the editable per-stage μ is shown in both modes.
                  In fit mode its placeholder carries the fitted value, so a blank
                  field visibly means "use the data" and a typed one is an override
                  — which is what makes the owner's manual test edit reach the run. -->
-            <controls:ValidatedField Label="Service rate μ"
+            <controls:ValidatedField Label="{Binding MuLabel}"
                                      Watermark="{Binding MuPlaceholder}"
                                      Tooltip="Manual mean service rate for this stage, interpreted by the Parameter mode and Time unit. This is the only location parameter: the family above sets the spread."
-                                     Unit="/ min"
+                                     Unit="{Binding MuUnit}"
                                      IsVisible="{Binding IsMuVisible}"
                                      Value="{Binding MuValue, Mode=TwoWay}"
                                      HasError="{Binding MuHasError}"

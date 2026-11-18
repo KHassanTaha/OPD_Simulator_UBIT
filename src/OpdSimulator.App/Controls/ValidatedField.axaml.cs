@@ -66,7 +66,7 @@ public partial class ValidatedField : UserControl
         set => SetValue(TooltipProperty, value);
     }
 
-    /// <summary>Unit shown as a suffix inside the field, e.g. "/ min".</summary>
+    /// <summary>Unit shown as a suffix inside the field, e.g. "/ unit".</summary>
     public static readonly StyledProperty<string?> UnitProperty =
         AvaloniaProperty.Register<ValidatedField, string?>(nameof(Unit));
 

@@ -399,12 +399,14 @@ public class Phase8KTests
         var vm = Panel(1);
 
         vm.DefaultStageServiceFamily = DistributionFamily.Gamma;
+        // Phase 9A (D-229): the removed per-stage arrival default has no effect —
+        // arrivals are engine-wide and every row records the Model section's family.
         vm.DefaultStageArrivalFamily = DistributionFamily.Deterministic;
         vm.StageCount.Value = "2";
 
         Assert.Equal(2, vm.StageRows.Count);
         Assert.Equal(DistributionFamily.Gamma, vm.StageRows[1].ServiceFamily);
-        Assert.Equal(DistributionFamily.Deterministic, vm.StageRows[1].ArrivalFamily);
+        Assert.Equal(vm.ArrivalFamily, vm.StageRows[1].ArrivalFamily);
         Assert.Equal(DistributionFamily.Exponential, vm.StageRows[0].ServiceFamily);
     }
 
@@ -440,7 +442,9 @@ public class Phase8KTests
         Assert.All(vm.StageRows, r =>
         {
             Assert.Equal(DistributionFamily.Gamma, r.ServiceFamily);
-            Assert.Equal(DistributionFamily.Deterministic, r.ArrivalFamily);
+            // 9A D-229: Apply writes only the service family. The old arrival
+            // default is inert; every row still records the engine-wide family.
+            Assert.Equal(vm.ArrivalFamily, r.ArrivalFamily);
             Assert.Equal(StageRow.CustomModel, r.SelectedModel);
         });
     }
@@ -471,21 +475,21 @@ public class Phase8KTests
                 .FirstOrDefault(t => t.Content?.ToString() == "Advanced");
             Assert.NotNull(toggle);
 
-            // The toggle is always on screen; the family dropdowns it reveals start hidden.
+            // The toggle is always on screen; the service-family dropdown it
+            // reveals starts hidden. 9A removed the per-stage arrival dropdown:
+            // arrivals are engine-wide, so there is nothing else to reveal.
             Assert.False(toggle!.IsChecked);
             Assert.True(toggle.IsVisible);
-            Assert.False(FindLabel(control, "Arrival distribution")!.IsVisible);
-            Assert.False(FindLabel(control, "Service distribution")!.IsVisible);
+            Assert.False(FindAnchor(control, "stage-service-distribution")!.IsVisible);
 
             toggle.IsChecked = true;
             Assert.True(toggle.IsVisible);
-            Assert.True(FindLabel(control, "Arrival distribution")!.IsVisible);
-            Assert.True(FindLabel(control, "Service distribution")!.IsVisible);
+            Assert.True(FindAnchor(control, "stage-service-distribution")!.IsVisible);
 
-            var sigma = FindLabel(control, "Standard deviation σ")!;
-            var shape = FindLabel(control, "Shape k")!;
-            var width = FindLabel(control, "Half-width w")!;
-            var mu = FindLabel(control, "Service rate μ")!;
+            var sigma = FindAnchor(control, "stage-std-dev")!;
+            var shape = FindAnchor(control, "stage-shape")!;
+            var width = FindAnchor(control, "stage-spread")!;
+            var mu = FindAnchor(control, "stage-mu")!;
 
             Assert.True(sigma.IsVisible);
             Assert.False(shape.IsVisible);
@@ -737,18 +741,17 @@ public class Phase8KTests
     }
 
     /// <summary>
-    /// Finds whichever labelled control carries the given Label text, whether it is a
-    /// <see cref="ValidatedField"/> or a <see cref="DropdownField"/>. Matching on
-    /// the label rather than a name keeps the test tied to what the user reads, which is
-    /// the thing that must not change.
+    /// Finds a field by its stable HelpAnchor. Phase 9A made the captions follow the
+    /// time unit and the rate/mean radio, so the visible Label is deliberately no
+    /// longer a stable test key; the anchor is.
     /// </summary>
-    private static Control? FindLabel(Control root, string label) =>
+    private static Control? FindAnchor(Control root, string anchor) =>
         root.GetVisualDescendants()
             .OfType<Control>()
             .FirstOrDefault(c => c switch
             {
-                ValidatedField f => f.Label == label,
-                DropdownField d => d.Label == label,
+                ValidatedField f => f.HelpAnchor == anchor,
+                DropdownField d => d.HelpAnchor == anchor,
                 _ => false,
             });
 

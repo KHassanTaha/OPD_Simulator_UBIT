@@ -41,7 +41,8 @@
                      Upload, preview and the stage-mismatch actions live in the
                      Input tab; this strip only reports the active source and
                      offers a link across. -->
-                <Border Classes="PanelCard" Padding="{DynamicResource ThicknessSpaceS}">
+                <Border Classes="PanelCard" Padding="{DynamicResource ThicknessSpaceS}"
+                        IsVisible="{Binding IsDataSourceStripVisible}">
                     <StackPanel Spacing="{DynamicResource SpaceXs}">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                             <TextBlock Text="{Binding ConfigSourceText}"
@@ -142,20 +143,20 @@
                         </StackPanel>
                         <controls:TimeUnitSelector SelectedUnit="{Binding TimeUnit, Mode=TwoWay}"/>
                         <controls:ValidatedField x:Name="ManualLambdaField"
-                                                 Label="Manual λ (per minute)"
+                                                 Label="{Binding LambdaFieldLabel}"
                                                  Watermark="e.g., 0.5"
                                                  Tooltip="Override the fitted arrival rate. Blank uses the fitted value."
-                                                 Unit="/ min"
+                                                 Unit="{Binding LambdaFieldUnit}"
                                                  Value="{Binding ManualLambda.Value, Mode=TwoWay}"
                                                  HasError="{Binding ManualLambda.HasError}"
                                                  ErrorMessage="{Binding ManualLambda.ErrorMessage}"
                                                  HelpAnchor="manual-lambda"
                                                  views:ConfigPanelValidation.ValidationKey="manual-lambda"/>
                         <controls:ValidatedField x:Name="ManualMuField"
-                                                 Label="Manual μ per stage (per minute)"
+                                                 Label="{Binding MuFieldLabel}"
                                                  Watermark="e.g., 0.8, 0.6, 0.4"
                                                  Tooltip="Comma-separated per-stage service rates. Blank uses the fitted values."
-                                                 Unit="/ min"
+                                                 Unit="{Binding MuFieldUnit}"
                                                  IsVisible="{Binding IsCommaListMuVisible}"
                                                  Value="{Binding ManualMuPerStage.Value, Mode=TwoWay}"
                                                  HasError="{Binding ManualMuPerStage.HasError}"
@@ -167,7 +168,7 @@
                                        FontSize="{DynamicResource FontSizeBody}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource BrushTextPrimary}"
-                                       ToolTip.Tip="ρ = λ / (c·μ) per stage. Values below 1 are required for a stable queue (CONTEXT §2.3)."/>
+                                       ToolTip.Tip="ρᵢ = λᵢ / (cᵢ·μᵢ). λᵢ is this stage's inflow after p_exit and p_bypass routing — not the front-door λ. Values below 1 are required for a stable queue (CONTEXT §2.3)."/>
                             <TextBlock Text="{Binding RhoSummary}"
                                        Classes="Caption"
                                        TextWrapping="Wrap"/>
@@ -214,14 +215,8 @@
                                    Foreground="{DynamicResource BrushTextSecondary}"/>
                         <TextBlock Classes="Caption"
                                    TextWrapping="Wrap"
-                                   Text="Stages added from now on start with these families. Stages already listed keep whatever they have; use Apply to all stages to change them."/>
+                                   Text="Stages added from now on start with this service family. Stages already listed keep whatever they have; use Apply to all stages to change them. Arrivals are engine-wide and fixed by the Model section (9A, D-229)."/>
                         <StackPanel Spacing="{DynamicResource SpaceM}">
-                            <controls:DropdownField Label="Default arrival family"
-                                                         Placeholder="e.g., Exponential"
-                                                         Tooltip="Arrival family stamped onto newly added stages. The run itself uses the Model section's inter-arrival distribution — arrivals are generated engine-wide, so this is the label each stage carries."
-                                                         Items="{Binding StageFamilyOptions}"
-                                                         SelectedItem="{Binding DefaultStageArrivalFamily, Mode=TwoWay}"
-                                                         HelpAnchor="default-arrival-family"/>
                             <controls:DropdownField Label="Default service family for new stages"
                                                          Placeholder="e.g., Exponential"
                                                          Tooltip="Service family stamped onto newly added stages, and the value Apply to all stages writes to every existing stage. Each stage's own family is what the run and the Input tab's per-stage chi-square use."
@@ -232,7 +227,7 @@
                                     HorizontalAlignment="Left"
                                     Command="{Binding ApplyDefaultsToAllStagesCommand}"
                                     Classes="GhostButton"
-                                    ToolTip.Tip="Set every stage listed below to the two default families, replacing any per-stage choice"/>
+                                    ToolTip.Tip="Set every stage listed below to the default service family, replacing any per-stage choice. Arrivals are engine-wide and cannot be set per stage."/>
                         </StackPanel>
                         <controls:ValidatedField x:Name="StageCountField"
                                                  Label="Number of stages"
