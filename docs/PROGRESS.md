@@ -37,8 +37,8 @@ B-007 — owner keyboard-only acceptance pass (see `docs/BLOCKERS.md`)
 B-006 — Windows dead-state verification (see `docs/BLOCKERS.md`)
 
 Git State
-Commits made this session: 979e2f3 feat: make configuration panel relevance and notation honest, plus this handoff commit (`docs: record Phase 9A session handoff`)
-Pushed to origin: No — commits are staged locally; owner defers review and merges (D-255).
+Commits made this session: 979e2f3 feat: make configuration panel relevance and notation honest, 678697d docs: record Phase 9A session handoff, plus this push-completion commit
+Pushed to origin: Yes — `feat/panel-relevance` tracks `origin/feat/panel-relevance`; owner defers review and merges (D-255), and no PR was opened.
 Uncommitted changes: None (`planning.md` is an untracked owner brief, intentionally never committed)
 
 Build & Test
