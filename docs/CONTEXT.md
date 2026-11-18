@@ -253,6 +253,10 @@ The **random seed** (default 42) ensures the same sequence of `U` values → sam
 
 ---
 
+### Stage-list ownership on load (Phase 9C, D-236)
+
+> **[UNVERIFIED — assumption, 2026-11-19]** A load adopts the uploaded file's stage **names** in place but never its stage **count**, because full count adoption deletes an owner's configuration and contradicts the established mismatch-warning requirement. The owner's brief asks for count adoption too; this is recorded as B-014 pending a ruling. Source: established App tests and the brief, which disagree.
+
 ## 5. Data & Modelling Assumptions
 
 ### 5.1 Time Anchor

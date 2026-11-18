@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OpdSimulator.App.Models;
 using OpdSimulator.App.Services;
 using OpdSimulator.Core.Distributions;
@@ -201,6 +202,43 @@ public partial class StageRow : ObservableObject
     /// <summary>AIC of <see cref="BestFitFamily"/>, printed in the disclosure sentence.</summary>
     [ObservableProperty]
     private double _bestFitAic;
+
+    /// <summary>
+    /// The μ implied by the uploaded data for this stage (per minute), pushed by
+    /// the panel so the μ override warning can name it without a second fit.
+    /// </summary>
+    [ObservableProperty]
+    private double? _fittedMuPerMinute;
+
+    /// <summary>The winning spec kept so `[Use the data fit]` can restore the exact shape.</summary>
+    [ObservableProperty]
+    private DistributionSpec? _bestFitSpec;
+
+    /// <summary>Whether a load supplied a winner this button can restore (Phase 9C, D-232).</summary>
+    public bool HasDataFit => BestFitSpec is not null;
+
+    partial void OnBestFitSpecChanged(DistributionSpec? value) => OnPropertyChanged(nameof(HasDataFit));
+
+    /// <summary>
+    /// The deviation sentence shown when the user's service family differs from
+    /// the data's winner (Phase 9C, §4.3). Null when the two agree.
+    /// </summary>
+    [ObservableProperty]
+    private string? _fitOverrideWarning;
+
+    /// <summary>
+    /// The deviation sentence shown when a typed μ differs from the fitted μ
+    /// (Phase 9C, §4.3). Null when the two agree.
+    /// </summary>
+    [ObservableProperty]
+    private string? _muOverrideWarning;
+
+    /// <summary>
+    /// Names the consequence when the loaded file has no timings for this stage
+    /// (Phase 9C, D-236). Null when the data covers it.
+    /// </summary>
+    [ObservableProperty]
+    private string? _dataCoverageWarning;
 
     /// <summary>
     /// The one sentence under the service-family field stating what a load did
@@ -597,6 +635,15 @@ public partial class StageRow : ObservableObject
             return;
         }
 
+        if (string.IsNullOrEmpty(SelectedModel))
+        {
+            // The two-way ComboBox pushes a null SelectedItem back when its Items
+            // are replaced by the family-driven ModelOptions. Re-seed a valid
+            // notation instead of dereferencing the null (Phase 9C load path).
+            SelectedModel = ModelOptions.FirstOrDefault() ?? "M/M/1";
+            return;
+        }
+
         var parts = SelectedModel.Split('/');
         if (parts.Length != 3)
         {
@@ -651,6 +698,12 @@ public partial class StageRow : ObservableObject
     /// <param name="service">Service family to assign to this row.</param>
     public void ApplyServiceFamily(DistributionFamily service)
     {
+        // "Apply to all stages" and a notation shortcut are user decisions even
+        // though their writes are suppressed (Phase 9C, D-232). Set provenance
+        // FIRST: the panel recomputes its deviation warning from the ServiceFamily
+        // PropertyChanged, so it must already see UserSet at that moment.
+        FamilyProvenance = FieldProvenance.UserSet;
+
         _suppressNotationSync = true;
         try
         {
@@ -661,6 +714,28 @@ public partial class StageRow : ObservableObject
         {
             _suppressNotationSync = false;
         }
+    }
+
+    /// <summary>
+    /// Restores the family and spread the data chose, clears a typed μ so 9P's
+    /// resolver can use the fitted one again, and retires the deviation warning
+    /// (Phase 9C, D-232). No fit is recomputed here: the winner is the one
+    /// already disclosed next to the field.
+    /// </summary>
+    [RelayCommand]
+    private void UseDataFit()
+    {
+        if (BestFitSpec is not { } spec)
+        {
+            return;
+        }
+
+        ApplyFittedShape(spec);
+        FamilyProvenance = FieldProvenance.AutoFitted;
+        MuValue = string.Empty;
+        MuProvenance = MuProvenance.Default;
+        FitOverrideWarning = null;
+        MuOverrideWarning = null;
     }
 
     /// <summary>

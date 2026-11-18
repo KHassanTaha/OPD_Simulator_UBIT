@@ -38,6 +38,16 @@ Anything preventing progress, with owner and needed action. A task in
   - Target: Before Milestone 5 (UI)
   - Status: Blocked until a Windows machine is available
 
+## Active — Phase 9C
+
+- **B-014:** Stage-list reconciliation adopts names but not count; owner ruling needed on the brief-vs-tests conflict.
+  - Owner: Taha
+  - Impact: Phase 9C.7 cannot be marked DONE. The owner's brief (D-236) says a load adopts `binding.StageNames` — same count, names and order — while eleven established App tests encode the opposite: a count mismatch must warn and require an explicit *Sync stages to data*. Full count adoption made those eleven tests fail and would delete an owner's stage count on every load.
+  - Current behaviour: on load while `StageListProvenance.Default`, names are adopted **in place** when the file's count already matches; the count is never adopted. All 682 App tests pass. This is a partial implementation of the brief.
+  - Needed action: rule whether (a) keep the narrowed behaviour and amend the brief, or (b) adopt count on load and deliberately replace the eleven mismatch/Sync tests plus the five affected screenshot frames. Option (b) is a semantic change to configuration ownership and needs an explicit owner decision.
+  - Linked: `docs/DECISIONS.md` D-236; `docs/TODO.md` 9C.7; `planning.md` §8 (owner-local, untracked).
+  - Status: blocked on owner ruling
+
 ## Resolved
 
 - **B-011:** a Gamma or Uniform stage that could not resolve a mean either built a NaN-mean spec or threw `ArgumentException` out of the coordinator. **Ruling 2026-09-26; fixed and verified.**

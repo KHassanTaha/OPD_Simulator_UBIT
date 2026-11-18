@@ -63,12 +63,13 @@ public partial class InputAnalysisViewModel : ObservableObject
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha,
-        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes,
+        DataFitCaptions? dataFit = null)
     {
         int generation = ++_generation;
         Task.Run(() =>
         {
-            var prepared = Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit);
+            var prepared = Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit, dataFit);
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _generation)
@@ -93,10 +94,11 @@ public partial class InputAnalysisViewModel : ObservableObject
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha,
-        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes)
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit = OpdSimulator.Data.Fitting.FittingTimeUnit.Minutes,
+        DataFitCaptions? dataFit = null)
     {
         ++_generation;
-        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit));
+        ApplyPrepared(Prepare(binding, interArrivalFamily, serviceFamilies, alpha, unit, dataFit));
     }
 
     /// <summary>
@@ -134,12 +136,22 @@ public partial class InputAnalysisViewModel : ObservableObject
         string interArrivalFamily,
         IReadOnlyList<StageServiceFamily> serviceFamilies,
         double alpha,
-        OpdSimulator.Data.Fitting.FittingTimeUnit unit)
+        OpdSimulator.Data.Fitting.FittingTimeUnit unit,
+        DataFitCaptions? dataFit)
     {
+        var winners = dataFit ?? DataFitCaptions.Empty;
         var charts = new List<IInputChartData>();
         foreach (var fit in InputAnalysisService.FitAll(binding, interArrivalFamily, serviceFamilies, alpha, unit))
         {
-            charts.Add(InputAnalysisService.BuildHistogram(fit));
+            // FitAll labels the arrival card "Inter-arrival" and each service card
+            // "{stage} service". Match on those labels so the caption names the
+            // winner for THIS series, never another stage's.
+            DataFitCaption? winner = fit.Label == InputAnalysisService.InterArrivalSeriesLabel
+                ? winners.InterArrival
+                : winners.Stages.TryGetValue(StageNameFromLabel(fit.Label), out var stageWinner)
+                    ? stageWinner
+                    : null;
+            charts.Add(InputAnalysisService.BuildHistogram(fit, winner));
             if (fit.ChiSquare is not null)
             {
                 charts.Add(InputAnalysisService.BuildChiSquareChart(fit));
@@ -147,4 +159,9 @@ public partial class InputAnalysisViewModel : ObservableObject
         }
         return charts;
     }
+
+    /// <summary>Strips the " service" suffix from a per-stage fit label.</summary>
+    /// <param name="label">The fit label, e.g. "Reception service".</param>
+    private static string StageNameFromLabel(string label) =>
+        label.EndsWith(" service", StringComparison.Ordinal) ? label[..^" service".Length] : label;
 }

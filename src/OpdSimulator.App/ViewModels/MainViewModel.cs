@@ -305,7 +305,8 @@ public partial class MainViewModel : ObservableObject
             Config.InterArrivalDistribution ?? "Exponential",
             Config.StageServiceFamilies,
             Config.SignificanceLevelForRun,
-            InputTab.SelectedFittingUnit);
+            InputTab.SelectedFittingUnit,
+            Config.CurrentDataFitCaptions);
 
     /// <summary>
     /// A stage's family changed, so the tab's per-stage verdicts are stale.

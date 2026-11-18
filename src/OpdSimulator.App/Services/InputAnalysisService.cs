@@ -86,6 +86,35 @@ public sealed record ChiSquareChartData(
 /// </remarks>
 public sealed record StageServiceFamily(string StageName, DistributionFamily Family);
 
+
+/// <summary>
+/// The family and AIC the uploaded data selected for one series (Phase 9C,
+/// D-235). Used only to add the "data's best fit" clause to a histogram caption
+/// when the run uses a different family — one series, two truths, no new chart.
+/// </summary>
+/// <param name="Family">The winning family's name, as printed by the fitter.</param>
+/// <param name="Aic">The winner's AIC, printed to the nearest integer.</param>
+public sealed record DataFitCaption(string Family, double Aic)
+{
+    /// <summary>The caption fragment, e.g. "Lognormal (AIC 412)".</summary>
+    public string Text => $"{Family} (AIC {Aic:F0})";
+}
+
+/// <summary>
+/// Data winners for the Input Analysis series (Phase 9C, D-235). Keyed by the
+/// file's stage names so a renamed configured row cannot mislabel a card.
+/// </summary>
+/// <param name="InterArrival">The inter-arrival winner, or null when none was fitted.</param>
+/// <param name="Stages">Per-stage winners, keyed by the file's stage name.</param>
+public sealed record DataFitCaptions(
+    DataFitCaption? InterArrival,
+    IReadOnlyDictionary<string, DataFitCaption> Stages)
+{
+    /// <summary>No winner is known yet (before a file load or a fit refusal).</summary>
+    public static readonly DataFitCaptions Empty =
+        new(null, new Dictionary<string, DataFitCaption>(StringComparer.OrdinalIgnoreCase));
+}
+
 /// <summary>
 /// Derives the Input Analysis charts from a loaded data binding (Phase 6C,
 /// 6c.2). Pure numbers with no UI types, so the binning and PDF scaling are
@@ -188,7 +217,13 @@ public static class InputAnalysisService
     /// widths, so each bin uses its own width). When the fit failed the card
     /// is returned without series; the card surface shows its empty state.
     /// </summary>
-    public static HistogramChartData BuildHistogram(FitReport fit)
+    /// <param name="dataBestFit">
+    /// The uploaded data's winner for this series, or null when the run family is
+    /// itself the winner. When it differs from the fitted family the caption gains
+    /// one clause naming it (Phase 9C, D-235). The overlay is never changed — it
+    /// always draws the family the run will actually use.
+    /// </param>
+    public static HistogramChartData BuildHistogram(FitReport fit, DataFitCaption? dataBestFit = null)
     {
         string title = TitleFor(fit.Label, fit.Unit);
 
@@ -218,6 +253,15 @@ public static class InputAnalysisService
             $"{fitted.Name} ({fitted.ParametersText()}) — χ²({chi.DegreesOfFreedom}) = {chi.Statistic.ToString("0.###", CultureInfo.InvariantCulture)}, " +
             $"p = {chi.PValue.ToString("0.###", CultureInfo.InvariantCulture)} — {chi.Decision}"
             + OpdSimulator.Data.Fitting.FittingTimeUnits.DefinitionNote(fit.Unit);
+
+        // The run's family is already in the caption above. Name the data's
+        // winner as well ONLY when the owner overrode it, so a reader can see
+        // both truths without a second series (D-235).
+        if (dataBestFit is not null
+            && !string.Equals(fitted.Name, dataBestFit.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            caption += $" · data's best fit: {dataBestFit.Text}";
+        }
 
         return new HistogramChartData(title, caption, true, categories, observed, pdf);
     }

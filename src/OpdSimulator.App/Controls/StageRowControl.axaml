@@ -145,6 +145,38 @@
                 </StackPanel>
             </Border>
 
+
+             <!-- Phase 9C (D-232): what the load decided for this stage, and any
+                  departure from it, stay beside the controls they describe. -->
+             <TextBlock Text="{Binding FitDisclosure}"
+                        Classes="Caption"
+                        TextWrapping="Wrap"
+                        Foreground="{DynamicResource BrushTextSecondary}"
+                        ToolTip.Tip="The service family the uploaded data chose for this stage on load."
+                        IsVisible="{Binding FitDisclosure, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+             <TextBlock Text="{Binding FitOverrideWarning}"
+                        Classes="Caption"
+                        TextWrapping="Wrap"
+                        Foreground="{DynamicResource BrushError}"
+                        ToolTip.Tip="This stage's service family deviates from the uploaded data's best fit."
+                        IsVisible="{Binding FitOverrideWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+             <TextBlock Text="{Binding DataCoverageWarning}"
+                        Classes="Caption"
+                        TextWrapping="Wrap"
+                        Foreground="{DynamicResource BrushError}"
+                        ToolTip.Tip="This stage is not covered by the loaded file, so no fitted service rate exists for it."
+                        IsVisible="{Binding DataCoverageWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+             <TextBlock Text="{Binding MuOverrideWarning}"
+                        Classes="Caption"
+                        TextWrapping="Wrap"
+                        Foreground="{DynamicResource BrushError}"
+                        ToolTip.Tip="This stage's typed μ deviates from the uploaded data's fitted value."
+                        IsVisible="{Binding MuOverrideWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+             <Button Content="Use the data fit"
+                     Command="{Binding UseDataFitCommand}"
+                     Classes="GhostButton"
+                     ToolTip.Tip="Restore this stage's fitted family and spread and clear the μ override."
+                     IsVisible="{Binding HasDataFit}"/>
             <!-- Row-level error display for messages that belong to no visible input.
                  A spread error already appears under its own field, so it is not
                  repeated here; an auto-fit refusal has no field of its own and would

@@ -3704,3 +3704,51 @@ plus the 8 px spacing, and each value cell hugs its text.
 - **Implementation details:** one ignore rule with a comment; the working-tree file is untouched; the corrected commit is `c6f16e5` and the ignore commit is `cccffa6`.
 - **Impact (+):** a later broad `git add` cannot repeat the mistake. **Impact (−):** a fresh clone will not contain the phase brief — intended, since the owner supplies it.
 - **Alternatives considered:** leave the file unignored and rely on careful staging (rejected — the mistake already happened); commit it and mark it private (rejected — owner rule).
+
+## D-232 — Fitted values are the default; an explicit edit is a disclosed override (Phase 9C)
+
+- **Date:** 2026-11-19
+- **Status:** Ruled by the owner 2026-11-15; recorded during implementation.
+- **Decision:** Each data-derivable field carries `FieldProvenance { Default, AutoFitted, UserSet }` (arrival family, service family, routing probabilities). A load overwrites `Default` and `AutoFitted` but keeps `UserSet`, and the panel displays a ⚠ sentence naming the data's winner, the entered value and the consequence. `[Use the data fit]` restores the winner and resets provenance. For μ this **clarifies rather than reverses** D-128 ruling 5: the fitted μ still wins when the field was never edited, but a μ typed after a file is loaded is honoured through 9P's `ResolveMu` (R-μ-2) and warns. 9C never writes μ and never resolves it.
+- **Rationale:** The owner wants the uploaded data to train the model, while the teacher must be able to change a value to test the simulator. Non-blank provenance was rejected: the explicit G/G/c path can write a fitted number into a field, and a value typed before a load is not an answer to that file.
+- **Implementation details:** `StageRow.FamilyProvenance` and the panel's `_arrivalFamilyProvenance` move on user edits; 9P's `MuProvenance` is moved only on a new load (`Fitted`→`Default`, `UserSet` kept). Disclosure strings have one home each in the view models. Provenance is never persisted (FR-UI-21).
+- **Impact (+):** the run follows the data unless a human knowingly leaves it; every departure is visible at the control. **Impact (−):** a second file will not replace a user's earlier override until they press `[Use the data fit]`, which is the intended consent boundary.
+- **Alternatives considered:** fit always wins (rejected — prevents manual simulator testing); non-blank wins (rejected — cannot distinguish the app's own write); persist provenance in presets (rejected — FR-UI-21).
+
+## D-259 — Re-seed a null Kendall notation instead of dereferencing it (2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** In `StageRow.RebaseModelNotation`, a null/empty `SelectedModel` is replaced with the first current `ModelOptions` entry instead of being split. Captured in the PRD change history as `[FIXED]`.
+- **Rationale:** The Phase 9C headless walkthrough produced `NullReferenceException` at `StageRow.cs:631` through `ApplyFittedArrival` → `RefreshStageSourceLabels`. Root cause: the two-way `ComboBox.SelectedItem` binding writes null back when its `Items` are replaced by the family-derived `ModelOptions`; the non-UI unit tests never render the ComboBox, so they could not see it.
+- **Implementation details:** one guard before `SelectedModel.Split('/')`; no change to family fitting, the gate, or the resolver.
+- **Impact (+):** the load path no longer crashes in the real UI when the data winner is not Exponential. **Impact (−):** a transient null notation is replaced by a valid default rather than preserved; the user can still choose their notation afterwards.
+- **Alternatives considered:** change the ComboBox binding to one-way (rejected — the user must be able to pick a notation); defer to a later phase (rejected — it blocks 9C's own load path).
+
+
+## D-233 — Disclose the effective routing probabilities; fill the fields only when the channel is live (2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** `PExitFitText`/`PBypassFitText` always state the probability the run will use and which input supplied it (data fit vs owner's value vs documented default), and `PExitOverrideWarning`/`PBypassOverrideWarning` name the data fit when an owner value deviates. The override *fields* are auto-filled from the fit only while `ParametersSupplied` is true; otherwise the disclosure names the value the run uses without writing a field the run ignores. A `UserSet` value survives later loads and is re-warned.
+- **Rationale:** The run already used fitted p_exit/p_bypass when the fields were blank, but the values were invisible and the auto-fill channel depended on an unrelated Parameters toggle. Writing a number the run would ignore is the exact dishonesty 9C removes.
+- **Implementation details:** `RecomputeRoutingWarnings`/`RecomputeOneRouting` in `ConfigPanelViewModel` read the same preview resolvers as the ρ summary; `ApplyFittedRouting` guards writes with `_isRoutingAutoFill`; owner edits set `FieldProvenance.UserSet`; switching the Parameters channel on calls `ApplyFittedRouting`; `ResetToDefaults` clears both fields and provenance. Three intent tests in `Phase9CAutoFitTests`.
+- **Impact (+):** the routing the run executes is always visible at the control, and a departure from the data is named. **Impact (−):** with the Parameters section off, the fit is disclosed but the fields stay blank by design — the disclosure, not the field, is the source of truth.
+- **Alternatives considered:** always write the fit into the fields (rejected — the run ignores them when the channel is off); disclose only after a file load (rejected — a fresh user then sees nothing about the default).
+
+## D-236 — Reconcile the stage list with the loaded data; count adoption deferred (2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** `StageListProvenance { Default, UserSet }` is set to `UserSet` by a count edit, a rename, or an explicit *Sync stages to data*. On load while `Default`, the file's stage names are adopted **in place** only when the file's stage count already equals the configured count; the stage count itself is **not** adopted. Rows the file does not cover carry a per-row `DataCoverageWarning`, and the existing mismatch banner + one-click Sync path remain.
+- **Rationale:** The owner's brief asks the load to adopt `binding.StageNames` — same count, names and order. Full count adoption made a mismatch warning impossible on load and broke eleven established tests (`StageCount_DataHasFewerStages_ShowsWarning`, `InputTab_StageSync_ReplacesConfigStages`, `KeepCurrentStages_DismissesWarning_KeepsRows`, five screenshot frames and three more) that encode the warn-plus-explicit-Sync behaviour. Adopting names in place is the part that is load-bearing for "the run follows the data": `FittedRateFor` matches μ by stage name, so without it a renamed file leaves every stage without a fit. Clearing and rebuilding rows was rejected because it destroys the μ/family provenance the 9C.5 demotion and UserSet-kept rules live on.
+- **Implementation details:** `AdoptStagesFromDataIfDefault` renames existing rows in place under `_isAdoptingStages`; count edits, renames and `SyncStagesToData` set `StageListProvenance.UserSet`; `RecomputeStagesMismatch` writes `DataCoverageWarning` per row; `ResetToDefaults` returns the list to `Default`.
+- **Impact (+):** names follow the data where they can, μ-by-name lookup works, no owner configuration is deleted on load, and all 682 App tests stay green. **Impact (−):** this is a **partial implementation** of the brief — the "same count" clause is not implemented. B-014 records the open question for the owner.
+- **Alternatives considered:** full count adoption with the eleven tests rewritten (rejected pending owner ruling — it silently discards an owner's stage count on every load); no adoption at all (rejected — μ-by-name lookup then fails for renamed stages); rebuild rows on adoption (rejected — destroys provenance).
+
+
+## D-235 — The Input Analysis caption follows the run and names the fit on override (2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** The histogram overlay stays the family the run will execute (it already does, because `FitAll` fits against the configured families); the card caption gains one clause — `· data's best fit: Lognormal (AIC 412)` — only when that run family differs from the file's winner. The same rule applies to the inter-arrival card and every stage card. Winners are keyed by the file's stage names so a renamed configured row cannot mislabel a card.
+- **Rationale:** Drawing the data's favourite while the run uses something else would make the verification surface lie in the other direction. One series with two named truths is honest and adds no widget. This is explicitly **not** the Results-tab waiting-time histogram (Phase 8Z, D-224).
+- **Implementation details:** `DataFitCaption`/`DataFitCaptions` records in `InputAnalysisService`; `BuildHistogram(FitReport, DataFitCaption?)` with a null default so the Results-side and all existing callers are unchanged; `InputAnalysisViewModel.Prepare` matches fit labels to winners; `ConfigPanelViewModel.CurrentDataFitCaptions` builds the winners from the stored per-row/AIC fields; `MainViewModel.SyncInputAnalysis` threads them in. Three intent tests in `Phase9CAutoFitTests`.
+- **Impact (+):** the caption never describes a family the run does not use, yet an override does not hide what the data said. **Impact (−):** a caption can now be long enough to wrap in a narrow card; the card already wraps its caption text.
+- **Alternatives considered:** overlay both PDFs (rejected — two series contradict "one series, two truths" and touch chart code); keep the original caption (rejected — the override would silently hide the data winner); change the 8Z histogram (rejected — out of scope and owned by D-224).

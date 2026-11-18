@@ -106,13 +106,32 @@ public partial class ConfigPanelViewModel : ObservableObject
         // an edit to p_exit or p_bypass left the summary showing the ρ from the last
         // unrelated change — a stale preview beside a live field, which is worse
         // than no preview because it looks current.
-        PExit.ValueChanged += (_, _) => RecomputeRho();
-        PBypass.ValueChanged += (_, _) => RecomputeRho();
+        PExit.ValueChanged += (_, _) =>
+        {
+            if (!_isRoutingAutoFill)
+            {
+                _pExitProvenance = FieldProvenance.UserSet;
+            }
+            RecomputeRoutingWarnings();
+            RecomputeRho();
+        };
+        PBypass.ValueChanged += (_, _) =>
+        {
+            if (!_isRoutingAutoFill)
+            {
+                _pBypassProvenance = FieldProvenance.UserSet;
+            }
+            RecomputeRoutingWarnings();
+            RecomputeRho();
+        };
         StageCount.ValueChanged += (_, _) => OnStageCountEdited();
         // The arrival spread participates in the Start gate, so an edit must
         // re-evaluate it immediately — the same reason λ and the comma-list μ do.
         ArrivalSpread.ValueChanged += (_, _) => RecomputeBlockingState();
         EnsureStageCount(DefaultStages);
+        // Phase 9C.6: the effective-value sentence exists from launch, not only
+        // after the first file — a fresh user still deserves to know the default.
+        RecomputeRoutingWarnings();
     }
 
     private const int DefaultStages = 3;
@@ -334,6 +353,7 @@ public partial class ConfigPanelViewModel : ObservableObject
         // Re-push it now so every row re-bases its Kendall string and rebuilds
         // ModelOptions the moment the Model-section family changes (§5.4 step 2).
         RefreshStageSourceLabels();
+        RecomputeOverrideWarnings();
 
         RecomputeBlockingState();
     }
@@ -573,6 +593,37 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// stages, because bypass skips a stage and needs one to skip.
     /// </summary>
     public ConfigFieldViewModel PBypass { get; } = new();
+
+    /// <summary>Provenance of the p_exit override field (Phase 9C, D-233).</summary>
+    private FieldProvenance _pExitProvenance = FieldProvenance.Default;
+
+    /// <summary>Provenance of the p_bypass override field (Phase 9C, D-233).</summary>
+    private FieldProvenance _pBypassProvenance = FieldProvenance.Default;
+
+    /// <summary>Whether the stage list still belongs to the data (Phase 9C, D-236).</summary>
+    private StageListProvenance _stageListProvenance = StageListProvenance.Default;
+
+    /// <summary>Guards the load's own stage adoption so it is not read as a user edit.</summary>
+    private bool _isAdoptingStages;
+
+    /// <summary>Guards the two auto-filled fields so a fit write is not read as an edit.</summary>
+    private bool _isRoutingAutoFill;
+
+    /// <summary>Effective p_exit and which input won, shown always (Phase 9C, D-233).</summary>
+    [ObservableProperty]
+    private string? _pExitFitText;
+
+    /// <summary>Deviation sentence when the owner's p_exit differs from the data's fit.</summary>
+    [ObservableProperty]
+    private string? _pExitOverrideWarning;
+
+    /// <summary>Effective p_bypass and which input won, shown always (Phase 9C, D-233).</summary>
+    [ObservableProperty]
+    private string? _pBypassFitText;
+
+    /// <summary>Deviation sentence when the owner's p_bypass differs from the data's fit.</summary>
+    [ObservableProperty]
+    private string? _pBypassOverrideWarning;
 
     /// <summary>
     /// Read-only utilisation per stage, computed live from the current field
@@ -874,6 +925,18 @@ public partial class ConfigPanelViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(ParametersSupplied));
+        // Switching the channel ON is when the fit's numbers first become real
+        // overrides; populate them now so the field never shows a blank that the
+        // run silently replaces (Phase 9C, D-233).
+        if (value)
+        {
+            ApplyFittedRouting();
+        }
+        else
+        {
+            RecomputeRoutingWarnings();
+        }
+
         RecomputeRho();
         RefreshStageSourceLabels();
         RecomputeBlockingState();
@@ -1099,6 +1162,50 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string? _arrivalFitDisclosure;
+
+    /// <summary>
+    /// The deviation sentence shown when the user's inter-arrival family differs
+    /// from the data's winner (Phase 9C, §4.3).
+    /// </summary>
+    [ObservableProperty]
+    private string? _arrivalOverrideWarning;
+
+    /// <summary>Winning arrival spec kept for `[Use the data fit]`.</summary>
+    private DistributionSpec? _arrivalBestFitSpec;
+
+    /// <summary>Winning arrival family and AIC for the Input Analysis caption (Phase 9C, D-235).</summary>
+    private DataFitCaption? _arrivalDataFitCaption;
+
+    /// <summary>
+    /// The data's winners for the Input Analysis histogram captions (Phase 9C,
+    /// D-235). Keyed by the file's stage names, so a renamed configured row can
+    /// never put another stage's winner on a card.
+    /// </summary>
+    public DataFitCaptions CurrentDataFitCaptions
+    {
+        get
+        {
+            var stages = new Dictionary<string, DataFitCaption>(StringComparer.OrdinalIgnoreCase);
+            if (Binding is { } binding)
+            {
+                for (int i = 0; i < binding.StageNames.Count; i++)
+                {
+                    string name = binding.StageNames[i];
+                    var row = StageRows.FirstOrDefault(r =>
+                        string.Equals(r.StageName, name, StringComparison.OrdinalIgnoreCase));
+                    if (row?.BestFitFamily is { } family)
+                    {
+                        stages[name] = new DataFitCaption(family.ToString(), row.BestFitAic);
+                    }
+                }
+            }
+
+            return new DataFitCaptions(_arrivalDataFitCaption, stages);
+        }
+    }
+
+    /// <summary>Whether a load supplied an arrival winner this button can restore (Phase 9C, D-232).</summary>
+    public bool HasArrivalDataFit => _arrivalBestFitSpec is not null;
 
     /// <summary>
     /// Re-gates Start when a fit pass starts or finishes. Without this the reason
@@ -1376,12 +1483,69 @@ public partial class ConfigPanelViewModel : ObservableObject
             DataStatus = $"Loaded {Binding.DataSet!.RowCount} rows — {Binding.Issues.Count} issue(s) to review";
         }
 
+        // Phase 9C.5 (D-232): a μ marked Fitted belongs to the PREVIOUS file. On a
+        // new load it becomes a default so 9P's resolver can take this file's fit;
+        // a UserSet value is the owner's override and is deliberately kept. This
+        // only moves provenance — the μ itself is still resolved by ResolveMu.
+        AdoptStagesFromDataIfDefault();
+
+        foreach (var row in StageRows)
+        {
+            if (row.MuProvenance == MuProvenance.Fitted)
+            {
+                row.MuProvenance = MuProvenance.Default;
+            }
+
+            row.FittedMuPerMinute = FittedRateFor(row.StageName);
+        }
+
+        // Phase 9C.6: disclose the effective routing always; fill the fields
+        // themselves only when the Parameters channel will actually use them.
+        ApplyFittedRouting();
+        RecomputeRoutingWarnings();
         RefreshStageSourceLabels();
         RecomputeStagesMismatch();
+        RecomputeOverrideWarnings();
         // A usable file can complete fit mode, so the gate must re-evaluate
         // immediately (7C.6); an unusable one keeps Start blocked.
         RecomputeBlockingState();
         RaiseDataBindingChanged();
+    }
+
+    /// <summary>
+    /// Adopts the loaded file's stage names and count while the list is still
+    /// the data's own (Phase 9C, D-236). Once the owner edits a count, renames a
+    /// row or presses *Sync stages to data*, the list is theirs and a load keeps
+    /// it, naming the uncovered stages instead of deleting them silently.
+    /// </summary>
+    private void AdoptStagesFromDataIfDefault()
+    {
+        if (_stageListProvenance != StageListProvenance.Default
+            || Binding is not { IsUsable: true }
+            || Binding.StageNames is not { Count: > 0 } names
+            || names.Count != StageRows.Count)
+        {
+            // The count is the owner's explicit decision today (the mismatch
+            // warning + "Sync stages to data" path); only the names of an
+            // already-matching list follow the data. See B-013.
+            return;
+        }
+
+        _isAdoptingStages = true;
+        try
+        {
+            // Rename in place. Clearing and rebuilding the rows would discard
+            // the μ/family provenance an owner already set on a row — the 9C.5
+            // demotion and UserSet-kept rules live on those objects (D-232).
+            for (int i = 0; i < names.Count; i++)
+            {
+                StageRows[i].StageName = names[i];
+            }
+        }
+        finally
+        {
+            _isAdoptingStages = false;
+        }
     }
 
     /// <summary>
@@ -1402,16 +1566,30 @@ public partial class ConfigPanelViewModel : ObservableObject
         int configured = StageRows.Count;
         int detected = Binding.StageNames.Count;
         string names = string.Join(", ", Binding.StageNames);
+
+        // Phase 9C.6/D-236: name the consequence on the exact row that has no
+        // timings, so a mismatch is not a single banner the user has to map onto
+        // their own list by eye. A row the data covers has no warning.
+        foreach (var row in StageRows)
+        {
+            row.DataCoverageWarning = Binding.StageNames.Any(n =>
+                string.Equals(n, row.StageName, StringComparison.OrdinalIgnoreCase))
+                ? null
+                : $"⚠ No data for this stage — {row.StageName}. The run has no fitted μ for it.";
+        }
+
         if (detected < configured)
         {
             StageMismatchMessage =
-                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. Configured stages not covered by the data will have no service rate.";
+                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. " +
+                "Configured stages not covered by the data will have no service rate.";
             IsStageMismatchWarningVisible = true;
         }
         else if (detected > configured)
         {
             StageMismatchMessage =
-                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. Extra stages in the data will be ignored.";
+                $"⚠ Uploaded data has {detected} stage(s) — {names}, but {configured} stage(s) are configured. " +
+                "Extra stages in the data will be ignored. Use “Sync stages to data” to append them.";
             IsStageMismatchWarningVisible = true;
         }
         else
@@ -1433,14 +1611,24 @@ public partial class ConfigPanelViewModel : ObservableObject
             return;
         }
 
-        StageCount.Value = names.Count.ToString();
-        StageRows.Clear();
-        EnsureStageCount(names.Count);
-        for (int i = 0; i < names.Count; i++)
+        _isAdoptingStages = true;
+        try
         {
-            StageRows[i].StageName = names[i];
+            StageCount.Value = names.Count.ToString();
+            StageRows.Clear();
+            EnsureStageCount(names.Count);
+            for (int i = 0; i < names.Count; i++)
+            {
+                StageRows[i].StageName = names[i];
+            }
+        }
+        finally
+        {
+            _isAdoptingStages = false;
         }
 
+        // An explicit sync is the owner's choice, so future loads keep this list.
+        _stageListProvenance = StageListProvenance.UserSet;
         RefreshStageSourceLabels();
         // The rows were just renamed to the data's stages; the gate must see the
         // new names before deciding whether every stage has a μ (7C.6).
@@ -1554,7 +1742,11 @@ public partial class ConfigPanelViewModel : ObservableObject
         InterArrivalDistribution = "Exponential";
         // Phase 9C (D-232): Clear All is the return to "no provenance decision".
         _arrivalFamilyProvenance = FieldProvenance.Default;
+        _arrivalBestFitSpec = null;
+        _arrivalDataFitCaption = null;
+        OnPropertyChanged(nameof(HasArrivalDataFit));
         ArrivalFitDisclosure = null;
+        ArrivalOverrideWarning = null;
         // Phase 8L: the old reset wrote the deleted global `ServiceDistribution`
         // string. The value that actually matters is the one new stages are seeded
         // from, so that is what goes back to its default.
@@ -1566,8 +1758,22 @@ public partial class ConfigPanelViewModel : ObservableObject
         TimeUnit = TimeUnit.Minutes;
         ManualLambda.Value = "";
         ManualMuPerStage.Value = "";
-        PExit.Value = "";
-        PBypass.Value = "";
+        _isRoutingAutoFill = true;
+        try
+        {
+            PExit.Value = "";
+            PBypass.Value = "";
+        }
+        finally
+        {
+            _isRoutingAutoFill = false;
+        }
+        _pExitProvenance = FieldProvenance.Default;
+        _pBypassProvenance = FieldProvenance.Default;
+        PExitFitText = null;
+        PBypassFitText = null;
+        PExitOverrideWarning = null;
+        PBypassOverrideWarning = null;
         IsStageMismatchWarningVisible = false;
         StageMismatchMessage = "";
         ParametersIsOptionalEnabled = false;
@@ -1588,9 +1794,18 @@ public partial class ConfigPanelViewModel : ObservableObject
             field.ClearError();
         }
 
-        StageRows.Clear();
-        EnsureStageCount(DefaultStages);
-        StageCount.Value = DefaultStages.ToString();
+        _stageListProvenance = StageListProvenance.Default;
+        _isAdoptingStages = true;
+        try
+        {
+            StageRows.Clear();
+            EnsureStageCount(DefaultStages);
+            StageCount.Value = DefaultStages.ToString();
+        }
+        finally
+        {
+            _isAdoptingStages = false;
+        }
         RefreshStageSourceLabels();
         RecomputeRho();
         RecomputeBlockingState();
@@ -1632,6 +1847,11 @@ public partial class ConfigPanelViewModel : ObservableObject
 
     private void OnStageCountEdited()
     {
+        if (!_isAdoptingStages)
+        {
+            _stageListProvenance = StageListProvenance.UserSet;
+        }
+
         if (TryStageCount(out var n) && n is >= 1 and <= 5)
         {
             EnsureStageCount(n);
@@ -1680,6 +1900,7 @@ public partial class ConfigPanelViewModel : ObservableObject
 
                 RefreshStageSourceLabels();
                 RecomputeRho();
+                RecomputeOverrideWarnings();
                 RecomputeBlockingState();
             };
             // G/G/c asks for a family to be chosen from the data. Only this class knows
@@ -1696,6 +1917,14 @@ public partial class ConfigPanelViewModel : ObservableObject
             // reclaims together — the same shape as the ValueChanged subscriptions above.
             row.PropertyChanged += (_, args) =>
             {
+                if (args.PropertyName == nameof(StageRow.StageName) && !_isAdoptingStages)
+                {
+                    // A rename is an explicit statement that this list is the
+                    // owner's, not the data's (Phase 9C, D-236).
+                    _stageListProvenance = StageListProvenance.UserSet;
+                    RecomputeStagesMismatch();
+                }
+
                 if (args.PropertyName == nameof(StageRow.ServiceFamily))
                 {
                     // Our own write during ApplyAutoFit; the caller syncs once when
@@ -1708,6 +1937,7 @@ public partial class ConfigPanelViewModel : ObservableObject
                     StageServiceFamiliesChanged?.Invoke(this, EventArgs.Empty);
                     // The spread caption switches between σ and w with the family.
                     RefreshStageSourceLabels();
+                    RecomputeOverrideWarnings();
                 }
             };
             StageRows.Add(row);
@@ -1917,6 +2147,98 @@ public partial class ConfigPanelViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Always-on disclosures for the two routing overrides (Phase 9C, D-233).
+    /// Both sentences read the same preview resolvers the ρ summary uses, so they
+    /// cannot describe a routing the run will not use.
+    /// </summary>
+    private void RecomputeRoutingWarnings()
+    {
+        RecomputeOneRouting(
+            Binding?.FittedExitProbability,
+            SimulationCoordinator.DefaultExitProbability,
+            _pExitProvenance,
+            PExit.Value,
+            "p_exit",
+            text => PExitFitText = text,
+            warning => PExitOverrideWarning = warning);
+
+        RecomputeOneRouting(
+            Binding?.FittedBypassProbability,
+            0.0,
+            _pBypassProvenance,
+            PBypass.Value,
+            "p_bypass",
+            text => PBypassFitText = text,
+            warning => PBypassOverrideWarning = warning);
+    }
+
+    /// <summary>Builds one field's effective-value sentence and deviation sentence.</summary>
+    private void RecomputeOneRouting(
+        double? fitted,
+        double fallback,
+        FieldProvenance provenance,
+        string? field,
+        string name,
+        Action<string> setText,
+        Action<string?> setWarning)
+    {
+        double? typed = ParseUnitInterval(field);
+        bool isOverride = ParametersSupplied && provenance == FieldProvenance.UserSet && typed is not null;
+
+        setText(fitted is null
+            ? $"No {name} data in this file, so the default {fallback:F3} is used."
+            : isOverride
+                ? $"Using your value {typed!.Value:F3}; the data implies {fitted.Value:F3}."
+                : $"From the uploaded data: {fitted.Value:F3}.");
+
+        setWarning(isOverride && fitted is { } dataValue
+            && System.Math.Abs(dataValue - typed!.Value) > 1e-9
+                ? $"⚠ Your {name} ({field}) deviates from the uploaded data's fit ({dataValue:F3}). " +
+                  "The run will use your value."
+                : null);
+    }
+
+    /// <summary>Parses a probability in [0, 1) — the engine's invariant (D-179).</summary>
+    /// <param name="text">The field's raw text.</param>
+    private static double? ParseUnitInterval(string? text) =>
+        double.TryParse(text, out var value) && value >= 0 && value < 1 ? value : null;
+
+    /// <summary>
+    /// Fills the routing fields from the fit, but only while the Parameters channel
+    /// is live; otherwise the displayed number would not be the one the run uses
+    /// (Phase 9C, D-233). A user-set value is never replaced.
+    /// </summary>
+    private void ApplyFittedRouting()
+    {
+        if (!ParametersSupplied)
+        {
+            return;
+        }
+
+        _isRoutingAutoFill = true;
+        try
+        {
+            if (_pExitProvenance != FieldProvenance.UserSet && Binding?.FittedExitProbability is { } exit)
+            {
+                PExit.Value = exit.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                _pExitProvenance = FieldProvenance.AutoFitted;
+            }
+
+            if (_pBypassProvenance != FieldProvenance.UserSet && Binding?.FittedBypassProbability is { } bypass)
+            {
+                PBypass.Value = bypass.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                _pBypassProvenance = FieldProvenance.AutoFitted;
+            }
+        }
+        finally
+        {
+            _isRoutingAutoFill = false;
+        }
+
+        RecomputeRoutingWarnings();
+    }
+
+    /// <summary>
     /// Applies one load's fitted families and spreads to the fields the run reads
     /// (Phase 9C, D-231/D-232). μ is deliberately absent: 9P's resolver owns it,
     /// and <see cref="StageRow.ApplyFittedShape"/> carries only shape. A user-set
@@ -1951,15 +2273,22 @@ public partial class ConfigPanelViewModel : ObservableObject
                     continue;
                 }
 
+                var best = stage.Fit.Best;
+
+                // Keep THIS file's winner even when the row is a user override:
+                // the deviation warning beside the field has to name it (D-232).
+                row.BestFitSpec = best?.Spec;
+                row.BestFitFamily = best?.Family;
+                row.BestFitAic = best?.Aic ?? 0;
+                row.FittedMuPerMinute = FittedRateFor(row.StageName);
+
                 if (row.FamilyProvenance == FieldProvenance.UserSet)
                 {
                     continue;
                 }
 
-                var best = stage.Fit.Best;
                 if (best is null)
                 {
-                    row.BestFitFamily = null;
                     row.FitDisclosure =
                         $"⚠ Could not choose a family from this stage's data: {FitRefusalReason(stage.Fit)} " +
                         $"Using {row.ServiceFamily} (the current selection); the run will not follow the data's shape.";
@@ -1982,6 +2311,7 @@ public partial class ConfigPanelViewModel : ObservableObject
             // 9A D-229: the derived first letter and inflow follow the family that
             // was just written; one call after the whole apply, not one per row.
             RefreshStageSourceLabels();
+            RecomputeOverrideWarnings();
         }
         finally
         {
@@ -1998,12 +2328,19 @@ public partial class ConfigPanelViewModel : ObservableObject
     /// <param name="fit">Fit of the inter-arrival series.</param>
     private void ApplyFittedArrival(GeneralFitResult fit)
     {
+        var best = fit.Best;
+
+        // The winner is stored before the provenance check: a user-set family on a
+        // SECOND load must warn about the new file's winner, not the old one (D-232).
+        _arrivalBestFitSpec = best?.Spec;
+        _arrivalDataFitCaption = best is null ? null : new DataFitCaption(best.Family.ToString(), best.Aic);
+        OnPropertyChanged(nameof(HasArrivalDataFit));
+
         if (_arrivalFamilyProvenance == FieldProvenance.UserSet)
         {
             return;
         }
 
-        var best = fit.Best;
         if (best is null)
         {
             ArrivalFitDisclosure =
@@ -2023,6 +2360,74 @@ public partial class ConfigPanelViewModel : ObservableObject
         ArrivalFitDisclosure =
             $"Auto-fitted from the uploaded data: {best.Family} " +
             $"(AIC {best.Aic:F0}, p = {best.ChiSquare?.PValue:F2}). Change the family to override.";
+    }
+
+    /// <summary>
+    /// Recomputes every "this deviates from the uploaded data" sentence from the
+    /// winner already stored on load and the field's current value (Phase 9C,
+    /// §4.3, D-232). One home for the wording: call it after a load, after any
+    /// family edit, and after a μ edit. No sentence means no deviation.
+    /// </summary>
+    private void RecomputeOverrideWarnings()
+    {
+        ArrivalOverrideWarning = null;
+        if (_arrivalFamilyProvenance == FieldProvenance.UserSet
+            && _arrivalBestFitSpec is { } arrivalWinner
+            && ArrivalFamily != arrivalWinner.Family)
+        {
+            ArrivalOverrideWarning =
+                $"⚠ This selection ({ArrivalFamily}) deviates from the uploaded data's best fit " +
+                $"({arrivalWinner.Family}). The run will use {ArrivalFamily}; choose “Use the data fit” to follow the data.";
+        }
+
+        foreach (var row in StageRows)
+        {
+            row.FitOverrideWarning =
+                row.FamilyProvenance == FieldProvenance.UserSet
+                && row.BestFitFamily is { } winner
+                && row.ServiceFamily != winner
+                    ? $"⚠ This service family ({row.ServiceFamily}) deviates from the uploaded data's best fit ({winner}). " +
+                      "The run will use this family; choose “Use the data fit” to follow the data."
+                    : null;
+
+            row.MuOverrideWarning =
+                row.MuProvenance == MuProvenance.UserSet
+                && row.FittedMuPerMinute is > 0
+                && ParsePositive(row.MuValue) is { } typed
+                && System.Math.Abs(typed - row.FittedMuPerMinute.Value) > 1e-9
+                    ? $"⚠ This μ ({row.MuValue}) deviates from the uploaded data's fit " +
+                      $"({row.FittedMuPerMinute.Value:G4}/min). The run will use this value; “Use the data fit” clears it."
+                    : null;
+        }
+    }
+
+    /// <summary>Parses a typed μ as a positive value, or null when blank/invalid.</summary>
+    /// <param name="text">The field's raw text.</param>
+    private static double? ParsePositive(string? text) =>
+        double.TryParse(text, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0
+            ? value
+            : null;
+
+    /// <summary>
+    /// Restores the arrival family and spread the data chose, and retires its
+    /// deviation warning (Phase 9C, D-232). The winner is already stored, so no
+    /// fit is recomputed here.
+    /// </summary>
+    [RelayCommand]
+    private void UseDataFitArrival()
+    {
+        if (_arrivalBestFitSpec is not { } spec)
+        {
+            return;
+        }
+
+        InterArrivalDistribution = spec.Family.ToString();
+        ArrivalSpread.Value = FittedSpreadText(spec) ?? string.Empty;
+        _arrivalFamilyProvenance = FieldProvenance.AutoFitted;
+        ArrivalOverrideWarning = null;
+        RefreshStageSourceLabels();
+        RecomputeBlockingState();
     }
 
     /// <summary>The fitted spread in the shape the arrival spread field expects, or null when the family has none.</summary>

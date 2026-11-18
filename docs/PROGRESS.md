@@ -1,3 +1,96 @@
+## Session Handoff — 2026-11-19 04:15
+Branch: feat/run-follows-data
+Status: In-Progress
+
+Done
+9C.4 — disclosures + `[Use the data fit]` reset (D-232).
+
+9C.5 — μ provenance moves on load; `UserSet` kept and re-warned.
+
+9C.6 — effective p_exit/p_bypass disclosure and conditional auto-fill (D-233).
+
+9C.8 — Input Analysis caption names the data winner after the run family (D-235).
+
+9C.9 — docs, dead-state Release + Debug gates, boundary and grep gates.
+
+In Progress
+9C.7 — stage-list reconciliation is partial (names adopted in place, count not adopted); owner ruling needed (B-014).
+
+What is complete:
+Steps 9C.4–9C.6, 9C.8 and 9C.9 are implemented and verified. One load runs a single pure off-thread `AutoFitService.Fit` pass; winners become the run's arrival and per-stage service families through the 9P `ApplyFittedShape` seam (never μ, never `ApplyFittedSpec`). Every auto-filled field discloses its family, AIC and χ² p-value; an explicit edit is `UserSet`, is honoured by the run, warns with the data winner and is cleared by `[Use the data fit]`. Effective p_exit/p_bypass are always disclosed; their fields are written from the fit only while the Parameters channel is live. The Input Analysis caption appends `· data's best fit: Family (AIC n)` only on override; the 8Z wait histogram is untouched. All provenance is in-memory only.
+
+### Verification table (§18)
+| Requirement | How verified | Evidence |
+|---|---|---|
+| A load's fit reaches `SimulationParameters` (arrival + per-stage family/spread) | `Phase9CAutoFitTests` fit-selection and run-parameter assertions; `AutoFitServiceTests` (4) | — |
+| Auto-fit runs once per load, off-thread; `IsAutoFitting` cleared on every path | `Phase9CAutoFitTests` load-pass + guard tests | — |
+| Disclosures + deviation warnings name winner and entered value; `[Use the data fit]` restores | `Phase9CAutoFitTests` disclosure/reset tests; headless walkthrough below | `phase-9c-disclosures.png` |
+| μ provenance: `Fitted`→`Default` on load, `UserSet` kept; μ reaches the run via 9P `ResolveMu` | `NewLoad_DemotesPreviousFitProvenance_ButKeepsTheOwnerOverride` + sibling | — |
+| p_exit/p_bypass effective disclosure; field filled only when `ParametersSupplied` | `Phase9CAutoFitTests` routing tests (3) | — |
+| Stage names adopted in place on equal counts; per-row coverage warning; count unchanged | `Phase9CAutoFitTests` stage tests + 11 established mismatch/Sync tests | — |
+| Input caption names data winner after run family on override; 8Z untouched | `HistogramCaption_NoOverride_*`, `HistogramCaption_OnOverride_*`, `DataFitCaptions_FromConfig_*`; boundary greps | — |
+| Dead-state Release + Debug, zero warnings, full suite | `dotnet restore`; `dotnet build --no-restore -c Release --no-incremental` and `-c Debug`; `dotnet test --no-build` in both | — |
+| Real launch | `timeout 20s dotnet run --project src/OpdSimulator.App -c Release --no-build` → `Application started. Main window created.`, exit 0 | `logs/app-*.log` |
+
+Headless walkthrough (§18 / D-089): on `MainWindow` at the declared production size, the test loads `samples/sample_3stage_variable.csv`, applies the fit, switches a stage family away from the winner, then asserts the arrival disclosure, both override warnings and the visible `[Use the data fit]` button before saving `logs/screenshots/phase-9c-disclosures.png` (md5 `669c87e7…`, distinct from the 9A frames). The frame is **new** and append-only (D-166). It awaits owner visual inspection (B-012): this host has no image input, so "does it look right" is owner-required, not agent-confirmed.
+
+What remains:
+Owner ruling on B-014 (stage-count adoption vs the established mismatch-warning tests). Owner visual review of `phase-9c-disclosures.png` (B-012), keyboard-only acceptance (B-007), Windows dead-state build (B-006), and owner review/merge of `feat/run-follows-data`. No PR will be opened by the agent.
+
+Next Session Should Start With
+Owner ruling on B-014 — keep names-only adoption and amend the brief, or deliberately replace the eleven mismatch/Sync tests and adopt count.
+
+Owner visual review of `logs/screenshots/phase-9c-disclosures.png` (B-012).
+
+Blocked
+9C.7 stage-count adoption — B-014 (owner ruling on the brief-vs-tests conflict).
+
+Owner visual review B-012; keyboard B-007; Windows B-006.
+
+Git State
+Commits made this session: c6f16e5 feat: choose run families from loaded data with disclosed provenance; cccffa6 chore: keep the local owner brief out of commits; 38b2792 docs: record 9C checkpoint and brief-ignore decision; plus the final 9C docs commit (see `git log`).
+Pushed to origin: Yes — `origin/feat/run-follows-data` (final commit pushed with this handoff).
+Uncommitted changes: None at wrap-up (verify with `git status`).
+
+Build & Test
+dotnet build: PASS — dead-state Release and Debug, both `--no-incremental`, 0 warnings / 0 errors
+dotnet test: PASS — 1052 passed, 0 failed in each configuration (Core 183 / Data 139 / Cli 45 / App 685)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/Models/StageListProvenance.cs: added
+src/OpdSimulator.App/Services/AutoFitService.cs: added (earlier 9C commit)
+src/OpdSimulator.App/Services/InputAnalysisService.cs: modified
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/MainViewModel.cs: modified
+src/OpdSimulator.App/ViewModels/StageRow.cs: modified
+src/OpdSimulator.App/ViewModels/InputAnalysisViewModel.cs: modified
+src/OpdSimulator.App/Controls/StageRowControl.axaml: modified
+src/OpdSimulator.App/Views/ConfigPanel.axaml: modified
+tests/OpdSimulator.App.Tests/Phase9CAutoFitTests.cs: modified
+tests/OpdSimulator.App.Tests/Phase9CScreenshots.cs: added
+docs/PRD.md, docs/REQUIREMENTS.md, docs/DECISIONS.md, docs/CONTEXT.md, docs/BLOCKERS.md, docs/TODO.md, docs/PROGRESS.md, docs/USER_MANUAL.md, docs/USER_MANUAL_FULL.md, docs/DEV_LAUNCH.md: modified
+
+Decisions Made
+D-232 — field provenance: fitted values are defaults, explicit edits are disclosed overrides.
+D-233 — effective routing probabilities always disclosed; fields auto-filled only while the Parameters channel is live.
+D-235 — Input Analysis caption follows the run and names the fit on override.
+D-236 — stage names adopted in place when counts match; count adoption deferred (B-014).
+D-259 — re-seed a null Kendall notation after Avalonia's ComboBox pushes null.
+
+Assumptions Added/Changed
+[UNVERIFIED] Stage-list ownership on load — names follow the file, count does not (B-014), recorded in `docs/CONTEXT.md`.
+
+Notes for Next Session
+`planning.md` is the owner's local brief: gitignored, untracked, never commit it. The branch boundary is `2371c2b` (the 9A tip), not `main`. Do not merge or open a PR — the owner reviews and merges. Newest crash log remains `logs/crash-20260916.log`; the smoke launch created none. Screenshot evidence is append-only (D-166).
+
+## Checkpoint — 2026-11-19 04:04 — Phase 9C.4–9C.8 implemented (uncommitted)
+
+- **Completed:** 9C.4 disclosures + `[Use the data fit]` (D-232), 9C.5 μ provenance demotion on load, 9C.6 routing disclosures (D-233), 9C.7 partial stage-list reconciliation (D-236, names only — see B-014), 9C.8 Input Analysis caption (D-235). D-259 fixed the null-Kendall-notation NRE found by the headless walkthrough.
+- **Verified:** App Debug build 0 warnings / 0 errors; `Phase9CAutoFitTests` 21/21 green; full App suite **685/685 green**; headless `Phase9CScreenshots` frame `logs/screenshots/phase-9c-disclosures.png` captured. 8Z wait-histogram files are absent from the diff.
+- **In progress:** 9C.9 docs + dead-state gates. **Blocked:** 9C.7 stage-count adoption (B-014) pending owner ruling.
+- **Next:** finish docs, delete `bin/`+`obj/`, run Release+Debug no-incremental gates, boundary `git diff --name-only 2371c2b...HEAD`, grep gates, then commit + push only.
+
 ## Session Handoff — 2026-11-19 03:36
 Branch: feat/run-follows-data
 Status: In-Progress

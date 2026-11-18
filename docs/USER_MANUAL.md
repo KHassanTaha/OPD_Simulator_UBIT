@@ -1365,6 +1365,42 @@ them and the validation fixture: `bash scripts/make-sample-data.sh`.
 
 ---
 
+### 7.8 The run follows your data
+
+When you load a usable CSV/XLSX file, the app fits the arrival pattern and each
+stage's service pattern from **that file** and uses the winners for the run. It
+does this once, in the background; **Start** is disabled while the fit is in
+progress. Nothing about the fit is saved between launches.
+
+**What you see.** Under **Inter-arrival distribution** and beside each stage's
+**Service family**, a line says what the load decided and quotes the winning
+family's AIC and chi-square p-value. The **Input** tab's histogram draws that
+same winner, so the chart and the run agree. If a stage has too few timings
+(the Doctor stage in `sample_3stage_clinic.csv` has six), it keeps its previous
+family and says "insufficient samples"; the other stages still fit and the run
+still completes.
+
+**How to override.** Change the family, type a μ, or enter a p_exit/p_bypass
+value. The field keeps your value and a ⚠ sentence appears naming the data's
+winner, what you entered, and that the run will use your value. A typed μ is
+honoured by the run; leaving the field blank keeps the fitted μ. If the
+Parameters section is switched off, p_exit/p_bypass are still disclosed — the
+app shows the value the run actually uses without writing a number the run
+would ignore. **Use the data fit** restores the family, spread and μ the file
+chose and clears the warning.
+
+**Time units.** The fitted numbers are reported in the unit chosen in
+**2 · Model** — see §4 (Time unit). The engine still consumes per-minute values.
+
+**Stage names.** Loading a file whose stage names differ from your three
+default rows renames those rows in place, because μ is matched to the data by
+stage name. The stage **count** is not changed by a load: if the file has a
+different number of stages you still see the mismatch warning and can choose
+**Sync stages to data** yourself. A row the file does not cover is marked with
+"no data for this stage".
+
+---
+
 ## 8. The Token Generator Tab (removed)
 
 This tab was a placeholder and has been **removed from the window** (Phase 8X,
@@ -1506,3 +1542,4 @@ so each one names itself:
 The two are not interchangeable. A quiet final session can sit well below the average,
 which is exactly what the range is there to show. A one-session run has no range to
 show, so it prints the single figure and nothing else.
+| 2026-11-19 | Phase 9C: a load now fits arrival and per-stage service families from the uploaded file (§7.8). Auto-filled values disclose their winner and AIC; an explicit edit warns and is honoured; **Use the data fit** restores the winner. Effective p_exit/p_bypass are always disclosed. The Input histogram caption names the data winner after the run family on override. Stage names follow the file in place, but the stage count still needs an explicit **Sync stages to data** (D-236/B-014). |

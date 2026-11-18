@@ -206,6 +206,248 @@ public class Phase9CAutoFitTests
         return count;
     }
 
+    // ---------- Phase 9C.6: routing probabilities disclose the effective value ----------
+
+    [Fact]
+    public void RoutingDisclosure_AlwaysNamesTheEffectiveValue()
+    {
+        var config = new ConfigPanelViewModel();
+        Assert.Contains("default", config.PExitFitText!);
+
+        config.ApplyLoadedFile(Path.Combine(FindRepoRoot(AppContext.BaseDirectory),
+            "samples", "sample_3stage_variable.csv"));
+
+        Assert.NotNull(config.PExitFitText);
+        Assert.Contains("uploaded data", config.PExitFitText!);
+        Assert.NotNull(config.PBypassFitText);
+    }
+
+    [Fact]
+    public void RoutingFields_AutoFillOnlyWhileTheParametersChannelIsLive()
+    {
+        var config = new ConfigPanelViewModel();
+        config.ApplyLoadedFile(Path.Combine(FindRepoRoot(AppContext.BaseDirectory),
+            "samples", "sample_3stage_variable.csv"));
+
+        Assert.True(string.IsNullOrEmpty(config.PExit.Value));
+
+        config.ParametersIsOptionalEnabled = true;
+
+        Assert.False(string.IsNullOrEmpty(config.PExit.Value));
+        Assert.Contains("uploaded data", config.PExitFitText!);
+    }
+
+    [Fact]
+    public void RoutingOverride_WarnsNamesTheFit_AndSurvivesTheNextLoad()
+    {
+        var config = new ConfigPanelViewModel();
+        config.ApplyLoadedFile(Path.Combine(FindRepoRoot(AppContext.BaseDirectory),
+            "samples", "sample_3stage_variable.csv"));
+        config.ParametersIsOptionalEnabled = true;
+        double fitted = double.Parse(config.PExit.Value!, System.Globalization.CultureInfo.InvariantCulture);
+
+        config.PExit.Value = "0.9";
+
+        Assert.NotNull(config.PExitOverrideWarning);
+        Assert.Contains(fitted.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
+            config.PExitOverrideWarning!);
+
+        config.ApplyLoadedFile(Path.Combine(FindRepoRoot(AppContext.BaseDirectory),
+            "samples", "sample_bypass.csv"));
+
+        Assert.Equal("0.9", config.PExit.Value);
+        Assert.NotNull(config.PExitOverrideWarning);
+        Assert.Contains("deviates", config.PExitOverrideWarning!);
+    }
+
+    // ---------- Phase 9C.5: provenance moves on load, μ stays with 9P ----------
+
+    [Fact]
+    public void NewLoad_DemotesPreviousFitProvenance_ButKeepsTheOwnerOverride()
+    {
+        var config = LoadedConfig("sample_3stage_variable.csv");
+        var fitted = config.StageRows[0];
+        fitted.MuProvenance = MuProvenance.Fitted;
+        var user = config.StageRows[1];
+        user.MuValue = "9";
+        Assert.Equal(MuProvenance.UserSet, user.MuProvenance);
+
+        config.ApplyLoadedFile(Path.Combine(FindRepoRoot(AppContext.BaseDirectory),
+            "samples", "sample_3stage_clinic.csv"));
+
+        Assert.Equal(MuProvenance.Default, fitted.MuProvenance);
+        Assert.Equal(MuProvenance.UserSet, user.MuProvenance);
+        Assert.NotNull(user.MuOverrideWarning);
+        Assert.Contains("deviates", user.MuOverrideWarning!);
+    }
+
+    [Fact]
+    public void MuProvenance_StillDecidesTheValueThatReachesTheRun()
+    {
+        var config = FittedConfig();
+        var user = config.StageRows[0];
+        user.MuValue = "0.42";
+
+        var parameters = Assert.IsType<SimulationParameters>(config.TryBuildRunParameters());
+
+        // The owner's typed μ is the one placed in ManualServiceRates; the other
+        // stages keep null there so 9P's resolver takes the data's fit. 9C never
+        // writes μ itself — it only moves the provenance that decides this.
+        Assert.Equal(ToPerMinuteTest(0.42, config), parameters.ManualServiceRates[0]);
+        Assert.All(parameters.ManualServiceRates.Skip(1), r => Assert.Null(r));
+    }
+
+    /// <summary>Mode/unit conversion mirrored here so the assertion names the expectation.</summary>
+    private static double ToPerMinuteTest(double value, ConfigPanelViewModel config)
+    {
+        if (config.IsMeanWise)
+        {
+            value = 1.0 / value;
+        }
+        return config.TimeUnit switch
+        {
+            TimeUnit.Minutes => value,
+            TimeUnit.Seconds => value * 60.0,
+            TimeUnit.Hours => value / 60.0,
+            _ => value,
+        };
+    }
+
+    // ---------- Phase 9C.8: Input Analysis caption follows the run, names the fit ----------
+
+    [Fact]
+    public void HistogramCaption_NoOverride_NamesOnlyTheRunFamily()
+    {
+        var fit = InputAnalysisService.FitAll(BindingForCaption(), "Gamma",
+            TestStageFamilies.AllExponential(BindingForCaption()!), 0.05)[0];
+
+        var chart = InputAnalysisService.BuildHistogram(fit, new DataFitCaption("Gamma", 412));
+
+        Assert.Contains("Gamma", chart.Caption!);
+        Assert.DoesNotContain("data's best fit", chart.Caption!);
+    }
+
+    [Fact]
+    public void HistogramCaption_OnOverride_NamesDataWinnerAfterTheRunFamily()
+    {
+        var binding = BindingForCaption();
+        var fit = InputAnalysisService.FitAll(binding, "Exponential",
+            TestStageFamilies.AllExponential(binding!), 0.05)[0];
+
+        var chart = InputAnalysisService.BuildHistogram(fit, new DataFitCaption("Lognormal", 412));
+
+        Assert.Contains("Exponential", chart.Caption!);
+        Assert.Contains("data's best fit: Lognormal (AIC 412)", chart.Caption!);
+        Assert.True(chart.Caption!.IndexOf("Exponential", StringComparison.Ordinal)
+                    < chart.Caption.IndexOf("data's best fit", StringComparison.Ordinal),
+            "the run family must come before the data winner");
+    }
+
+    [Fact]
+    public void DataFitCaptions_FromConfig_NameTheWinner_EvenAfterAnOverride()
+    {
+        var config = FittedConfig();
+        var winners = config.CurrentDataFitCaptions;
+
+        Assert.NotNull(winners.InterArrival);
+        var row = config.StageRows.First(r => r.BestFitFamily is not null);
+        Assert.True(winners.Stages.ContainsKey(row.StageName));
+        Assert.Equal(row.BestFitFamily!.Value.ToString(), winners.Stages[row.StageName].Family);
+
+        row.ApplyServiceFamily(Enum.GetValues<DistributionFamily>().First(f => f != row.BestFitFamily));
+
+        // The winner describes the file, not the current selection — it must
+        // survive the override so the caption can name both truths (D-235).
+        Assert.Equal(row.BestFitFamily.Value.ToString(),
+            config.CurrentDataFitCaptions.Stages[row.StageName].Family);
+    }
+
+    /// <summary>A committed binding whose arrival sample is long enough for a fit.</summary>
+    private static DataBindingResult? BindingForCaption()
+    {
+        var config = LoadedConfig("sample_3stage_variable.csv");
+        return config.Binding;
+    }
+
+    // ---------- Phase 9C.4: disclosures and the one-click return to the fit ----------
+
+    [Fact]
+    public void OverrideArrivalFamily_WarningNamesTheDataWinner_AndResetRestoresIt()
+    {
+        var config = LoadedConfig("sample_3stage_variable.csv");
+        var report = AutoFitService.Fit(config.Binding!, config.SignificanceLevelForRun);
+        config.ApplyAutoFit(report);
+        var winner = Assert.IsType<DistributionFitResult>(report.InterArrival.Best);
+        string winnerName = winner.Family.ToString();
+
+        string chosen = Enum.GetValues<DistributionFamily>()
+            .First(f => f != winner.Family).ToString();
+        config.InterArrivalDistribution = chosen;
+
+        Assert.NotNull(config.ArrivalOverrideWarning);
+        Assert.Contains(winnerName, config.ArrivalOverrideWarning!);
+        Assert.Contains(chosen, config.ArrivalOverrideWarning!);
+
+        config.UseDataFitArrivalCommand.Execute(null);
+
+        Assert.Equal(winnerName, config.InterArrivalDistribution);
+        Assert.Null(config.ArrivalOverrideWarning);
+    }
+
+    [Fact]
+    public void OverrideStageFamily_WarningNamesTheDataWinner_AndResetRestoresIt()
+    {
+        var config = FittedConfig();
+        var row = config.StageRows.First(r => r.BestFitFamily is not null);
+        var winner = row.BestFitFamily!.Value;
+
+        var other = Enum.GetValues<DistributionFamily>().First(f => f != winner);
+        row.ApplyServiceFamily(other);
+
+        Assert.NotNull(row.FitOverrideWarning);
+        Assert.Contains(winner.ToString(), row.FitOverrideWarning!);
+        Assert.Contains(other.ToString(), row.FitOverrideWarning!);
+        Assert.Equal(FieldProvenance.UserSet, row.FamilyProvenance);
+
+        row.UseDataFitCommand.Execute(null);
+
+        Assert.Equal(winner, row.ServiceFamily);
+        Assert.Null(row.FitOverrideWarning);
+        Assert.Equal(FieldProvenance.AutoFitted, row.FamilyProvenance);
+        Assert.True(string.IsNullOrEmpty(row.MuValue));
+    }
+
+    [Fact]
+    public void TypedMu_WarningNamesTheFittedValue_AndResetClearsIt()
+    {
+        var config = FittedConfig();
+        var row = config.StageRows.First(r => r.FittedMuPerMinute is > 0);
+        double fitted = row.FittedMuPerMinute!.Value;
+        row.MuValue = (fitted * 2).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.NotNull(row.MuOverrideWarning);
+        Assert.Contains(fitted.ToString("G4", System.Globalization.CultureInfo.InvariantCulture), row.MuOverrideWarning!);
+        Assert.Equal(MuProvenance.UserSet, row.MuProvenance);
+
+        row.UseDataFitCommand.Execute(null);
+
+        Assert.True(string.IsNullOrEmpty(row.MuValue));
+        Assert.Null(row.MuOverrideWarning);
+        Assert.Equal(MuProvenance.Default, row.MuProvenance);
+    }
+
+    /// <summary>
+    /// Loads the variable sample and applies its fit synchronously, so the warning
+    /// assertions do not race the background pass. The reset tests exercise the
+    /// same view-model state the load pass produces.
+    /// </summary>
+    private static ConfigPanelViewModel FittedConfig()
+    {
+        var config = LoadedConfig("sample_3stage_variable.csv");
+        config.ApplyAutoFit(AutoFitService.Fit(config.Binding!, config.SignificanceLevelForRun));
+        return config;
+    }
+
     /// <summary>Loads a committed sample through the same path the GUI uses.</summary>
     private static ConfigPanelViewModel LoadedConfig(string file)
     {

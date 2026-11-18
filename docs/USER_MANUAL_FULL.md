@@ -356,3 +356,17 @@ Full message-by-message table: `docs/USER_MANUAL.md` §9.
 - **M/M/c, G/G/c** — Kendall notation: arrival family / service family / servers.
 - **χ² (chi-square)** — goodness-of-fit statistic; p ≥ α means the fit is accepted.
 - **Session** — one clinic day of 165 operating minutes (08:15–11:00).
+
+## The run follows your data
+
+A usable upload is fitted once in the background: the winning arrival and
+per-stage service families become the run's defaults, and each field says what
+the load decided (family, AIC, chi-square p-value). Changing a family, typing a
+μ or entering p_exit/p_bypass keeps your value and shows a warning naming the
+data winner and the consequence; **Use the data fit** restores the winner. The
+effective routing probabilities are disclosed even when the Parameters section
+is off. A stage with too few samples keeps its old family. Stage **names** follow
+the file in place; the stage **count** still requires an explicit **Sync stages
+to data**. The compact manual (embedded in the app's Help tab), §7.8, is the
+canonical description of these controls and their units.
+

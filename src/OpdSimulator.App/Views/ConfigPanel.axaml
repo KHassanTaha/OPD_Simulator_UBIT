@@ -88,6 +88,27 @@
                                                      Items="{Binding Distributions}"
                                                      SelectedItem="{Binding InterArrivalDistribution, Mode=TwoWay}"
                                                      HelpAnchor="inter-arrival-distribution"/>
+
+                         <!-- Phase 9C (D-232): the load's decision and any departure from it
+                              stay next to the field they describe. The reset is available
+                              whenever a winner exists, not only after an override. -->
+                         <TextBlock Text="{Binding ArrivalFitDisclosure}"
+                                    Classes="Caption"
+                                    TextWrapping="Wrap"
+                                    Foreground="{DynamicResource BrushTextSecondary}"
+                                    ToolTip.Tip="The inter-arrival family the uploaded data selected on load, with its AIC and chi-square p-value."
+                                    IsVisible="{Binding ArrivalFitDisclosure, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                         <TextBlock Text="{Binding ArrivalOverrideWarning}"
+                                    Classes="Caption"
+                                    TextWrapping="Wrap"
+                                    Foreground="{DynamicResource BrushError}"
+                                    ToolTip.Tip="The selected family deviates from the uploaded data's best fit. The run uses the selected family."
+                                    IsVisible="{Binding ArrivalOverrideWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                         <Button Content="Use the data fit"
+                                 Command="{Binding UseDataFitArrivalCommand}"
+                                 Classes="GhostButton"
+                                 ToolTip.Tip="Restore the inter-arrival family and spread the uploaded data chose."
+                                 IsVisible="{Binding HasArrivalDataFit}"/>
                         <!-- Phase 8V (D-211): the family's shape. The arrival MEAN is
                              λ, never typed twice, so this field carries spread only.
                              Hidden for Exponential/Deterministic, which have none. -->
@@ -184,6 +205,20 @@
                                                      ErrorMessage="{Binding PExit.ErrorMessage}"
                                                      HelpAnchor="p-exit"
                                                      views:ConfigPanelValidation.ValidationKey="p-exit"/>
+                            <!-- Phase 9C (D-233): the effective routing value is always
+                                 visible; the deviation sentence names the data's fit. -->
+                            <TextBlock Text="{Binding PExitFitText}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextSecondary}"
+                                       ToolTip.Tip="The probability the run will actually use, and which input supplied it."
+                                       IsVisible="{Binding PExitFitText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            <TextBlock Text="{Binding PExitOverrideWarning}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushError}"
+                                       ToolTip.Tip="The entered probability deviates from the uploaded data's fit."
+                                       IsVisible="{Binding PExitOverrideWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                         </StackPanel>
                         <StackPanel IsVisible="{Binding PBypassVisible}"
                                     Spacing="{DynamicResource SpaceXs}">
@@ -196,6 +231,20 @@
                                                      ErrorMessage="{Binding PBypass.ErrorMessage}"
                                                      HelpAnchor="p-bypass"
                                                      views:ConfigPanelValidation.ValidationKey="p-bypass"/>
+                            <!-- Phase 9C (D-233): the effective routing value is always
+                                 visible; the deviation sentence names the data's fit. -->
+                            <TextBlock Text="{Binding PBypassFitText}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextSecondary}"
+                                       ToolTip.Tip="The probability the run will actually use, and which input supplied it."
+                                       IsVisible="{Binding PBypassFitText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            <TextBlock Text="{Binding PBypassOverrideWarning}"
+                                       Classes="Caption"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushError}"
+                                       ToolTip.Tip="The entered probability deviates from the uploaded data's fit."
+                                       IsVisible="{Binding PBypassOverrideWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                         </StackPanel>
                     </StackPanel>
                 </controls:CollapsibleSection>
