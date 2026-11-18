@@ -1,3 +1,71 @@
+Session Handoff — 2026-11-19 03:21
+Branch: feat/panel-relevance
+Status: Clean
+
+Done
+9A.1 — data-source strip (G1) — `[x]` in `TODO.md` this session.
+
+9A.2 — stage-count dependents (G3) — `[x]` in `TODO.md` this session.
+
+9A.3 — dynamic λ/μ/spread labels (G6) — `[x]` in `TODO.md` this session.
+
+9A.4 — entity flow, derived notation and read-only inflow (G7) — `[x]` in `TODO.md` this session.
+
+9A.5 — intent tests, two new frames and gate greps — `[x]` in `TODO.md` this session.
+
+9A.6 — documentation (PRD v1.17.0, REQUIREMENTS, both manuals, §18 table, ρ line) — `[x]` in `TODO.md` this session.
+
+9A.7 — dead-state gates, builds, tests, launch and D-255 boundary check — `[x]` in `TODO.md` this session.
+
+In Progress
+None
+
+What is complete:
+The configuration panel now hides the data-source strip on the manual path, hides both routing overrides below two stages, composes every λ/μ/spread caption from `FittingTimeUnits`, derives each row's Kendall first letter from the Model section (keeping G/G/c for auto-fit), and shows a read-only `Inflow λᵢ / ρᵢ` line formatted from 9P's topology. 35 targeted 9A tests plus two new headless frames; full suite 1030/1030 green in Release and Debug from a dead state, 0 warnings; app launched cleanly; branch boundary against `feeb362` contains only 9A-owned files.
+
+What remains:
+Owner review and merge of `feat/panel-relevance` and the four earlier pushed branches (9P, 8Z, 8Y, 9Q.3); owner visual inspection of the two new frames; keyboard-only acceptance; Windows dead-state verification; the 9C brief when one is supplied.
+
+Next Session Should Start With
+9A.8 — owner visual review of `phase-9a-fit-mode.png` and `phase-9a-manual-mode.png` (`[?] BLOCKED`, B-012).
+Owner review/merge of `feat/panel-relevance`; do not merge, force-push or open a PR without instruction.
+9C planning brief (next phase in the plan's order) once supplied.
+
+Blocked
+9A.8 / B-012 — owner visual inspection of the two new frames (see `docs/BLOCKERS.md`; agent has no image input, D-089)
+B-007 — owner keyboard-only acceptance pass (see `docs/BLOCKERS.md`)
+B-006 — Windows dead-state verification (see `docs/BLOCKERS.md`)
+
+Git State
+Commits made this session: 979e2f3 feat: make configuration panel relevance and notation honest, plus this handoff commit (`docs: record Phase 9A session handoff`)
+Pushed to origin: No — commits are staged locally; owner defers review and merges (D-255).
+Uncommitted changes: None (`planning.md` is an untracked owner brief, intentionally never committed)
+
+Build & Test
+dotnet build: PASS (Release and Debug from a dead state, 0 warnings / 0 errors)
+dotnet test: PASS — 1030 passed, 0 failed in each configuration (Core 183 / Data 139 / Cli 45 / App 663)
+Warnings: 0
+
+Files Touched
+src/OpdSimulator.App/ViewModels/ConfigPanelViewModel.cs: modified (visibility flags, dynamic captions, derived arrival push, inflow formatting)
+src/OpdSimulator.App/ViewModels/StageRow.cs: modified (ArrivalLetter, ModelOptions, InflowLabel, captions)
+src/OpdSimulator.App/Views/ConfigPanel.axaml, Controls/StageRowControl.axaml, Controls/ValidatedField.axaml.cs, Views/ControlsDemo.axaml: modified
+tests/OpdSimulator.App.Tests/Phase9ARelevanceTests.cs, Phase9AScreenshots.cs: added
+tests/OpdSimulator.App.Tests/Phase7BTests.cs, Phase7CTests.cs, Phase8KTests.cs, Phase8KScreenshots.cs, Phase8RTests.cs: modified
+docs/PRD.md, REQUIREMENTS.md, TODO.md, DECISIONS.md, DEV_LAUNCH.md, USER_MANUAL.md, USER_MANUAL_FULL.md, WORKFLOW_DIAGRAM.md, BLOCKERS.md, PROGRESS.md: modified
+
+Decisions Made
+D-225 — hide irrelevant controls; dimming reserved for optional-section bodies (see `docs/DECISIONS.md`)
+D-229 — engine-wide arrival family; per-stage arrival dropdown removed, inflow derived (see `docs/DECISIONS.md`)
+D-255 — branch from the 9P tip `feeb362`; boundary check against that tip; merges deferred (see `docs/DECISIONS.md`)
+D-256 — FR-UI-45–48 and PRD v1.17.0; FR-UI-44 left to 9Q (see `docs/DECISIONS.md`)
+
+Assumptions Added/Changed
+None
+
+Notes for Next Session
+`planning.md` remains untracked and is never committed. The nine remaining branch merges must follow plan order (9P, 9A; 8Y, 8Z) with shared-doc reconciliation. Headless frames are structural evidence only until the owner looks (D-089); B-012 now lists twenty-nine frames. No PR was opened.
+
 Session Handoff — 2026-11-18 04:58
 Branch: feat/foundation-unit-and-authority
 Status: Clean
