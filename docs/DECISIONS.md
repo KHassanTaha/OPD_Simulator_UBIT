@@ -3695,3 +3695,12 @@ plus the 8 px spacing, and each value cell hugs its text.
 - **Implementation details:** `ApplyFittedShape` (9P D-245) writes family + spread and never μ; the arrival mirror `ApplyFittedArrival` writes the family and its one spread field via `FittingTimeUnits.FromMinutes`. A refusal (fewer than 20 samples or all candidates rejected) writes nothing, keeps the current family, and discloses why — it does not block Start.
 - **Impact (+):** the run's family and spread follow the uploaded data by default; the verdict on screen agrees with what executes. **Impact (−):** a regression whose sample winner is not Exponential will print different numbers; those are correct and must be updated with a comment naming D-231, not pinned to the old values.
 - **Alternatives considered:** fit against the already-chosen families (rejected — cannot change the winner); write fits from the Input tab (rejected — makes a verification surface authoritative); fit on the UI thread (rejected — blocks on large files); cache by file hash (rejected — α changes the winner and a second load must refit).
+
+## D-258 — Keep the owner's local brief out of version control (2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** Add `planning.md` to `.gitignore` and remove it from the local 9C commit (via `git rm --cached` + `--amend`, safe because the commit was unpushed). The brief remains on disk as the owner's untracked source document.
+- **Rationale:** `git add -A` staged the brief with the first 9C commit. The brief is a local planning artefact, not a project deliverable; committing it would expose owner-only text and break the established rule that it stays untracked.
+- **Implementation details:** one ignore rule with a comment; the working-tree file is untouched; the corrected commit is `c6f16e5` and the ignore commit is `cccffa6`.
+- **Impact (+):** a later broad `git add` cannot repeat the mistake. **Impact (−):** a fresh clone will not contain the phase brief — intended, since the owner supplies it.
+- **Alternatives considered:** leave the file unignored and rely on careful staging (rejected — the mistake already happened); commit it and mark it private (rejected — owner rule).
