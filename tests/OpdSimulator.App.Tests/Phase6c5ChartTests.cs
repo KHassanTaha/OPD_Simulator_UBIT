@@ -84,7 +84,7 @@ public class Phase6c5ChartTests
 
         // The service emits exactly the per-stage data the builder turns into
         // one LineSeries per stage. The chart-level proof lives in the
-        // rendered-window screenshot test (Phase6c5Screenshot asserts 3 chart
+        // rendered-window screenshot test (Phase6c6Screenshots asserts 3 chart
         // series); constructing bare LiveCharts controls here flaked the
         // headless dispatcher in a full-suite run (D-121 lesson).
         var data = QueueLengthChartService.Build(result);

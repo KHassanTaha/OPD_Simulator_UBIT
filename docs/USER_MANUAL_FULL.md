@@ -273,7 +273,7 @@ trace.
 | Per-stage metrics | Per stage: arrivals, served, average wait, average queue length, utilisation ρ, busy time. |
 | **Per-server utilisation** | One bar per server; amber when a server deviates from its stage average. |
 | **Queue length over time** | The run's queue lengths. With a multi-day run, the **Operating session** dropdown shows one session on a minutes-from-open axis that extends past 165 while its queue drains (dashed `arrivals close` marker at 165); **All sessions** removes closed nights/days and shows one labelled slot per open session — the gaps are display spacing, not elapsed time. |
-| **Waiting time distribution** | Histogram of patient waits for a chosen **stage**. |
+| **Waiting time distribution** | Histogram of patient waits for a chosen **stage**: one `0` bar for no-wait patients, fixed-width ranges from a round-width ladder, and a `> N` overflow bar when a few waits are extreme. Named axes, patient counts with integer ticks, and a caption that reports the zero count, longest wait and bin width. The optional log Y axis hides empty bins and says so in its name and caption. If a run was stopped early, the caption also reports patients still waiting at the end; a normal run drains fully and shows no such note. See `USER_MANUAL.md` §6.6. |
 | Chi-square results | Input-side goodness-of-fit verdicts for the fitted distributions. |
 | **Simulation verification** | Output-side chi-square: confirms the engine generates values matching the configured distributions. |
 | **Analytical validation** | Workflow F. Compares the run with M/M/c, M/G/c or G/G/c theory. |

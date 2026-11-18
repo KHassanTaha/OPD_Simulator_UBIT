@@ -1,17 +1,18 @@
 namespace OpdSimulator.App.Services;
 
+using System.Globalization;
 using OpdSimulator.Core.Engine;
 
 /// <summary>
 /// Pure description of the waiting-time histogram for one stage (FR-UI-4 P2,
-/// Phase 6c.5): equal-width bins of the recorded waiting times with a patient
-/// count per bin. The stage is chosen by the user in the Results widget; only
-/// one stage is ever shown at a time.
+/// Phase 6c.5, reshaped in Phase 8Z / D-224): a zero-wait bar, up to ten
+/// fixed-width positive bins, and an optional overflow bar. The stage is chosen
+/// by the user in the Results widget; only one stage is ever shown at a time.
 /// </summary>
 /// <param name="StageName">The stage whose samples are binned.</param>
-/// <param name="HasSeries">True when the stage had waiting-time samples to bin.</param>
-/// <param name="Categories">One bin label per bar, e.g. "[0, 2.1)".</param>
-/// <param name="Counts">Patient count per bin.</param>
+/// <param name="HasSeries">True when the stage had any waiting-time samples to bin.</param>
+/// <param name="Categories">One short bin label per bar, e.g. <c>&gt;0–1</c> or <c>0</c>.</param>
+/// <param name="Counts">Patient count per bin, in the same order as <paramref name="Categories"/>.</param>
 public sealed record WaitHistogramData(
     string StageName,
     bool HasSeries,
@@ -25,28 +26,62 @@ public sealed record WaitHistogramData(
     /// </summary>
     public int StageIndex { get; init; }
 
+    /// <summary>Number of completed waits (waits that ended) contributing to the bars.</summary>
+    public int CompletedCount { get; init; }
+
+    /// <summary>Number of censored waits (patients still queued at the run end) contributing to the bars.</summary>
+    public int UnfinishedCount { get; init; }
+
+    /// <summary>How many of the observed waits were exactly zero (the first bar).</summary>
+    public int ZeroWaitCount { get; init; }
+
+    /// <summary>Fixed width of a regular positive bin in minutes; null when there were no positive waits.</summary>
+    public double? BinWidthMinutes { get; init; }
+
+    /// <summary>Lower bound of the overflow bar in minutes; null when no overflow bar was emitted.</summary>
+    public double? OverflowFromMinutes { get; init; }
+
+    /// <summary>Longest observed wait in minutes; null when there were no samples.</summary>
+    public double? LongestWaitMinutes { get; init; }
+
+    /// <summary>Share of the total each bar represents, in percent, aligned with <see cref="Counts"/>.</summary>
+    public IReadOnlyList<double> Percentages { get; init; } = Array.Empty<double>();
+
+    /// <summary>Explanatory line under the widget title (built by the service, not XAML).</summary>
+    public string Caption { get; init; } = string.Empty;
+
     /// <summary>An empty histogram shown before the first run.</summary>
     public static WaitHistogramData Empty { get; } =
         new(string.Empty, false, Array.Empty<string>(), Array.Empty<double>());
 }
 
 /// <summary>
-/// Builds <see cref="WaitHistogramData"/> from <see cref="StageMetrics.WaitingTimeSamples"/>.
-/// Separate from <see cref="QueueLengthChartService"/> because the two charts
-/// answer different questions and consume different engine output: the queue
-/// chart is a per-stage time series, the wait histogram is a per-stage
-/// distribution of the same stage's recorded waits.
+/// Builds <see cref="WaitHistogramData"/> from <see cref="StageMetrics.WaitingTimeSamples"/>
+/// and the censored <see cref="StageMetrics.UnfinishedWaitSamples"/>. Separate from
+/// <see cref="QueueLengthChartService"/> because the two charts answer different
+/// questions and consume different engine output: the queue chart is a per-stage
+/// time series, the wait histogram is a per-stage distribution of waits.
 /// </summary>
 public static class WaitHistogramService
 {
-    /// <summary>Number of equal-width bins per histogram (spec'd default).</summary>
-    public const int DefaultBinCount = 16;
+    /// <summary>Maximum number of regular positive bins before the tail rolls into overflow.</summary>
+    public const int MaxRegularBins = 10;
 
-    /// <summary>Caption under the widget title while the histogram is shown.</summary>
-    public const string Caption = "Equal-width bins of waiting time; Y is patient count per bin.";
+    /// <summary>Caption under the widget title before a run, and for a seriesless stage.</summary>
+    public const string Caption = "Patient waits at the selected stage, in minutes.";
+
+    /// <summary>Appended to the caption when the log Y axis is active (empty bins are hidden there).</summary>
+    public const string LogScaleNote = " · log scale hides empty bins";
 
     /// <summary>Empty-state wording shown before the first run.</summary>
     public const string EmptyStateText = "Run a simulation to see the waiting-time distribution.";
+
+    private const double Epsilon = 1e-9;
+
+    // A short, readable ladder of fixed widths (minutes). Picking the first width
+    // whose 10-regular-bin range covers the 95th percentile keeps two similar runs
+    // on the same axis instead of letting one outlier set the scale (D-224).
+    private static readonly double[] BinWidths = { 0.5, 1, 2, 5, 10, 15, 30, 60 };
 
     /// <summary>
     /// Builds the histogram for one named stage of a finished run. A null
@@ -78,11 +113,13 @@ public static class WaitHistogramService
             return new WaitHistogramData(stageName, false, Array.Empty<string>(), Array.Empty<double>());
         }
 
-        // The timestamp each sample carries is dropped here on purpose: the
-        // histogram is a distribution of waits, so it reads Minutes and nothing
-        // else, and the bins stay byte-identical to those the pre-timestamp
-        // (List<double>) samples produced (FR-STAT-9, D-201).
-        var histogram = BuildForSamples(stageName, stage.WaitingTimeSamples.Select(w => w.Minutes).ToArray());
+        // The timestamps are dropped here on purpose: the histogram is a
+        // distribution of waits, so it reads Minutes only (FR-STAT-9, D-201).
+        // Censored waits shape the bars but are counted separately in the caption.
+        var histogram = BuildForSamples(
+            stageName,
+            stage.WaitingTimeSamples.Select(w => w.Minutes).ToArray(),
+            stage.UnfinishedWaitSamples.Select(w => w.Minutes).ToArray());
         return histogram with { StageIndex = stageIndex };
     }
 
@@ -101,57 +138,155 @@ public static class WaitHistogramService
     }
 
     /// <summary>
-    /// Bins the given waiting times into <see cref="DefaultBinCount"/> equal-width
-    /// bins spanning the observed range [min, max]. When every sample is identical
-    /// (zero width) a single category is emitted instead; when there are no
-    /// samples the histogram is seriesless. Counting excludes samples below zero,
-    /// which the engine never produces (waits are non-negative by construction).
+    /// Bins completed and (optional) censored waits into a zero bar, fixed-width
+    /// positive bins chosen from <see cref="BinWidths"/>, and an overflow bar.
+    /// No sample is dropped: the bar counts always sum to the total sample count.
     /// </summary>
     /// <param name="stageName">Stage owning the samples (carried into the data).</param>
-    /// <param name="samples">Recorded waiting times in minutes, in completion order.</param>
-    public static WaitHistogramData BuildForSamples(string stageName, IReadOnlyList<double> samples)
+    /// <param name="completed">Waits that ended, in minutes.</param>
+    /// <param name="unfinished">
+    /// Wait-so-far for patients still queued when the run stopped, in minutes;
+    /// normally empty (every GUI run drains). These shape the bars but are
+    /// disclosed separately in the caption.
+    /// </param>
+    public static WaitHistogramData BuildForSamples(
+        string stageName,
+        IReadOnlyList<double> completed,
+        IReadOnlyList<double>? unfinished = null)
     {
-        if (samples.Count == 0)
+        int completedCount = completed.Count;
+        int unfinishedCount = unfinished?.Count ?? 0;
+        int total = completedCount + unfinishedCount;
+        if (total == 0)
         {
             return new WaitHistogramData(stageName, false, Array.Empty<string>(), Array.Empty<double>());
         }
 
-        double min = samples.Min();
-        double max = samples.Max();
-
-        // A zero-width range (all samples equal) is a single degenerate bin.
-        if (max - min <= 0)
+        var all = new double[total];
+        for (int i = 0; i < completedCount; i++)
         {
-            return new WaitHistogramData(
-                stageName,
-                true,
-                new[] { RangeLabel(min, min) },
-                new[] { (double)samples.Count });
+            all[i] = completed[i];
+        }
+        if (unfinished is not null)
+        {
+            for (int i = 0; i < unfinishedCount; i++)
+            {
+                all[completedCount + i] = unfinished[i];
+            }
         }
 
-        double width = (max - min) / DefaultBinCount;
-        var counts = new double[DefaultBinCount];
-        foreach (var value in samples)
+        int zeroCount = all.Count(v => v <= Epsilon);
+        double[] positive = all.Where(v => v > Epsilon).OrderBy(v => v).ToArray();
+        double longest = all.Max();
+
+        var categories = new List<string>();
+        var counts = new List<double>();
+        double? binWidth = null;
+        double? overflowFrom = null;
+
+        if (zeroCount > 0)
         {
-            int bin = (int)((value - min) / width);
-            bin = Math.Clamp(bin, 0, DefaultBinCount - 1); // guard the exact max value
-            counts[bin]++;
+            categories.Add("0");
+            counts.Add(zeroCount);
         }
 
-        var categories = new string[DefaultBinCount];
-        for (int i = 0; i < DefaultBinCount; i++)
+        if (positive.Length > 0)
         {
-            categories[i] = RangeLabel(min + i * width, min + (i + 1) * width);
+            double p95 = positive[Math.Min(positive.Length - 1, (int)Math.Ceiling(0.95 * positive.Length) - 1)];
+            double width = BinWidths.FirstOrDefault(w => p95 <= MaxRegularBins * w, BinWidths[^1]);
+            binWidth = width;
+
+            double maxPositive = positive[^1];
+            int regularCount = Math.Min(MaxRegularBins, Math.Max(1, (int)Math.Ceiling(maxPositive / width)));
+            double overflowBoundary = MaxRegularBins * width;
+            int overflowCount = positive.Count(v => v > overflowBoundary);
+
+            for (int i = 0; i < regularCount; i++)
+            {
+                categories.Add(BinLabelFor(i, width));
+                int bin = i;
+                counts.Add(positive.Count(v => v <= overflowBoundary && (int)Math.Ceiling(v / width) - 1 == bin));
+            }
+
+            if (overflowCount > 0)
+            {
+                categories.Add($">{BinLabel(overflowBoundary)}");
+                counts.Add(overflowCount);
+                overflowFrom = overflowBoundary;
+            }
         }
+
+        var percentages = counts.Select(c => c * 100.0 / total).ToArray();
+        string caption = BuildCaption(total, completedCount, unfinishedCount, zeroCount, longest, binWidth, overflowFrom);
 
         return new WaitHistogramData(
             stageName,
             true,
             categories,
-            counts.Select(c => (double)c).ToArray());
+            counts)
+        {
+            CompletedCount = completedCount,
+            UnfinishedCount = unfinishedCount,
+            ZeroWaitCount = zeroCount,
+            BinWidthMinutes = binWidth,
+            OverflowFromMinutes = overflowFrom,
+            LongestWaitMinutes = longest,
+            Percentages = percentages,
+            Caption = caption,
+        };
     }
 
-    private static string RangeLabel(double low, double high) =>
-        $"[{low.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}, " +
-        $"{high.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)})";
+    /// <summary>
+    /// Hover text for bar <paramref name="index"/>: the short bin label, the
+    /// patient count and the share of all waits. Kept here (not in XAML) so the
+    /// wording is unit-testable without a chart (D-224 §5.6).
+    /// </summary>
+    /// <param name="data">The histogram the bar belongs to.</param>
+    /// <param name="index">Zero-based bar index.</param>
+    public static string BarTooltip(WaitHistogramData data, int index)
+    {
+        string label = data.Categories[index];
+        string unit = label == "0" ? "0 min (no wait)" : $"{label} min";
+        return $"{unit} · {data.Counts[index].ToString("0", CultureInfo.InvariantCulture)} patients " +
+               $"({data.Percentages[index].ToString("0.#", CultureInfo.InvariantCulture)}%)";
+    }
+
+    private static string BuildCaption(
+        int total,
+        int completedCount,
+        int unfinishedCount,
+        int zeroCount,
+        double longest,
+        double? binWidth,
+        double? overflowFrom)
+    {
+        string waits = unfinishedCount > 0
+            ? $"{total} waits ({completedCount} completed + {unfinishedCount} still waiting when the run ended)"
+            : $"{total} waits";
+        var parts = new List<string>
+        {
+            waits,
+            $"{zeroCount} had no wait",
+            $"longest {BinLabel(longest)} min",
+        };
+        if (binWidth is { } width)
+        {
+            parts.Add($"{BinLabel(width)}-min bins");
+        }
+        if (overflowFrom is { } overflow)
+        {
+            parts.Add($"last bar > {BinLabel(overflow)} min");
+        }
+        if (unfinishedCount > 0)
+        {
+            parts.Add($"{unfinishedCount} still waiting when the run ended");
+        }
+        return string.Join(" · ", parts);
+    }
+
+    private static string BinLabelFor(int index, double width) => index == 0
+        ? $">{BinLabel(width)}"
+        : $"{BinLabel(index * width)}–{BinLabel((index + 1) * width)}";
+
+    private static string BinLabel(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 }

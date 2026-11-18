@@ -56,6 +56,22 @@ public sealed record StageMetrics
     /// </remarks>
     public IReadOnlyList<WaitSample> WaitingTimeSamples { get; init; } = Array.Empty<WaitSample>();
 
+    /// <summary>
+    /// Wait-so-far (<c>runEndClock - patient.ArrivalTime</c>) for patients still
+    /// waiting in this stage's queue when the run stopped — a censored wait
+    /// (Phase 8Z, D-224).
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from <see cref="WaitingTimeSamples"/> on purpose: a censored
+    /// patient's final wait is unknown, and folding it into that list would
+    /// inflate every average wait with a made-up value. Completed waits are
+    /// recorded at service start; <see cref="PatientsServed"/> counts service
+    /// ends, so on a truncated run the two differ by the patients in service at
+    /// the stop. Only the waiting-time histogram reads this list. Empty for a
+    /// run that drains fully — which every GUI run does (§3 of the plan).
+    /// </remarks>
+    public IReadOnlyList<WaitSample> UnfinishedWaitSamples { get; init; } = Array.Empty<WaitSample>();
+
     /// <summary>Queue length sampled once per processed event — the P2 queue-length-over-time line series.</summary>
     public IReadOnlyList<QueueSample> QueueLengthSeries { get; init; } = Array.Empty<QueueSample>();
 

@@ -39,6 +39,17 @@ public sealed class Queue
     }
 
     /// <summary>
+    /// Patients waiting in FIFO order, as a copy for end-of-run inspection.
+    /// </summary>
+    /// <returns>A new array; mutating it cannot change engine state.</returns>
+    /// <remarks>
+    /// Called only after the FEL loop has stopped (Phase 8Z, D-224). A copy is
+    /// returned rather than the backing <see cref="System.Collections.Generic.Queue{T}"/>
+    /// so a consumer cannot dequeue or reorder patients behind the engine's back.
+    /// </remarks>
+    public Patient[] Snapshot() => _queue.ToArray();
+
+    /// <summary>
     /// Returns the patient at the front of the queue without removing it.
     /// </summary>
     /// <returns>The patient that has waited longest.</returns>

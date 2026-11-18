@@ -750,13 +750,29 @@ How to read it:
 - The **Stage** dropdown picks one stage at a time (the stages can differ a
   lot: doctor waits are usually longer and more skewed than reception
   waits). It resets to the first stage whenever you start a new run.
-- The bars are **16 equal-width bins** across that stage's waiting times.
-  A tall bar near the left means most waits were short; a long thin right
-  tail means a few patients waited far longer than the rest.
+- The first bar, labelled **`0`**, is every patient who did not wait at all.
+  A tall `0` bar is a real fact, not a plotting error — the caption says
+  *"N had no wait"* so you can read the number directly.
+- The other bars are **fixed-width one-minute-scale ranges** (for example
+  `>0–1`, `1–2`, `2–3`). The width comes from a short list of round values
+  chosen so that 95% of waits fit in the regular bars; one very long wait
+  therefore cannot squash everyone else into a single stub. Hover a bar to
+  see its range, how many patients it holds and what share of all waits
+  that is.
+- If a few waits are exceptionally long, a final bar labelled **`> N`**
+  collects them. Its caption line reads *"last bar > N min"*. No patient
+  is left out of the counts.
 - Tick **Log-scale Y axis** if the tail is so long that the short-wait bars
-  look invisible. The Y axis then becomes logarithmic, and empty bins are
-  dropped (log 0 is undefined) — they show as gaps, which is a true
-  absence, not a zero.
+  look invisible. The Y axis then becomes logarithmic (its name says so),
+  and empty bins are hidden — log 0 is undefined, so the caption adds
+  *"log scale hides empty bins"*. The `0` bar normally stays tall because
+  zero waits are common; the axis name is what stops you misreading it.
+- The caption normally reads *"N waits · Z had no wait · longest T min ·
+  W-min bins"*. If a run was **stopped early** (a diagnostic trace with a
+  patient limit), it also says how many patients were *still waiting when
+  the run ended*: their waits-so-far are counted in the bars but reported
+  separately, because they had not finished. A normal clinic run drains
+  completely, so this note does not appear.
 
 Both widgets are **Results** widgets: they describe a run, so they live on
 the Simulation tab next to the metrics, never on the Input tab

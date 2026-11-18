@@ -473,3 +473,15 @@ Owner rulings recorded 2026-10-04, in the order they were given:
 - [x] **8Y.6 — gates** — Release and Debug `--no-incremental` 0 errors / 0 warnings; full suite green in both; §7 boundary check clean — 2026-11-19
 - [x] **8Y.7 — docs** — PRD v1.17.0 (FR-UI-40 `[UPDATED]`), DECISIONS D-253 + D-223 (+ D-166 incident amendment), REQUIREMENTS row + change history, TODO 8Y block, PROGRESS §18 entry, USER_MANUAL §6.5 + changelog, USER_MANUAL_FULL widget table, DEV_LAUNCH last-verified line — 2026-11-19
 - [?] **8Y.8 — owner visual review of the two new frames** — B-012; agent has no image input on this host (D-089)
+
+
+## Phase 8Z — waiting-time histogram: readable bins, labelled axes, unfinished waits (owner request 2026-11-14, brief `planning.md` §827–1290, PRD v1.18.0, D-224; base `feat/queue-chart-operating-time` @ b7fc136, D-254)
+
+- [x] DONE — **8Z.1 — Core censoring**: `Queue.Snapshot()`, `StageMetrics.UnfinishedWaitSamples`, engine wiring after the FEL loop, invariant documented (started 2026-11-19 02:05, completed 2026-11-19 02:09; 3/3 `Phase8ZCensoredWait` tests pass; corrected the plan's inaccurate `PatientsServed == WaitingTimeSamples.Count` claim for truncated runs in D-224, StageMetrics doc and engine comment)
+- [x] DONE — **8Z.2 — histogram binning**: zero bar, p95 ladder width, overflow, labels, percentages, caption, degenerate cases (started 2026-11-19 02:09, completed 2026-11-19 02:12; `WaitHistogramService` rewritten)
+- [x] DONE — **8Z.3 — chart axes and tooltip**: named axes, integer Y ticks, named log axis, short-label rotation, tooltip count/share (started 2026-11-19 02:12, completed 2026-11-19 02:13; `ChartControlBuilder.BuildWaitHistogramChart`)
+- [x] DONE — **8Z.4 — caption wiring**: `WaitHistogramCaption` from data, property-change on rebuild/clear (started 2026-11-19 02:13, completed 2026-11-19 02:14; log note appended in the VM because log state is a view concern)
+- [x] DONE — **8Z.5 — tests and frames**: 16 intent tests, retire 6c5 writer, add `phase-8z-wait-histogram-{linear,log}.png`, update old assertions (started 2026-11-19 02:14, completed 2026-11-19 02:16; 3 Core + 14 App unit + 2 frame tests green; old 6c5 writer deleted, `phase-6c5-charts.png` untouched)
+- [x] DONE — **8Z.6 — gates**: both builds 0/0, full suites green, boundary check against the recorded base (started 2026-11-19 02:16, completed 2026-11-19 02:17; Release and Debug `--no-incremental` 0 errors / 0 warnings, 993/993 green in both, `Engine_` 15/15; `git diff --name-only b7fc136` touches only the 8Z slice — Core censoring, histogram builder/UI, tests, docs; no queue-chart/config/TimeUnit/Input-histogram/project/package files)
+- [x] DONE — **8Z.7 — docs**: PRD v1.18.0, REQUIREMENTS FR-UI-4, DECISIONS D-254/D-224 (+ D-123/D-201 cross-refs), PROGRESS §18, manuals, DEV_LAUNCH, CONTEXT verified assumption (completed 2026-11-19 02:17)
+- [?] BLOCKED — **8Z.8 — owner visual review of the two new frames** — B-012; agent has no image input (D-089)

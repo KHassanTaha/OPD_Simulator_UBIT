@@ -354,12 +354,13 @@ public static class ChartControlBuilder
     }
 
     /// <summary>
-    /// Creates the waiting-time histogram (FR-UI-4 P2, Phase 6c.5): one column
-    /// series for the selected stage, X = equal-width waiting-time bins, Y =
-    /// patient count. With <paramref name="logScale"/> the Y axis becomes a
-    /// base-10 <see cref="LogarithmicAxis"/> — for long tails; bins with zero
-    /// patients are dropped then (log 0 is undefined and empty bins carry no
-    /// visual mass on a log axis anyway). Returns null for a seriesless card.
+    /// Creates the waiting-time histogram (FR-UI-4 P2, Phase 6c.5, reshaped in
+    /// Phase 8Z / D-224): one column series for the selected stage, X = short
+    /// waiting-time bin labels, Y = patient count with named axes and integer
+    /// ticks. With <paramref name="logScale"/> the Y axis becomes a named base-10
+    /// <see cref="LogarithmicAxis"/>; bins with zero patients are dropped then
+    /// (log 0 is undefined) and the caption says so. Returns null for a
+    /// seriesless card.
     /// </summary>
     public static CartesianChart? BuildWaitHistogramChart(WaitHistogramData data, bool logScale)
     {
@@ -380,13 +381,33 @@ public static class ChartControlBuilder
                 Values = values,
                 Fill = new SolidColorPaint(SeriesPaletteColor(data.StageIndex)),
                 MaxBarWidth = 26,
+                // Hover answers "how many patients, what share" (D-224 §5.6).
+                YToolTipLabelFormatter = point => WaitHistogramService.BarTooltip(data, point.Index),
             },
         };
+
+        // One series, and the widget title, stage selector and caption already
+        // name the stage — a legend would repeat it (D-224 §7.2).
+        Axis yAxis = logScale
+            ? new LogarithmicAxis(10)
+            {
+                Name = "Patients per bin (log scale)",
+                MinLimit = 1,
+            }
+            : new Axis
+            {
+                Name = "Patients per bin",
+                MinLimit = 0,
+                MinStep = 1,
+            };
+        yAxis.Labeler = value => value.ToString("0", CultureInfo.InvariantCulture);
 
         return CreateChart(
             series,
             data.Categories,
-            yAxisOverride: logScale ? new LogarithmicAxis(10) : null);
+            showLegend: false,
+            xAxisOverride: new Axis { Name = "Waiting time (minutes)", LabelsRotation = 0 },
+            yAxisOverride: yAxis);
     }
 
     /// <summary>

@@ -290,10 +290,13 @@ if (window.DataContext is not MainViewModel main)
             ?? throw new InvalidOperationException("QueueLengthChart must be a CartesianChart");
         Assert.Equal(3, queue.Series.Count());
 
-        // 4. Waiting-time histogram (16 bins, first stage selected by default).
+        // 4. Waiting-time histogram (zero bar + readable positive bins + optional
+        // overflow, first stage selected by default — Phase 8Z / D-224).
         Assert.True(r.HasWaitHistogramChart);
         Assert.NotNull(r.WaitHistogram);
-        Assert.Equal(16, r.WaitHistogram!.Categories.Count);
+        Assert.InRange(r.WaitHistogram!.Categories.Count, 1, 12);
+        Assert.Equal(outcome.Result!.StageMetrics[0].PatientsServed, r.WaitHistogram.Counts.Sum());
+        Assert.DoesNotContain("[", r.WaitHistogram.Categories);
         Assert.Equal(outcome.Result!.StageMetrics[0].StageName, r.SelectedWaitStage);
 
         // 5. Chi-square table: Inter-arrival + one row per stage (4 fits).

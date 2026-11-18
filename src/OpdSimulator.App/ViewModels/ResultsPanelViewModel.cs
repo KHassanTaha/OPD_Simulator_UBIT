@@ -372,6 +372,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         SelectedWaitStage = null;
         IsWaitLogScale = false;
         _lastResult = null;
+        OnPropertyChanged(nameof(WaitHistogramCaption));
         _lastBinding = null;
         ApplyPreferences();
     }
@@ -745,6 +746,7 @@ public partial class ResultsPanelViewModel : ObservableObject
         {
             WaitHistogram = null;
             WaitHistogramChart = null;
+            OnPropertyChanged(nameof(WaitHistogramCaption));
             return;
         }
 
@@ -760,6 +762,8 @@ public partial class ResultsPanelViewModel : ObservableObject
             Serilog.Log.Warning(ex, "Waiting-time histogram could not be built in this context");
             WaitHistogramChart = null;
         }
+
+        OnPropertyChanged(nameof(WaitHistogramCaption));
     }
 
     // ── Header / banner ───────────────────────────────────────────────────
@@ -1207,8 +1211,15 @@ public partial class ResultsPanelViewModel : ObservableObject
 
     partial void OnIsWaitLogScaleChanged(bool value) => RebuildWaitHistogram();
 
-    /// <summary>Widget caption: names the binning policy.</summary>
-    public string WaitHistogramCaption => WaitHistogramService.Caption;
+    /// <summary>
+    /// Widget caption: the built line explains the zero mass, bin width and any
+    /// censored waits; before a run the neutral pre-run line is shown. The log
+    /// note is appended here because log state is a view concern the service
+    /// does not know (D-224 §5.6).
+    /// </summary>
+    public string WaitHistogramCaption => WaitHistogram is { HasSeries: true }
+        ? WaitHistogram.Caption + (IsWaitLogScale ? WaitHistogramService.LogScaleNote : string.Empty)
+        : WaitHistogramService.Caption;
 
     // ── Widget visibility (FR-UI-14, persisted via WidgetPreferences) ─────
 

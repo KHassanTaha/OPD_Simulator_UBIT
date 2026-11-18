@@ -661,3 +661,22 @@ per-session averages were diluted by one empty session, and the 28 is the model
 working. The fix list is therefore 8T.1 (sessions), 8T.2 (per-session figures so
 the difference between sessions is *shown* rather than inferred) and 8T.4 (the
 rejected-arrival note, so the 3,201 are accounted for).
+
+## Phase 8Z findings — the FEL always drains; the histogram's problem was binning (2026-11-19)
+
+**[VERIFIED] A GUI run never leaves a patient queued at the run end.** `RunCore`
+loops `while (fel.Count > 0)`. Arrivals stop at the close, but every busy server
+has a pending service-end event, so the loop cannot terminate until the system is
+empty. A patient queued at minute 165 is served during the drain and sampled at
+service start with the full wait. The earlier claim that the histogram "omits the
+longest waits" was therefore wrong for every GUI run; the visible problem was
+binning (16 equal-width bins over `[min, max]`, with one outlier flattening the
+non-zero waits), corrected in D-224.
+
+**[VERIFIED] `trace --patients N` is the only production early-stop caller.**
+`maxCompletedPatients` is passed only by `TraceCommand` (`horizonMinutes:
+10_000`); `SimulationCoordinator.Run` supplies a trace sink but no cap, so even
+DiagnosticTrace mode drains. `StageMetrics.UnfinishedWaitSamples` is therefore
+empty for every app run and non-empty only for capped trace runs. The engine work
+in 8Z is a correctness guarantee for those runs and a guard against a future
+stop mode — not the fix for the histogram the owner saw.

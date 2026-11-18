@@ -1,3 +1,18 @@
+## Verification — 2026-11-19 — Phase 8Z (waiting-time histogram bins, axes, censored waits; D-224, D-254)
+
+**Headless walkthrough (D-089 — no display on this host):** opened the production `MainWindow`, configured and ran a real three-stage clinic run through `SimulationCoordinator.Run`, delivered it through `ResultsPanelViewModel.CompleteRun` (the same seam the Start button uses), scrolled the single results sequence to the `Stage` dropdown, and toggled `IsWaitLogScale` (the property the "Log-scale Y axis" checkbox binds to). Observed on the actual `CartesianChart`: X axis named `Waiting time (minutes)`, Y axis named `Patients per bin` with integer ticks; after the toggle the Y axis became `LogarithmicAxis` named `Patients per bin (log scale)` and the caption gained ` · log scale hides empty bins`. The caption read `<n> waits · <z> had no wait · longest <t> min · <w>-min bins`, with 1–12 short range labels and no `[low, high)` strings. Frames: `logs/screenshots/phase-8z-wait-histogram-linear.png` (109 KB) and `logs/screenshots/phase-8z-wait-histogram-log.png` (112 KB).
+
+| Requirement / decision | How verified |
+|---|---|
+| FR-UI-4 — zero bar, ladder bins, overflow, named axes, integer ticks, log note, censored caption | 8Z service/chart tests (14) + VM caption test + the two headless frames above with axis-name and bar-count assertions |
+| D-224 — `Queue.Snapshot`, `UnfinishedWaitSamples`, engine wiring | 3 `Phase8ZCensoredWait` Core tests: truncated run records censored waits, drained run records none, snapshot is a copy |
+| D-254 — 8Z branched from 8Y tip before merge | `git diff --name-only b7fc136` (HEAD confirmed at the 8Y tip `b7fc136`, all 8Z work in the working tree) touches only the 8Z slice: Core `Queue.cs`/`StageMetrics.cs`/`Engine.cs`, App `WaitHistogramService.cs`/`ChartControlBuilder.cs`/`ResultsPanelViewModel.cs`, the 8Z tests + the retired 6c5 writer + two updated assertions, and the 9 living docs. No queue-chart (`QueueLengthChartService.cs`/`QueueTimeAxis.cs` untouched), config-panel, `TimeUnit`, Input-histogram, project or package file appears. `planning.md` is the owner's untracked brief and is **not** committed. Boundary is clean. |
+| D-166 — screenshot evidence append-only | `Phase6c5Screenshot.cs` deleted before the gate; `phase-6c5-charts.png` and `phase-6c2-histograms.png` untouched; new filenames only |
+| Gate | Release and Debug `--no-incremental` 0 errors / 0 warnings; full suite 993/993 green in both (Core 186 / Data 139 / Cli 45 / App 623); `Engine_` filter 15/15 green |
+
+- **Owner visual inspection of the two new frames remains required** (§18, B-012 — count now 31). No image input on this host (D-089), so the frames are structural evidence only.
+- **Plan deviations recorded:** §5.4's explicit `regularCount = min(10, ceil(maxPositive/width))` was applied as contiguous bins 0…regularCount−1 (the degenerate table's "one regular bar" shorthand is inconsistent with it); tooltip shares use the spec's `0.#` format, so 2/3 renders `66.7%` rather than the illustrative whole `67%`; §7.3's caption expression was extended to append the service-owned log note because log state is a view concern. The plan's `PatientsServed == WaitingTimeSamples.Count` claim (§6.1/§6.3) holds only for drained runs — on a truncated run completed wait samples (recorded at service start) can outnumber `PatientsServed` (counted at service end) by the patients in service at the stop; D-224, the engine comment and the StageMetrics doc now state this accurately.
+
 Session Handoff — 2026-11-19 01:52
 Branch: feat/queue-chart-operating-time
 Status: In-Progress (8Y pushed, awaiting owner review; 8Z not started)

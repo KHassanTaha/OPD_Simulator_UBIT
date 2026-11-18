@@ -70,6 +70,7 @@ public sealed class Engine
     // queue-length-over-time lines. Recorded only while a run is active, then
     // handed into StageMetrics and released so a later run starts clean.
     private List<WaitSample>[]? _stageWaitSamples;
+    private List<WaitSample>[]? _stageUnfinishedWaitSamples;
     private List<QueueSample>[]? _stageQueueSeries;
 
     // Per-session serving and queue-area accumulators (FR-STAT-9, D-201). The
@@ -332,6 +333,10 @@ public sealed class Engine
 
         // Chart-sample buffers, released into StageMetrics at the end.
         _stageWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<WaitSample>()).ToArray();
+        // Censored waits of patients still queued when the run stops (D-224).
+        // Kept separate so a made-up censored value never reaches the average
+        // wait; only the histogram consumes this buffer.
+        _stageUnfinishedWaitSamples = Enumerable.Range(0, stages.Length).Select(_ => new List<WaitSample>()).ToArray();
         _stageQueueSeries = Enumerable.Range(0, stages.Length).Select(_ => new List<QueueSample>()).ToArray();
 
         // Per-session serving and queue-area buffers (FR-STAT-9). A horizon run has a
@@ -456,6 +461,21 @@ public sealed class Engine
                 break;
         }
 
+        // Patients still QUEUED when the loop stopped have a censored wait:
+        // they have been waiting since arrival but have not started service.
+        // Patients in service are excluded — their wait ended at service start
+        // and they already have a completed sample (D-224). Every GUI run drains
+        // fully, so this loop normally adds nothing; it is a correctness guard
+        // for maxCompletedPatients (CLI `trace --patients N`) and future stops.
+        for (int i = 0; i < stages.Length; i++)
+        {
+            foreach (var patient in stages[i].Queue.Snapshot())
+            {
+                _stageUnfinishedWaitSamples![i].Add(
+                    new WaitSample(clock, clock - patient.ArrivalTime));
+            }
+        }
+
         // Operating time = time from first arrival (t=0) to last service end
         // (D-018). In a horizon run the FEL drains at the last service end, so
         // `clock` is exactly that (FR-SIM-6). In a calendar run the denominator
@@ -528,6 +548,7 @@ public sealed class Engine
                 PerServerUtilisation = perServerUtil,
                 ThroughputPerMinute = operatingTime > 0 ? servedHere / operatingTime : 0,
                 WaitingTimeSamples = _stageWaitSamples![i],
+                UnfinishedWaitSamples = _stageUnfinishedWaitSamples![i],
                 QueueLengthSeries = _stageQueueSeries![i],
                 // The scalars keep their original meaning: the state at the FINAL
                 // close of the run (D-193). The series carries one entry per
@@ -574,6 +595,7 @@ public sealed class Engine
             .Select(samples => (IReadOnlyList<double>)samples)
             .ToList();
         _stageWaitSamples = null;
+        _stageUnfinishedWaitSamples = null;
         _stageQueueSeries = null;
         _patientsServedBySession = null;
         _areaUnderQueueBySession = null;

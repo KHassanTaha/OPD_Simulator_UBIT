@@ -2269,6 +2269,14 @@ impact (positive and negative), alternatives considered.
 
 ### D-123 — waiting-time histogram: one stage at a time, base-10 log-scale drops zero bins, selector resets to first stage; headless chart tests must construct windows (6c.5) — 2026-09-17
 
+> **Superseded in part by D-224 (2026-11-19, Phase 8Z):** the one-stage-at-a-time
+> selector, reset-to-first-stage, log toggle and headless-window test pattern
+> **survive unchanged**. Only this decision's *binning* clauses (16 equal-width
+> bins over `[min, max]`, three-decimal `[low, high)` labels) and its *log-presentation*
+> clause (unexplained axis) are superseded — see D-224 for the zero bar, p95
+> ladder bins, overflow bar, named axes and integer ticks. Cross-reference
+> recorded at D-224's request.
+
 - **Decision:** The waiting-time distribution widget shows **one stage at a
   time** — a `SearchableDropdown` (Label "Stage", `HelpAnchor
   "waiting-time-histogram"`) over the stage names lets the user switch
@@ -3323,6 +3331,14 @@ plus the 8 px spacing, and each value cell hugs its text.
 
 ## D-201 — Per-session totals need collected data, so wait samples become timestamped (Phase 8T.2, owner ruling)
 
+> **Cross-reference (D-224, Phase 8Z):** this decision changed the *container*
+> of `WaitingTimeSamples` to `(Time, Minutes)` while leaving the wait value
+> untouched — that guarantee still holds, and the waiting-time histogram still
+> reads `Minutes` only. D-224 later reshaped the histogram's *binning* (zero
+> bar, p95 ladder bins, overflow, named axes) and added the separate
+> `UnfinishedWaitSamples` list for censored waits; it does not alter this
+> decision's timestamping or its byte-identical-bin gate.
+
 - **Date:** 2026-10-04
 - **Status:** Ruled by the owner 2026-10-04 (per-day totals must include served counts and wait times). **Recorded before implementation** — PRD v1.14.0 FR-STAT-9 + FR-UI-38; not yet built.
 - **Decision:** Collect per-session, per-stage served counts, mean queue wait and mean queue length. `StageMetrics.WaitingTimeSamples` changes from `IReadOnlyList<double>` to timestamped samples `(Time, Minutes)`. `PatientsServed` keeps its whole-run meaning; a per-session count is added beside it, never in place of it.
@@ -3560,3 +3576,22 @@ plus the 8 px spacing, and each value cell hugs its text.
 - **Cross-reference:** D-203 created the session selector and the 0…165 pin; this decision supersedes **only** its absolute-clock clause for `All sessions` and its hard 165 ceiling for a selected session. The selector, closed-day exclusion and reset behaviour from D-203 are unchanged.
 - **Amendment 2026-11-19 — D-166 violation during this phase:** the retired `Render_QueueSessionSelected_SavePhase8T3QueueSessionPng` frame test was executed once by a filtered `dotnet test` run *before* it was deleted, and it overwrote `logs/screenshots/phase-8t3-queue-session-selected.png` with the new 8Y rendering. The file is under gitignored `logs/`, so the old frame cannot be restored from git. This is a real, unrecoverable loss of the 8T.3 evidence picture; the correct order (delete the writer **before** any test run) was not followed. The writer is now deleted, the two new frames have distinct names, and B-012 records the incident. This is not a legal or academic issue — the work stays on a feature branch — but it is a gap in the viva evidence that must be stated honestly if asked.
 - **Alternatives considered:** keep a wall-clock/operating-time toggle (rejected by owner); keep the absolute clock and only break the line at closures (rejected by owner); overlay all days on one axis (rejected — loses per-day identity); drop idle sessions (rejected — owner confirmed every open session keeps a slot).
+
+## D-254 — Start Phase 8Z before 8Y is merged; branch from the 8Y tip, not `main` (owner ruling 2026-11-19)
+
+- **Date:** 2026-11-19
+- **Decision:** The owner said "Continue with 8Z for now, I will review and merge later." `planning.md` §8Z says the branch is `feat/wait-histogram-bins` off `main` *after 8Y is merged or rebased on it*. Since 8Y is not yet merged, this phase branches from `feat/queue-chart-operating-time` at `b7fc136` instead. The §8Z boundary check is therefore run against that base commit, not against `main`; a check against `main` would correctly list 8Y's files as well. PRD bumps v1.17.0 → v1.18.0, preserving 8Y's version.
+- **Rationale:** 8Z is code-independent of 8Y (it owns Core's censoring list and the wait-histogram builder; 8Y owns the queue chart), so no 8Y code is needed. Branching from the 8Y tip avoids merge conflicts in the shared docs and in `Phase6c5Screenshot.cs`, which 8Z deletes and 8Y modified. The owner's instruction authorises proceeding before review; the review gate still stands.
+- **Implementation details:** no new NuGet package, project, SDK, env var, config file or launch command. 8Z touches only `OpdSimulator.Core` censoring (`Queue.Snapshot`, `StageMetrics.UnfinishedWaitSamples`, engine wiring), `WaitHistogramService`, `ChartControlBuilder.BuildWaitHistogramChart`, the caption slice of `ResultsPanelViewModel`, and their tests/docs. It must not touch the queue chart, fit histogram, config panel or `TimeUnit`.
+- **Impact (+):** Sequence continues without blocking on review; merge order 8Y → 8Z stays clean. **Impact (−):** the branch carries 8Y's commits, so `git diff main...HEAD` is not a one-phase boundary until 8Y is merged; the honest check is against the recorded base.
+- **Alternatives considered:** branch off `main` as the plan literally says (rejected — conflicts with 8Y's docs and deleted test on merge); wait for owner merge (rejected — owner explicitly asked to continue).
+
+## D-224 — Waiting-time histogram: readable bins, labelled axes, and censored waits kept separate (Phase 8Z)
+
+- **Date:** 2026-11-19
+- **Decision:** The histogram replaces D-123's 16 equal-width bins over `[min, max]` and its unlabelled log axis with: one bar for exact zeros; up to ten fixed-width positive bins chosen from the ladder `{0.5, 1, 2, 5, 10, 15, 30, 60}` minutes so the 95th percentile fits; and an overflow bar above `10 × width` emitted only when non-zero. X labels become short ranges (`0`, `>0–1`, `1–2`, `>10`) with no brackets; tooltips read `"{label} min · {count} patients ({pct:0.#}%)"`. Both axes are named, the linear Y uses integer ticks (`MinStep = 1`), and the log mode keeps its name and a caption note that empty bins are hidden. Unfinished waits are recorded in a **new separate** `StageMetrics.UnfinishedWaitSamples` list, included in the histogram counts but disclosed separately in the caption. D-123's one-stage-at-a-time selector, reset-to-first, and log toggle survive; only its binning and log-presentation clauses are superseded.
+- **Rationale:** The owner saw four symptoms: unreadable three-decimal bracket labels, an unlabelled patient-count Y axis with fractional ticks, a mysterious log option, and a first bar that always dominated. The counts were verified correct — the tall first bar is a genuine point mass at wait = 0, and the shape was flattened by an outlier setting the bin width and by defaulting to the least-loaded stage. The plan's §3 also corrects an earlier claim: **GUI runs always drain, so unfinished waits are empty there**; `trace --patients N` (via `maxCompletedPatients`) is the only production caller that stops early. The engine change is a correctness guarantee for truncated runs and a guard against future stop modes, not the fix for the visible histogram.
+- **Implementation details:** `Queue.Snapshot()` returns `_queue.ToArray()` so end-of-run inspection cannot mutate engine state. After the FEL loop and before the `stageMetrics` projection, each stage's still-queued patients get `new WaitSample(clock, clock - patient.ArrivalTime)` in `_stageUnfinishedWaitSamples`; patients in service are excluded because their wait already ended at service start. The censored list never enters `WaitingTimeSamples`, so completed waits and every average stay free of made-up censored values; note that on a truncated run completed wait samples (recorded at service start) can outnumber `PatientsServed` (counted at service end) by exactly the patients in service at the stop — that divergence is expected, not a defect. Bin width comes from p95, not the maximum; values at a boundary fall in the right-inclusive bin `ceil(v/width) - 1`; `regularCount = min(10, ceil(maxPositive/width))`. The caption states total waits, the zero count, the longest wait, the bin width, and the unfinished count when present.
+- **Impact (+):** One glance explains the zero spike; one outlier cannot erase the shape; units are on the axes; truncated runs no longer lose their longest waits. **Impact (−):** the width ladder is discrete, so two similar loads can land in different bins; the overflow bar loses the exact tail shape; log mode still hides empty bins (named and captioned, not removed); the new list adds a small per-run allocation.
+- **Cross-reference:** supersedes D-123's binning and log-axis clauses; D-201's stage selector stays in force.
+- **Alternatives considered:** keep 16 equal bins and just add a zero bar (rejected — an outlier still flattens the shape); Freedman–Diaconis with overflow (rejected — data-dependent width makes two similar runs incomparable); percent-only Y axis (rejected — the owner asked for patient counts with a unit); remove log scale (rejected — owner asked to keep it but explain it).
