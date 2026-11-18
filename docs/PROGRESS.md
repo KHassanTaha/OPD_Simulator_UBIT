@@ -1,3 +1,72 @@
+Session Handoff — 2026-11-19 02:17
+Branch: feat/wait-histogram-bins
+Status: In-Progress (8Z code and docs complete and committed; owner review and visual inspection outstanding)
+
+Done
+8Z.1 — Core censoring: `Queue.Snapshot()`, `StageMetrics.UnfinishedWaitSamples`, engine wiring after the FEL loop, invariant corrected. `[~]` → `[x]` this session.
+
+8Z.2 — histogram binning: zero bar, p95 ladder width, overflow, short labels, percentages, caption, degenerate cases. `[~]` → `[x]` this session.
+
+8Z.3 — chart axes and tooltip: named axes, integer Y ticks, named log axis, short-label rotation, tooltip count/share. `[~]` → `[x]` this session.
+
+8Z.4 — caption wiring: `WaitHistogramCaption` from data, property-change on rebuild/clear/reset. `[~]` → `[x]` this session.
+
+8Z.5 — tests and frames: 3 Core + 14 App unit + 2 frame tests; retired 6c5 writer; updated old assertions. `[~]` → `[x]` this session.
+
+8Z.6 — gates: both builds 0/0, full suites green, clean boundary check against base `b7fc136`. `[~]` → `[x]` this session.
+
+8Z.7 — docs: PRD v1.18.0, REQUIREMENTS FR-UI-4, D-224/D-254 + D-123/D-201 cross-refs, PROGRESS §18, both manuals, DEV_LAUNCH, CONTEXT, BLOCKERS B-012 → 31 frames. `[~]` → `[x]` this session.
+
+In Progress
+None — every 8Z implementation task is `[x]` or `[?]`.
+
+What is complete:
+Phase 8Z is built, gated and committed on `feat/wait-histogram-bins` (branched from the 8Y tip `b7fc136`, D-254). The waiting-time histogram now has a dedicated zero bar, up to ten fixed-width positive bins chosen from the p95 ladder `{0.5, 1, 2, 5, 10, 15, 30, 60}`, a `> N` overflow bar, short range labels, named axes with integer patient ticks, a named log axis with a caption note, and a data-driven caption. The engine records censored waits for early-stopped runs in a separate `StageMetrics.UnfinishedWaitSamples` list, included in the bars but never in an average. The 6c5 screenshot writer was retired before the gate; `phase-6c5-charts.png` and `phase-6c2-histograms.png` are untouched. §18 headless walkthrough and verification table are at the top of `docs/PROGRESS.md`.
+
+What remains:
+Owner review and merge of `feat/queue-chart-operating-time` (8Y) **then** `feat/wait-histogram-bins` (8Z) — 8Z carries the 8Y commits until that merge. Owner visual inspection of `phase-8z-wait-histogram-linear.png` and `phase-8z-wait-histogram-log.png` (B-012, now 31 frames). Owner keyboard-only GUI acceptance (B-007) and Windows dead-state verification (B-006) also remain. Still awaiting owner review: `feat/foundation-unit-and-authority` (9P) and `feat/theory-tab` (9Q.3).
+
+Next Session Should Start With
+Owner review and merge of `feat/queue-chart-operating-time` (8Y), then `feat/wait-histogram-bins` (8Z).
+Owner visual inspection of the two new 8Z frames (B-012); then keyboard pass B-007 and Windows B-006.
+
+Blocked
+8Z.8 — owner visual review of the two new frames — `docs/BLOCKERS.md` B-012 (agent has no image input, D-089).
+
+Git State
+Commits made this session: `c35fe0d` feat: reshape wait histogram with readable bins and censored waits; plus a final `docs:` commit adding this handoff block.
+
+Pushed to origin: Yes — `feat/wait-histogram-bins` (both commits) pushed to origin; no PR opened, per owner instruction.
+
+Uncommitted changes: None. `planning.md` remains an untracked owner brief and was deliberately not committed.
+
+Build & Test
+dotnet build: PASS — Release and Debug `--no-incremental`, 0 warnings / 0 errors
+
+dotnet test: PASS — 993 passed, 0 failed in both Release and Debug (Core 186 / Data 139 / Cli 45 / App 623); `Engine_` filter 15/15
+
+Warnings: 0
+
+Files Touched
+src/: modified OpdSimulator.Core/Queues/Queue.cs, Engine/StageMetrics.cs, Engine/Engine.cs; OpdSimulator.App/Services/WaitHistogramService.cs, Services/ChartControlBuilder.cs, ViewModels/ResultsPanelViewModel.cs
+
+docs/: modified PRD.md, REQUIREMENTS.md, DECISIONS.md, CONTEXT.md, PROGRESS.md, TODO.md, DEV_LAUNCH.md, USER_MANUAL.md, USER_MANUAL_FULL.md, BLOCKERS.md
+
+tests/: added Phase8ZCensoredWaitTests.cs, Phase8ZWaitHistogramTests.cs, Phase8ZHistogramScreenshot.cs; deleted Phase6c5Screenshot.cs; modified Phase6c5ChartTests.cs, Phase6c6Screenshots.cs
+
+Decisions Made
+D-224 — waiting-time histogram bins, labelled axes, separate censored waits — `docs/DECISIONS.md` (Phase 8Z)
+
+D-254 — 8Z branched from 8Y tip before merge; boundary check vs recorded base, not main — `docs/DECISIONS.md`
+
+Assumptions Added/Changed
+[VERIFIED] A GUI run always drains: `RunCore` loops while the FEL is non-empty, so no patient is left queued at the end — `docs/CONTEXT.md` Phase 8Z findings.
+
+[VERIFIED] `trace --patients N` is the only production early-stop caller; `UnfinishedWaitSamples` is empty for every app run — `docs/CONTEXT.md` Phase 8Z findings.
+
+Notes for Next Session
+The D-166 incident is real and unrecoverable: a previous 8T3 writer overwrote `phase-8t3-queue-session-selected.png` before deletion. The two new 8Z frames use new filenames; do not overwrite them. `planning.md` is the owner's untracked brief — do not commit it without asking. A stash named "D-253 reopen 8Y docs" remains on `feat/foundation-unit-and-authority`; it can be dropped once the owner confirms those docs landed here. 8Z has not been rebased onto main; it intentionally carries the 8Y commits until the owner merges 8Y first.
+
 ## Verification — 2026-11-19 — Phase 8Z (waiting-time histogram bins, axes, censored waits; D-224, D-254)
 
 **Headless walkthrough (D-089 — no display on this host):** opened the production `MainWindow`, configured and ran a real three-stage clinic run through `SimulationCoordinator.Run`, delivered it through `ResultsPanelViewModel.CompleteRun` (the same seam the Start button uses), scrolled the single results sequence to the `Stage` dropdown, and toggled `IsWaitLogScale` (the property the "Log-scale Y axis" checkbox binds to). Observed on the actual `CartesianChart`: X axis named `Waiting time (minutes)`, Y axis named `Patients per bin` with integer ticks; after the toggle the Y axis became `LogarithmicAxis` named `Patients per bin (log scale)` and the caption gained ` · log scale hides empty bins`. The caption read `<n> waits · <z> had no wait · longest <t> min · <w>-min bins`, with 1–12 short range labels and no `[low, high)` strings. Frames: `logs/screenshots/phase-8z-wait-histogram-linear.png` (109 KB) and `logs/screenshots/phase-8z-wait-histogram-log.png` (112 KB).
