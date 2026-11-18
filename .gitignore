@@ -47,3 +47,6 @@ secrets.json
 # appsettings.json created by copying the template per DEV_LAUNCH §3)
 appsettings*.json
 !appsettings.template.json
+
+# Owner's local phase brief — never committed (planning.md is the source brief)
+planning.md
